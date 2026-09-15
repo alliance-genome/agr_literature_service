@@ -38,6 +38,7 @@ from agr_literature_service.api.models import (
     ModCorpusAssociationModel,
     ModModel,
     ReferenceModel,
+    TopicEntityTagModel,
     TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
@@ -55,7 +56,13 @@ GEO_CURIE_PREFIX = "GEO"
 DEFAULT_MOD_ABBREVIATION = "FB"
 
 HIGH_THROUGHPUT_ASSAY_ATP = "ATP:0000150"
-ECO_AUTOMATIC_ASSERTION = "ECO_0006156"
+# ECO:0006156 "documented statement evidence used in automatic assertion". The
+# ticket spells it ECO_0006156, but every other source row in the database uses
+# the colon form, and build_curie_to_name_map only resolves a name for values
+# matching startswith("ECO:") -- with the underscore the grid would show the raw
+# curie. load_pdb_associations.py has the underscore form and the two existing
+# rows it created need their own fix.
+ECO_AUTOMATIC_ASSERTION = "ECO:0006156"
 # ATP:0000335 "data novelty": the column is non-null and a GEO link says
 # nothing about whether the data is new, so the unspecific parent term is used
 # (the PDB pipeline does the same).
@@ -121,13 +128,20 @@ def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREV
 def _references_with_geo_xref(db: Session,
                               mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
                               limit: int = 0,
-                              since_days: int = 0) -> List[Tuple[int, str]]:
+                              since_days: int = 0,
+                              source_id: Optional[int] = None) -> List[Tuple[int, str]]:
     """Return [(reference_id, reference_curie), ...] for the MOD's corpus
-    references that carry at least one GEO cross-reference.
+    references that carry at least one GEO cross-reference and no tag from this
+    source yet.
 
     `since_days`, when > 0, restricts the result to references whose GEO
     cross-reference was created within the last N days -- what the weekly cron
     uses so that already-processed references are left alone.
+
+    `source_id`, when given, drops references this source has already tagged.
+    create_tag would catch them anyway with a 409, but building that 409's
+    detail calls get_tet_with_names, which does external A-team name lookups per
+    reference -- wasted work that dominates the runtime of a re-run.
     """
     q = (db.query(ReferenceModel.reference_id, ReferenceModel.curie)
          .join(CrossReferenceModel,
@@ -142,6 +156,13 @@ def _references_with_geo_xref(db: Session,
     threshold = _since_days_threshold(since_days)
     if threshold is not None:
         q = q.filter(CrossReferenceModel.date_created >= threshold)
+    if source_id is not None:
+        already_tagged = (
+            db.query(TopicEntityTagModel.topic_entity_tag_id)
+            .filter(TopicEntityTagModel.reference_id == ReferenceModel.reference_id,
+                    TopicEntityTagModel.topic == HIGH_THROUGHPUT_ASSAY_ATP,
+                    TopicEntityTagModel.topic_entity_tag_source_id == source_id))
+        q = q.filter(~already_tagged.exists())
     # A reference can carry several GEO series; it still gets one topic tag.
     q = q.distinct().order_by(ReferenceModel.reference_id)
     if limit > 0:
@@ -179,6 +200,10 @@ def _create_topic_tet(db: Session, source_id: Optional[int], reference_curie: st
     except HTTPException as e:
         if e.status_code == 409:
             counts["tet_skipped_duplicate"] += 1
+            # create_tag commits only when it inserts, so without this the read
+            # transaction opened by the first duplicate stays open for the whole
+            # run -- idle-in-transaction, blocking vacuum on topic_entity_tag.
+            db.rollback()
             return True
         db.rollback()
         counts["errors"] += 1
@@ -219,12 +244,13 @@ def load(mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
         source_id = get_or_create_source(db, mod_abbreviation, create=not dry_run)
         if references is None:
             references = _references_with_geo_xref(db, mod_abbreviation=mod_abbreviation,
-                                                   limit=limit, since_days=since_days)
+                                                   limit=limit, since_days=since_days,
+                                                   source_id=source_id)
         counts["refs_scanned"] = len(references)
         scope_msg = f" in the {mod_abbreviation} corpus"
         if since_days > 0:
             scope_msg += f" whose GEO xref was added in the last {since_days} day(s)"
-        logger.info("Found %d references with a GEO xref%s", len(references), scope_msg)
+        logger.info("Found %d untagged references with a GEO xref%s", len(references), scope_msg)
 
         consecutive_errors = 0
         for _reference_id, reference_curie in references:

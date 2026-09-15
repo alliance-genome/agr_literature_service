@@ -82,6 +82,48 @@ class TestGetOrCreateSource:
         assert source.secondary_data_provider_id == 7
 
 
+class TestReferenceQuery:
+    """The query needs a live Postgres to execute, but its shape can be asserted
+    by compiling it -- enough to pin the prefilter that keeps re-runs cheap."""
+
+    def _compiled_sql(self, **kwargs):
+        from sqlalchemy.orm import Session
+        import sqlalchemy.orm.query as query_module
+        captured = {}
+        real_all = query_module.Query.all
+
+        def capture(self):
+            captured["sql"] = str(self)
+            return []
+
+        query_module.Query.all = capture
+        try:
+            mod._references_with_geo_xref(Session(), **kwargs)
+        finally:
+            query_module.Query.all = real_all
+        return captured["sql"]
+
+    def test_skips_references_this_source_has_already_tagged(self):
+        """Without this, every already-tagged reference goes through create_tag
+        just to raise a 409 -- and the 409-detail path calls get_tet_with_names,
+        which does external A-team name lookups per reference."""
+        sql = self._compiled_sql(mod_abbreviation="FB", source_id=42)
+        assert "NOT (EXISTS" in sql
+        assert "topic_entity_tag" in sql
+
+    def test_no_prefilter_when_the_source_does_not_exist_yet(self):
+        """A dry run before the first live run has no source id; there can be no
+        tags from a source that does not exist."""
+        sql = self._compiled_sql(mod_abbreviation="FB", source_id=None)
+        assert "NOT (EXISTS" not in sql
+
+    def test_scopes_to_one_mods_corpus_and_non_obsolete_geo_xrefs(self):
+        sql = self._compiled_sql(mod_abbreviation="FB")
+        assert "mod_corpus_association.corpus IS true" in sql
+        assert "cross_reference.is_obsolete IS false" in sql
+        assert "DISTINCT" in sql
+
+
 class TestLoad:
 
     @patch.object(mod, "create_tag", return_value=(123, False))
@@ -102,6 +144,20 @@ class TestLoad:
     def test_existing_tag_counted_as_skipped(self, _uid, _source, _create_tag):
         counts = mod.load(db=MagicMock(), references=REFERENCES[:1])
         assert counts == {**EMPTY_COUNTS, "refs_scanned": 1, "tet_skipped_duplicate": 1}
+
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    def test_duplicate_skip_releases_the_read_transaction(self, _uid, _source):
+        """create_tag only commits when it inserts, so a run of pure duplicates
+        would otherwise hold one transaction open from the first reference to the
+        last -- idle-in-transaction against prod, blocking vacuum on a 3.5M-row
+        table."""
+        db = MagicMock()
+        with patch.object(mod, "create_tag",
+                          side_effect=HTTPException(status_code=409, detail="duplicate")):
+            mod.load(db=db, references=REFERENCES)
+
+        assert db.rollback.call_count == 2
 
     @patch.object(mod, "create_tag", return_value=(123, True))
     @patch.object(mod, "get_or_create_source", return_value=42)
@@ -220,4 +276,5 @@ class TestLoad:
             counts = mod.load(db=db, mod_abbreviation="FB", limit=5, since_days=7)
 
         assert counts["tet_created"] == 2
-        mock_query.assert_called_once_with(db, mod_abbreviation="FB", limit=5, since_days=7)
+        mock_query.assert_called_once_with(db, mod_abbreviation="FB", limit=5,
+                                           since_days=7, source_id=42)
