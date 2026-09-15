@@ -17,6 +17,18 @@ Two ways to run it:
                                            # in the last week, so a tag a
                                            # curator deleted is not recreated
 
+The weekly window keys on the GEO cross-reference date, so in principle a paper
+still awaiting triage when its GEO link arrives, and moved into the FB corpus
+more than a week later, would never be picked up again. Measured on stage that
+is nothing today: of 4774 FB corpus references with a GEO xref, 4770 were
+already in the corpus when the link arrived and none entered it more than 7 days
+afterwards -- FB papers join the corpus at ingest, and GEO links are attached
+later. Widening the window to mod_corpus_association.date_updated was rejected
+because that column moves on any edit to the row, which would recreate tags
+curators had deleted. If FB's triage ever starts lagging ingest, the lever is a
+periodic full pass (no --since-days), which is a curation decision for the same
+reason.
+
 There is deliberately no cleanup of tags whose GEO xref has gone away:
 backfill_geo_links only ever inserts GEO cross-references, so -- unlike the PDB
 pipeline, which diffs against a complete current view from RCSB -- there is no
