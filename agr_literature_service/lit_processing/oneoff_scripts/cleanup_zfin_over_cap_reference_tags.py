@@ -195,8 +195,13 @@ def cleanup_zfin_over_cap_reference_tags(delete: bool = False,
             db.commit()
             if revalidate:
                 try:
-                    revalidate_all_tags(curie_or_reference_id=str(reference_id))
+                    # SCRUM-6475: reuse this script's session instead of having
+                    # revalidate_all_tags build (and leak) an engine per reference.
+                    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
                 except Exception as e:  # best-effort: one failure must not abort the rest
+                    # Sharing the session means a failure leaves the transaction aborted,
+                    # so it has to be rolled back or every later reference fails too.
+                    db.rollback()
                     logger.warning("Revalidation failed for reference_id=%d: %s",
                                    reference_id, e)
         return counts

@@ -456,7 +456,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
                 db.commit()
-                revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id))
+                revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id), db=db)
         elif field == "mod_reference_types":
             for obj in value or []:
                 insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.mod_abbreviation, obj.reference_type,
@@ -1106,7 +1106,7 @@ def merge_references(db: Session,
             logger.warning("skipping topic_entity_tag during merge; already present on target reference")
     db.commit()
 
-    revalidate_all_tags(curie_or_reference_id=new_ref.curie)
+    revalidate_all_tags(curie_or_reference_id=new_ref.curie, db=db)
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
