@@ -144,6 +144,12 @@ from .person_email_schemas import (
     PersonEmailSchemaShow,
     PersonEmailSchemaRelated,
 )
+from .person_institution_schemas import (
+    PersonInstitutionSchemaCreate,
+    PersonInstitutionSchemaUpdate,
+    PersonInstitutionSchemaShow,
+    PersonInstitutionSchemaRelated,
+)
 from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaPost,
     PersonCrossReferenceSchemaUpdate,
