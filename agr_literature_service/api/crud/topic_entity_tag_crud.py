@@ -14,7 +14,8 @@ from time import perf_counter
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, or_, func, create_engine, text, inspect as sa_inspect
+from sqlalchemy import case, and_, or_, func, create_engine, select, text, inspect as sa_inspect
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
 
@@ -30,6 +31,7 @@ from agr_literature_service.api.models import (
     ReferenceModel, TopicEntityTagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
+from agr_literature_service.api.models.topic_entity_tag_model import topic_entity_tag_validation
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     get_current_workflow_status
 from agr_literature_service.api.models.audited_model import (
@@ -469,7 +471,35 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
                             detail=f"An error: '{e}' occurred when adding {reference_curie} into corpus/adding file needed tag")
 
 
+def decide_validation_value(own_negated, own_source_matches: bool, validating_negated_values: List):
+    """The validation rule itself, isolated from how the validating tags were gathered.
+
+    SCRUM-6474: two code paths need this verdict -- the ORM relationship walk below and
+    the in-memory graph walk used when recomputing a whole reference+MOD group -- so the
+    rule lives in exactly one place and the two cannot drift apart.
+
+    ``validating_negated_values`` holds the ``negated`` flag of every tag in the
+    transitive validation closure whose source has the validation type being computed.
+    """
+    if validating_negated_values:
+        values = list(validating_negated_values)
+        if own_source_matches:
+            values.append(own_negated)
+        if len(set(values)) == 1:
+            return "validated_right" if own_negated == values[0] else "validated_wrong"
+        return "validation_conflict"
+    if own_source_matches:
+        return "validated_right_self"
+    return "not_validated"
+
+
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
+    """Walk ``validated_by`` transitively via the ORM relationship and apply the rule.
+
+    Kept for callers that already hold eagerly-loaded tags (the values-only phase of
+    revalidate_all_tags). The create path uses the edge-map variant instead, which does
+    not lazy-load a relationship per node -- see recompute_validation_values_for_tags.
+    """
     validating_tags_values = []
     validating_tags_added_ids = set()
     validating_tags_to_add = [topic_entity_tag_db_obj]
@@ -485,17 +515,10 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
         validating_tags_values.extend(additional_validating_tag_values)
         validating_tags_added_ids.update(additional_validating_tag_ids)
         validating_tags_to_add.extend(additional_validating_tags)
-    if len(validating_tags_values) > 0:
-        if topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
-            validating_tags_values.append(topic_entity_tag_db_obj.negated)
-        if len(set(validating_tags_values)) == 1:
-            return "validated_right" if topic_entity_tag_db_obj.negated == validating_tags_values[0] else \
-                "validated_wrong"
-        else:
-            return "validation_conflict"
-    elif topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
-        return "validated_right_self"
-    return "not_validated"
+    return decide_validation_value(
+        topic_entity_tag_db_obj.negated,
+        topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type,
+        validating_tags_values)
 
 
 def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
@@ -670,7 +693,7 @@ def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
 
 
 def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
-                                                  calculate_validation_values: bool = True):
+                                                  pending_edges: List[Tuple[int, int]]):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
     more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
@@ -688,8 +711,7 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                     # Check data novelty
                     if tag_in_db.data_novelty in more_generic_novelty:
-                        add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                             calculate_validation_values=calculate_validation_values)
+                        add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
     # validate pure entity-only tags if the new tag is a mixed topic + entity tag for the same entity
     if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_tags_in_db:
@@ -697,12 +719,11 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                     and tag_in_db.entity_type in more_generic_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
                 if tag_in_db.data_novelty in more_generic_novelty:
-                    add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
 
 
 def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
-                                                  calculate_validation_values: bool = True):
+                                                  pending_edges: List[Tuple[int, int]]):
     # 1. new tag negative, existing tag positive = validate existing (wrong) if existing is more specific
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
     more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
@@ -719,8 +740,7 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                     if tag_in_db.data_novelty in more_specific_novelty:
-                        add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                             calculate_validation_values=calculate_validation_values)
+                        add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
     # validate existing tag only if it is positive
     if new_tag_obj.topic == new_tag_obj.entity_type:
@@ -729,12 +749,11 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
                     and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
                 if tag_in_db.data_novelty in more_specific_novelty:
-                    add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
 
 
 def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, related_validating_tags_in_db,
-                                        calculate_validation_values: bool = True):
+                                        pending_edges: List[Tuple[int, int]]):
     # 1. new tag positive, existing tag positive = validate new tag (right) if existing is more specific
     # 2. new tag negative, existing tag positive = validate new tag (wrong) if existing is more specific
     # 3. new tag positive, existing tag negative = validate new tag (wrong) if existing is more generic
@@ -758,15 +777,13 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
-                    add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
         elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics
               and tag_in_db.data_novelty in more_generic_novelty):
             if tag_in_db.entity_type is None or (tag_in_db.entity_type in more_generic_entity_types
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
-                    add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
     # validate positive or negative new tag only if existing is positive
     if new_tag_obj.topic == new_tag_obj.entity_type:
@@ -774,8 +791,7 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
             if (tag_in_db.entity_type != tag_in_db.topic and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.negated is False):
                 if tag_in_db.data_novelty in more_specific_novelty:
-                    add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
     # if the new tag is a mixed topic + entity tag and there are pure entity-only tags with the same entity
     # validate only positive new tag if existing is negative
     if new_tag_obj.negated is False and new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
@@ -783,33 +799,154 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
             if (tag_in_db.negated is True and tag_in_db.topic == tag_in_db.entity_type
                     and tag_in_db.entity_type in more_generic_entity_types
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.data_novelty in more_generic_novelty):
-                add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                     calculate_validation_values=calculate_validation_values)
+                add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
 
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
-                         calculate_validation_values: bool = True):
-    logger.info(f"Adding validation: tag {validated_tag.topic_entity_tag_id} validated by tag {validating_tag.topic_entity_tag_id}")
-    # topic_entity_tag_validation is a set-membership join table (composite PK, no other
-    # columns). The overlapping validation rules can re-assert the same (validated,
-    # validating) pair within a single pass -- e.g. a pure-entity companion tag matched by
-    # the originating mixed tag under more than one rule -- so the insert must be idempotent.
-    # A bare INSERT would raise UniqueViolation and abort the whole validation pass.
-    result = db.execute(text("INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-                             "validating_topic_entity_tag_id) VALUES (:validated_id, :validating_id) "
-                             "ON CONFLICT DO NOTHING"),
-                        {"validated_id": validated_tag.topic_entity_tag_id,
-                         "validating_id": validating_tag.topic_entity_tag_id})
-    if result.rowcount == 0:
-        # Pair already recorded; nothing changed, so there is nothing to recompute.
+                         pending_edges: List[Tuple[int, int]]):
+    """Record that ``validated_tag`` is validated by ``validating_tag``.
+
+    SCRUM-6474: this used to INSERT the edge, COMMIT, re-SELECT the validated tag with no
+    loader options and recompute both of its rollup columns -- for every single edge. One
+    POST could therefore issue hundreds of round trips and hundreds of commits, and since
+    the session uses the default expire_on_commit=True each of those commits expired the
+    whole identity map, so nothing stayed cached from one edge to the next.
+
+    The pair is only collected here; validate_tags writes the batch in one statement and
+    recomputes once. That is equivalent, not merely cheaper: a tag's rollup is a pure
+    function of the edge set -- decide_validation_value reads `negated` and
+    `validation_type`, never another tag's computed value -- so there is no fixed point to
+    iterate towards and no order dependence. Evaluating it once over the final edge set
+    gives the same answer as evaluating it after each insert, on strictly more complete
+    input.
+    """
+    # Logged at debug: this fires once per edge, and at INFO it was itself a measurable
+    # part of the per-edge cost this ticket is about.
+    logger.debug("Recording validation: tag %s validated by tag %s",
+                 validated_tag.topic_entity_tag_id, validating_tag.topic_entity_tag_id)
+    pending_edges.append((validated_tag.topic_entity_tag_id, validating_tag.topic_entity_tag_id))
+
+
+def flush_validation_edges(db: Session, pending_edges: List[Tuple[int, int]]) -> bool:
+    """Write the collected validation edges in a single statement.
+
+    Returns True when at least one edge was genuinely new.
+
+    topic_entity_tag_validation is a set-membership join table (composite PK, no other
+    columns) and the overlapping validation rules can re-assert the same (validated,
+    validating) pair within one pass -- e.g. a pure-entity companion tag matched by the
+    originating mixed tag under more than one rule -- so the insert stays idempotent via
+    ON CONFLICT DO NOTHING; a bare INSERT would raise UniqueViolation and abort the pass.
+
+    RETURNING reports only the rows actually written, which preserves the rowcount == 0
+    short-circuit the per-edge version relied on: an edge that was already recorded does
+    not count as a change and so does not trigger a recompute.
+
+    Pairs are de-duplicated and sorted so concurrent passes touching overlapping edges
+    take row locks in a consistent order.
+    """
+    if not pending_edges:
+        return False
+    unique_edges = sorted(set(pending_edges))
+    statement = pg_insert(topic_entity_tag_validation).values(
+        [{"validated_topic_entity_tag_id": validated_id,
+          "validating_topic_entity_tag_id": validating_id}
+         for validated_id, validating_id in unique_edges]
+    ).on_conflict_do_nothing().returning(
+        topic_entity_tag_validation.c.validated_topic_entity_tag_id)
+    inserted = db.execute(statement).fetchall()
+    logger.info("Wrote %s new validation edge(s) from %s candidate pair(s)",
+                len(inserted), len(unique_edges))
+    return len(inserted) > 0
+
+
+def load_validation_edge_map(db: Session, tag_ids: Set[int]) -> Tuple[Dict[int, List[int]], Set[int]]:
+    """Load the validation edges reachable from ``tag_ids``, following them transitively.
+
+    Returns ``(edges, all_tag_ids)`` where ``edges`` maps a validated tag id to the ids of
+    the tags that validate it, and ``all_tag_ids`` is every tag touched (the inputs plus
+    their transitive closure). One query per level of depth; the graph is shallow in
+    practice, so this is a small constant rather than the per-node relationship load the
+    ORM walk performs.
+    """
+    edges: Dict[int, List[int]] = defaultdict(list)
+    seen: Set[int] = set()
+    frontier = set(tag_ids)
+    while frontier:
+        rows = db.execute(
+            select(topic_entity_tag_validation.c.validated_topic_entity_tag_id,
+                   topic_entity_tag_validation.c.validating_topic_entity_tag_id)
+            .where(topic_entity_tag_validation.c.validated_topic_entity_tag_id.in_(frontier))
+        ).all()
+        seen.update(frontier)
+        next_frontier: Set[int] = set()
+        for validated_id, validating_id in rows:
+            edges[validated_id].append(validating_id)
+            if validating_id not in seen:
+                next_frontier.add(validating_id)
+        frontier = next_frontier
+    return edges, seen
+
+
+def validation_value_from_edge_map(tag: TopicEntityTagModel, validation_type: str,
+                                   edges: Dict[int, List[int]],
+                                   tags_by_id: Dict[int, TopicEntityTagModel]):
+    """calculate_validation_value_for_tag, but walking a preloaded edge map.
+
+    Same traversal and same verdict as the ORM version -- both end in
+    decide_validation_value -- without lazy-loading `validated_by` at every node.
+    """
+    validating_negated_values: List = []
+    visited = {tag.topic_entity_tag_id}
+    to_visit = [tag.topic_entity_tag_id]
+    while to_visit:
+        current_id = to_visit.pop()
+        for validating_id in edges.get(current_id, ()):
+            if validating_id in visited:
+                continue
+            validating_tag = tags_by_id.get(validating_id)
+            if validating_tag is None or \
+                    validating_tag.topic_entity_tag_source.validation_type != validation_type:
+                # Non-matching sources are not traversed, matching the ORM walk: the
+                # closure for a validation type only runs through tags of that type.
+                continue
+            visited.add(validating_id)
+            validating_negated_values.append(validating_tag.negated)
+            to_visit.append(validating_id)
+    return decide_validation_value(
+        tag.negated,
+        tag.topic_entity_tag_source.validation_type == validation_type,
+        validating_negated_values)
+
+
+def recompute_validation_values_for_tags(db: Session, tag_ids: Set[int]):
+    """Recompute both rollup columns for ``tag_ids`` from a single load of the edge graph.
+
+    SCRUM-6474: replaces re-walking the ORM relationship (and re-querying) once per tag.
+    Costs one query per graph level plus one query for the tags, instead of a
+    `validated_by` load for every node of every tag's closure, twice over (once for the
+    curator axis, once for the author axis).
+    """
+    tag_ids = {tag_id for tag_id in tag_ids if tag_id is not None}
+    if not tag_ids:
         return
-    if calculate_validation_values:
-        logger.info("Committing validation insert and recalculating validation values")
-        db.commit()
-        validated_tag_obj = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
-        set_validation_values_to_tag(validated_tag_obj)
-        logger.info(f"Validation values updated for tag {validated_tag.topic_entity_tag_id}")
+    edges, all_tag_ids = load_validation_edge_map(db, tag_ids)
+    tags_by_id = {
+        tag.topic_entity_tag_id: tag
+        for tag in db.query(TopicEntityTagModel).options(
+            joinedload(TopicEntityTagModel.topic_entity_tag_source)
+        ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids)).all()
+    }
+    for tag_id in tag_ids:
+        tag = tags_by_id.get(tag_id)
+        if tag is None:
+            continue
+        disable_set_updated_by_onupdate(tag)
+        disable_set_date_updated_onupdate(tag)
+        tag.validation_by_professional_biocurator = validation_value_from_edge_map(
+            tag, ATP_ID_SOURCE_CURATOR, edges, tags_by_id)
+        tag.validation_by_author = validation_value_from_edge_map(
+            tag, ATP_ID_SOURCE_AUTHOR, edges, tags_by_id)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
@@ -836,6 +973,9 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     all_related_tags = related_tags_in_db
     related_tags_in_db = [tag for tag in related_tags_in_db if
                           tag.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id]
+    # SCRUM-6474: the rules below collect (validated, validating) pairs here instead of
+    # inserting and committing one at a time; the whole batch is written once, below.
+    pending_edges: List[Tuple[int, int]] = []
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
     logger.info(f"Found {str(len(related_tags_in_db))} related tags")
@@ -844,11 +984,9 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         if new_tag_obj.topic_entity_tag_source.validation_type is not None:
             logger.info(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
             if new_tag_obj.negated is False:
-                validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db,
-                                                              calculate_validation_values=calculate_validation_values)
+                validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
             else:
-                validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db,
-                                                              calculate_validation_values=calculate_validation_values)
+                validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
             logger.info("Existing tag validation completed")
         # Validate current tag with existing ones
         if validate_new_tag:
@@ -856,30 +994,42 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
                                              related_tag.validation_type is not None]
             logger.info(f"Validating new tag with {len(related_validating_tags_in_db)} existing validating tags")
             validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db,
-                                                calculate_validation_values=calculate_validation_values)
+                                                pending_edges)
             logger.info("New tag validation completed")
+    # Write every edge discovered above in one statement. This runs regardless of
+    # calculate_validation_values: the sweep in revalidate_all_tags still needs the edges,
+    # it just defers the rollups to its own values-only phase.
+    edges_changed = flush_validation_edges(db, pending_edges)
     if calculate_validation_values:
-        logger.info("Calculating validation values for new tag")
-        set_validation_values_to_tag(new_tag_obj)
+        if edges_changed:
+            # SCRUM-6474: recompute every tag on this reference+MOD in one pass.
+            #
+            # This replaces a fan-out that recomputed the same group but only when the NEW
+            # tag itself landed in validation_conflict. That condition is a proxy for
+            # "something downstream may have changed", and it misses the case where the new
+            # tag is the deepest node of a chain: an intermediate tag goes into conflict
+            # while the new tag reads validated_right_self, so nothing fired and an
+            # ancestor kept a value computed before this tag existed. Reachable because the
+            # validation relation is not transitive -- it composes the positive rule
+            # (ancestors) with the negative rule (descendants), so a valid two-hop path can
+            # have endpoints in no hierarchy relation and thus no direct edge.
+            #
+            # "Did the edge set change?" is the exact condition rather than a proxy, and it
+            # is now cheap enough to always ask: the group costs one query per graph level
+            # plus an in-memory walk, where it used to cost relationship loads per tag.
+            group_tag_ids = {related_tag.topic_entity_tag_id for related_tag in all_related_tags}
+            group_tag_ids.add(new_tag_obj.topic_entity_tag_id)
+            logger.info("Recomputing validation values for %s tag(s) on the reference", len(group_tag_ids))
+            recompute_validation_values_for_tags(db, group_tag_ids)
+        else:
+            # No edge changed, so no existing tag's rollup can have changed either; only
+            # the new tag still needs its own values written. This is the common case --
+            # most references have no validation edges at all.
+            logger.info("No validation edges changed; setting values for the new tag only")
+            set_validation_values_to_tag(new_tag_obj)
     if commit_changes:
         logger.info("Committing validation changes")
         db.commit()
-    if new_tag_obj.validation_by_professional_biocurator == "validation_conflict" or \
-            new_tag_obj.validation_by_author == "validation_conflict":
-        logger.info("Validation conflict detected, batch loading related tags for revalidation")
-        # Optimize: Batch load all related tags at once with eager loading
-        related_tag_ids = [related_tag.topic_entity_tag_id for related_tag in related_tags_in_db]
-        if related_tag_ids:
-            related_tag_objs = db.query(TopicEntityTagModel).options(
-                joinedload(TopicEntityTagModel.topic_entity_tag_source),
-                joinedload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.topic_entity_tag_source)
-            ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(related_tag_ids)).all()
-            logger.info(f"Setting validation values for {len(related_tag_objs)} conflicting tags")
-            for related_tag_obj in related_tag_objs:
-                set_validation_values_to_tag(related_tag_obj)
-        if commit_changes:
-            logger.info("Committing conflict resolution changes")
-            db.commit()
     return all_related_tags
 
 
