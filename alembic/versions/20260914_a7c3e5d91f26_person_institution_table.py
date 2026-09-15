@@ -218,16 +218,27 @@ def upgrade():
     #    guard skips only an exact (person, trimmed value) match, so array
     #    values the curator did NOT retype are still restored. It also makes the
     #    backfill safe to re-run.
+    #
+    #    date_updated is set equal to date_created, matching what
+    #    AuditedModel.before_insert does for every row created through the ORM
+    #    ("if date_created is not None and date_updated is None: date_updated =
+    #    date_created"). Leaving it NULL would make these the only rows in any
+    #    person child table without a date_updated -- person_email, person_name
+    #    and person_note have none -- which shows up two ways: list_for_person
+    #    orders by date_updated DESC NULLS LAST, so backfilled rows would always
+    #    sort below hand-entered ones, and the editor renders no timestamp label
+    #    at all for a row whose date_updated is null.
     # ------------------------------------------------------------------
     if _col_exists(conn, "person", "institution"):
         op.execute(
             """
             INSERT INTO person_institution
                 (person_id, institution, date_made_old_institution,
-                 date_created, created_by, updated_by)
+                 date_created, date_updated, created_by, updated_by)
             SELECT p.person_id,
                    btrim(t.elem),
                    NULL,
+                   COALESCE(p.date_created, now()),
                    COALESCE(p.date_created, now()),
                    p.created_by,
                    p.updated_by
