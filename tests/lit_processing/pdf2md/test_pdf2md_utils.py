@@ -9,6 +9,7 @@ Tests cover:
 - PDF file retrieval
 - Processing result structures
 """
+import itertools
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -240,8 +241,12 @@ class TestPollPdfxStatus:
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
     def test_polls_until_complete(self, mock_get, mock_time, mock_sleep):
         """Test that polling continues until complete."""
-        # Simulate time passing
-        mock_time.side_effect = [0, 5, 10, 15, 20]
+        # Simulate time passing. Patching pdf2md_utils.time.time patches the
+        # global time module, and logging's LogRecord also calls time.time()
+        # for its timestamp when the module logger is enabled, so the clock
+        # must not be a finite list (a StopIteration there once broke this
+        # test when a fileConfig change re-enabled the logger).
+        mock_time.side_effect = itertools.count(0, 5)
 
         pending_response = MagicMock()
         pending_response.json.return_value = {"status": "processing"}
