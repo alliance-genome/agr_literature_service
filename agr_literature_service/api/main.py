@@ -33,6 +33,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 manual_indexing_tag_router, person_router,
                                                 person_cross_reference_router, person_name_router,
                                                 person_note_router, person_email_router,
+                                                person_institution_router,
                                                 person_setting_router, ontology_router,
                                                 person_lineage_router,
                                                 person_lineage_submission_router, laboratory_router,
@@ -126,6 +127,7 @@ app.include_router(person_name_router.router)
 app.include_router(person_note_router.router)
 app.include_router(person_setting_router.router)
 app.include_router(person_email_router.router)
+app.include_router(person_institution_router.router)
 app.include_router(person_lineage_router.router)
 app.include_router(person_lineage_submission_router.router)
 app.include_router(laboratory_router.router)
