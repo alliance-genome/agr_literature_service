@@ -3,10 +3,12 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import text
 from starlette.testclient import TestClient
 from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags
 from agr_literature_service.api.models import TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
 from ..fixtures import db # noqa
@@ -3533,3 +3535,206 @@ class TestMixedTagCompanionEntityTag:
             mixed = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
             assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
+
+
+class TestRevalidationInvariants:
+    """SCRUM-6471/6474/6475: guards for the revalidation path.
+
+    The rules themselves are covered extensively above. These cover the paths that
+    rebuild validation state, which previously had no tests at all: nothing in this file
+    referenced revalidate_all_tags, validation_values_only or delete_all_first.
+    """
+
+    ANCESTORS = {
+        "ATP:0000079": ["ATP:0000009", "ATP:0000002", "ATP:0000001"],
+        "ATP:0000082": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+        "ATP:0000083": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+        "ATP:0000084": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+    }
+    DESCENDANTS = {
+        "ATP:0000009": ["ATP:0000079", "ATP:0000080", "ATP:0000081",
+                        "ATP:0000082", "ATP:0000083", "ATP:0000084"],
+        "ATP:0000079": ["ATP:0000082", "ATP:0000083", "ATP:0000084"],
+    }
+
+    def _curator_source(self, client, headers, mod):
+        resp = client.post(url="/topic_entity_tag/source", headers=headers, json={
+            "source_evidence_assertion": "ATP:0000036",
+            "source_method": "abc_literature_system",
+            "validation_type": "professional_biocurator",
+            "description": "curator from ABC",
+            "data_provider": "WB",
+            "secondary_data_provider_abbreviation": mod.new_mod_abbreviation,
+        })
+        return resp.json()["topic_entity_tag_source_id"]
+
+    def _tag(self, client, headers, reference_curie, source_id, topic, negated):
+        resp = client.post(url="/topic_entity_tag/", headers=headers, json={
+            "reference_curie": reference_curie,
+            "topic": topic,
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": source_id,
+            "negated": negated,
+            "data_novelty": "ATP:0000334",
+        })
+        assert resp.status_code in (status.HTTP_200_OK, status.HTTP_201_CREATED), resp.text
+        return resp.json()["topic_entity_tag_id"]
+
+    @staticmethod
+    def _state(session, reference_id):
+        """Rollup values plus the edge set for one reference."""
+        session.expire_all()
+        rollups = {
+            tag.topic_entity_tag_id: (tag.validation_by_professional_biocurator,
+                                      tag.validation_by_author)
+            for tag in session.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.reference_id == reference_id).all()
+        }
+        edges = set(session.execute(text(
+            "SELECT v.validated_topic_entity_tag_id, v.validating_topic_entity_tag_id "
+            "FROM topic_entity_tag_validation v "
+            "JOIN topic_entity_tag t ON t.topic_entity_tag_id = v.validated_topic_entity_tag_id "
+            "WHERE t.reference_id = :r"), {"r": reference_id}).all())
+        return rollups, edges
+
+    def _build_validated_reference(self, client, headers, mod, reference_curie):
+        """A generic tag validated by a specific one, plus a contradicting specific tag."""
+        source_id = self._curator_source(client, headers, mod)
+        self._tag(client, headers, reference_curie, source_id, "ATP:0000009", False)
+        self._tag(client, headers, reference_curie, source_id, "ATP:0000079", False)
+        self._tag(client, headers, reference_curie, source_id, "ATP:0000082", True)
+        return source_id
+
+    def _patched(self):
+        return (
+            patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors",
+                  side_effect=lambda onto_node: self.ANCESTORS.get(onto_node, [])),
+            patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants",
+                  side_effect=lambda onto_node: self.DESCENDANTS.get(onto_node, [])),
+            patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                  return_value={}),
+        )
+
+    def test_incremental_validation_matches_full_revalidation(self, test_reference, test_mod,  # noqa
+                                                              auth_headers, db):  # noqa
+        """SCRUM-6474: the state left by incremental create_tag calls must equal the state
+        a from-scratch rebuild of the same reference produces.
+
+        This is the property the old per-edge commits existed to protect, and it is what
+        makes it safe to write every edge in one statement and roll up once at the end.
+        It also covers the fan-out widening: the previous code only recomputed the rest of
+        the group when the NEW tag itself landed in validation_conflict, so a tag that was
+        not directly touched could keep a stale value -- which would show up here as a
+        difference between the incremental and rebuilt state.
+        """
+        load_name_to_atp_and_relationships_mock()
+        anc, desc, names = self._patched()
+        with TestClient(app) as client, anc, desc, names:
+            self._build_validated_reference(client, auth_headers, test_mod,
+                                            test_reference.new_ref_curie)
+            reference_id = test_reference.related_ref_id
+            incremental = self._state(db, reference_id)
+            assert incremental[1], "expected the fixture to produce validation edges"
+
+            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+            rebuilt = self._state(db, reference_id)
+
+            assert rebuilt[0] == incremental[0], "rollup values drifted from a full rebuild"
+            assert rebuilt[1] == incremental[1], "edge set drifted from a full rebuild"
+
+    def test_revalidate_all_tags_is_idempotent(self, test_reference, test_mod, auth_headers, db):  # noqa
+        """SCRUM-6474: rebuilding twice must be stable.
+
+        Exercises the batched INSERT ... ON CONFLICT DO NOTHING ... RETURNING path on a
+        second pass, where every edge already exists and so nothing should be reported as
+        newly inserted.
+        """
+        load_name_to_atp_and_relationships_mock()
+        anc, desc, names = self._patched()
+        with TestClient(app) as client, anc, desc, names:
+            self._build_validated_reference(client, auth_headers, test_mod,
+                                            test_reference.new_ref_curie)
+            reference_id = test_reference.related_ref_id
+
+            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+            first = self._state(db, reference_id)
+            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+            second = self._state(db, reference_id)
+
+            assert second == first, "a second rebuild changed the validation state"
+
+    def test_values_only_revalidation_is_scoped_to_its_reference(self, test_reference,  # noqa
+                                                                 test_reference2, test_mod,  # noqa
+                                                                 auth_headers, db):  # noqa
+        """SCRUM-6475: a values-only rebuild scoped to one reference must not touch others.
+
+        The reference filter used to sit inside `if not validation_values_only`, so
+        passing validation_values_only=True silently recomputed every tag in the database.
+        Asserted by deliberately corrupting a second reference's stored values and
+        checking they survive a values-only rebuild of the first.
+        """
+        load_name_to_atp_and_relationships_mock()
+        anc, desc, names = self._patched()
+        with TestClient(app) as client, anc, desc, names:
+            self._build_validated_reference(client, auth_headers, test_mod,
+                                            test_reference.new_ref_curie)
+            self._build_validated_reference(client, auth_headers, test_mod,
+                                            test_reference2.new_ref_curie)
+            target = test_reference.related_ref_id
+            other = test_reference2.related_ref_id
+            assert target != other, "expected two distinct references"
+
+            sentinel = "SENTINEL_NOT_RECOMPUTED"
+            db.execute(text("UPDATE topic_entity_tag SET validation_by_professional_biocurator = :s "
+                            "WHERE reference_id = :r"), {"s": sentinel, "r": other})
+            db.commit()
+
+            revalidate_all_tags(curie_or_reference_id=str(target), validation_values_only=True, db=db)
+
+            db.expire_all()
+            untouched = {row[0] for row in db.execute(text(
+                "SELECT DISTINCT validation_by_professional_biocurator FROM topic_entity_tag "
+                "WHERE reference_id = :r"), {"r": other}).all()}
+            assert untouched == {sentinel}, (
+                "a values-only rebuild scoped to one reference recomputed another reference")
+
+    def test_revalidate_all_tags_ignores_unknown_curie(self, db):  # noqa
+        """SCRUM-6471: an unmatched curie is a no-op, not a crash and not a full sweep.
+
+        reference_id used to be assigned the Query object itself; the implicit coercion to
+        a scalar subquery yielded NULL for an unknown curie, so the call silently did
+        nothing. It is now resolved with .scalar() and reported.
+        """
+        revalidate_all_tags(curie_or_reference_id="AGRKB:000000000000000", db=db)
+
+
+class TestAtpChildrenCaching:
+    """SCRUM-6474: the ATP child lookup must cache negative results.
+
+    _get_atp_children only wrote to the cache when a term had children, so every leaf
+    term re-hit the A-Team API on every call -- 144 of the 176 ATP terms are leaves, and
+    the validation rules call get_descendants several times per tag. Measured at ~598ms
+    per lookup before the fix.
+    """
+
+    def test_leaf_term_children_are_cached(self):
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+
+        saved = dict(helpers.atp_to_children)
+        helpers.atp_to_children.clear()
+        try:
+            with patch.object(helpers, "_get_client") as mock_client:
+                # A term with no children: the client must be consulted once, then never
+                # again, otherwise every rule evaluation pays a network round trip.
+                mock_client.return_value.get_atp_descendants.return_value = []
+                assert helpers._get_atp_children("ATP:leafterm") == []
+                assert helpers._get_atp_children("ATP:leafterm") == []
+                assert helpers._get_atp_children("ATP:leafterm") == []
+                assert mock_client.return_value.get_atp_descendants.call_count == 1, (
+                    "childless ATP terms are not being cached; every lookup re-hits the API")
+        finally:
+            helpers.atp_to_children.clear()
+            helpers.atp_to_children.update(saved)
