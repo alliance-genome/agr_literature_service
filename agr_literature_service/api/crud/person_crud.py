@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from agr_literature_service.api.models import (
     PersonModel,
     PersonEmailModel,
+    PersonInstitutionModel,
     PersonCrossReferenceModel,
     PersonNameModel,
     PersonNoteModel,
@@ -71,6 +72,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
 
     # Create the Person row first
     emails_data = data.pop("emails", None)
+    institutions_data = data.pop("institutions", None)
     xrefs_data = data.pop("cross_references", None)
     names_data = data.pop("names", None)
     notes_data = data.pop("notes", None)
@@ -156,6 +158,19 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
                     person_id=obj.person_id,
                     email_address=email_addr,
                     date_made_old_email=e.get("date_made_old_email"),
+                )
+            )
+
+    # Create child institutions. No duplicate check: unlike emails, the same
+    # institution may legitimately appear twice for one person (an old row and a
+    # new active row) because people return to institutions.
+    if institutions_data:
+        for inst in institutions_data:
+            db.add(
+                PersonInstitutionModel(
+                    person_id=obj.person_id,
+                    institution=inst["institution"],
+                    date_made_old_institution=inst.get("date_made_old_institution"),
                 )
             )
 
@@ -257,13 +272,13 @@ def patch(db: Session, curie_or_person_id: str, patch_dict: Dict[str, Any]) -> D
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     # update only scalar/column fields; skip relationship fields
-    RELATIONSHIP_FIELDS = {"emails", "cross_references", "names", "notes"}
+    RELATIONSHIP_FIELDS = {"emails", "institutions", "cross_references", "names", "notes"}
     for field, _value in list(data.items()):
         if field in RELATIONSHIP_FIELDS:
             data.pop(field, None)
 
     ALLOWED = {
-        "display_name", "mod_roles", "institution",
+        "display_name", "mod_roles",
         "webpage", "active_status", "privacy",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
@@ -290,6 +305,7 @@ def show(db: Session, curie_or_person_id: str) -> PersonModel:
         db.query(PersonModel)
         .options(
             selectinload(PersonModel.emails),
+            selectinload(PersonModel.institutions),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
@@ -319,6 +335,7 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
         .join(PersonEmailModel, PersonEmailModel.person_id == PersonModel.person_id)
         .options(
             selectinload(PersonModel.emails),
+            selectinload(PersonModel.institutions),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
@@ -343,6 +360,7 @@ def find_by_name(db: Session, name: str) -> List[PersonModel]:
         .outerjoin(PersonNameModel, PersonNameModel.person_id == PersonModel.person_id)
         .options(
             selectinload(PersonModel.emails),
+            selectinload(PersonModel.institutions),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),

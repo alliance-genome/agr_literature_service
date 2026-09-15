@@ -1,7 +1,10 @@
 """
 Incrementally sync SGD colleague data into ABC person / laboratory tables.
 
-Re-runnable whenever SGD data changes: keyed on ``colleague_id`` (via the
+NOTE: this description records the script's ORIGINAL behaviour. It no longer
+runs -- see the SCRUM-6311 / SCRUM-6469 note below the docstring.
+
+Was re-runnable whenever SGD data changed: keyed on ``colleague_id`` (via the
 ``SGD:Colleague_<id>`` cross-reference) it ADDS colleagues new to ABC, UPDATES
 those whose SGD fields changed (SGD is the source of truth), and -- only with
 ``--prune`` on a full run -- DELETES rows whose colleague_id has disappeared from
@@ -97,6 +100,11 @@ SGD changes is a no-op.
 # ``vocabulary_term_abc`` ids (via the "lab_position" and
 # "person_person_relationship" vocabularies) and write those FK ids instead of
 # the old slug strings. Not updated by SCRUM-6311.
+#
+# SCRUM-6469: additionally, it writes ``person.institution`` (an ARRAY(String)
+# column that migration a7c3e5d91f26 dropped); institutions now live in the
+# ``person_institution`` child table, so those four call sites must become
+# person_institution rows as part of the same rewrite.
 #
 # It is left in the tree ON PURPOSE, as the historical record of how the SGD
 # colleague data (the laboratory_person rows the 8603439f2008 migration
