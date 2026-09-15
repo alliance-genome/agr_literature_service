@@ -3600,9 +3600,15 @@ class TestRevalidationInvariants:
             "WHERE t.reference_id = :r"), {"r": reference_id}).all())
         return rollups, edges
 
-    def _build_validated_reference(self, client, headers, mod, reference_curie):
-        """A generic tag validated by a specific one, plus a contradicting specific tag."""
-        source_id = self._curator_source(client, headers, mod)
+    def _build_validated_reference(self, client, headers, mod, reference_curie, source_id=None):
+        """A generic tag validated by a specific one, plus a contradicting specific tag.
+
+        ``source_id`` is reused across references when given: topic_entity_tag_source has a
+        unique constraint on (source_evidence_assertion, source_method, data_provider,
+        secondary_data_provider_id), so creating one per reference would collide.
+        """
+        if source_id is None:
+            source_id = self._curator_source(client, headers, mod)
         self._tag(client, headers, reference_curie, source_id, "ATP:0000009", False)
         self._tag(client, headers, reference_curie, source_id, "ATP:0000079", False)
         self._tag(client, headers, reference_curie, source_id, "ATP:0000082", True)
@@ -3679,10 +3685,10 @@ class TestRevalidationInvariants:
         load_name_to_atp_and_relationships_mock()
         anc, desc, names = self._patched()
         with TestClient(app) as client, anc, desc, names:
+            source_id = self._build_validated_reference(client, auth_headers, test_mod,
+                                                        test_reference.new_ref_curie)
             self._build_validated_reference(client, auth_headers, test_mod,
-                                            test_reference.new_ref_curie)
-            self._build_validated_reference(client, auth_headers, test_mod,
-                                            test_reference2.new_ref_curie)
+                                            test_reference2.new_ref_curie, source_id=source_id)
             target = test_reference.related_ref_id
             other = test_reference2.related_ref_id
             assert target != other, "expected two distinct references"
