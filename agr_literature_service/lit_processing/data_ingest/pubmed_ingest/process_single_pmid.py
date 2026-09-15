@@ -18,7 +18,7 @@ from agr_literature_service.api.crud.mod_corpus_association_crud import create
 # enter a single pmid as an argument, download xml, convert to json, sanitize, post to api
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
-logging.config.fileConfig(log_file_path)
+logging.config.fileConfig(log_file_path, disable_existing_loggers=False)
 logger = logging.getLogger('literature logger')
 
 init_tmp_dir()
