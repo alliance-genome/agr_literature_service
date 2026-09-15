@@ -1307,6 +1307,106 @@ class TestTopicEntityTag:
                 TopicEntityTagModel.topic_entity_tag_id == specific_id).one()
             assert int(generic_id) not in {t.topic_entity_tag_id for t in specific_obj.validated_by}
 
+    def test_validate_cross_branch_data_context(self, db, auth_headers, test_reference,  # noqa
+                                                test_topic_entity_tag_source, test_mod):  # noqa
+        """SCRUM-5746: data_context is a fifth ATP dimension in validation.
+
+        A tag on the marker-data branch (ATP:0000328 expression marker) must not validate
+        one on the mentioned-data branch (ATP:0000325 experimentally studied data).
+        Neither term is an ancestor or descendant of the other, so neither makes any claim
+        about the other. This mirrors the cross-branch block data_novelty already applies
+        between "existing data" and "novel data".
+        """
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+                                            headers=auth_headers).json()["topic_entity_tag_source_id"]
+            # existing tag from an automated source, on the marker-data branch
+            marker_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000328",
+                "created_by": "WBPerson1",
+            }
+            marker_id = client.post(url="/topic_entity_tag/", json=marker_tag,
+                                    headers=auth_headers).json()["topic_entity_tag_id"]
+            # curator tag with the same topic/species/novelty, on the mentioned-data branch
+            studied_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": curator_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000325",
+                "created_by": "WBPerson2",
+            }
+            studied_id = client.post(url="/topic_entity_tag/", json=studied_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            marker_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == marker_id).one()
+            assert int(studied_id) not in {t.topic_entity_tag_id for t in marker_obj.validated_by}, \
+                "an experimentally-studied tag is on a different data_context branch from " \
+                "an expression-marker tag and must not validate it"
+
+    def test_validate_along_data_context_branch(self, db, auth_headers, test_reference,  # noqa
+                                                test_topic_entity_tag_source, test_mod):  # noqa
+        """SCRUM-5746: within one branch the generic/specific rule still validates.
+
+        A positive tag at ATP:0000325 (experimentally studied data) validates an existing
+        tag at ATP:0000323, the data context root, because the root is an ancestor of 325.
+        This is the WB shape after the SCRUM-5697 backfill -- topic tags carry the root,
+        tags with an entity carry 325 -- so it must keep working.
+        """
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+                                            headers=auth_headers).json()["topic_entity_tag_source_id"]
+            root_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000323",
+                "created_by": "WBPerson1",
+            }
+            root_id = client.post(url="/topic_entity_tag/", json=root_tag,
+                                  headers=auth_headers).json()["topic_entity_tag_id"]
+            studied_tag = dict(root_tag, data_context="ATP:0000325",
+                               topic_entity_tag_source_id=curator_source_id,
+                               created_by="WBPerson2")
+            studied_id = client.post(url="/topic_entity_tag/", json=studied_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            root_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == root_id).one()
+            assert int(studied_id) in {t.topic_entity_tag_id for t in root_obj.validated_by}, \
+                "ATP:0000323 is an ancestor of ATP:0000325, so the more specific tag " \
+                "should still validate the root-term tag"
+
     def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
@@ -3533,3 +3633,40 @@ class TestMixedTagCompanionEntityTag:
             mixed = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
             assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
+
+
+class TestDataContextCompatible:
+    """SCRUM-5746: the data_context dimension's matching rule, tested directly.
+
+    This is a pure function, so the NULL cases can be covered here even though the
+    SQLAlchemy model already declares data_context non-null -- the database column stays
+    nullable until revision e4f9a2c81b57, so a production database between the two
+    migrations really does return None here.
+    """
+
+    @staticmethod
+    def _fn():
+        from agr_literature_service.api.crud.topic_entity_tag_crud import data_context_compatible
+        return data_context_compatible
+
+    def test_null_existing_context_does_not_block(self):
+        # would fail if the `is None` guard were dropped: None is in no ancestor set
+        assert self._fn()(None, "ATP:0000325", {"ATP:0000325"}) is True
+
+    def test_null_new_context_does_not_block(self):
+        assert self._fn()("ATP:0000325", None, set()) is True
+
+    def test_same_term_matches(self):
+        assert self._fn()("ATP:0000325", "ATP:0000325", {"ATP:0000325"}) is True
+
+    def test_related_term_matches(self):
+        # ATP:0000323 (root) is an ancestor of ATP:0000325
+        assert self._fn()(
+            "ATP:0000323", "ATP:0000325",
+            {"ATP:0000325", "ATP:0000324", "ATP:0000323"}) is True
+
+    def test_cross_branch_is_blocked(self):
+        # expression marker is on the marker-data branch, not above 325
+        assert self._fn()(
+            "ATP:0000328", "ATP:0000325",
+            {"ATP:0000325", "ATP:0000324", "ATP:0000323"}) is False

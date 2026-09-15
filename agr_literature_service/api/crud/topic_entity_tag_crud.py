@@ -669,6 +669,27 @@ def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
     return result
 
 
+def data_context_compatible(existing_context: Optional[str], new_context: Optional[str],
+                            related_contexts: Set[str]) -> bool:
+    """SCRUM-5746: whether an existing tag's data_context permits validation.
+
+    ``related_contexts`` is ``atp_hierarchy_with_self(new_context, ...)`` for the direction
+    being checked, so this is the same generic/specific test the topic, entity_type and
+    data_novelty dimensions already apply.
+
+    A NULL on either side is treated as "makes no claim" and does not block. The column is
+    nullable until revision e4f9a2c81b57 lands, and a database mid-backfill would otherwise
+    stop validating every row that has no value yet.
+
+    Terms on different branches of the hierarchy -- marker data versus mentioned data --
+    are in neither each other's ancestors nor descendants, so they block in both
+    directions, exactly as data_novelty already does for "existing" versus "novel data".
+    """
+    if existing_context is None or new_context is None:
+        return True
+    return existing_context in related_contexts
+
+
 def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
                                                   calculate_validation_values: bool = True):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
@@ -680,6 +701,8 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more specific new tag
     # validates a more generic existing tag), consistent with topic/data_novelty above.
     more_generic_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=True)
+    # SCRUM-5746: data_context is a fifth dimension, read in the same direction.
+    more_generic_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=True)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_generic_topics:
@@ -687,7 +710,8 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                     # Check data novelty
-                    if tag_in_db.data_novelty in more_generic_novelty:
+                    if tag_in_db.data_novelty in more_generic_novelty and data_context_compatible(
+                            tag_in_db.data_context, new_tag_obj.data_context, more_generic_contexts):
                         add_validation_to_db(db, tag_in_db, new_tag_obj,
                                              calculate_validation_values=calculate_validation_values)
     # validate pure entity-only tags if the new tag is a mixed topic + entity tag for the same entity
@@ -696,7 +720,8 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
             if (tag_in_db.topic == tag_in_db.entity_type
                     and tag_in_db.entity_type in more_generic_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
-                if tag_in_db.data_novelty in more_generic_novelty:
+                if tag_in_db.data_novelty in more_generic_novelty and data_context_compatible(
+                        tag_in_db.data_context, new_tag_obj.data_context, more_generic_contexts):
                     add_validation_to_db(db, tag_in_db, new_tag_obj,
                                          calculate_validation_values=calculate_validation_values)
 
@@ -712,13 +737,16 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more generic negative
     # new tag validates a more specific existing tag), consistent with topic above.
     more_specific_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=False)
+    # SCRUM-5746: data_context is a fifth dimension, read in the same direction.
+    more_specific_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=False)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_specific_topics:
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
-                    if tag_in_db.data_novelty in more_specific_novelty:
+                    if tag_in_db.data_novelty in more_specific_novelty and data_context_compatible(
+                            tag_in_db.data_context, new_tag_obj.data_context, more_specific_contexts):
                         add_validation_to_db(db, tag_in_db, new_tag_obj,
                                              calculate_validation_values=calculate_validation_values)
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
@@ -728,7 +756,8 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
             if (tag_in_db.negated is False and tag_in_db.entity_type != tag_in_db.topic
                     and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
-                if tag_in_db.data_novelty in more_specific_novelty:
+                if tag_in_db.data_novelty in more_specific_novelty and data_context_compatible(
+                        tag_in_db.data_context, new_tag_obj.data_context, more_specific_contexts):
                     add_validation_to_db(db, tag_in_db, new_tag_obj,
                                          calculate_validation_values=calculate_validation_values)
 
@@ -751,17 +780,25 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # generic/specific direction as the topic/data_novelty checks in each branch.
     more_specific_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=False)
     more_generic_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=True)
+    # SCRUM-5746: data_context is a fifth dimension, each branch reading the same
+    # direction as the topic/data_novelty checks beside it.
+    more_specific_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=False)
+    more_generic_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=True)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
         if (tag_in_db.negated is False and tag_in_db.topic in more_specific_topics
-                and tag_in_db.data_novelty in more_specific_novelty):
+                and tag_in_db.data_novelty in more_specific_novelty
+                and data_context_compatible(tag_in_db.data_context, new_tag_obj.data_context,
+                                            more_specific_contexts)):
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
                                          calculate_validation_values=calculate_validation_values)
         elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics
-              and tag_in_db.data_novelty in more_generic_novelty):
+              and tag_in_db.data_novelty in more_generic_novelty
+              and data_context_compatible(tag_in_db.data_context, new_tag_obj.data_context,
+                                          more_generic_contexts)):
             if tag_in_db.entity_type is None or (tag_in_db.entity_type in more_generic_entity_types
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
@@ -773,7 +810,8 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
         for tag_in_db in related_validating_tags_in_db:
             if (tag_in_db.entity_type != tag_in_db.topic and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.negated is False):
-                if tag_in_db.data_novelty in more_specific_novelty:
+                if tag_in_db.data_novelty in more_specific_novelty and data_context_compatible(
+                        tag_in_db.data_context, new_tag_obj.data_context, more_specific_contexts):
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
                                          calculate_validation_values=calculate_validation_values)
     # if the new tag is a mixed topic + entity tag and there are pure entity-only tags with the same entity
@@ -782,7 +820,10 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
         for tag_in_db in related_validating_tags_in_db:
             if (tag_in_db.negated is True and tag_in_db.topic == tag_in_db.entity_type
                     and tag_in_db.entity_type in more_generic_entity_types
-                    and new_tag_obj.entity == tag_in_db.entity and tag_in_db.data_novelty in more_generic_novelty):
+                    and new_tag_obj.entity == tag_in_db.entity
+                    and tag_in_db.data_novelty in more_generic_novelty
+                    and data_context_compatible(tag_in_db.data_context, new_tag_obj.data_context,
+                                                more_generic_contexts)):
                 add_validation_to_db(db, new_tag_obj, tag_in_db,
                                      calculate_validation_values=calculate_validation_values)
 
@@ -824,6 +865,10 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagModel.species,
             TopicEntityTagModel.negated,
             TopicEntityTagModel.data_novelty,
+            # SCRUM-5746: the validation rules read data_context, so it has to be in the
+            # projection -- these rows are column tuples, not ORM instances, and a missing
+            # column raises KeyError rather than lazy-loading.
+            TopicEntityTagModel.data_context,
             TopicEntityTagSourceModel.validation_type
         ).join(
             TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source
