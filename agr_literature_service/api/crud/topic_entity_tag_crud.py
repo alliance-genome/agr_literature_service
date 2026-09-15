@@ -77,6 +77,20 @@ ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 TET_REVALIDATION_LOCK_NAMESPACE = 6475
 TET_REVALIDATION_SWEEP_KEY = 0
 
+# SCRUM-6474: what the completion email says for each run_revalidation outcome. Only
+# "completed" means work was actually done.
+REVALIDATION_EMAIL_BODIES = {
+    "completed": ("all tags re-validated",
+                  "Finished re-validating all tags{target}"),
+    "no_reference": ("re-validation could not run",
+                     "No re-validation was performed{target}: no such reference."),
+    "no_tags": ("nothing to re-validate",
+                "No re-validation was performed{target}: it has no topic entity tags."),
+    "already_running": ("re-validation skipped",
+                        "No re-validation was performed{target}: a full sweep is already "
+                        "running. It will be retried once that sweep finishes."),
+}
+
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species',
                     'data_context']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
@@ -274,6 +288,17 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
             logger.info("Starting tag validation")
+            # SCRUM-6474: take the same per-reference lock revalidation uses, so this
+            # tag's edges cannot be written while a PATCH or DELETE on the same paper is
+            # midway through its delete-and-rebuild. run_revalidation snapshots the
+            # reference's tag ids *after* taking the lock and then deletes every edge with
+            # one of those ids on either side; an unlocked insert landing in that window
+            # had all of its edges deleted (each has an existing tag on one side) and none
+            # recreated, because the rebuild iterates the same snapshot. The tag was left
+            # with no validation edges and stale rollups until the next sweep.
+            # Transaction-scoped, so validate_tags' own commit below releases it.
+            db.execute(select(func.pg_advisory_xact_lock(
+                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
             validate_tags(db=db, new_tag_obj=new_db_obj)
             logger.info("Tag validation completed")
             # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
@@ -922,8 +947,10 @@ def flush_validation_edges(db: Session, pending_edges: List[Tuple[int, int]]) ->
     ).on_conflict_do_nothing().returning(
         topic_entity_tag_validation.c.validated_topic_entity_tag_id)
     inserted = db.execute(statement).fetchall()
-    logger.info("Wrote %s new validation edge(s) from %s candidate pair(s)",
-                len(inserted), len(unique_edges))
+    # Debug, not info: this fires once per tag that produced any edge, so at INFO it was
+    # itself a large share of a full sweep's log volume (SCRUM-6474).
+    logger.debug("Wrote %s new validation edge(s) from %s candidate pair(s)",
+                 len(inserted), len(unique_edges))
     return len(inserted) > 0
 
 
@@ -1019,7 +1046,7 @@ def recompute_validation_values_for_tags(db: Session, tag_ids: Set[int]):
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
                   commit_changes: bool = True, calculate_validation_values: bool = True, related_tags_in_db=None):
     if related_tags_in_db is None:
-        logger.info("Reading related tags from db")
+        logger.debug("Reading related tags from db")
         related_tags_in_db = db.query(
             TopicEntityTagModel.topic_entity_tag_id,
             TopicEntityTagModel.topic,
@@ -1040,7 +1067,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
             TopicEntityTagModel.negated.isnot(None)
         ).all()
-        logger.info("Query for related tags completed")
+        logger.debug("Query for related tags completed")
     all_related_tags = related_tags_in_db
     related_tags_in_db = [tag for tag in related_tags_in_db if
                           tag.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id]
@@ -1049,24 +1076,24 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     pending_edges: List[Tuple[int, int]] = []
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
-    logger.info(f"Found {str(len(related_tags_in_db))} related tags")
+    logger.debug(f"Found {str(len(related_tags_in_db))} related tags")
     if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
         # Validate existing tags
         if new_tag_obj.topic_entity_tag_source.validation_type is not None:
-            logger.info(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
+            logger.debug(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
             if new_tag_obj.negated is False:
                 validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
             else:
                 validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
-            logger.info("Existing tag validation completed")
+            logger.debug("Existing tag validation completed")
         # Validate current tag with existing ones
         if validate_new_tag:
             related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
                                              related_tag.validation_type is not None]
-            logger.info(f"Validating new tag with {len(related_validating_tags_in_db)} existing validating tags")
+            logger.debug(f"Validating new tag with {len(related_validating_tags_in_db)} existing validating tags")
             validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db,
                                                 pending_edges)
-            logger.info("New tag validation completed")
+            logger.debug("New tag validation completed")
     # Write every edge discovered above in one statement. This runs regardless of
     # calculate_validation_values: the sweep in revalidate_all_tags still needs the edges,
     # it just defers the rollups to its own values-only phase.
@@ -1090,16 +1117,16 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             # plus an in-memory walk, where it used to cost relationship loads per tag.
             group_tag_ids = {related_tag.topic_entity_tag_id for related_tag in all_related_tags}
             group_tag_ids.add(new_tag_obj.topic_entity_tag_id)
-            logger.info("Recomputing validation values for %s tag(s) on the reference", len(group_tag_ids))
+            logger.debug("Recomputing validation values for %s tag(s) on the reference", len(group_tag_ids))
             recompute_validation_values_for_tags(db, group_tag_ids)
         else:
             # No edge changed, so no existing tag's rollup can have changed either; only
             # the new tag still needs its own values written. This is the common case --
             # most references have no validation edges at all.
-            logger.info("No validation edges changed; setting values for the new tag only")
+            logger.debug("No validation edges changed; setting values for the new tag only")
             set_validation_values_to_tag(new_tag_obj)
     if commit_changes:
-        logger.info("Committing validation changes")
+        logger.debug("Committing validation changes")
         db.commit()
     return all_related_tags
 
@@ -1121,7 +1148,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     must never reuse the parent's pooled connections, so that path gets a private engine.
     """
     if db is not None:
-        run_revalidation(db, delete_all_first, curie_or_reference_id, validation_values_only)
+        outcome = run_revalidation(db, delete_all_first, curie_or_reference_id,
+                                   validation_values_only)
     else:
         # SCRUM-6475: this engine (and its pool) used to leak on every single call --
         # db.close() only returns the connection to the pool, it does not dispose the pool.
@@ -1132,7 +1160,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
         own_db = sessionmaker(bind=engine, autoflush=True)()
         try:
-            run_revalidation(own_db, delete_all_first, curie_or_reference_id, validation_values_only)
+            outcome = run_revalidation(own_db, delete_all_first, curie_or_reference_id,
+                                       validation_values_only)
         finally:
             own_db.close()
             engine.dispose()
@@ -1142,11 +1171,13 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         sender_email = environ.get('SENDER_EMAIL', None)
         sender_password = environ.get('SENDER_PASSWORD', None)
         reply_to = environ.get('REPLY_TO', sender_email)
-        email_body = "Finished re-validating all tags"
-        if curie_or_reference_id:
-            email_body += " for reference " + str(curie_or_reference_id)
-        send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
-                   sender_password, reply_to)
+        # SCRUM-6474: run_revalidation has several early returns -- an unmatched
+        # reference, a reference with no tags, or a sweep already in flight. Reporting
+        # "Finished" for those told an admin the work had been done when nothing ran.
+        target = f" for reference {curie_or_reference_id}" if curie_or_reference_id else ""
+        subject, email_body = REVALIDATION_EMAIL_BODIES[outcome]
+        send_email(f"Alliance ABC notification: {subject}", email_recipients,
+                   email_body.format(target=target), sender_email, sender_password, reply_to)
 
 
 def resolve_revalidation_reference_id(db: Session, curie_or_reference_id: str):
@@ -1191,7 +1222,7 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
             if reference_id is None:
                 logger.warning("revalidate_all_tags: no reference matches %r; nothing to do",
                                curie_or_reference_id)
-                return
+                return "no_reference"
             # SCRUM-6475: serialise concurrent revalidations of the SAME reference. Two
             # interactive writes on one paper (a PATCH and a DELETE) could otherwise
             # interleave one's DELETE FROM topic_entity_tag_validation with the other's
@@ -1207,7 +1238,7 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
                 TopicEntityTagModel.topic_entity_tag_id).filter(
                     TopicEntityTagModel.reference_id == reference_id).all()]
             if not all_tag_ids_for_reference:
-                return
+                return "no_tags"
             all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
             reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
                                       f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
@@ -1225,7 +1256,7 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
                 TET_REVALIDATION_LOCK_NAMESPACE, TET_REVALIDATION_SWEEP_KEY))).scalar())
             if not sweep_lock_held:
                 logger.warning("revalidate_all_tags: a full sweep is already running; skipping this one")
-                return
+                return "already_running"
 
         if not validation_values_only:
             if single_reference:
@@ -1241,6 +1272,7 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
 
         recompute_validation_values(db, query_tags, single_reference)
         db.commit()
+        return "completed"
     finally:
         if sweep_lock_held:
             # Session-scoped, so it survived the batch commits above and must be released

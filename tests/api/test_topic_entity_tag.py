@@ -3956,3 +3956,35 @@ class TestAtpHierarchyContainers:
         self._stub(monkeypatch, descendants=["ATP:0000324", "ATP:0000325"])
         assert self._fn()("ATP:0000323", ancestors=False) == {
             "ATP:0000323", "ATP:0000324", "ATP:0000325"}
+
+
+class TestRevalidationOutcomeEmail:
+    """SCRUM-6474: the completion email must not claim work that never ran.
+
+    run_revalidation returns early for an unmatched reference, a reference with no tags,
+    and a sweep already in flight, but revalidate_all_tags sent "Finished re-validating
+    all tags" regardless.
+    """
+
+    @staticmethod
+    def _bodies():
+        from agr_literature_service.api.crud.topic_entity_tag_crud import (
+            REVALIDATION_EMAIL_BODIES)
+        return REVALIDATION_EMAIL_BODIES
+
+    def test_every_outcome_has_wording(self):
+        assert set(self._bodies()) == {
+            "completed", "no_reference", "no_tags", "already_running"}
+
+    def test_only_completed_claims_the_work_was_done(self):
+        for outcome, (_subject, body) in self._bodies().items():
+            text = body.format(target=" for reference AGRKB:101000000000001")
+            if outcome == "completed":
+                assert text.startswith("Finished")
+            else:
+                assert "No re-validation was performed" in text, outcome
+                assert not text.startswith("Finished"), outcome
+
+    def test_bodies_render_without_a_reference(self):
+        for _subject, body in self._bodies().values():
+            assert "{target}" not in body.format(target="")

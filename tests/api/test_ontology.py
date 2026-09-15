@@ -122,3 +122,137 @@ class TestAtpBfsStartTerms:
                 "topic ancestors must resolve from the default start terms"
         finally:
             helpers.set_globals(*saved)
+
+
+class TestAtpChildrenCaching:
+    """SCRUM-6474: a degraded response must not be cached as 'this term is a leaf'."""
+
+    @staticmethod
+    def _snapshot(helpers):
+        return (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
+                dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
+
+    def test_null_payload_is_not_cached_as_a_leaf(self, monkeypatch):
+        """A null payload is a degraded response, not a childless term.
+
+        Caching it would pin "no children" for the life of the worker: _ensure_atp_loaded
+        only rebuilds when the cache is empty or unbuilt, so the other roots keep it
+        looking healthy and the miss is never retried. Hitting a branch root this way
+        would drop that entire subtree and silently degrade its hierarchy checks to exact
+        equality.
+        """
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+
+        calls = []
+
+        class FlakyClient:
+            def get_atp_descendants(self, ancestor_curie, direct_children_only=False):
+                calls.append(ancestor_curie)
+                if len(calls) == 1:
+                    return None          # degraded / partial response
+                return [{"curie": "ATP:0000009", "name": "phenotype"}]
+
+        saved = self._snapshot(helpers)
+        monkeypatch.setattr(helpers, "_get_client", lambda: FlakyClient())
+        try:
+            helpers.atp_to_children.clear()
+            assert helpers._get_atp_children("ATP:0000002") == []
+            assert "ATP:0000002" not in helpers.atp_to_children, \
+                "a null payload must not be cached as 'no children'"
+            # the next call retries and gets the real answer
+            assert helpers._get_atp_children("ATP:0000002") == ["ATP:0000009"]
+            assert len(calls) == 2
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_genuine_leaf_is_still_cached(self, monkeypatch):
+        """An empty list really is a leaf, and must stay cached (144 of 176 terms are)."""
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+
+        calls = []
+
+        class LeafClient:
+            def get_atp_descendants(self, ancestor_curie, direct_children_only=False):
+                calls.append(ancestor_curie)
+                return []
+
+        saved = self._snapshot(helpers)
+        monkeypatch.setattr(helpers, "_get_client", lambda: LeafClient())
+        try:
+            helpers.atp_to_children.clear()
+            assert helpers._get_atp_children("ATP:0000082") == []
+            assert helpers._get_atp_children("ATP:0000082") == []
+            assert len(calls) == 1, "a genuine leaf must not re-hit the API"
+        finally:
+            helpers.set_globals(*saved)
+
+
+class TestAtpCacheConcurrency:
+    """SCRUM-6474: concurrent callers must never observe a half-built ATP cache."""
+
+    ONTOLOGY = {
+        "ATP:0000002": [("ATP:0000009", "phenotype")],
+        "ATP:0000009": [("ATP:0000079", "sub")],
+        "ATP:0000079": [("ATP:0000082", "leaf")],
+        "ATP:0000177": [("ATP:0000172", "workflow subprocess")],
+        "ATP:0000335": [("ATP:0000334", "existing data")],
+        "ATP:0000323": [("ATP:0000324", "mentioned data")],
+    }
+
+    def test_concurrent_callers_never_see_a_partial_cache(self, monkeypatch):
+        """The rebuild clears the maps and refills them over many round trips.
+
+        The old guard asked "is any map empty?", which is false for most of that window,
+        so callers arriving mid-rebuild computed hierarchy sets from a half-built parent
+        map and wrote the resulting verdict to topic_entity_tag_validation. Measured
+        before the fix with 8 cold-start callers: 6 started their own rebuild and 2 came
+        back with no ancestors at all.
+        """
+        import threading
+        import time
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+
+        rebuilds = []
+
+        class SlowClient:
+            def get_atp_descendants(self, ancestor_curie, direct_children_only=False):
+                time.sleep(0.001)        # a round trip
+                return [{"curie": c, "name": n}
+                        for c, n in TestAtpCacheConcurrency.ONTOLOGY.get(ancestor_curie, [])]
+
+        saved = (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
+                 dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
+        real_load = helpers.load_name_to_atp_and_relationships
+
+        def counting_load(start_terms=None):
+            rebuilds.append(1)
+            return real_load(start_terms)
+
+        monkeypatch.setattr(helpers, "_get_client", lambda: SlowClient())
+        monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
+        monkeypatch.setattr(helpers, "load_name_to_atp_and_relationships", counting_load)
+        try:
+            for cache in (helpers.atp_to_name, helpers.name_to_atp,
+                          helpers.atp_to_children, helpers.atp_to_parent):
+                cache.clear()
+            helpers._atp_cache_ready = False
+
+            answers = []
+            lock = threading.Lock()
+
+            def caller():
+                got = helpers.atp_get_all_ancestors("ATP:0000082")
+                with lock:
+                    answers.append(tuple(got))
+
+            threads = [threading.Thread(target=caller) for _ in range(8)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=60)
+
+            expected = ("ATP:0000079", "ATP:0000009", "ATP:0000002")
+            assert answers == [expected] * 8, f"partial hierarchy observed: {set(answers)}"
+            assert len(rebuilds) == 1, f"thundering herd: {len(rebuilds)} concurrent rebuilds"
+        finally:
+            helpers.set_globals(*saved)

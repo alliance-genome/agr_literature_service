@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from agr_curation_api.models import OntologyTermResult
 from fastapi.encoders import jsonable_encoder
@@ -17,6 +18,12 @@ atp_to_name: Dict[str, str] = {}
 name_to_atp: Dict[str, str] = {}
 atp_to_parent: Dict[str, str] = {}
 atp_to_children: Dict[str, List[str]] = {}
+
+# SCRUM-6474: serialises rebuilds of the four maps above. Re-entrant because the rebuild
+# calls helpers that may re-enter _ensure_atp_loaded. _atp_cache_ready is False for the
+# duration of a rebuild, which is what stops a concurrent caller reading a partial cache.
+_atp_cache_lock = threading.RLock()
+_atp_cache_ready = False
 
 _client: Optional[AGRCurationAPIClient] = None
 
@@ -380,16 +387,36 @@ def get_workflow_tags_for_mod(name: str, mod_abbreviation: str) -> List[str]:
 # -----------------------------
 
 def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
-    global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
+    global atp_to_name, name_to_atp, atp_to_children, atp_to_parent, _atp_cache_ready
     atp_to_name = atp_to_name_init.copy()
     name_to_atp = name_to_atp_init.copy()
     atp_to_children = atp_to_children_init.copy()
     atp_to_parent = atp_to_parent_init.copy()
+    # Injected wholesale, so the result is complete by construction.
+    _atp_cache_ready = True
 
 
 def _ensure_atp_loaded():
-    if not atp_to_name or not atp_to_children or not atp_to_parent:
-        load_name_to_atp_and_relationships()
+    """Build the ATP cache once, and make concurrent callers wait rather than read it
+    half-built.
+
+    SCRUM-6474: the old check was "is any map empty?", which is only true before the
+    rebuild's clear() and after it. In between, the maps are non-empty but PARTIAL, and
+    every caller arriving in that window sailed past this guard and computed hierarchy
+    sets from a half-built parent map -- writing the resulting verdict straight to
+    topic_entity_tag_validation. Measured with 8 concurrent cold-start callers against a
+    stubbed client: 6 of them started their own full rebuild (1838 A-Team round trips
+    instead of ~305) and 2 came back with no ancestors at all.
+
+    _atp_cache_ready is only True once a build has finished, so a caller arriving mid
+    rebuild blocks on the lock instead, then re-checks and uses the finished cache. The
+    emptiness test is kept as well, so set_globals({}, ...) still forces a reload.
+    """
+    if _atp_cache_ready and atp_to_name and atp_to_children and atp_to_parent:
+        return
+    with _atp_cache_lock:
+        if not (_atp_cache_ready and atp_to_name and atp_to_children and atp_to_parent):
+            load_name_to_atp_and_relationships()
 
 
 def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
@@ -420,25 +447,43 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # front, leaving the pre-existing precedence between 335 and 177 untouched.
         start_terms = ['ATP:0000002', 'ATP:0000323', 'ATP:0000177', 'ATP:0000335']
 
-    # Clear and (re)build
-    atp_to_name.clear()
-    name_to_atp.clear()
-    atp_to_children.clear()
-    atp_to_parent.clear()
+    global _atp_cache_ready
+    # SCRUM-6474: the whole clear-and-refill runs under the lock, and _atp_cache_ready
+    # stays False throughout, so a concurrent caller blocks in _ensure_atp_loaded rather
+    # than reading the maps mid-flight. Adding ATP:0000002 took this window from ~180
+    # round trips to ~305, which is what turned a theoretical race into a measured one.
+    with _atp_cache_lock:
+        _atp_cache_ready = False
+        try:
+            # Clear and (re)build
+            atp_to_name.clear()
+            name_to_atp.clear()
+            atp_to_children.clear()
+            atp_to_parent.clear()
 
-    # Fetch root names
-    _fetch_atp_names(start_terms)
+            # Fetch root names
+            _fetch_atp_names(start_terms)
 
-    # BFS traversal using shared helper
-    frontier = list(start_terms)
-    seen = set(frontier)
+            # BFS traversal using shared helper
+            frontier = list(start_terms)
+            seen = set(frontier)
 
-    while frontier:
-        parent = frontier.pop()
-        for child_curie in _get_atp_children(parent):
-            if child_curie not in seen:
-                seen.add(child_curie)
-                frontier.append(child_curie)
+            while frontier:
+                parent = frontier.pop()
+                for child_curie in _get_atp_children(parent):
+                    if child_curie not in seen:
+                        seen.add(child_curie)
+                        frontier.append(child_curie)
+        except Exception:
+            # Leave the maps empty rather than half-built: _ensure_atp_loaded's emptiness
+            # test then forces a genuine retry on the next call instead of pinning a
+            # partial hierarchy for the life of the worker.
+            atp_to_name.clear()
+            name_to_atp.clear()
+            atp_to_children.clear()
+            atp_to_parent.clear()
+            raise
+        _atp_cache_ready = True
 
     logger.debug("ATP global vars successfully loaded via client traversal")
 
@@ -541,8 +586,19 @@ def _get_atp_children(parent_curie: str) -> List[str]:
     try:
         children = _get_client().get_atp_descendants(
             ancestor_curie=parent_curie, direct_children_only=True
-        ) or []
+        )
     except AGRAPIError:
+        return []
+
+    if children is None:
+        # SCRUM-6474: a null payload is a degraded response, not a leaf term, and the two
+        # must not be cached alike. Caching it would pin "no children" for the life of the
+        # worker -- _ensure_atp_loaded only rebuilds when the cache is empty or unbuilt, so
+        # the other roots keep it looking healthy and the miss is never retried. If it hit
+        # a branch root during the BFS the entire subtree would be absent, and every
+        # hierarchy check over it would silently degrade to exact equality.
+        logger.warning("ATP children lookup for %s returned no payload; not caching",
+                       parent_curie)
         return []
 
     child_curies = []
@@ -558,8 +614,9 @@ def _get_atp_children(parent_curie: str) -> List[str]:
     # leaves. Every get_descendants() on a leaf therefore re-hit the A-Team API, at
     # ~600ms a call, and validate_tags calls get_descendants several times per tag (topic,
     # data_novelty and entity_type, on both the negative and the new-tag rule paths).
-    # A miss is not distinguishable from "no children" here anyway: the AGRAPIError branch
-    # above already returns [] without caching, so a genuine failure still retries.
+    # Reaching here means the client answered, so an empty list really is a leaf and is
+    # safe to cache; the AGRAPIError and null-payload branches above both return without
+    # caching, so a genuine failure still retries.
     atp_to_children[parent_curie] = child_curies
     return child_curies
 
