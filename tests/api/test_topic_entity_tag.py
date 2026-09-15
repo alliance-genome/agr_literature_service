@@ -3883,7 +3883,7 @@ class TestDataContextCompatible:
             {"ATP:0000325", "ATP:0000324", "ATP:0000323"}) is False
 
 
-class TestTopicHierarchyContainers:
+class TestAtpHierarchyContainers:
     """SCRUM-6474: ATP:0000002/ATP:0000001 are containers, not topics.
 
     ATP:0000002 "topic tag" sits above every topic (124 descendants in the real
@@ -3894,12 +3894,16 @@ class TestTopicHierarchyContainers:
     This matters precisely because ATP:0000002 is now a BFS start term: with ancestors
     resolving, an unguarded walk would make every one of those tags a universal
     validator for its reference.
+
+    The rule lives in atp_hierarchy_with_self so it covers every ATP axis. Guarding only
+    the topic sets left the same hole reachable through entity_type, whose root is also
+    ATP:0000002 -- see test_container_does_not_leak_into_entity_type_axis.
     """
 
     @staticmethod
     def _fn():
-        from agr_literature_service.api.crud.topic_entity_tag_crud import topic_hierarchy_with_self
-        return topic_hierarchy_with_self
+        from agr_literature_service.api.crud.topic_entity_tag_crud import atp_hierarchy_with_self
+        return atp_hierarchy_with_self
 
     @staticmethod
     def _stub(monkeypatch, ancestors=(), descendants=()):
@@ -3936,3 +3940,19 @@ class TestTopicHierarchyContainers:
     def test_none_topic_yields_empty_set(self, monkeypatch):
         self._stub(monkeypatch)
         assert self._fn()(None, ancestors=True) == set()
+
+    def test_container_does_not_leak_into_entity_type_axis(self, monkeypatch):
+        """The entity_type axis shares ATP:0000002 as its root.
+
+        An entity-only tag (topic == entity_type) carrying the container would otherwise
+        take every topic as a "more specific" entity_type and be validated by every mixed
+        tag for the same entity.
+        """
+        self._stub(monkeypatch, descendants=["ATP:0000005", "ATP:0000006", "ATP:0000013"])
+        assert self._fn()("ATP:0000002", ancestors=False) == {"ATP:0000002"}
+
+    def test_data_context_root_is_not_treated_as_a_container(self, monkeypatch):
+        """ATP:0000323 is a real curated data_context value, not a container."""
+        self._stub(monkeypatch, descendants=["ATP:0000324", "ATP:0000325"])
+        assert self._fn()("ATP:0000323", ancestors=False) == {
+            "ATP:0000323", "ATP:0000324", "ATP:0000325"}

@@ -683,6 +683,25 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
                         validation_values_only=False, db=db)
 
 
+# SCRUM-6474: ATP:0000002 "topic tag", and ATP:0000001 above it, are containers rather
+# than real terms -- 002's children (phenotype, gene expression, disease, ...) are the
+# actual top-level topics, and 001's other children are workflow/bibliographic/qualifier
+# tags. SGD legitimately tags papers with 002 itself (11.8k rows in production), but per
+# curators such a tag takes no part in the hierarchy: it must neither validate its
+# descendants nor be validated by them.
+#
+# This is a precondition for loading the topic branch into the ATP cache. Without it,
+# making ancestors resolve would promote every one of those tags into a universal
+# validator for its reference, 002 being an ancestor of all 124 topics.
+#
+# Applied on every ATP axis, not just topic: ATP:0000002 is the entity_type root as well,
+# so guarding only the topic sets left the identical hole reachable through entity_type --
+# an entity-only tag whose topic == entity_type == ATP:0000002 drew in every mixed tag for
+# the same entity. ATP:0000323, the data_context root, is a real curated value (1.3M rows)
+# and is deliberately NOT in this set.
+ATP_HIERARCHY_CONTAINERS = frozenset({"ATP:0000001", "ATP:0000002"})
+
+
 def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
     """SCRUM-6188: set containing ``atp_id`` plus its ATP ancestors (``ancestors=True``)
     or descendants (``ancestors=False``).
@@ -690,41 +709,17 @@ def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
     Returns an empty set when ``atp_id`` is None (``entity_type`` is nullable). Always
     includes ``atp_id`` itself, so an exact-equality match is preserved even when the
     node has no ancestors/descendants in the ontology graph.
+
+    SCRUM-6474: container terms are dropped from the result, and a container matches only
+    itself -- so two tags both carrying one still validate each other by exact equality,
+    while the hierarchy relation is severed in both directions.
     """
     if atp_id is None:
         return set()
+    if atp_id in ATP_HIERARCHY_CONTAINERS:
+        return {atp_id}
     related = get_ancestors(onto_node=atp_id) if ancestors else get_descendants(onto_node=atp_id)
-    result = set(related)
-    result.add(atp_id)
-    return result
-
-
-# SCRUM-6474: ATP:0000002 "topic tag", and ATP:0000001 above it, are containers rather
-# than topics -- 002's children (phenotype, gene expression, disease, ...) are the real
-# top-level topics, and 001's other children are workflow/bibliographic/qualifier tags,
-# nothing topic-like at all. SGD legitimately tags papers with 002 itself (11.8k tags in
-# production), but per curators such a tag takes no part in the hierarchy: it must
-# neither validate its descendants nor be validated by them.
-#
-# This is a precondition for loading the topic branch into the ATP cache. Without it,
-# making ancestors resolve would promote every one of those 002 tags into a universal
-# validator for its reference, since 002 is an ancestor of all 124 topics.
-TOPIC_HIERARCHY_CONTAINERS = frozenset({"ATP:0000001", "ATP:0000002"})
-
-
-def topic_hierarchy_with_self(topic: Optional[str], ancestors: bool) -> Set[str]:
-    """Topic plus its ATP ancestors or descendants, with container terms removed.
-
-    A container topic matches only itself, so two tags both carrying ATP:0000002 still
-    validate each other by exact equality -- only the hierarchy relation is severed, in
-    both directions.
-    """
-    if topic is None:
-        return set()
-    if topic in TOPIC_HIERARCHY_CONTAINERS:
-        return {topic}
-    related = get_ancestors(onto_node=topic) if ancestors else get_descendants(onto_node=topic)
-    return ({topic} | set(related)) - TOPIC_HIERARCHY_CONTAINERS
+    return ({atp_id} | set(related)) - ATP_HIERARCHY_CONTAINERS
 
 
 def data_context_compatible(existing_context: Optional[str], new_context: Optional[str],
@@ -752,7 +747,7 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                                                   pending_edges: List[Tuple[int, int]]):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
-    more_generic_topics = topic_hierarchy_with_self(new_tag_obj.topic, ancestors=True)
+    more_generic_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=True)
     more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more specific new tag
@@ -785,7 +780,7 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
                                                   pending_edges: List[Tuple[int, int]]):
     # 1. new tag negative, existing tag positive = validate existing (wrong) if existing is more specific
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
-    more_specific_topics = topic_hierarchy_with_self(new_tag_obj.topic, ancestors=False)
+    more_specific_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=False)
     more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more generic negative
@@ -820,10 +815,10 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # 2. new tag negative, existing tag positive = validate new tag (wrong) if existing is more specific
     # 3. new tag positive, existing tag negative = validate new tag (wrong) if existing is more generic
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
-    more_specific_topics = topic_hierarchy_with_self(new_tag_obj.topic, ancestors=False)
+    more_specific_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=False)
     more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
-    more_generic_topics = topic_hierarchy_with_self(new_tag_obj.topic, ancestors=True)
+    more_generic_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=True)
     more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware, following the same
