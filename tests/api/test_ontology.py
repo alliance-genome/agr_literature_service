@@ -256,3 +256,48 @@ class TestAtpCacheConcurrency:
             assert len(rebuilds) == 1, f"thundering herd: {len(rebuilds)} concurrent rebuilds"
         finally:
             helpers.set_globals(*saved)
+
+    def test_reentrant_call_during_a_rebuild_returns_instead_of_recursing(self, monkeypatch):
+        """A helper that re-enters _ensure_atp_loaded mid-rebuild must not restart it.
+
+        No callee does this today, and the RLock alone would not make it safe if one were
+        added: the same thread re-takes the lock, the readiness re-check still sees False,
+        and it starts the rebuild again -- clearing the maps under the build in progress
+        and recursing until RecursionError. Without the building-thread guard this test
+        blows the stack rather than failing an assertion.
+        """
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+
+        depth = {"max": 0, "now": 0}
+
+        class ReentrantClient:
+            def get_atp_descendants(self, ancestor_curie, direct_children_only=False):
+                # stand in for a future helper that reaches back into the cache
+                depth["now"] += 1
+                depth["max"] = max(depth["max"], depth["now"])
+                try:
+                    helpers._ensure_atp_loaded()
+                finally:
+                    depth["now"] -= 1
+                return [{"curie": c, "name": n}
+                        for c, n in TestAtpCacheConcurrency.ONTOLOGY.get(ancestor_curie, [])]
+
+        saved = (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
+                 dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
+        monkeypatch.setattr(helpers, "_get_client", lambda: ReentrantClient())
+        monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
+        try:
+            for cache in (helpers.atp_to_name, helpers.name_to_atp,
+                          helpers.atp_to_children, helpers.atp_to_parent):
+                cache.clear()
+            helpers._atp_cache_ready = False
+
+            helpers.load_name_to_atp_and_relationships()
+
+            assert depth["max"] == 1, "the rebuild restarted itself instead of returning"
+            assert helpers._atp_cache_ready is True
+            assert helpers._atp_cache_building_thread is None
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == [
+                "ATP:0000079", "ATP:0000009", "ATP:0000002"]
+        finally:
+            helpers.set_globals(*saved)

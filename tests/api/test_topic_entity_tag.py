@@ -3974,13 +3974,32 @@ class TestRevalidationOutcomeEmail:
 
     def test_every_outcome_has_wording(self):
         assert set(self._bodies()) == {
-            "completed", "no_reference", "no_tags", "already_running"}
+            "completed", "no_reference", "no_tags", "already_running", "failed"}
+
+    def test_failure_is_reported_rather_than_silence(self):
+        """A crashed sweep must say so: the email is the endpoint's only feedback."""
+        _subject, body = self._bodies()["failed"]
+        text = body.format(target="")
+        assert "failed" in text.lower()
+        assert not text.startswith("Finished")
+
+    def test_already_running_does_not_promise_a_retry(self):
+        """Nothing queues a skipped request -- run_revalidation just returns, and
+        revalidate_tags_process_wrapper only clears its flag. Promising a retry would be
+        the same lie this outcome vocabulary exists to stop."""
+        _subject, body = self._bodies()["already_running"]
+        text = body.format(target="").lower()
+        assert "re-submit" in text
+        assert "will be retried" not in text
 
     def test_only_completed_claims_the_work_was_done(self):
         for outcome, (_subject, body) in self._bodies().items():
             text = body.format(target=" for reference AGRKB:101000000000001")
             if outcome == "completed":
                 assert text.startswith("Finished")
+            elif outcome == "failed":
+                assert "failed" in text.lower(), outcome
+                assert not text.startswith("Finished"), outcome
             else:
                 assert "No re-validation was performed" in text, outcome
                 assert not text.startswith("Finished"), outcome

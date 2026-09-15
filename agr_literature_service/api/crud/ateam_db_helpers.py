@@ -19,11 +19,20 @@ name_to_atp: Dict[str, str] = {}
 atp_to_parent: Dict[str, str] = {}
 atp_to_children: Dict[str, List[str]] = {}
 
-# SCRUM-6474: serialises rebuilds of the four maps above. Re-entrant because the rebuild
-# calls helpers that may re-enter _ensure_atp_loaded. _atp_cache_ready is False for the
-# duration of a rebuild, which is what stops a concurrent caller reading a partial cache.
+# SCRUM-6474: serialises rebuilds of the four maps above. _atp_cache_ready is False for
+# the duration of a rebuild, which is what stops a concurrent caller reading a partial
+# cache -- "are the maps non-empty?" is true for most of a rebuild and so cannot be used.
+#
+# _atp_cache_building_thread makes the lock's re-entrancy mean something. No callee of the
+# rebuild re-enters _ensure_atp_loaded today, and the RLock alone would NOT make that safe
+# if one were added: the same thread re-takes the lock, the readiness re-check still sees
+# False, and it starts the rebuild again -- clearing the maps mid-build and recursing until
+# RecursionError. Recording the building thread lets a re-entrant call return instead. It
+# then reads a partially built cache, which is inherent to asking mid-rebuild, but it is a
+# bounded wrong answer rather than an unbounded loop.
 _atp_cache_lock = threading.RLock()
 _atp_cache_ready = False
+_atp_cache_building_thread: Optional[int] = None
 
 _client: Optional[AGRCurationAPIClient] = None
 
@@ -415,6 +424,14 @@ def _ensure_atp_loaded():
     if _atp_cache_ready and atp_to_name and atp_to_children and atp_to_parent:
         return
     with _atp_cache_lock:
+        if _atp_cache_building_thread == threading.get_ident():
+            # Re-entered from inside this thread's own rebuild. Returning hands back a
+            # partially built cache, which is unavoidable when asking mid-build; starting
+            # another rebuild here would clear the maps under the one in progress and
+            # recurse without end. No callee does this today -- see the note by the lock.
+            logger.warning("ATP cache re-entered during its own rebuild; "
+                           "returning the partially built cache")
+            return
         if not (_atp_cache_ready and atp_to_name and atp_to_children and atp_to_parent):
             load_name_to_atp_and_relationships()
 
@@ -447,13 +464,14 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # front, leaving the pre-existing precedence between 335 and 177 untouched.
         start_terms = ['ATP:0000002', 'ATP:0000323', 'ATP:0000177', 'ATP:0000335']
 
-    global _atp_cache_ready
+    global _atp_cache_ready, _atp_cache_building_thread
     # SCRUM-6474: the whole clear-and-refill runs under the lock, and _atp_cache_ready
     # stays False throughout, so a concurrent caller blocks in _ensure_atp_loaded rather
     # than reading the maps mid-flight. Adding ATP:0000002 took this window from ~180
     # round trips to ~305, which is what turned a theoretical race into a measured one.
     with _atp_cache_lock:
         _atp_cache_ready = False
+        _atp_cache_building_thread = threading.get_ident()
         try:
             # Clear and (re)build
             atp_to_name.clear()
@@ -483,6 +501,8 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
             atp_to_children.clear()
             atp_to_parent.clear()
             raise
+        finally:
+            _atp_cache_building_thread = None
         _atp_cache_ready = True
 
     logger.debug("ATP global vars successfully loaded via client traversal")

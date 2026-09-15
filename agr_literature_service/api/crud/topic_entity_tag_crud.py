@@ -75,10 +75,13 @@ ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 # global to the database, so the first key keeps ours distinct from any other subsystem's;
 # the second key is the reference id, or SWEEP_KEY for the whole-table sweep.
 TET_REVALIDATION_LOCK_NAMESPACE = 6475
+# Safe as a sentinel because reference_id comes from a sequence starting at 1, so no
+# single-reference lock can ever collide with the whole-table sweep's key.
 TET_REVALIDATION_SWEEP_KEY = 0
 
 # SCRUM-6474: what the completion email says for each run_revalidation outcome. Only
-# "completed" means work was actually done.
+# "completed" means work was actually done -- this endpoint's email is the sole feedback
+# an admin gets, so it must not report success for a run that returned early or died.
 REVALIDATION_EMAIL_BODIES = {
     "completed": ("all tags re-validated",
                   "Finished re-validating all tags{target}"),
@@ -86,9 +89,15 @@ REVALIDATION_EMAIL_BODIES = {
                      "No re-validation was performed{target}: no such reference."),
     "no_tags": ("nothing to re-validate",
                 "No re-validation was performed{target}: it has no topic entity tags."),
+    # Deliberately does NOT promise a retry: pg_try_advisory_lock failing makes
+    # run_revalidation return immediately, and revalidate_tags_process_wrapper only clears
+    # its already_running flag, so nothing anywhere queues the request.
     "already_running": ("re-validation skipped",
                         "No re-validation was performed{target}: a full sweep is already "
-                        "running. It will be retried once that sweep finishes."),
+                        "running. Please re-submit once that sweep has finished."),
+    "failed": ("re-validation FAILED",
+               "Re-validation{target} failed with an error and did not complete. The "
+               "server log has the traceback."),
 }
 
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species',
@@ -1147,9 +1156,47 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     for the background sweep, which the router runs inside a forked Process: a forked child
     must never reuse the parent's pooled connections, so that path gets a private engine.
     """
+    # SCRUM-6474: report a crash rather than going silent. The `if email:` block below sits
+    # after the call, so an exception used to skip it entirely -- in the forked-process
+    # sweep the child simply died and the requesting SuperAdmin got nothing, which is
+    # indistinguishable from a sweep still grinding away hours later. The email is this
+    # endpoint's only feedback channel, so failure has to travel through it too. The
+    # exception is still re-raised: the caller's logging and exit status are unchanged.
+    outcome = "failed"
+    try:
+        outcome = _run_revalidation_session(db, delete_all_first, curie_or_reference_id,
+                                            validation_values_only)
+    except Exception:
+        _send_revalidation_email(email, curie_or_reference_id, outcome)
+        raise
+    _send_revalidation_email(email, curie_or_reference_id, outcome)
+
+
+def _send_revalidation_email(email: Optional[str], curie_or_reference_id: Optional[str],
+                             outcome: str):
+    """Tell the requester what actually happened, for every outcome including failure."""
+    if not email:
+        return
+    sender_email = environ.get('SENDER_EMAIL', None)
+    sender_password = environ.get('SENDER_PASSWORD', None)
+    reply_to = environ.get('REPLY_TO', sender_email)
+    target = f" for reference {curie_or_reference_id}" if curie_or_reference_id else ""
+    subject, email_body = REVALIDATION_EMAIL_BODIES[outcome]
+    try:
+        send_email(f"Alliance ABC notification: {subject}", email,
+                   email_body.format(target=target), sender_email, sender_password, reply_to)
+    except Exception as email_error:
+        # Never let the notification mask the outcome it is reporting.
+        logger.warning("Could not send the revalidation notification: %s", email_error)
+
+
+def _run_revalidation_session(db: Optional[Session], delete_all_first: bool,
+                              curie_or_reference_id: Optional[str],
+                              validation_values_only: bool) -> str:
+    """Pick the session to run under, and guarantee the private engine is disposed."""
     if db is not None:
-        outcome = run_revalidation(db, delete_all_first, curie_or_reference_id,
-                                   validation_values_only)
+        return run_revalidation(db, delete_all_first, curie_or_reference_id,
+                                validation_values_only)
     else:
         # SCRUM-6475: this engine (and its pool) used to leak on every single call --
         # db.close() only returns the connection to the pool, it does not dispose the pool.
@@ -1160,24 +1207,11 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
         own_db = sessionmaker(bind=engine, autoflush=True)()
         try:
-            outcome = run_revalidation(own_db, delete_all_first, curie_or_reference_id,
-                                       validation_values_only)
+            return run_revalidation(own_db, delete_all_first, curie_or_reference_id,
+                                    validation_values_only)
         finally:
             own_db.close()
             engine.dispose()
-
-    if email:
-        email_recipients = email
-        sender_email = environ.get('SENDER_EMAIL', None)
-        sender_password = environ.get('SENDER_PASSWORD', None)
-        reply_to = environ.get('REPLY_TO', sender_email)
-        # SCRUM-6474: run_revalidation has several early returns -- an unmatched
-        # reference, a reference with no tags, or a sweep already in flight. Reporting
-        # "Finished" for those told an admin the work had been done when nothing ran.
-        target = f" for reference {curie_or_reference_id}" if curie_or_reference_id else ""
-        subject, email_body = REVALIDATION_EMAIL_BODIES[outcome]
-        send_email(f"Alliance ABC notification: {subject}", email_recipients,
-                   email_body.format(target=target), sender_email, sender_password, reply_to)
 
 
 def resolve_revalidation_reference_id(db: Session, curie_or_reference_id: str):
