@@ -560,3 +560,84 @@ class TestReachable500Hardening:
         a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
         assert a.reference_id != test_reference.related_ref_id
         assert a.author_order == 9
+
+    def test_patch_null_person_curie_unlinks_ordered_author(self, db, auth_headers, test_reference):  # noqa
+        # An ordered author satisfies ck_author_person_or_order through author_order, so
+        # dropping its person is always valid. The router builds the patch with
+        # model_dump(exclude_unset=True), so an explicit null arrives distinguishable from
+        # an absent key -- which is what makes this expressible without a new endpoint.
+        person = PersonModel(display_name="Unlink Me", curie="AGR:AP-UNLINK-1")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"author_order": 3, "name": "Unlink Target",
+                                        "person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            author_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{author_id}",
+                             json={"person_curie": None},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()
+        assert a.person_id is None
+        # The author itself survives, order and metadata intact -- unlinking is not deletion.
+        assert a.author_order == 3
+        assert a.name == "Unlink Target"
+
+    def test_patch_without_person_curie_leaves_the_link_alone(self, db, auth_headers, test_reference):  # noqa
+        # The counterpart that makes the null meaningful: every metadata-only PATCH omits
+        # person_curie, and none of them may quietly unlink the author.
+        person = PersonModel(display_name="Keep Me", curie="AGR:AP-UNLINK-2")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"author_order": 4, "name": "Keep Linked",
+                                        "person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            author_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{author_id}",
+                             json={"first_name": "Renamed"},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()
+        assert a.person_id == person.person_id
+        assert a.first_name == "Renamed"
+
+    def test_patch_null_person_curie_on_person_only_row_is_rejected(self, db, auth_headers, test_reference):  # noqa
+        # A person-only row has author_order IS NULL, so clearing person_id leaves
+        # ck_author_person_or_order unsatisfiable; it would surface as a raw 500 at commit.
+        person = PersonModel(display_name="Stub Person", curie="AGR:AP-UNLINK-3")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            stub_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{stub_id}",
+                             json={"person_curie": None},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "person-only" in r.json()["detail"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one()
+        assert a.person_id == person.person_id
