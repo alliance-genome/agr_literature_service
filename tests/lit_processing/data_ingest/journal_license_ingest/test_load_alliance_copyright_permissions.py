@@ -160,8 +160,8 @@ class TestShippedSeedFile:
         rows, _ = parsed
         assert len(rows) == 19
         journals = {r.journal_title for r in rows}
-        assert {"Genetics", "G3", "Biochemical Journal", "The Journal of Cell Biology",
-                "Folia Biologica", "The Journal of Neuroscience"} <= journals
+        assert {"Genetics", "G3", "Biochem J", "The Journal of Cell Biology",
+                "Folia Biologica", "J Neurosci"} <= journals
         folia = next(r for r in rows if r.journal_title == "Folia Biologica")
         assert folia.start_year == 2001 and folia.end_year is None
         # every non-SfN-exclusive grant allows display
@@ -172,7 +172,7 @@ class TestShippedSeedFile:
     def test_sfn_year_ranges(self, parsed):
         rows, _ = parsed
         sfn = [(r.start_year, r.end_year, r.can_display_images)
-               for r in rows if r.journal_title == "The Journal of Neuroscience"]
+               for r in rows if r.journal_title == "J Neurosci"]
         assert (None, 2009, True) in sfn
         assert (2010, 2014, True) in sfn
         assert (2015, 2025, True) in sfn
