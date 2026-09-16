@@ -53,10 +53,12 @@ Input: the tracked seed file, one row per (journal, grant). Columns include
 
 Semantics to know:
 
-- **skip=yes rows** (publishers whose statement the working group has not
-  agreed yet, currently Cold Spring Harbor Laboratory Press, The Company of
-  Biologists, and eNeuro) are reported and never loaded. When a statement is
-  agreed, blank the `skip` cell and rerun.
+- **skip=yes rows** are reported and never loaded: currently Cold Spring
+  Harbor Laboratory Press and The Company of Biologists (statements not yet
+  agreed by the working group), eNeuro (no statement in the sheet), and Folia
+  Biologica (journal identity unresolved: the ABC resource also carries an old
+  Charles Univ Prague grant, i.e. Folia Biologica (Praha), a different
+  journal). When resolved, blank the `skip` cell and rerun.
 - **Resources are matched by journal title** against resource
   title/abbreviation (exact, then normalized; unique match or unique match
   among resources with references). Unmatched/ambiguous journals are reported
@@ -114,9 +116,30 @@ Semantics to know:
 
 ---
 
+## Resolving conflicts
+
+A `link conflict` means a `(resource, year-range)` slot already carries a
+grant the running loader does not own. For the known set of grants the
+working-group sheet supersedes (Genetics, G3, Biochem J and the J Neurosci
+ranges from the old sheet, in two waves: exact-slot collisions and
+overlapping-range grants), the resolution is scripted:
+
+```bash
+python ../../oneoff_scripts/delete_superseded_image_permission_links.py          # dry run
+python ../../oneoff_scripts/delete_superseded_image_permission_links.py --apply
+```
+
+Run it BEFORE `load_alliance_copyright_permissions.py --apply` on each
+database, or the alliance loader will report those journals as conflicts and
+skip them. The script is rerun-safe (already-removed pairs are reported and
+skipped) and refuses pairs that match more links than it expects. Any conflict
+NOT covered by the script is a new ownership question: take it to the
+curators; do not stack a second grant on the slot.
+
 ## Rollout order
 
 Run against dev (`literature-4006`) first, then stage, then prod, dry-run
-before `--apply` at each step. If both loaders need running, apply one, review
-the other's dry-run for link conflicts, and resolve ownership before its
-`--apply`.
+before `--apply` at each step, with the superseded-links cleanup (above)
+applied before the alliance loader on each database. If both loaders need
+running, apply one, review the other's dry-run for link conflicts, and resolve
+ownership before its `--apply`.

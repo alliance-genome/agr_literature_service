@@ -21,10 +21,12 @@ supersedes:
 A second wave covers old grants that overlap the alliance grants on DIFFERENT
 year ranges (so the loader's exact-slot guard correctly let both exist): the
 split-range Rockefeller grants on J Cell Biol / J Exp Med / J Gen Physiol and
-the SfN 2011- CC grant on J Neurosci. Folia Biologica is deliberately NOT
-cleaned: its old grant names Charles Univ Prague (the publisher of Folia
-Biologica (Praha), a different journal), so curators must first untangle which
-journal the permissions actually belong to.
+the SfN 2011- CC grant on J Neurosci. A third wave RETRACTS the alliance Folia
+Biologica grant (loaded on dev before its journal-identity question surfaced):
+the resource's OLD grant names Charles Univ Prague, the publisher of Folia
+Biologica (Praha), a different journal, so which journal the permissions
+belong to must be untangled by curators first. The old Praha-named grant is
+deliberately left in place while that happens.
 
 Links are matched by (resource curie, permission name), which is stable across
 dev/stage/prod (dev is a prod dump); a permission left with zero links is also
@@ -37,7 +39,9 @@ them. Dry-run by default:
 
 import argparse
 import logging
+from collections import defaultdict
 from os import path
+from typing import Dict
 
 from agr_literature_service.api.models import (
     ImagePermissionModel,
@@ -93,6 +97,14 @@ SUPERSEDED_LINKS = [
     ("AGRKB:102000000004868",
      "Society for Neuroscience - CC BY 4.0 and CC-BY-NC-SA | Open Access",
      "Society for Neuroscience: CC-BY-NC-SA 3.0 (2010-2014) / CC-BY 4.0 (2015-2025) / 2026- grants", 1),
+    # third wave: retract the alliance Folia grant loaded on dev before its
+    # journal-identity question surfaced (the resource also carries an old
+    # Charles Univ Prague grant, i.e. Folia Biologica (Praha), a different
+    # journal). The seed row is now skip=yes; this removes the link where it
+    # was already applied. The "replacement" is the pending curator decision.
+    ("AGRKB:102000000003577",
+     "Institute Of Systematics And Evolution Of Animals: resource open access",
+     "nothing yet: retracted pending the curators' Krakow-vs-Praha determination", 1),
 ]
 
 
@@ -106,6 +118,10 @@ def main() -> None:
     db = create_postgres_session(False)
     set_global_user_id(db, SCRIPT_USER)
     touched_permission_ids = set()
+    # link ids this run plans to delete, per permission: in dry run nothing is
+    # actually deleted, so the orphan check below must subtract these or it
+    # would report "keep" for a permission --apply will delete as orphaned.
+    planned_link_ids_by_permission: Dict[int, set] = defaultdict(set)
     problems = 0
     try:
         for curie, permission_name, replacement, max_links in SUPERSEDED_LINKS:
@@ -129,6 +145,8 @@ def main() -> None:
                 continue
             for link in links:
                 touched_permission_ids.add(link.image_permission_id)
+                planned_link_ids_by_permission[link.image_permission_id].add(
+                    link.resource_image_permission_id)
                 logger.info(
                     f"delete link {link.resource_image_permission_id}: {curie} -> "
                     f"'{permission_name}' "
@@ -139,13 +157,16 @@ def main() -> None:
         if args.apply:
             db.flush()
         for permission_id in sorted(touched_permission_ids):
-            remaining = (
-                db.query(ResourceImagePermissionModel)
+            remaining_ids = {
+                row.resource_image_permission_id
+                for row in db.query(ResourceImagePermissionModel)
                 .filter_by(image_permission_id=permission_id)
-                .count()
-            )
+                .all()
+            }
+            # in dry run the planned deletions are still present in the DB
+            remaining = len(remaining_ids - planned_link_ids_by_permission[permission_id])
             if remaining == 0:
-                permission = db.query(ImagePermissionModel).get(permission_id)
+                permission = db.get(ImagePermissionModel, permission_id)
                 logger.info(f"delete orphaned image_permission {permission_id} "
                             f"'{permission.name if permission else '?'}'")
                 if args.apply:

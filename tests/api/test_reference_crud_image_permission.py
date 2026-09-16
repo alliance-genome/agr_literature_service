@@ -176,6 +176,25 @@ class TestResourceImagePermissionForReference:
         got = reference_crud._resource_image_permission_for_reference(db, ref)
         assert got.resource_image_permission_id == rip1.resource_image_permission_id
 
+    def test_shared_slot_tie_prefers_restrictive_grant(self, db): # noqa
+        """The SfN 2026- case (SCRUM-6416): an OA CC-BY grant (display allowed)
+        and a non-OA exclusive license (no display) share the same
+        (resource, year-range) slot, split by per-article OA status this
+        resolver cannot see. The restrictive grant must win the tie even
+        though the permissive one carries the lower link id."""
+        resource = _mk_resource(db, "AGR:AGR-Resource-100005")
+        ip_oa = _mk_image_permission(db, "perm-oa-ccby", can_display=True)
+        ip_exclusive = _mk_image_permission(db, "perm-exclusive", can_display=False)
+        rip_oa = _mk_rip(db, resource.resource_id, ip_oa.image_permission_id,
+                         start_year=2026)
+        rip_exclusive = _mk_rip(db, resource.resource_id, ip_exclusive.image_permission_id,
+                                start_year=2026)
+        assert rip_oa.resource_image_permission_id < rip_exclusive.resource_image_permission_id
+        ref = _mk_reference(db, "AGRKB:101000100006",
+                            resource_id=resource.resource_id, date_published="2026")
+        got = reference_crud._resource_image_permission_for_reference(db, ref)
+        assert got.resource_image_permission_id == rip_exclusive.resource_image_permission_id
+
 
 class TestGetEffectiveImagePermissionDb:
 

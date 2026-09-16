@@ -146,24 +146,24 @@ class TestShippedSeedFile:
         with open(SEED_FILE, newline="") as fh:
             return parse_grant_rows(csv.DictReader(fh, delimiter="\t"))
 
-    def test_red_publishers_and_eneuro_are_skipped(self, parsed):
+    def test_red_publishers_folia_and_eneuro_are_skipped(self, parsed):
         _, skipped = parsed
         text = "\n".join(skipped)
         assert "Cold Spring Harbor" in text
         assert "Company of Biologists" in text
         assert "eNeuro" in text
-        # Folia Biologica is NOT red: it loads (with its coverage note)
-        assert "Folia Biologica" not in text
-        assert len(skipped) == 9
+        # Folia Biologica is parked until curators untangle whether the
+        # permissions belong to the Krakow or the Praha journal
+        assert "Folia Biologica" in text
+        assert len(skipped) == 10
 
     def test_active_rows(self, parsed):
         rows, _ = parsed
-        assert len(rows) == 19
+        assert len(rows) == 18
         journals = {r.journal_title for r in rows}
         assert {"Genetics", "G3", "Biochem J", "The Journal of Cell Biology",
-                "Folia Biologica", "J Neurosci"} <= journals
-        folia = next(r for r in rows if r.journal_title == "Folia Biologica")
-        assert folia.start_year == 2001 and folia.end_year is None
+                "J Neurosci"} <= journals
+        assert "Folia Biologica" not in journals
         # every non-SfN-exclusive grant allows display
         for r in rows:
             expected = "exclusive" not in r.permission_name

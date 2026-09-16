@@ -105,6 +105,16 @@ def _resource_image_permission_for_reference(
     if not rows:
         return None
 
+    # Ties on range specificity are broken toward the restrictive grant: a
+    # journal can carry two grants on the SAME year range whose split depends
+    # on per-article facts this resolver cannot see (J Neurosci 2026-: CC-BY
+    # for Open Access articles, an SfN exclusive license otherwise). Failing
+    # closed is correct for rights clearance; genuinely OA articles are
+    # normally resolved by the reference's own license before this fallback.
+    def restrictive_first(row):
+        perm = row.image_permission
+        return bool(perm.can_display_images) if perm else True
+
     publication_year = _extract_publication_year(reference)
     if publication_year is None:
         undated_rows = [
@@ -113,7 +123,7 @@ def _resource_image_permission_for_reference(
         ]
         return sorted(
             undated_rows,
-            key=lambda row: row.resource_image_permission_id
+            key=lambda row: (restrictive_first(row), row.resource_image_permission_id)
         )[0] if undated_rows else None
 
     matching_rows = [
@@ -131,6 +141,7 @@ def _resource_image_permission_for_reference(
             -(row.start_year or 0),
             row.end_year is None,
             row.end_year or 9999,
+            restrictive_first(row),
             row.resource_image_permission_id,
         )
     )[0]
