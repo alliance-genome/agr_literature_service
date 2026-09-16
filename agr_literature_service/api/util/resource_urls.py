@@ -83,4 +83,4 @@ def topic_entity_tag_url(topic_entity_tag_id: int) -> str:
 
 
 def tag_source_url(tag_source_id: int) -> str:
-    return f"/topic_entity_tag/source/{tag_source_id}"
+    return f"/tag_source/{tag_source_id}"

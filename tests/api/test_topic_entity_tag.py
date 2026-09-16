@@ -254,7 +254,7 @@ class TestTopicEntityTag:
             client.post(url="/mod/", json={
                 "abbreviation": mod2, "short_name": "BtDB", "full_name": "Second test db"
             }, headers=auth_headers)
-            source2_id = client.post(url="/topic_entity_tag/source", json={
+            source2_id = client.post(url="/tag_source", json={
                 "source_evidence_assertion": "ECO:0008025",
                 "source_method": "second network",
                 "validation_type": None,
@@ -372,7 +372,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
             }
-            source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+            source_id = client.post(url="/tag_source", json=curator_source,
                                     headers=auth_headers).json()["tag_source_id"]
             base = {
                 "reference_curie": ref_curie,
@@ -500,7 +500,7 @@ class TestTopicEntityTag:
             # pre-create the curator source exactly as the UI's getCuratorSourceId
             # does (validation_type 'professional_curator')
             existing_source_id = client.post(
-                url="/topic_entity_tag/source",
+                url="/tag_source",
                 json={
                     "source_evidence_assertion": "ATP:0000036",
                     "source_method": "abc_literature_system",
@@ -567,7 +567,7 @@ class TestTopicEntityTag:
             # pre-create the curator source as professional_biocurator -- the value
             # that makes Branch 3 fire on opposite-polarity inserts.
             client.post(
-                url="/topic_entity_tag/source",
+                url="/tag_source",
                 json={
                     "source_evidence_assertion": "ATP:0000036",
                     "source_method": "abc_literature_system",
@@ -844,8 +844,8 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
-            auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
+            auth_source_1_resp = client.post(url="/tag_source", json=author_source_1, headers=auth_headers)
+            auth_source_2_resp = client.post(url="/tag_source", json=author_source_2, headers=auth_headers)
             validating_tag_aut_1 = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000122",
@@ -1068,7 +1068,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
             validating_tag_cur_1 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -1117,7 +1117,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
             validating_tag_cur_1 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -1174,8 +1174,8 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
-            auth_source_2_resp = client.post(url="/topic_entity_tag/source", json=author_source_2, headers=auth_headers)
+            auth_source_1_resp = client.post(url="/tag_source", json=author_source_1, headers=auth_headers)
+            auth_source_2_resp = client.post(url="/tag_source", json=author_source_2, headers=auth_headers)
             more_generic_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",  # more generic topic
@@ -1263,7 +1263,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
             }
-            curator_source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
                                             headers=auth_headers).json()["tag_source_id"]
             # generic pure-entity tag from an automated source (validation_type None)
             generic_tag = {
@@ -1329,7 +1329,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
             }
-            curator_source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
                                             headers=auth_headers).json()["tag_source_id"]
             # existing tag from an automated source, on the marker-data branch
             marker_tag = {
@@ -1383,7 +1383,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
             }
-            curator_source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
                                             headers=auth_headers).json()["tag_source_id"]
             root_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -1430,8 +1430,8 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source, headers=auth_headers)
-            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            author_source_resp = client.post(url="/tag_source", json=author_source, headers=auth_headers)
+            curator_source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             positive_tag_not_validating = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000079",  # genetic phenotype
@@ -1530,9 +1530,9 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            author_source_resp = client.post(url="/topic_entity_tag/source", json=author_source,
+            author_source_resp = client.post(url="/tag_source", json=author_source,
                                              headers=auth_headers)
-            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source,
+            curator_source_resp = client.post(url="/tag_source", json=curator_source,
                                               headers=auth_headers)
             negative_tag_not_validating = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -1635,7 +1635,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            auth_source_1_resp = client.post(url="/topic_entity_tag/source", json=author_source_1, headers=auth_headers)
+            auth_source_1_resp = client.post(url="/tag_source", json=author_source_1, headers=auth_headers)
             positive_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
@@ -1758,7 +1758,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=source_with_atp36, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=source_with_atp36, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
 
             # Create a tag with data_novelty="ATP:0000321" (novel data)
@@ -2145,7 +2145,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            curator_source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
 
             # Create tag with existing data novelty
             existing_data_tag = {
@@ -2207,7 +2207,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            curator_source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
 
             # Create tag with generic novel data novelty
             generic_novel_data_tag = {
@@ -2279,7 +2279,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            curator_source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             curator_source_id = curator_source_resp.json()["tag_source_id"]
 
             # Test Case 1: Positive specific topic + specific novelty validates positive generic topic + generic novelty
@@ -2365,7 +2365,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Create tag with existing data novelty
@@ -2422,7 +2422,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Scenario: Generic topic + root novelty should be validated by specific topic + specific novelty
@@ -2515,7 +2515,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Create positive tag with specific topic and specific novelty
@@ -2580,7 +2580,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Test 1: Generic novel data validates by specific novel data
@@ -2671,7 +2671,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Test entity-only tag (topic == entity_type) with novel data
@@ -2761,7 +2761,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Tag A: Generic tag that will be validated
@@ -2903,7 +2903,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_resp = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_resp.json()["tag_source_id"]
 
             # Tag A: Generic tag
@@ -3221,7 +3221,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            automated_source_response = client.post(url="/topic_entity_tag/source/", json=automated_source,
+            automated_source_response = client.post(url="/tag_source", json=automated_source,
                                                     headers=auth_headers)
             assert automated_source_response.status_code == status.HTTP_201_CREATED
             automated_source_id = automated_source_response.json()["tag_source_id"]
@@ -3235,7 +3235,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            curator_source_response = client.post(url="/topic_entity_tag/source/", json=curator_source,
+            curator_source_response = client.post(url="/tag_source", json=curator_source,
                                                   headers=auth_headers)
             assert curator_source_response.status_code == status.HTTP_201_CREATED
             curator_source_id = curator_source_response.json()["tag_source_id"]
@@ -3319,7 +3319,7 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            source_response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_response = client.post(url="/tag_source", json=curator_source, headers=auth_headers)
             source_id = source_response.json()["tag_source_id"]
 
             # Create the first tag with specific created_by and updated_by
@@ -3542,7 +3542,7 @@ class TestMixedTagCompanionEntityTag:
                                                      "full_name": "Saccharomyces Genome Database"},
                                   headers=auth_headers)
             assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
-            sgd_source = client.post(url="/topic_entity_tag/source", json={
+            sgd_source = client.post(url="/tag_source", json={
                 "source_evidence_assertion": "ATP:0000036",
                 "source_method": "abc_literature_system",
                 "validation_type": "professional_biocurator",
@@ -3580,7 +3580,7 @@ class TestMixedTagCompanionEntityTag:
                                                      "full_name": "Saccharomyces Genome Database"},
                                   headers=auth_headers)
             assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
-            sgd_source = client.post(url="/topic_entity_tag/source", json={
+            sgd_source = client.post(url="/tag_source", json={
                 "source_evidence_assertion": "ATP:0000036",
                 "source_method": "abc_literature_system",
                 "validation_type": "professional_biocurator",
@@ -3658,7 +3658,7 @@ class TestRevalidationInvariants:
     }
 
     def _curator_source(self, client, headers, mod):
-        resp = client.post(url="/topic_entity_tag/source", headers=headers, json={
+        resp = client.post(url="/tag_source", headers=headers, json={
             "source_evidence_assertion": "ATP:0000036",
             "source_method": "abc_literature_system",
             "validation_type": "professional_biocurator",

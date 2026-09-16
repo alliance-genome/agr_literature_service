@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
-    get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
+    get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
     get_ancestors, get_descendants, get_map_entity_curies_to_names, \
     id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation, \
@@ -43,11 +43,10 @@ from agr_literature_service.api.models.audited_model import (
 from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSchemaUpdate)
-from agr_literature_service.api.schemas.tag_source_schemas import (TagSourceSchemaCreate,
-                                                                   TagSourceSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
+from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source
 
 logger = logging.getLogger(__name__)
 
@@ -129,14 +128,11 @@ EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
 # identical tag: a topic-level (no entity) tag from the per-MOD ABC curator
 # source. data_novelty is required (non-null column) and the UI hardcodes the
 # "no data" term for these topic-level validations.
-CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
-CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"
-CURATOR_VALIDATION_TYPE = "professional_curator"
+# The source-identifying constants moved to tag_source_crud with the ABC-source
+# helper (SCRUM-6518). Only these two are still used here: they describe the TET
+# rows the validation path writes, not the source itself.
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
 CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
-CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
-    "Trained professional biocurator specializing in curation of model organism "
-    "data using the ABC data entry form.")
 
 
 def resolve_default_data_context(db: Session, topic_entity_tag_data: dict) -> str:
@@ -1423,42 +1419,6 @@ def recompute_validation_values(db: Session, query_tags, single_reference: bool)
             db.expunge_all()
 
 
-def create_source(db: Session, source: TagSourceSchemaCreate):
-    source_data = {key: value for key, value in jsonable_encoder(source).items() if value is not None}
-    source_obj = add_source_obj_to_db_session(db, source_data)
-    try:
-        db.commit()
-    except (IntegrityError, HTTPException) as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"invalid request: {e}")
-    return source_obj.tag_source_id
-
-
-def destroy_source(db: Session, tag_source_id: int):
-    source = get_source_from_db(db, tag_source_id)
-    db.delete(source)
-    db.commit()
-
-
-def patch_source(db: Session, tag_source_id: int, source_patch: TagSourceSchemaUpdate):
-    source = get_source_from_db(db, tag_source_id)
-    source_patch_data = source_patch.model_dump(exclude_unset=True)
-    add_audited_object_users_if_not_exist(db, source_patch_data)
-    for key, value in source_patch_data.items():
-        setattr(source, key, value)
-    db.commit()
-    return {"message": "updated"}
-
-
-def show_source(db: Session, tag_source_id: int):
-    source = get_source_from_db(db, tag_source_id)
-    source_data = jsonable_encoder(source)
-    del source_data["secondary_data_provider_id"]
-    source_data["secondary_data_provider_abbreviation"] = source.secondary_data_provider.abbreviation
-    return source_data
-
-
 def filter_tet_data_by_column(query, column_name, values):
     column = getattr(TopicEntityTagModel, column_name, None)
     query = query.filter(column.in_(values))
@@ -2452,62 +2412,6 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     }
 
 
-def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) -> TagSourceModel:
-    """Resolve the per-MOD ABC curator source used for grid validations, creating
-    it if absent. Server-side equivalent of the UI's getCuratorSourceId (GET the
-    source by name, POST to create on 404) so the validate write path no longer
-    needs the client to resolve a source id first.
-
-    validation_type is set to CURATOR_VALIDATION_TYPE ('professional_curator') to
-    match exactly what getCuratorSourceId POSTs. NOTE the source unique key
-    (source_evidence_assertion, source_method, data_provider,
-    secondary_data_provider) excludes validation_type, so when a source already
-    exists for the MOD it is reused verbatim -- the same row the UI write path
-    uses. That means the resolved source's validation_type is NOT guaranteed to be
-    'professional_curator': a pre-existing curator source may be
-    'professional_biocurator' for some MODs, and the opposite-negation guard in
-    check_for_duplicate_tags (Branch 3) fires only for that value. validate_topic
-    does not rely on the validation_type either way -- it deletes the curator's
-    prior validation before inserting the new one, so a flipped re-validation
-    never trips Branch 3 regardless of the source's validation_type."""
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
-    if mod is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cannot find the MOD '{mod_abbreviation}'")
-
-    def _lookup():
-        return db.query(TagSourceModel).filter(
-            TagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-            TagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
-            TagSourceModel.data_provider == mod_abbreviation,
-            TagSourceModel.secondary_data_provider_id == mod.mod_id,
-        ).first()
-
-    source = _lookup()
-    if source is not None:
-        return source
-    try:
-        new_source_id = create_source(db, TagSourceSchemaCreate(
-            source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-            source_method=CURATOR_VALIDATION_SOURCE_METHOD,
-            validation_type=CURATOR_VALIDATION_TYPE,
-            description=CURATOR_VALIDATION_SOURCE_DESCRIPTION,
-            data_provider=mod_abbreviation,
-            secondary_data_provider_abbreviation=mod_abbreviation,
-        ))
-    except HTTPException:
-        # Lost a create race with a concurrent first-time validation for the same
-        # MOD: create_source rolls back and raises 422 on the unique-key
-        # violation. The row exists now -- re-fetch and use it rather than
-        # failing the request.
-        db.rollback()
-        source = _lookup()
-        if source is None:
-            raise
-        return source
-    return get_source_from_db(db, new_source_id)
-
-
 def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Dict[str, Any]:
     """Recompute the single (reference, topic) grid cell's validation + filter
     flags from the current DB state, in the SAME shape the batch endpoint returns.
@@ -2559,7 +2463,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     the whole reference's validation relationships/values once -- covering both the
     new tag and any tags affected by the delete -- exactly as patch_tag/destroy_tag
     do."""
-    source = get_or_create_curator_validation_source(db, mod_abbreviation)
+    source = get_or_create_abc_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     current_user = get_default_user_value()
     topic_upper = str(topic or "").upper()
@@ -2801,30 +2705,3 @@ def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, cur
                 new_field = f"{tet_field_name}_name"
                 new_tet[new_field] = curie_to_name_mapping.get(tet_field_value, tet_field_value)
     return new_tet
-
-
-def show_source_by_name(db: Session, source_evidence_assertion: str, source_method: str,
-                        data_provider: str, secondary_data_provider_abbreviation: str):
-    secondary_data_provider = db.query(ModModel.mod_id).filter(
-        ModModel.abbreviation == secondary_data_provider_abbreviation).one_or_none()
-    if secondary_data_provider is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Cannot find the specified secondary data provider")
-    source = db.query(TagSourceModel).filter(
-        and_(
-            TagSourceModel.source_evidence_assertion == source_evidence_assertion,
-            TagSourceModel.source_method == source_method,
-            TagSourceModel.data_provider == data_provider,
-            TagSourceModel.secondary_data_provider_id == secondary_data_provider.mod_id
-        )
-    ).one_or_none()
-    if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified Source")
-    source_data = jsonable_encoder(source)
-    del source_data["secondary_data_provider_id"]
-    source_data["secondary_data_provider_abbreviation"] = secondary_data_provider_abbreviation
-    return source_data
-
-
-def show_all_source(db: Session):
-    return [jsonable_encoder(source) for source in db.query(TagSourceModel).all()]

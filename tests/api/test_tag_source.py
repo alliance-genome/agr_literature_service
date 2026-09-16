@@ -25,7 +25,7 @@ def test_tag_source(db, auth_headers, test_mod): # noqa
             "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
             "created_by": "somebody"
         }
-        response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
+        response = client.post(url="/tag_source", json=new_source, headers=auth_headers)
         yield SourceTestData(response, response.json()["tag_source_id"])
 
 
@@ -37,7 +37,7 @@ class TestTagSource:
 
     def test_show_source(self, test_tag_source, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
+            response = client.get(url=f"/tag_source/{test_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res_obj = response.json()
@@ -53,28 +53,28 @@ class TestTagSource:
                 "source_evidence_assertion": "ECO:0008021",
                 "created_by": "me"
             }
-            response = client.patch(url=f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
+            response = client.patch(url=f"/tag_source/{test_tag_source.new_source_id}",
                                     json=patch_data, headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            response = client.get(url=f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
+            response = client.get(url=f"/tag_source/{test_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.json()["source_evidence_assertion"] == "ECO:0008021"
             assert response.json()["created_by"] == "me"
 
     def test_destroy_source(self, test_tag_source, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.delete(f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
+            response = client.delete(f"/tag_source/{test_tag_source.new_source_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
+            response = client.get(f"/tag_source/{test_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_patch_nonexistent_source_returns_404(self, auth_headers):  # noqa
-        """PATCH /topic_entity_tag/source/{id} on a non-existent id returns 404."""
+        """PATCH /tag_source/{id} on a non-existent id returns 404."""
         with TestClient(app) as client:
             response = client.patch(
-                url=f"/topic_entity_tag/source/{99999999}",
+                url=f"/tag_source/{99999999}",
                 json={"description": "anything"},
                 headers=auth_headers,
             )

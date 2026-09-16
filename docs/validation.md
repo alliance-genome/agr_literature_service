@@ -293,7 +293,7 @@ Ranked by likelihood of causing a surprise.
 3. **Bulk loaders skip validation and never resweep.** Every MOD loader passes
    `validate_on_insert=False`, and nothing triggers a sweep afterwards. The implicit
    contract is a manual sweep that nobody schedules.
-4. **`PATCH /topic_entity_tag/source/{id}` can change `validation_type`** — altering every
+4. **`PATCH /tag_source/{id}` can change `validation_type`** — altering every
    rollup that depends on that source — without triggering any revalidation.
 5. **The rollup columns are writable through the API**
    (`topic_entity_tag_schemas.py:81-82, 152-153`) despite being server-computed. A PATCH is
