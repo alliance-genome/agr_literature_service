@@ -8,8 +8,10 @@ from pathlib import Path
 import pytest
 
 from agr_literature_service.lit_processing.data_ingest.journal_license_ingest.load_alliance_copyright_permissions import (
+    Stats,
     parse_grant_rows,
     publisher_matches,
+    upsert_permission,
 )
 
 SEED_FILE = (
@@ -50,7 +52,8 @@ class TestParseGrantRows:
         assert row.publisher_synonyms == ["Test Press", "Test Press (London)"]
         assert row.can_display_images is True
         assert row.start_year is None and row.end_year is None
-        assert row.notes is None
+        # the sheet's Permission Type is persisted via the link notes
+        assert row.notes == "Permission type: full permission."
 
     def test_skip_row_is_reported_not_loaded(self):
         rows, skipped = parse_grant_rows([make_raw(skip="yes", skip_reason="red in sheet")])
@@ -62,7 +65,11 @@ class TestParseGrantRows:
         rows, _ = parse_grant_rows([make_raw(start_year="2010", end_year="2014", link_notes="Vols. 30-34")])
         assert rows[0].start_year == 2010
         assert rows[0].end_year == 2014
-        assert rows[0].notes == "Vols. 30-34"
+        assert rows[0].notes == "Permission type: full permission. Vols. 30-34"
+
+    def test_notes_without_permission_type(self):
+        rows, _ = parse_grant_rows([make_raw(permission_type="", link_notes="a caveat")])
+        assert rows[0].notes == "a caveat"
 
     def test_no_display_row(self):
         rows, _ = parse_grant_rows([make_raw(can_display_images="no")])
@@ -77,6 +84,35 @@ class TestParseGrantRows:
     def test_blank_line_ignored(self):
         rows, skipped = parse_grant_rows([make_raw(publisher="", journal_title="")])
         assert rows == [] and skipped == []
+
+
+class TestDryRunPermissionCounting:
+    """A permission name shared by several journal rows (Portland Press x6)
+    must be counted and logged once in dry-run, matching what --apply creates."""
+
+    def test_shared_name_counted_once(self):
+        rows, _ = parse_grant_rows([
+            make_raw(journal_title=f"Journal {i}") for i in range(3)
+        ])
+        stats = Stats()
+        existing = {}
+        for row in rows:
+            result = upsert_permission(None, row, existing, stats, apply=False)
+            assert result is None  # dry run never returns a model
+        assert stats.permissions_created == 1
+        assert stats.permissions_updated == 0
+        assert stats.permissions_unchanged == 0
+
+    def test_distinct_names_counted_separately(self):
+        rows, _ = parse_grant_rows([
+            make_raw(permission_name="Press A: full permission"),
+            make_raw(permission_name="Press B: full permission"),
+        ])
+        stats = Stats()
+        existing = {}
+        for row in rows:
+            upsert_permission(None, row, existing, stats, apply=False)
+        assert stats.permissions_created == 2
 
 
 class TestPublisherMatches:

@@ -78,6 +78,7 @@ class Stats:
     rows_skipped: int = 0
     resources_unmatched: int = 0
     publisher_mismatches: int = 0
+    link_conflicts: int = 0
     permissions_created: int = 0
     permissions_updated: int = 0
     permissions_unchanged: int = 0
@@ -111,19 +112,26 @@ def parse_grant_rows(reader: Iterable[Dict[str, str]]) -> Tuple[List[GrantRow], 
         can_display = get("can_display_images")
         if not (publisher and journal and name and text) or can_display not in ("yes", "no"):
             raise ValueError(f"line {line_no}: malformed row for {publisher!r} / {journal!r}")
+        permission_type = get("permission_type")
+        link_notes = get("link_notes")
+        # The sheet's Permission Type has no column of its own in the schema,
+        # so persist it in the link notes where curators see it, ahead of any
+        # row-specific caveat.
+        notes_parts = ([f"Permission type: {permission_type}."] if permission_type else []) \
+            + ([link_notes] if link_notes else [])
         rows.append(GrantRow(
             line_no=line_no,
             publisher=publisher,
             publisher_synonyms=[s for s in (clean(x) for x in get("publisher_synonyms").split("|")) if s],
             journal_title=journal,
             permission_name=name,
-            permission_type=get("permission_type"),
+            permission_type=permission_type,
             permission_text=text,
             permission_url=None,
             can_display_images=(can_display == "yes"),
             start_year=parse_year(get("start_year")),
             end_year=parse_year(get("end_year")),
-            notes=get("link_notes") or None,
+            notes=" ".join(notes_parts) or None,
         ))
     return rows, skipped
 
@@ -151,15 +159,20 @@ def publisher_matches(resource: ResourceModel, synonyms: List[str]) -> bool:
     return any(normalize_for_match(s) == resource_publisher for s in synonyms)
 
 
-def upsert_permission(db: Session, row: GrantRow,
-                      existing: Dict[str, ImagePermissionModel],
+def upsert_permission(db: Optional[Session], row: GrantRow,
+                      existing: Dict[str, Optional[ImagePermissionModel]],
                       stats: Stats, apply: bool) -> Optional[ImagePermissionModel]:
-    permission = existing.get(row.permission_name)
-    if permission is None:
+    """existing maps permission name -> model, or -> None for a permission
+    already counted as a dry-run create: a name shared by several journal rows
+    (e.g. 'Portland Press: full permission' x6) must be counted and logged
+    once, so the dry-run numbers match what --apply will do."""
+    if row.permission_name not in existing:
         stats.permissions_created += 1
         logger.info(f"line {row.line_no}: create image_permission '{row.permission_name}'")
         if not apply:
+            existing[row.permission_name] = None
             return None
+        assert db is not None  # db may only be None in dry-run unit tests
         permission = ImagePermissionModel(
             name=row.permission_name,
             permission_text=row.permission_text,
@@ -170,6 +183,10 @@ def upsert_permission(db: Session, row: GrantRow,
         db.flush()
         existing[row.permission_name] = permission
         return permission
+    permission = existing[row.permission_name]
+    if permission is None:
+        # dry-run create already counted for an earlier row with this name
+        return None
     changed = (permission.permission_text != row.permission_text
                or permission.can_display_images != row.can_display_images)
     if changed:
@@ -218,6 +235,28 @@ def upsert_link(db: Session, row: GrantRow, resource: ResourceModel,
         stats.links_unchanged += 1
 
 
+def find_conflicting_link_names(db: Session, resource: ResourceModel, row: GrantRow,
+                                expected_names: set) -> List[str]:
+    """Names of permissions already linked to this exact (resource, year range)
+    that this seed does not know about — e.g. a grant loaded by
+    load_journal_image_permissions.py, whose links are keyed on the range only.
+    Stacking a second, possibly contradictory grant on the same slot would
+    leave show_all with no precedence rule, so such rows are reported and
+    skipped instead of loaded."""
+    links = (
+        db.query(ResourceImagePermissionModel)
+        .filter_by(resource_id=resource.resource_id,
+                   start_year=row.start_year,
+                   end_year=row.end_year)
+        .all()
+    )
+    return sorted({
+        link.image_permission.name
+        for link in links
+        if link.image_permission is not None and link.image_permission.name not in expected_names
+    })
+
+
 def load(db: Session, input_file: str, apply: bool) -> Stats:
     stats = Stats()
     with open(input_file, newline="") as fh:
@@ -228,8 +267,10 @@ def load(db: Session, input_file: str, apply: bool) -> Stats:
     stats.rows_seen = len(rows) + len(skipped)
 
     lookup = build_resource_lookup(db)
-    existing = {p.name: p for p in db.query(ImagePermissionModel).all()}
+    existing: Dict[str, Optional[ImagePermissionModel]] = {
+        p.name: p for p in db.query(ImagePermissionModel).all()}
 
+    matched: List[Tuple[GrantRow, ResourceModel]] = []
     for row in rows:
         resource = find_resource_by_title(row.journal_title, lookup)
         if resource is None:
@@ -242,6 +283,26 @@ def load(db: Session, input_file: str, apply: bool) -> Stats:
             stats.problems.append(
                 f"line {row.line_no}: {resource.curie} publisher {resource.publisher!r} not in the "
                 f"{row.publisher} synonym list (loaded anyway; grant is per journal)")
+        matched.append((row, resource))
+
+    # The permission names this seed itself puts on each (resource, range) slot:
+    # several seed rows MAY share a slot on purpose (the SfN 2026- OA/non-OA
+    # pair), so only grants outside this set count as conflicts.
+    seed_slot_names: Dict[Tuple[int, Optional[int], Optional[int]], set] = {}
+    for row, resource in matched:
+        seed_slot_names.setdefault(
+            (resource.resource_id, row.start_year, row.end_year), set()).add(row.permission_name)
+
+    for row, resource in matched:
+        slot = (resource.resource_id, row.start_year, row.end_year)
+        conflicts = find_conflicting_link_names(db, resource, row, seed_slot_names[slot])
+        if conflicts:
+            stats.link_conflicts += 1
+            stats.problems.append(
+                f"line {row.line_no}: {resource.curie} already carries "
+                f"{conflicts} for {range_label(row.start_year, row.end_year)}; "
+                f"'{row.permission_name}' NOT loaded — resolve which grant owns the slot")
+            continue
         permission = upsert_permission(db, row, existing, stats, apply)
         upsert_link(db, row, resource, permission, stats, apply)
 
@@ -269,6 +330,7 @@ def main() -> None:
     logger.info(
         f"[{mode}] rows={stats.rows_seen} skipped={stats.rows_skipped} "
         f"unmatched={stats.resources_unmatched} publisher_mismatches={stats.publisher_mismatches} "
+        f"link_conflicts={stats.link_conflicts} "
         f"permissions +{stats.permissions_created}/~{stats.permissions_updated}/={stats.permissions_unchanged} "
         f"links +{stats.links_created}/~{stats.links_updated}/={stats.links_unchanged}")
     for problem in stats.problems:

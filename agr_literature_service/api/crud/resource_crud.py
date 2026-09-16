@@ -304,7 +304,9 @@ def show_all(db: Session):
         # (e.g. J Neurosci pre-2010 / 2010-2014 / 2014-2025).
         alliance_permissions = []
         for rip in sorted(resource.resource_image_permissions,
-                          key=lambda r: (r.start_year is not None, r.start_year or 0)):
+                          key=lambda r: (r.start_year is not None, r.start_year or 0,
+                                         r.end_year is None, r.end_year or 0,
+                                         r.resource_image_permission_id)):
             perm = rip.image_permission
             alliance_permissions.append({
                 "resource_image_permission_id": rip.resource_image_permission_id,
