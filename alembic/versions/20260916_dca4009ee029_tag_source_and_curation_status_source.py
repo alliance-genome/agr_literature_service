@@ -15,7 +15,9 @@ SCRUM-6518, in one revision:
 3. Version tables for the association and for curation_status, which had no
    history at all.
 4. Every existing curation_status row is stamped with its per-MOD ABC source.
-5. tag_source.validation_type 'professional_curator' is normalised to
+5. Saved AgGrid layouts in person_setting.json_settings are rewritten, so the
+   column rename does not orphan curators' persisted tet_table preferences.
+6. tag_source.validation_type 'professional_curator' is normalised to
    'professional_biocurator'. Validation edges are computed from
    ATP_ID_SOURCE_CURATOR ('professional_biocurator'), so a source carrying the
    old value would never have had its curator validations counted. No row in
@@ -203,6 +205,30 @@ def _normalise_curator_validation_type() -> None:
     """)
 
 
+def _rewrite_saved_grid_layouts(old: str, new: str) -> None:
+    """Rewrite AgGrid colIds saved in person_setting.json_settings.
+
+    TopicEntityTable's column `field` values are the grid's colIds, and
+    BiblioPreferenceControls persists columnState + filterModel per curator
+    under component_name='tet_table'. Ten of those fields carry the source
+    table's name, so renaming the table silently orphans every saved layout:
+    hidden columns reappear and saved filters stop matching, with nothing to
+    indicate why. 33 rows on prod and 35 on dev are affected (found in review -
+    the first reviewer missed this because the grid also has in-memory-only
+    column state, which is what it looked at).
+
+    A plain string replace is correct for both shapes:
+      topic_entity_tag_source.source_method -> tag_source.source_method
+      topic_entity_tag_source.topic_entity_tag_source_id -> tag_source.tag_source_id
+    """
+    op.execute(f"""
+        UPDATE person_setting
+           SET json_settings = replace(json_settings::text, '{old}', '{new}')::jsonb
+         WHERE component_name = 'tet_table'
+           AND json_settings::text LIKE '%{old}%'
+    """)
+
+
 def _backfill_abc_source_associations() -> None:
     """Stamp every existing curation_status row with its per-MOD ABC source.
 
@@ -358,11 +384,13 @@ def upgrade():
     op.create_index(op.f('ix_curation_status_source_association_date_updated'), 'curation_status_source_association', ['date_updated'], unique=False)
     op.create_index(op.f('ix_curation_status_source_association_tag_source_id'), 'curation_status_source_association', ['tag_source_id'], unique=False)
 
+    _rewrite_saved_grid_layouts(OLD, NEW)
     _normalise_curator_validation_type()
     _backfill_abc_source_associations()
 
 
 def downgrade():
+    _rewrite_saved_grid_layouts(NEW, OLD)
     op.drop_table('curation_status_source_association')
     op.drop_table('curation_status_source_association_version')
     op.drop_table('curation_status_version')
