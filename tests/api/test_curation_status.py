@@ -109,7 +109,7 @@ class TestCurationStatus:
         return client.post(url="/tag_source", headers=auth_headers, json={
             "source_evidence_assertion": assertion,
             "source_method": method,
-            "validation_type": "professional_curator",
+            "validation_type": "professional_biocurator",
             "description": "a test source",
             "data_provider": mod_abbreviation,
             "secondary_data_provider_abbreviation": mod_abbreviation,

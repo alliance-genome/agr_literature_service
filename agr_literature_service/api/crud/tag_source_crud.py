@@ -32,7 +32,7 @@ from agr_literature_service.api.schemas.tag_source_schemas import (
 # attribution path and the SCRUM-6518 backfill.
 CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
 CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"
-CURATOR_VALIDATION_TYPE = "professional_curator"
+CURATOR_VALIDATION_TYPE = "professional_biocurator"
 CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
     "Trained professional biocurator specializing in curation of model organism "
     "data using the ABC data entry form.")
@@ -108,18 +108,25 @@ def get_or_create_abc_source(db: Session, mod_abbreviation: str) -> TagSourceMod
     source by name, POST to create on 404) so the validate write path no longer
     needs the client to resolve a source id first.
 
-    validation_type is set to CURATOR_VALIDATION_TYPE ('professional_curator') to
-    match exactly what getCuratorSourceId POSTs. NOTE the source unique key
-    (source_evidence_assertion, source_method, data_provider,
-    secondary_data_provider) excludes validation_type, so when a source already
-    exists for the MOD it is reused verbatim -- the same row the UI write path
-    uses. That means the resolved source's validation_type is NOT guaranteed to be
-    'professional_curator': a pre-existing curator source may be
-    'professional_biocurator' for some MODs, and the opposite-negation guard in
-    check_for_duplicate_tags (Branch 3) fires only for that value. validate_topic
-    does not rely on the validation_type either way -- it deletes the curator's
-    prior validation before inserting the new one, so a flipped re-validation
-    never trips Branch 3 regardless of the source's validation_type."""
+    validation_type is CURATOR_VALIDATION_TYPE ('professional_biocurator'),
+    matching exactly what the UI's getCuratorSourceId POSTs and what every
+    existing ABC source in dev and prod carries. It used to be
+    'professional_curator', which was wrong in a way that mattered: validation
+    edges are computed from ATP_ID_SOURCE_CURATOR ('professional_biocurator'),
+    so a source created with the old value would never have had its curator
+    validations counted as biocurator validations.
+
+    NOTE the source unique key (source_evidence_assertion, source_method,
+    data_provider, secondary_data_provider) excludes validation_type, so when a
+    source already exists for the MOD it is reused verbatim -- the same row the
+    UI write path uses -- and this constant applies only when creating one.
+
+    The opposite-negation guard in check_for_duplicate_tags (Branch 3) fires for
+    'professional_biocurator' sources, which is now every ABC source.
+    validate_topic does not rely on the validation_type either way -- it deletes
+    the curator's prior validation before inserting the new one, so a flipped
+    re-validation never trips Branch 3 (regression test:
+    test_validate_topic_flip_with_biocurator_source_does_not_409)."""
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
     if mod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

@@ -360,14 +360,13 @@ class TestTopicEntityTag:
             ref_curie = test_topic_entity_tag.related_ref_curie
 
             # validation_type matches what the UI's getCuratorSourceId actually
-            # POSTs for the abc_literature_system source ('professional_curator');
-            # the abc curator source is never 'professional_biocurator'. Keeping
-            # this consistent with the write-path test avoids implying the source
-            # key (ATP:0000036 / abc_literature_system) can be biocurator.
+            # POSTs for the abc_literature_system source, and what every ABC
+            # source in dev and prod carries: 'professional_biocurator'. It is
+            # also the value validation edges key on (ATP_ID_SOURCE_CURATOR).
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
                 "source_method": "abc_literature_system",
-                "validation_type": "professional_curator",
+                "validation_type": "professional_biocurator",
                 "description": "curator from ABC",
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
@@ -476,12 +475,14 @@ class TestTopicEntityTag:
     def test_validate_topic_reuses_existing_curator_source(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # The realistic production case: a curator source for the MOD already
         # exists (created earlier by the UI's getCuratorSourceId, validation_type
-        # 'professional_curator'). get_or_create must REUSE it -- the source unique
-        # key excludes validation_type -- and an opposite-polarity re-validation by
-        # the same curator must succeed (NOT 409): the opposite-negation guard
-        # (Branch 3) only fires for 'professional_biocurator' sources, which the
-        # abc curator source never is. This pins down the behavior reviewers worry
-        # about (the empty-DB test above exercises only the create branch).
+        # 'professional_biocurator'). get_or_create must REUSE it -- the source
+        # unique key excludes validation_type -- and an opposite-polarity
+        # re-validation by the same curator must succeed (NOT 409) even though
+        # the opposite-negation guard (Branch 3) does fire for
+        # 'professional_biocurator' sources: validate_topic deletes the curator's
+        # prior validation before inserting the new one. This pins down the
+        # behavior reviewers worry about (the empty-DB test above exercises only
+        # the create branch).
         load_name_to_atp_and_relationships_mock()
         mod = test_mod.new_mod_abbreviation
         with TestClient(app) as client, \
@@ -498,13 +499,13 @@ class TestTopicEntityTag:
             ref_curie = test_topic_entity_tag.related_ref_curie
 
             # pre-create the curator source exactly as the UI's getCuratorSourceId
-            # does (validation_type 'professional_curator')
+            # does (validation_type 'professional_biocurator')
             existing_source_id = client.post(
                 url="/tag_source",
                 json={
                     "source_evidence_assertion": "ATP:0000036",
                     "source_method": "abc_literature_system",
-                    "validation_type": "professional_curator",
+                    "validation_type": "professional_biocurator",
                     "description": "curator from ABC",
                     "data_provider": mod,
                     "secondary_data_provider_abbreviation": mod,
@@ -542,8 +543,8 @@ class TestTopicEntityTag:
             assert cell["negatives"] == 1
 
     def test_validate_topic_flip_with_biocurator_source_does_not_409(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
-        # Production reality: some MODs' abc curator source is
-        # 'professional_biocurator' (not 'professional_curator'). Against such a
+        # Production reality: every MOD's abc curator source is
+        # 'professional_biocurator'. Against such a
         # source, check_for_duplicate_tags Branch 3 would 409 a same-curator
         # opposite-polarity insert. validate_topic must still let a curator flip
         # their vote: it deletes the curator's prior validation first, so the new

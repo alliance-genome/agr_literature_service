@@ -1956,8 +1956,12 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
 
 
 def _is_curator_source_tag(tag: Dict[str, Any]) -> bool:
+    # 'professional_biocurator' is the only curator validation_type. The old
+    # 'professional_curator' spelling was wrong (validation edges key on
+    # ATP_ID_SOURCE_CURATOR) and is normalised away by the SCRUM-6518 migration,
+    # which runs before this code ships.
     source = tag.get("tag_source") or {}
-    return source.get("validation_type") in ("professional_biocurator", "professional_curator")
+    return source.get("validation_type") == ATP_ID_SOURCE_CURATOR
 
 
 def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -2445,12 +2449,11 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     (reference, topic). Any existing topic-level validation by this curator on the
     curator source is deleted before the new one is inserted, so re-validating
     REPLACES the prior assertion (flip Yes<->No, or update note/species) rather
-    than creating a second, contradictory tag. This is robust regardless of the
-    curator source's validation_type: the abc curator source is
-    'professional_curator' for some MODs and 'professional_biocurator' for others,
-    and the opposite-negation guard (check_for_duplicate_tags Branch 3) only fires
-    for the latter -- deleting the curator's prior tag first means the new insert
-    never trips that guard either way, so a flipped vote never 409s.
+    than creating a second, contradictory tag. The abc curator source is
+    'professional_biocurator', which is exactly what the opposite-negation guard
+    (check_for_duplicate_tags Branch 3) fires for -- deleting the curator's prior
+    tag first means the new insert never trips that guard, so a flipped vote
+    never 409s.
 
     The new tag is created through the normal create_tag path (force_insertion
     bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
