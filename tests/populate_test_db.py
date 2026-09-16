@@ -41,6 +41,8 @@ from agr_literature_service.api.models.reference_email_model import ReferenceEma
 from agr_literature_service.api.models.indexing_priority_model import IndexingPriorityModel  # noqa: E402
 from agr_literature_service.api.models.manual_indexing_tag_model import ManualIndexingTagModel  # noqa: E402
 from agr_literature_service.api.models.curation_status_model import CurationStatusModel  # noqa: E402
+from agr_literature_service.api.models.curation_status_source_association_model import \
+    CurationStatusSourceAssociationModel  # noqa: E402
 
 
 class MockDataFactory:
@@ -250,6 +252,24 @@ class MockDataFactory:
         )
         db_session.add(curation_status)
         return curation_status
+
+    def create_curation_status_source_association(
+            self, db_session, curation_status: CurationStatusModel,
+            source: TagSourceModel) -> CurationStatusSourceAssociationModel:
+        """Attribute a curation status entry to a source (SCRUM-6518).
+
+        Mirrors the base row's values, which is what the ABC backfill does; the
+        columns are independent, so a real loader may report something else.
+        """
+        association = CurationStatusSourceAssociationModel(
+            curation_status_row=curation_status,
+            tag_source=source,
+            curation_status=curation_status.curation_status,
+            curation_tag=curation_status.curation_tag,
+            note=curation_status.note,
+        )
+        db_session.add(association)
+        return association
 
     def create_mod(self, db_session, mod_id: int) -> ModModel:
         """Create a MOD (Model Organism Database) entry."""
@@ -501,7 +521,10 @@ def _create_references_with_associations(db, factory, resources, citations,
         # abc.public.curation_status topic is never created, so the ksql curation_tags
         # table (and everything joined onto it, including reference_joined) fails to build
         cs_mod = mods[i % len(mods)]
-        factory.create_curation_status(db, reference, cs_mod, i)
+        curation_status = factory.create_curation_status(db, reference, cs_mod, i)
+        # Attribute it, so curation_status_source_association is never empty
+        factory.create_curation_status_source_association(
+            db, curation_status, tag_sources[i % len(tag_sources)])
 
         # Add MOD corpus associations - REQUIRED for Debezium
         mod = mods[i % len(mods)]

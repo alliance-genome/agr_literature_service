@@ -40,6 +40,8 @@ from agr_literature_service.api.models.citation_model import CitationModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.models.curation_status_model import CurationStatusModel
+from agr_literature_service.api.models.curation_status_source_association_model import \
+    CurationStatusSourceAssociationModel
 from agr_literature_service.api.models.indexing_priority_model import IndexingPriorityModel
 from agr_literature_service.api.models.manual_indexing_tag_model import ManualIndexingTagModel
 from agr_literature_service.api.models.person_name_model import PersonNameModel
