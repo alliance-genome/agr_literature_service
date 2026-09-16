@@ -45,6 +45,17 @@ b) Pre-existing model/database drift unrelated to this ticket:
 The three create_table blocks below are the generated output verbatim - the
 _mod column sets come from continuum's PropertyModTrackerPlugin, so the
 generator is authoritative for them.
+
+Two of the version-table index names are 64 characters, one over PostgreSQL's
+63-char identifier limit:
+    ix_curation_status_source_association_version_curation_status_id
+    ix_curation_status_source_association_version_end_transaction_id
+op.f() wraps them in a conv() truncated label, so SQLAlchemy truncates with a
+hash suffix rather than raising, and the indexes land as
+..._curation__c56e / ..._end_trans_5a32. This is deliberate rather than fixed:
+alembic compares post-truncation names, so autogenerate stays clean, whereas
+renaming them explicitly here would introduce permanent drift. Anyone dropping
+or referencing these indexes by name must use the truncated form.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -79,10 +90,17 @@ ABC_DESCRIPTION = ("Trained professional biocurator specializing in curation of 
 def _rename_identifiers(old: str, new: str) -> None:
     """Rename every constraint, index and sequence whose name embeds ``old``.
 
-    Constraints run first: renaming a PK or UNIQUE constraint also renames its
-    backing index, so by the time the index loop runs those names no longer
-    match and are not renamed twice. Renaming by pattern rather than by literal
-    name means the revision still works if prod carries an object dev does not.
+    Constraints run first so a PK/UNIQUE rename also carries its backing index.
+    NOTE this does NOT guarantee the index loop skips them. Prod's names are
+    doubled - topic_entity_topic_entity_tag_source_pkey - so one pass yields
+    topic_entity_tag_source_pkey, which still matches the pattern and is
+    renamed again by the index loop, landing on tag_source_pkey. That second
+    pass is correct and verified against a replica built from prod's real
+    identifier names; do not "simplify" either loop on the assumption that one
+    pass is always enough.
+
+    Renaming by pattern rather than by literal name is what lets the revision
+    handle dev and prod carrying different names for the same objects.
     """
     op.execute(f"""
         DO $$
@@ -165,6 +183,10 @@ def _rename_tag_source_back() -> None:
     for table, old_column, new_column in COLUMN_RENAMES:
         # table names are the restored (old) ones by this point
         op.execute(f'ALTER TABLE {table} RENAME COLUMN {new_column} TO {old_column}')
+    # Same guard as upgrade: fail here rather than leave a schema that is half
+    # tag_source and half topic_entity_tag_source, which would otherwise only
+    # surface later as a missing-column error at runtime.
+    _assert_no_identifiers(NEW, 'downgrade')
 
 
 def _normalise_curator_validation_type() -> None:

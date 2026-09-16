@@ -97,10 +97,8 @@ def add_source_association(request: CurationStatusSourceAssociationSchemaPost,
     set_global_user_from_cognito(db, user)
     values = request.model_dump(exclude_unset=True,
                                 exclude={"curation_status_id", "tag_source_id"})
-    association = curation_status_source_crud.upsert_association(
+    return curation_status_source_crud.upsert_association_and_show(
         db, request.curation_status_id, request.tag_source_id, values)
-    return curation_status_source_crud.show_association(
-        db, association.curation_status_source_association_id)
 
 
 @router.get('/{curation_status_id}/source_associations',
@@ -122,10 +120,8 @@ def patch_source_association(curation_status_source_association_id: int,
                              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                              db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    curation_status_source_crud.patch_association(
+    return curation_status_source_crud.patch_association_and_show(
         db, curation_status_source_association_id, request)
-    return curation_status_source_crud.show_association(
-        db, curation_status_source_association_id)
 
 
 @router.delete('/source_association/{curation_status_source_association_id}',

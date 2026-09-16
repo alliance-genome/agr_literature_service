@@ -48,7 +48,7 @@ def create_source(request: TagSourceSchemaCreate,
 
 @router.delete('/{tag_source_id}',
                status_code=status.HTTP_204_NO_CONTENT)
-def delete_source(tag_source_id,
+def delete_source(tag_source_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)

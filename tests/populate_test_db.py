@@ -522,7 +522,10 @@ def _create_references_with_associations(db, factory, resources, citations,
         # table (and everything joined onto it, including reference_joined) fails to build
         cs_mod = mods[i % len(mods)]
         curation_status = factory.create_curation_status(db, reference, cs_mod, i)
-        # Attribute it, so curation_status_source_association is never empty
+        # Attribute it, for realism. Unlike curation_status above this table is
+        # NOT in table.include.list and has no ksql stream, so an empty one would
+        # not break the chain - SCRUM-6517 reads attributions from the API, not
+        # from the index.
         factory.create_curation_status_source_association(
             db, curation_status, tag_sources[i % len(tag_sources)])
 

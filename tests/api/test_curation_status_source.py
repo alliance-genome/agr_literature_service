@@ -156,6 +156,13 @@ class TestCurationStatusSourceAssociation:
                               headers=auth_headers).json()
             assert base["curation_status"] == "ATP:curation_needed"
 
+    def test_delete_associations_for_unknown_source_404s(self, auth_headers): # noqa
+        """Wiping a source that does not exist must not silently answer 204."""
+        with TestClient(app) as client:
+            response = client.delete(url="/curation_status/source/99999999",
+                                     headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_source_associations_for_unknown_row_404s(self, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.get(url="/curation_status/99999999/source_associations",

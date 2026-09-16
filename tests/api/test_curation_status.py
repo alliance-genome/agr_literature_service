@@ -181,14 +181,40 @@ class TestCurationStatus:
                 headers=auth_headers).json()
             assert associations == []
 
-    def test_post_with_unknown_tag_source_id_404s(self, test_curation_status,
-                                                  auth_headers):  # noqa
+    def test_post_with_unknown_tag_source_id_404s_and_creates_nothing(self, test_curation_status,
+                                                                      auth_headers):  # noqa
+        """The base row and its attribution are one transaction.
+
+        Regression: the attribution used to be validated after the base row was
+        committed, so a typo'd tag_source_id returned 404 having created the
+        row anyway - and the caller's retry then hit the (topic, reference_id,
+        mod_id) unique constraint and got a confusing 422.
+        """
         with TestClient(app) as client:
-            response = client.post(url="/curation_status/", headers=auth_headers, json={
+            payload = {
                 "mod_abbreviation": test_curation_status.new_mod_abbreviation,
                 "reference_curie": test_curation_status.new_reference_curie,
                 "topic": "ATP:topic3",
                 "curation_status": "ATP:curation_needed",
                 "tag_source_id": 99999999,
-            })
+            }
+            response = client.post(url="/curation_status/", headers=auth_headers, json=payload)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+            # nothing was left behind: the same POST without the bad id must succeed
+            del payload["tag_source_id"]
+            retry = client.post(url="/curation_status/", headers=auth_headers, json=payload)
+            assert retry.status_code == status.HTTP_201_CREATED
+
+    def test_patch_with_unknown_tag_source_id_404s_and_changes_nothing(self, test_curation_status,
+                                                                       auth_headers):  # noqa
+        """Same transaction guarantee on the PATCH path."""
+        with TestClient(app) as client:
+            curation_status_id = test_curation_status.new_curation_status_id
+            response = client.patch(url=f"/curation_status/{curation_status_id}",
+                                    headers=auth_headers,
+                                    json={"note": "should not stick",
+                                          "tag_source_id": 99999999})
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+            base = client.get(url=f"/curation_status/{curation_status_id}",
+                              headers=auth_headers).json()
+            assert base["note"] is None

@@ -123,7 +123,7 @@ def get_source_id(db_session):
 
     rows = db_session.execute(text(f"SELECT t.tag_source_id "
                                    f"FROM   tag_source t, mod m "
-                                   f"WHERE  t.mod_id = m.mod_id "
+                                   f"WHERE  t.secondary_data_provider_id = m.mod_id "
                                    f"AND    m.abbreviation = '{mod}'")).fetchall()
     return rows[0][0]
 
