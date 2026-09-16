@@ -173,16 +173,16 @@ def upsert_permission(db: Optional[Session], row: GrantRow,
             existing[row.permission_name] = None
             return None
         assert db is not None  # db may only be None in dry-run unit tests
-        permission = ImagePermissionModel(
+        created = ImagePermissionModel(
             name=row.permission_name,
             permission_text=row.permission_text,
             permission_url=row.permission_url,
             can_display_images=row.can_display_images,
         )
-        db.add(permission)
+        db.add(created)
         db.flush()
-        existing[row.permission_name] = permission
-        return permission
+        existing[row.permission_name] = created
+        return created
     permission = existing[row.permission_name]
     if permission is None:
         # dry-run create already counted for an earlier row with this name
