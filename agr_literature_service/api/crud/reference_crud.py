@@ -162,7 +162,10 @@ def get_effective_image_permission(
 ) -> Dict[str, Any]:
     if reference is None:
         reference = get_reference(db, curie_or_reference_id)
-    publication_year = _extract_publication_year(reference)
+    # fresh non-Optional binding: mypy discards None-narrowing for variables
+    # captured by a closure, so the nested function below closes over ref
+    ref: ReferenceModel = reference
+    publication_year = _extract_publication_year(ref)
 
     # Resource permission metadata is included in every response, but which
     # grant it describes must follow the decision made below: when a priority
@@ -171,7 +174,7 @@ def get_effective_image_permission(
     # text, not the restrictive one's "email us for permission" text.
     def resource_permission_metadata(prefer_display: Optional[bool] = None):
         rip = _resource_image_permission_for_reference(
-            db, reference, prefer_display=prefer_display)
+            db, ref, prefer_display=prefer_display)
         return rip, _build_resource_permission_metadata(rip)
 
     # Priority 1: Reference copyright_license.open_access (curator/PMC override)

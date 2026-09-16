@@ -143,3 +143,17 @@ before `--apply` at each step, with the superseded-links cleanup (above)
 applied before the alliance loader on each database. If both loaders need
 running, apply one, review the other's dry-run for link conflicts, and resolve
 ownership before its `--apply`.
+
+DEPLOY ORDER IS LOAD-BEARING for the denormalized `reference.can_display_image`
+column: it is refreshed by triggers whose `compute_can_display_image` function
+is only updated at API startup (`CREATE OR REPLACE`). Restart the API with the
+current code BEFORE running the loaders, so the insert/delete triggers refresh
+references under the up-to-date function. If a loader ran first (against an
+API that had not restarted), the trigger baked values in with the old function
+and nothing re-fires on its own - recompute the affected journals once after
+the restart:
+
+```sql
+SELECT refresh_can_display_image_for_resource(resource_id)
+FROM resource WHERE curie = 'AGRKB:102000000004868';  -- J Neurosci, etc.
+```
