@@ -6,7 +6,8 @@ from starlette.testclient import TestClient
 from agr_literature_service.api.main import app
 from fastapi import status
 
-from agr_literature_service.api.models import ResourceModel
+from agr_literature_service.api.models import (ImagePermissionModel, ResourceImagePermissionModel,
+                                               ResourceModel)
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
@@ -219,6 +220,31 @@ class TestResource:
             r3.license_start_year = 2019
             db.commit()
 
+            # Alliance image permissions: resource 1 gets two year-ranged
+            # grants (the SfN-style split), the others none.
+            perm_copyright = ImagePermissionModel(
+                name="Publisher copyright (test)",
+                permission_text="Copyright [year] Test Publisher",
+                can_display_images=False)
+            perm_cc_by = ImagePermissionModel(
+                name="CC-BY 4.0 (test)",
+                permission_text="Reusable under CC-BY 4.0.",
+                permission_url="https://example.org/ccby",
+                can_display_images=True)
+            db.add_all([perm_copyright, perm_cc_by])
+            db.commit()
+            db.add_all([
+                ResourceImagePermissionModel(
+                    resource_id=r1.resource_id,
+                    image_permission_id=perm_copyright.image_permission_id,
+                    start_year=None, end_year=2009, notes="pre-2010 volumes"),
+                ResourceImagePermissionModel(
+                    resource_id=r1.resource_id,
+                    image_permission_id=perm_cc_by.image_permission_id,
+                    start_year=2014, end_year=2025),
+            ])
+            db.commit()
+
             # Call show_all
             response = client.get(url="/resource/show_all", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
@@ -244,6 +270,17 @@ class TestResource:
             assert r1_data['cross_references'][0]['curie'] == "NLM:111111"
             assert len(r1_data['editors']) == 1
             assert r1_data['editors'][0]['first_name'] == "Alice"
+            # Alliance permissions: open-ended ranges sort first, then by start_year
+            perms = r1_data['alliance_permissions']
+            assert [p['name'] for p in perms] == ["Publisher copyright (test)", "CC-BY 4.0 (test)"]
+            assert perms[0]['end_year'] == 2009
+            assert perms[0]['can_display_images'] is False
+            assert perms[0]['notes'] == "pre-2010 volumes"
+            assert perms[1]['start_year'] == 2014
+            assert perms[1]['end_year'] == 2025
+            assert perms[1]['permission_text'] == "Reusable under CC-BY 4.0."
+            assert perms[1]['permission_url'] == "https://example.org/ccby"
+            assert perms[1]['can_display_images'] is True
 
             # Resource 2: same CC BY license as resource 1
             r2_data = by_curie[curie2]
@@ -276,6 +313,7 @@ class TestResource:
             assert r4_data['license_start_year'] is None
             assert r4_data['cross_references'][0]['curie'] == "NLM:444444"
             assert r4_data['editors'] == []
+            assert r4_data['alliance_permissions'] == []
 
     def test_delete_resource(self, auth_headers, test_resource):  # noqa
         with TestClient(app) as client:
