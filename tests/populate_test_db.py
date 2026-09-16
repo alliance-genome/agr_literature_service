@@ -33,7 +33,8 @@ from agr_literature_service.api.models.mod_corpus_association_model import ModCo
 from agr_literature_service.api.models.mod_reference_type_model import (  # noqa: E402
     ModReferencetypeAssociationModel, ReferencetypeModel, ReferenceModReferencetypeAssociationModel
 )
-from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TagSourceModel  # noqa: E402
+from agr_literature_service.api.models.tag_source_model import TagSourceModel  # noqa: E402
+from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel  # noqa: E402
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel  # noqa: E402
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel  # noqa: E402
 from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel  # noqa: E402
