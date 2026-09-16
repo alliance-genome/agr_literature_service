@@ -817,6 +817,18 @@ def upsert_permission(
     return permission
 
 
+def link_is_foreign(link: ResourceImagePermissionModel, row: JournalPermissionRow) -> bool:
+    """True when the link's permission belongs to neither this row's current
+    nor historical names, i.e. another loader owns the (resource, range) slot.
+    find_resource_link matches on the range only, so without this check a
+    rerun would silently repoint an alliance copyright grant loaded by
+    load_alliance_copyright_permissions.py (which refuses to stack onto
+    foreign slots from its side, SCRUM-6416)."""
+    name = link.image_permission.name if link.image_permission else None
+    return name is not None and name not in (
+        row.permission_name, row.legacy_permission_name, row.hashed_permission_name)
+
+
 def upsert_resource_link(
     db: Session,
     row: JournalPermissionRow,
@@ -826,14 +838,26 @@ def upsert_resource_link(
     apply: bool,
 ) -> None:
     image_permission_id = permission.image_permission_id if permission is not None else None
-    link = None
-    if image_permission_id is not None:
-        link = find_resource_link(
-            db,
-            resource.resource_id,
-            row.start_year,
-            row.end_year,
-        )
+    # Look the slot up even when the permission is a dry-run create (id None):
+    # otherwise a dry run reports "create link" for a slot --apply would refuse
+    # as a conflict, and the numbers curators review would not match.
+    link = find_resource_link(
+        db,
+        resource.resource_id,
+        row.start_year,
+        row.end_year,
+    )
+
+    if link is not None and link_is_foreign(link, row):
+        foreign_name = link.image_permission.name if link.image_permission else "?"
+        add_failed_row(
+            stats, row, "link conflict",
+            f"{resource.curie} ({range_label(row.start_year, row.end_year)}) already carries "
+            f"'{foreign_name}'; left untouched - resolve which grant owns the slot")
+        logger.warning(
+            f"Line {row.line_no}: link conflict, {resource.curie} "
+            f"({range_label(row.start_year, row.end_year)}) already carries '{foreign_name}'")
+        return
 
     if link is None:
         stats.links_created += 1

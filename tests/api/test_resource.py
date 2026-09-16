@@ -315,6 +315,15 @@ class TestResource:
             assert r4_data['editors'] == []
             assert r4_data['alliance_permissions'] == []
 
+            # The single-resource endpoint must carry the grants too: its
+            # response model defaults alliance_permissions to [], which would
+            # misreport a granted journal as having none (PR #1305 review).
+            r1_show = client.get(url=f"/resource/{curie1}", headers=auth_headers).json()
+            assert [p['name'] for p in r1_show['alliance_permissions']] == \
+                ["Publisher copyright (test)", "CC-BY 4.0 (test)"]
+            r4_show = client.get(url=f"/resource/{curie4}", headers=auth_headers).json()
+            assert r4_show['alliance_permissions'] == []
+
     def test_delete_resource(self, auth_headers, test_resource):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)

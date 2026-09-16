@@ -1,10 +1,13 @@
 """
 Tests for the permission classification logic in load_journal_image_permissions.py
 """
+from types import SimpleNamespace
+from typing import Any
 
 from agr_literature_service.lit_processing.data_ingest.journal_license_ingest.load_journal_image_permissions import (
     detect_permission_type,
     has_positive_permission_signal,
+    link_is_foreign,
 )
 
 
@@ -95,3 +98,34 @@ class TestDetectPermissionType:
     def test_blanket_takes_priority(self):
         row = make_row(WB="Blanket", SGD="OA")
         assert detect_permission_type(row) == "Blanket Permission"
+
+
+class TestLinkIsForeign:
+    """A (resource, range) slot owned by another loader's grant (e.g. an
+    alliance copyright permission, SCRUM-6416) must not be repointed."""
+
+    @staticmethod
+    def _link(permission_name) -> Any:
+        permission = SimpleNamespace(name=permission_name) if permission_name else None
+        return SimpleNamespace(image_permission=permission)
+
+    @staticmethod
+    def _row() -> Any:
+        return SimpleNamespace(
+            permission_name="Test J image permission",
+            legacy_permission_name="Test J image permission (legacy)",
+            hashed_permission_name="Test J image permission #abcd1234",
+        )
+
+    def test_other_loaders_grant_is_foreign(self):
+        assert link_is_foreign(self._link("Portland Press: full permission"), self._row()) is True
+
+    def test_own_current_name_is_not_foreign(self):
+        assert link_is_foreign(self._link("Test J image permission"), self._row()) is False
+
+    def test_own_legacy_and_hashed_names_are_not_foreign(self):
+        assert link_is_foreign(self._link("Test J image permission (legacy)"), self._row()) is False
+        assert link_is_foreign(self._link("Test J image permission #abcd1234"), self._row()) is False
+
+    def test_link_without_permission_is_not_foreign(self):
+        assert link_is_foreign(self._link(None), self._row()) is False
