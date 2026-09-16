@@ -817,16 +817,33 @@ def upsert_permission(
     return permission
 
 
+def name_minted_by_this_loader(name: str, publisher: str) -> bool:
+    """Whether a stored permission name matches a shape this loader has ever
+    minted for this publisher: current '{publisher} - <types>', legacy
+    'Journal image permission: ...', or hashed
+    '{publisher} image permission (<sha1-8>)'. A link carrying such a name is
+    this loader's own earlier output, possibly under a since-edited license or
+    permission type, and updates must follow the rename instead of reporting
+    it as a conflict."""
+    if name.startswith("Journal image permission: "):
+        return True
+    publisher = publisher or "unknown publisher"
+    return name.startswith(f"{publisher} - ") or (
+        name.startswith(f"{publisher} image permission (") and name.endswith(")"))
+
+
 def link_is_foreign(link: ResourceImagePermissionModel, row: JournalPermissionRow) -> bool:
-    """True when the link's permission belongs to neither this row's current
-    nor historical names, i.e. another loader owns the (resource, range) slot.
-    find_resource_link matches on the range only, so without this check a
-    rerun would silently repoint an alliance copyright grant loaded by
-    load_alliance_copyright_permissions.py (which refuses to stack onto
-    foreign slots from its side, SCRUM-6416)."""
+    """True when the link's permission belongs neither to this row's names nor
+    to any name shape this loader mints, i.e. another loader owns the
+    (resource, range) slot. find_resource_link matches on the range only, so
+    without this check a rerun would silently repoint an alliance copyright
+    grant loaded by load_alliance_copyright_permissions.py (which refuses to
+    stack onto foreign slots from its side, SCRUM-6416)."""
     name = link.image_permission.name if link.image_permission else None
-    return name is not None and name not in (
-        row.permission_name, row.legacy_permission_name, row.hashed_permission_name)
+    if name is None or name in (
+            row.permission_name, row.legacy_permission_name, row.hashed_permission_name):
+        return False
+    return not name_minted_by_this_loader(name, row.publisher)
 
 
 def upsert_resource_link(

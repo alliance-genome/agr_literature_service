@@ -112,20 +112,39 @@ class TestLinkIsForeign:
     @staticmethod
     def _row() -> Any:
         return SimpleNamespace(
-            permission_name="Test J image permission",
-            legacy_permission_name="Test J image permission (legacy)",
-            hashed_permission_name="Test J image permission #abcd1234",
+            publisher="Test Publisher",
+            permission_name="Test Publisher - CC BY 4.0",
+            legacy_permission_name="Journal image permission: Test J | Test Publisher | all years",
+            hashed_permission_name="Test Publisher image permission (abcd1234)",
         )
 
     def test_other_loaders_grant_is_foreign(self):
+        # alliance grants use '{publisher}: <type>' names (colon, not dash)
         assert link_is_foreign(self._link("Portland Press: full permission"), self._row()) is True
+        assert link_is_foreign(self._link("Test Publisher: full permission"), self._row()) is True
 
     def test_own_current_name_is_not_foreign(self):
-        assert link_is_foreign(self._link("Test J image permission"), self._row()) is False
+        assert link_is_foreign(self._link("Test Publisher - CC BY 4.0"), self._row()) is False
 
     def test_own_legacy_and_hashed_names_are_not_foreign(self):
-        assert link_is_foreign(self._link("Test J image permission (legacy)"), self._row()) is False
-        assert link_is_foreign(self._link("Test J image permission #abcd1234"), self._row()) is False
+        assert link_is_foreign(
+            self._link("Journal image permission: Test J | Test Publisher | all years"), self._row()) is False
+        assert link_is_foreign(
+            self._link("Test Publisher image permission (abcd1234)"), self._row()) is False
+
+    def test_own_renamed_grant_is_not_foreign(self):
+        """A curator edited the license type since the last load: the stored
+        name no longer equals any of the row's three names, but it is still a
+        shape this loader minted for this publisher, so the update must follow
+        the rename instead of reporting a conflict."""
+        assert link_is_foreign(self._link("Test Publisher - CC BY-NC 4.0"), self._row()) is False
+        assert link_is_foreign(self._link("Test Publisher image permission (00ff00ff)"), self._row()) is False
+        assert link_is_foreign(
+            self._link("Journal image permission: Old J | Test Publisher | all years"), self._row()) is False
+
+    def test_another_publishers_minted_name_is_foreign(self):
+        assert link_is_foreign(self._link("Other Press - CC BY 4.0"), self._row()) is True
+        assert link_is_foreign(self._link("Other Press image permission (12345678)"), self._row()) is True
 
     def test_link_without_permission_is_not_foreign(self):
         assert link_is_foreign(self._link(None), self._row()) is False
