@@ -43,7 +43,7 @@ SGD = "SGD"
 CARRY_COLUMNS = [
     "reference_id", "topic", "entity_type", "entity", "entity_id_validation",
     "species", "display_tag", "confidence_level",
-    "confidence_score", "negated", "note", "topic_entity_tag_source_id",
+    "confidence_score", "negated", "note", "tag_source_id",
     "created_by", "updated_by", "data_novelty", "ml_model_id",
 ]
 
@@ -55,8 +55,8 @@ def backfill():
     candidate_ids = [r[0] for r in db.execute(text("""
         SELECT m.topic_entity_tag_id
           FROM topic_entity_tag m
-          JOIN topic_entity_tag_source s
-            ON m.topic_entity_tag_source_id = s.topic_entity_tag_source_id
+          JOIN tag_source s
+            ON m.tag_source_id = s.tag_source_id
          WHERE m.entity IS NOT NULL
            AND m.topic <> m.entity_type
            AND m.negated IS FALSE

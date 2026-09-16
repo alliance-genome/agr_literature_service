@@ -29,7 +29,6 @@ from agr_literature_service.api.schemas.response_message_schemas import Response
 from agr_literature_service.api.schemas.pubmed_publication_status_enum import PubMedPublicationStatus
 
 from agr_literature_service.api.schemas.tag_name_enum import TagName
-from agr_literature_service.api.schemas.tag_source_enum import TagSource
 
 from agr_literature_service.api.schemas.reference_category_schemas import ReferenceCategory
 
@@ -88,10 +87,12 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaCreate,
     TopicEntityTagSchemaPost,
     TopicEntityTagSchemaShow,
-    TopicEntityTagSchemaUpdate,
-    TopicEntityTagSourceSchemaCreate,
-    TopicEntityTagSourceSchemaShow,
-    TopicEntityTagSourceSchemaUpdate
+    TopicEntityTagSchemaUpdate
+)
+from agr_literature_service.api.schemas.tag_source_schemas import (
+    TagSourceSchemaCreate,
+    TagSourceSchemaShow,
+    TagSourceSchemaUpdate
 )
 
 from agr_literature_service.api.schemas.referencefile_mod_schemas import (

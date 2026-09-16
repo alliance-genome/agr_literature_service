@@ -22,7 +22,7 @@ from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 from .test_mod import test_mod # noqa
 from .test_copyright_license import test_copyright_license # noqa
-from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
+from .test_tag_source import test_tag_source # noqa
 
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
 
@@ -289,7 +289,7 @@ class TestReference:
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
-                             test_topic_entity_tag_source): # noqa
+                             test_tag_source): # noqa
         with TestClient(app) as client:
             full_xml = {
                 "category": "research_article",
@@ -340,7 +340,7 @@ class TestReference:
                         "entity": "string",
                         "entity_id_validation": "string",
                         "species": "string",
-                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "tag_source_id": test_tag_source.new_source_id,
                         "negated": False,
                         "note": "test"
                     }
@@ -645,7 +645,7 @@ class TestReference:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    def test_merge_with_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers): # noqa
+    def test_merge_with_tets(self, db, test_resource, test_tag_source, auth_headers): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
                 mock_get_curie_to_name_from_all_tets:
@@ -680,7 +680,7 @@ class TestReference:
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
                         "species": "NCBITaxon:6239",
-                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "tag_source_id": test_tag_source.new_source_id,
                         "negated": False,
                         "data_novelty": "ATP:0000321",
                         "note": "test note",
@@ -694,7 +694,7 @@ class TestReference:
                         "entity": None,
                         "entity_id_validation": None,
                         "species": "NCBITaxon:6239",
-                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "tag_source_id": test_tag_source.new_source_id,
                         "negated": False,
                         "data_novelty": "ATP:0000321",
                         "note": "test note",
@@ -730,7 +730,7 @@ class TestReference:
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
                         "species": "NCBITaxon:6239",
-                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "tag_source_id": test_tag_source.new_source_id,
                         "negated": False,
                         "data_novelty": "ATP:0000321",
                         "note": "another note",  # only the note is different
@@ -744,7 +744,7 @@ class TestReference:
                         "entity": None,
                         "entity_id_validation": None,
                         "species": "NCBITaxon:6239",
-                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "tag_source_id": test_tag_source.new_source_id,
                         "negated": False,
                         "data_novelty": "ATP:0000321",
                         "note": "test note",
@@ -757,7 +757,7 @@ class TestReference:
                         "entity": None,
                         "entity_id_validation": None,
                         "species": "NCBITaxon:6239",
-                        "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                        "tag_source_id": test_tag_source.new_source_id,
                         "negated": False,
                         "data_novelty": "ATP:0000321",
                         "note": "test note",
@@ -817,7 +817,7 @@ class TestReference:
     @pytest.mark.webtest
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    def test_merge_with_a_lot_of_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers):  # noqa
+    def test_merge_with_a_lot_of_tets(self, db, test_resource, test_tag_source, auth_headers):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
                 mock_get_curie_to_name_from_all_tets:
@@ -833,7 +833,7 @@ class TestReference:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "tag_source_id": test_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000321",
                 "note": "test note",
@@ -935,7 +935,7 @@ class TestReference:
                                       'abstract|3\n'
 
 
-    def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
+    def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_tag_source, db):  # noqa
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             new_referencefile_main_1 = {
@@ -995,7 +995,7 @@ class TestReference:
                 "entity": "NCBITaxon:6239",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "tag_source_id": test_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000321",
                 "note": "test note",

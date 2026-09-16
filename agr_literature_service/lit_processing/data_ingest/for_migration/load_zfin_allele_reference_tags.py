@@ -153,7 +153,7 @@ def _build_tag_payload(reference_curie: str, allele_curie: str, species_curie: s
         data_novelty=EXISTING_DATA_NOVELTY_ATP,
         data_context=EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
         negated=False,
-        topic_entity_tag_source_id=source_id,
+        tag_source_id=source_id,
     )
 
 

@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.models import (
     ModModel,
     ReferenceModel,
-    TopicEntityTagSourceModel,
+    TagSourceModel,
 )
 from agr_literature_service.lit_processing.utils.db_read_utils import (
     get_reference_id_by_pmid,
@@ -106,8 +106,8 @@ def download_file(url: str, file_with_path: str, timeout: int = 300) -> bool:  #
         return False
 
 
-def _query_source(db: Session, mod_id: int) -> Optional[TopicEntityTagSourceModel]:
-    return db.query(TopicEntityTagSourceModel).filter_by(
+def _query_source(db: Session, mod_id: int) -> Optional[TagSourceModel]:
+    return db.query(TagSourceModel).filter_by(
         source_evidence_assertion=SOURCE_EVIDENCE_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
@@ -116,25 +116,25 @@ def _query_source(db: Session, mod_id: int) -> Optional[TopicEntityTagSourceMode
 
 
 def find_zfin_source_id(db: Session) -> Optional[int]:
-    """Return the topic_entity_tag_source.id for the shared ZFIN reference-curation
+    """Return the tag_source.id for the shared ZFIN reference-curation
     source, or None if it (or the ZFIN mod) does not exist. Read-only counterpart
     to get_or_create_source, for tools that must not create the source."""
     mod = db.query(ModModel).filter_by(abbreviation=SECONDARY_DATA_PROVIDER_ABBR).one_or_none()
     if mod is None:
         return None
     source = _query_source(db, mod.mod_id)
-    return source.topic_entity_tag_source_id if source else None
+    return source.tag_source_id if source else None
 
 
 def get_or_create_source(db: Session) -> int:
-    """Return the topic_entity_tag_source.id for the shared ZFIN reference-curation
+    """Return the tag_source.id for the shared ZFIN reference-curation
     source, creating it if absent. On a unique-constraint race (two first runs at
     once) the insert is rolled back and the now-present row is re-read."""
     mod = db.query(ModModel).filter_by(abbreviation=SECONDARY_DATA_PROVIDER_ABBR).one()
     existing = _query_source(db, mod.mod_id)
     if existing:
-        return existing.topic_entity_tag_source_id
-    source = TopicEntityTagSourceModel(
+        return existing.tag_source_id
+    source = TagSourceModel(
         source_evidence_assertion=SOURCE_EVIDENCE_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
@@ -149,11 +149,11 @@ def get_or_create_source(db: Session) -> int:
         db.rollback()
         existing = _query_source(db, mod.mod_id)
         if existing:
-            return existing.topic_entity_tag_source_id
+            return existing.tag_source_id
         raise
     db.refresh(source)
-    logger.info(f"Created ZFIN reference-curation TET source id={source.topic_entity_tag_source_id}")
-    return source.topic_entity_tag_source_id
+    logger.info(f"Created ZFIN reference-curation TET source id={source.tag_source_id}")
+    return source.tag_source_id
 
 
 def build_zfin_pub_to_ref_curie(db: Session) -> Dict[str, str]:
@@ -195,7 +195,7 @@ def load_existing_entity_pairs(db: Session, source_id: int,
         "SELECT r.curie, tet.entity "
         "FROM   topic_entity_tag tet "
         "JOIN   reference r ON tet.reference_id = r.reference_id "
-        "WHERE  tet.topic_entity_tag_source_id = :sid "
+        "WHERE  tet.tag_source_id = :sid "
         "AND    tet.topic = :atp "
         "AND    tet.entity_type = :atp"
     ), {"sid": source_id, "atp": entity_atp}).fetchall()

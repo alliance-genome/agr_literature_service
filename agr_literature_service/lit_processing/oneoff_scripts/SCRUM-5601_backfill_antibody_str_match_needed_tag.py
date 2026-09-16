@@ -4,7 +4,7 @@ NOT cover.
 
 Skip rules:
   1. Skip references that already have a TET emitted by the caltech import
-     (topic_entity_tag_source.source_method = 'string_matching_antibody').
+     (tag_source.source_method = 'string_matching_antibody').
   2. Skip references that already have any tag in the new four-state
      antibody-string-matching workflow process (idempotent re-runs).
 """
@@ -58,8 +58,8 @@ def backfill():
     legacy_covered = {r[0] for r in db.execute(text("""
         SELECT DISTINCT tet.reference_id
           FROM topic_entity_tag tet
-          JOIN topic_entity_tag_source tets
-            ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+          JOIN tag_source tets
+            ON tet.tag_source_id = tets.tag_source_id
          WHERE tets.source_method = :sm
     """), {"sm": LEGACY_CALTECH_SOURCE_METHOD})}
 

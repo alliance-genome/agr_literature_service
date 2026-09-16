@@ -15,7 +15,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
-    TopicEntityTagSourceModel
+    TagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -327,14 +327,14 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
 
     # add tet info to the objects
     query = (
-        db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
+        db.query(TopicEntityTagModel, TagSourceModel)
         .join(
-            TopicEntityTagSourceModel,
-            TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+            TagSourceModel,
+            TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id
         )
         .filter(
             TopicEntityTagModel.reference_id == reference_id,
-            TopicEntityTagSourceModel.data_provider == mod_abbreviation
+            TagSourceModel.data_provider == mod_abbreviation
         )
     )
     rows = query.all()

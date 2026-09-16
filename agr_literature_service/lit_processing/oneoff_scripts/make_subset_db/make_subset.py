@@ -15,7 +15,7 @@ from agr_literature_service.api.models import (
     ReferencetypeModel,
     ModReferencetypeAssociationModel,
     CopyrightLicenseModel,
-    TopicEntityTagSourceModel,
+    TagSourceModel,
     WorkflowTransitionModel,
     DatasetModel,
     MLModel
@@ -30,7 +30,7 @@ data_needed_before_reference = [
     ReferencetypeModel,
     ModReferencetypeAssociationModel,
     CopyrightLicenseModel,
-    TopicEntityTagSourceModel,
+    TagSourceModel,
     WorkflowTransitionModel,
     DatasetModel,
     MLModel

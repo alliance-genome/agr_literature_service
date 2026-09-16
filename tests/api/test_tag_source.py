@@ -13,7 +13,7 @@ SourceTestData = namedtuple('SourceTestData', ['response', 'new_source_id'])
 
 
 @pytest.fixture
-def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
+def test_tag_source(db, auth_headers, test_mod): # noqa
     print("***** Adding a test tag source *****")
     with TestClient(app) as client:
         new_source = {
@@ -26,18 +26,18 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
             "created_by": "somebody"
         }
         response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
-        yield SourceTestData(response, response.json()["topic_entity_tag_source_id"])
+        yield SourceTestData(response, response.json()["tag_source_id"])
 
 
-class TestTopicEntityTagSource:
+class TestTagSource:
 
-    def test_create_source(self, test_topic_entity_tag_source, test_mod, auth_headers): # noqa
+    def test_create_source(self, test_tag_source, test_mod, auth_headers): # noqa
         with TestClient(app):
-            assert test_topic_entity_tag_source.response.status_code == status.HTTP_201_CREATED
+            assert test_tag_source.response.status_code == status.HTTP_201_CREATED
 
-    def test_show_source(self, test_topic_entity_tag_source, test_mod, auth_headers):  # noqa
+    def test_show_source(self, test_tag_source, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+            response = client.get(url=f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res_obj = response.json()
@@ -47,26 +47,26 @@ class TestTopicEntityTagSource:
             assert res_obj["data_provider"] == "WB"
             assert res_obj["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
 
-    def test_patch_source(self, test_topic_entity_tag_source, auth_headers): # noqa
+    def test_patch_source(self, test_tag_source, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
                 "source_evidence_assertion": "ECO:0008021",
                 "created_by": "me"
             }
-            response = client.patch(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+            response = client.patch(url=f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
                                     json=patch_data, headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+            response = client.get(url=f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.json()["source_evidence_assertion"] == "ECO:0008021"
             assert response.json()["created_by"] == "me"
 
-    def test_destroy_source(self, test_topic_entity_tag_source, auth_headers):  # noqa
+    def test_destroy_source(self, test_tag_source, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.delete(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+            response = client.delete(f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+            response = client.get(f"/topic_entity_tag/source/{test_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 

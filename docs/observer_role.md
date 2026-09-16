@@ -268,7 +268,7 @@ by dumping `app.routes`.
 /topic_entity_tag/revalidate_all_tags/
 /topic_entity_tag/source/all
 /topic_entity_tag/source/{source_evidence_assertion}/{source_method}/{data_provider}/{secondary_data_provider_abbreviation}
-/topic_entity_tag/source/{topic_entity_tag_source_id}
+/topic_entity_tag/source/{tag_source_id}
 /topic_entity_tag/{topic_entity_tag_id}
 /vocabulary/
 /vocabulary/{name}

@@ -33,7 +33,7 @@ from agr_literature_service.api.models.mod_corpus_association_model import ModCo
 from agr_literature_service.api.models.mod_reference_type_model import (  # noqa: E402
     ModReferencetypeAssociationModel, ReferencetypeModel, ReferenceModReferencetypeAssociationModel
 )
-from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel  # noqa: E402
+from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TagSourceModel  # noqa: E402
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel  # noqa: E402
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel  # noqa: E402
 from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel  # noqa: E402
@@ -331,7 +331,7 @@ class MockDataFactory:
         db_session.add(association)
         return association
 
-    def create_topic_entity_tag_source(self, db_session, source_id: int, mod: ModModel) -> TopicEntityTagSourceModel:
+    def create_tag_source(self, db_session, source_id: int, mod: ModModel) -> TagSourceModel:
         """Create a topic entity tag source entry."""
         data_providers = [
             "professional_biocurator",
@@ -347,7 +347,7 @@ class MockDataFactory:
             "computational_analysis"
         ]
 
-        source = TopicEntityTagSourceModel(
+        source = TagSourceModel(
             data_provider=data_providers[source_id % len(data_providers)],
             secondary_data_provider_id=mod.mod_id,
             source_evidence_assertion=evidence_assertions[source_id % len(evidence_assertions)],
@@ -360,7 +360,7 @@ class MockDataFactory:
         return source
 
     def create_topic_entity_tag(self, db_session, reference: ReferenceModel,
-                                tag_id: int, source: TopicEntityTagSourceModel) -> TopicEntityTagModel:
+                                tag_id: int, source: TagSourceModel) -> TopicEntityTagModel:
         """Create a topic entity tag entry."""
         # Use real topic values that would be found in the system
         topics = [
@@ -377,7 +377,7 @@ class MockDataFactory:
             entity_type="gene",
             entity="HGNC:12345",
             entity_id_validation="alliance",
-            topic_entity_tag_source_id=source.topic_entity_tag_source_id,
+            tag_source_id=source.tag_source_id,
             species="NCBITaxon:10090",
             negated=False,
             data_novelty="ATP:0000334",
@@ -563,7 +563,7 @@ def populate_database():
         tag_sources = []
         for i in range(4):
             mod = mods[i % len(mods)]  # Use different MODs for different sources
-            source = factory.create_topic_entity_tag_source(db, i, mod)
+            source = factory.create_tag_source(db, i, mod)
             tag_sources.append(source)
 
         # Create resources
@@ -636,7 +636,7 @@ def populate_database():
         mod_ref_type_count = db.query(ModReferencetypeAssociationModel).count()
         ref_mod_ref_type_count = db.query(ReferenceModReferencetypeAssociationModel).count()
         topic_tag_count = db.query(TopicEntityTagModel).count()
-        tag_source_count = db.query(TopicEntityTagSourceModel).count()
+        tag_source_count = db.query(TagSourceModel).count()
         workflow_tag_count = db.query(WorkflowTagModel).count()
         obsolete_count = db.query(ObsoleteReferenceModel).count()
 

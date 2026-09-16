@@ -51,7 +51,7 @@ All in `agr_literature_service/api/models/topic_entity_tag_model.py`.
 - **`__versioned__ = {'exclude': ['validated_by']}`** (`:43-45`) — the edge graph has no
   audit history. The two string columns *are* versioned, so every revalidation writes a
   `topic_entity_tag_version` row.
-- **`TopicEntityTagSourceModel.validation_type`** (`:246`) — nullable free-text string, and
+- **`TagSourceModel.validation_type`** (`:246`) — nullable free-text string, and
   the pivot of the whole system. A tag can validate others only if its source has a
   non-null value here. ML/automated sources are `None`: they can *be* validated but never
   validate.
@@ -256,7 +256,7 @@ must not touch the validated tag's audit fields.
 The ATP hierarchy is mocked by `load_name_to_atp_and_relationships_mock()`
 (`tests/fixtures.py:164`), so tests make no A-team ontology calls.
 
-**Known gaps:** `tests/api/test_topic_entity_tag_source.py` asserts nothing about
+**Known gaps:** `tests/api/test_tag_source.py` asserts nothing about
 `validation_type` — not its allowed values, not that changing it re-derives anything.
 `test_data_novelty_branch_separation` (`:1693`) is an assertion-free stub.
 
@@ -351,7 +351,7 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 - **Full-reference rebuild for a single-tag edit.** Patch, delete and validate all delete
   and re-derive every edge on the reference, then run a second full pass recomputing values.
 - **Sweep cache thrash** (SCRUM-6475) (`:828-830`, `:852-855`) — ordering by
-  `reference_id, topic_entity_tag_source_id, secondary_data_provider_id` means tags of the
+  `reference_id, tag_source_id, secondary_data_provider_id` means tags of the
   same MOD are not guaranteed contiguous. Swapping the last two keys would fix it.
 - **No locking anywhere.** (SCRUM-6475) No `SELECT ... FOR UPDATE`, no advisory locks. Two concurrent
   writes to the same reference can interleave one's `DELETE FROM

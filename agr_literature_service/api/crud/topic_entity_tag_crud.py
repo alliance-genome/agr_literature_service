@@ -28,7 +28,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
-    ReferenceModel, TopicEntityTagSourceModel, ModModel, CrossReferenceModel
+    ReferenceModel, TagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.models.topic_entity_tag_model import topic_entity_tag_validation
@@ -42,9 +42,9 @@ from agr_literature_service.api.models.audited_model import (
 )
 from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
-                                                                         TopicEntityTagSourceSchemaUpdate,
-                                                                         TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
+from agr_literature_service.api.schemas.tag_source_schemas import (TagSourceSchemaCreate,
+                                                                   TagSourceSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
@@ -163,7 +163,7 @@ def resolve_default_data_context(db: Session, topic_entity_tag_data: dict) -> st
 
 
 def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
-                                source: TopicEntityTagSourceModel):
+                                source: TagSourceModel):
     """Fill in the fields the server derives rather than takes from the client.
 
     SGD is the exception throughout the TET code: its curators' tags carry a
@@ -233,9 +233,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     topic_entity_tag_data["reference_id"] = reference_id
     force_insertion = topic_entity_tag_data.pop("force_insertion", None)
     index_wft = topic_entity_tag_data.pop("index_wft", None)
-    logger.info("Querying topic_entity_tag_source")
-    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
+    logger.info("Querying tag_source")
+    source: TagSourceModel = db.query(TagSourceModel).filter(
+        TagSourceModel.tag_source_id == topic_entity_tag_data["tag_source_id"]
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
@@ -284,9 +284,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         logger.info("Adding new tag to database")
         db.add(new_db_obj)
         db.commit()
-        logger.info("Tag committed, refreshing with topic_entity_tag_source")
-        # Optimize: Eagerly load topic_entity_tag_source to avoid lazy loading during validation
-        db.refresh(new_db_obj, ['topic_entity_tag_source'])
+        logger.info("Tag committed, refreshing with tag_source")
+        # Optimize: Eagerly load tag_source to avoid lazy loading during validation
+        db.refresh(new_db_obj, ['tag_source'])
 
         logger.info("Adding paper to MOD if needed")
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
@@ -390,7 +390,7 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         db.add(new_db_obj)
         db.commit()
         committed = True
-        db.refresh(new_db_obj, ['topic_entity_tag_source'])
+        db.refresh(new_db_obj, ['tag_source'])
         validate_tags(db=db, new_tag_obj=new_db_obj)
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
     except Exception as e:
@@ -548,7 +548,7 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
         validating_tag = validating_tags_to_add.pop()
         additional_validating_tags = [
             tag for tag in validating_tag.validated_by
-            if tag.topic_entity_tag_source.validation_type == validation_type and tag.topic_entity_tag_id not in
+            if tag.tag_source.validation_type == validation_type and tag.topic_entity_tag_id not in
             validating_tags_added_ids]
         additional_validating_tag_values = [tag.negated for tag in additional_validating_tags]
         additional_validating_tag_ids = [tag.topic_entity_tag_id for tag in additional_validating_tags]
@@ -557,7 +557,7 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
         validating_tags_to_add.extend(additional_validating_tags)
     return decide_validation_value(
         topic_entity_tag_db_obj.negated,
-        topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type,
+        topic_entity_tag_db_obj.tag_source.validation_type == validation_type,
         validating_tags_values)
 
 
@@ -585,7 +585,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
-        "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
+        "tag_source_id"] = topic_entity_tag.tag_source.tag_source_id
     if topic_entity_tag_data.get("entity"):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
@@ -613,8 +613,8 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
         user_ids.add(topic_entity_tag_data["updated_by"])
 
     # nested source created_by / updated_by
-    if topic_entity_tag_data.get("topic_entity_tag_source"):
-        src = topic_entity_tag_data["topic_entity_tag_source"]
+    if topic_entity_tag_data.get("tag_source"):
+        src = topic_entity_tag_data["tag_source"]
         if src.get("created_by"):
             user_ids.add(src["created_by"])
         if src.get("updated_by"):
@@ -636,11 +636,11 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
             topic_entity_tag_data[k] = id_to_display[uid]
 
     # Replace nested source created_by/updated_by
-    if topic_entity_tag_data.get("topic_entity_tag_source"):
+    if topic_entity_tag_data.get("tag_source"):
         for k in ("created_by", "updated_by"):
-            uid = topic_entity_tag_data["topic_entity_tag_source"].get(k)
+            uid = topic_entity_tag_data["tag_source"].get(k)
             if uid and uid in id_to_display:
-                topic_entity_tag_data["topic_entity_tag_source"][k] = id_to_display[uid]
+                topic_entity_tag_data["tag_source"][k] = id_to_display[uid]
 
     # Replace validating_users list items with display names where available
     if validating_user_ids:
@@ -696,12 +696,12 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     This allows us to set `created_by_mod` based on the mod to which `created_by` is associated,
     assuming person data is available in the database. However, if the tag is added by a script,
     `created_by` is set to `curator_id`. In this case, we set
-    `created_by_mod` based on the mod in the `topic_entity_tag_source` table.
-    Currently, `created_by_mod` always defaults to the mod in the `topic_entity_tag_source` table,
+    `created_by_mod` based on the mod in the `tag_source` table.
+    Currently, `created_by_mod` always defaults to the mod in the `tag_source` table,
     as we lack the database data to map each user's id to a mod.
     """
     user_mod = MOD_ACCESS_ABBR[mod_access]
-    created_by_mod = topic_entity_tag.topic_entity_tag_source.secondary_data_provider.abbreviation
+    created_by_mod = topic_entity_tag.tag_source.secondary_data_provider.abbreviation
     """
     fixed HTTP_403_Forbidden to HTTP_404_NOT_FOUND in following code since mypy complains
     about "HTTP_403_Forbidden" not found
@@ -1009,7 +1009,7 @@ def validation_value_from_edge_map(tag: TopicEntityTagModel, validation_type: st
                 continue
             validating_tag = tags_by_id.get(validating_id)
             if validating_tag is None or \
-                    validating_tag.topic_entity_tag_source.validation_type != validation_type:
+                    validating_tag.tag_source.validation_type != validation_type:
                 # Non-matching sources are not traversed, matching the ORM walk: the
                 # closure for a validation type only runs through tags of that type.
                 continue
@@ -1018,7 +1018,7 @@ def validation_value_from_edge_map(tag: TopicEntityTagModel, validation_type: st
             to_visit.append(validating_id)
     return decide_validation_value(
         tag.negated,
-        tag.topic_entity_tag_source.validation_type == validation_type,
+        tag.tag_source.validation_type == validation_type,
         validating_negated_values)
 
 
@@ -1037,7 +1037,7 @@ def recompute_validation_values_for_tags(db: Session, tag_ids: Set[int]):
     tags_by_id = {
         tag.topic_entity_tag_id: tag
         for tag in db.query(TopicEntityTagModel).options(
-            joinedload(TopicEntityTagModel.topic_entity_tag_source)
+            joinedload(TopicEntityTagModel.tag_source)
         ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids)).all()
     }
     for tag_id in tag_ids:
@@ -1068,12 +1068,12 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             # projection -- these rows are column tuples, not ORM instances, and a missing
             # column raises KeyError rather than lazy-loading.
             TopicEntityTagModel.data_context,
-            TopicEntityTagSourceModel.validation_type
+            TagSourceModel.validation_type
         ).join(
-            TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source
+            TagSourceModel, TopicEntityTagModel.tag_source
         ).filter(
             TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-            TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
+            TagSourceModel.secondary_data_provider_id == new_tag_obj.tag_source.secondary_data_provider_id,
             TopicEntityTagModel.negated.isnot(None)
         ).all()
         logger.debug("Query for related tags completed")
@@ -1088,7 +1088,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     logger.debug(f"Found {str(len(related_tags_in_db))} related tags")
     if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
         # Validate existing tags
-        if new_tag_obj.topic_entity_tag_source.validation_type is not None:
+        if new_tag_obj.tag_source.validation_type is not None:
             logger.debug(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
             if new_tag_obj.negated is False:
                 validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
@@ -1236,19 +1236,19 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
     sweep_lock_held = False
     reference_query_filter = ""
     query_tags = (db.query(TopicEntityTagModel)
-                  .join(TopicEntityTagModel.topic_entity_tag_source)
-                  .options(joinedload(TopicEntityTagModel.topic_entity_tag_source))
+                  .join(TopicEntityTagModel.tag_source)
+                  .options(joinedload(TopicEntityTagModel.tag_source))
                   .options(noload(TopicEntityTagModel.reference))
                   # SCRUM-6475: MOD before source id. secondary_data_provider_id is
-                  # functionally determined by topic_entity_tag_source_id, so as the third
+                  # functionally determined by tag_source_id, so as the third
                   # key it was inert -- yet the rebuild loop drops its cached related-tags
                   # list whenever the MOD changes, so tags of one MOD were not contiguous
                   # and the cache was reset far more often than necessary. The trailing
                   # topic_entity_tag_id makes the ordering total, which matters because a
                   # non-unique ORDER BY lets rows move between pages.
                   .order_by(TopicEntityTagModel.reference_id,
-                            TopicEntityTagSourceModel.secondary_data_provider_id,
-                            TopicEntityTagModel.topic_entity_tag_source_id,
+                            TagSourceModel.secondary_data_provider_id,
+                            TopicEntityTagModel.tag_source_id,
                             TopicEntityTagModel.topic_entity_tag_id))
     try:
         if curie_or_reference_id:
@@ -1363,9 +1363,9 @@ def rebuild_validation_edges(db: Session, query_tags, delete_all_first: bool, si
     tag_counter = 0
     for page, is_single in iter_sweep_tags(db, query_tags, single_reference):
         for tag in page:
-            if tag.reference_id != curr_reference_id or tag.topic_entity_tag_source.secondary_data_provider_id != curr_mod_id:
+            if tag.reference_id != curr_reference_id or tag.tag_source.secondary_data_provider_id != curr_mod_id:
                 curr_reference_id = tag.reference_id
-                curr_mod_id = tag.topic_entity_tag_source.secondary_data_provider_id
+                curr_mod_id = tag.tag_source.secondary_data_provider_id
                 curr_ref_tags_in_db = None
             if tag_counter % 5000 == 0:
                 # Throttled: at one line per tag this printed millions of lines per sweep.
@@ -1423,7 +1423,7 @@ def recompute_validation_values(db: Session, query_tags, single_reference: bool)
             db.expunge_all()
 
 
-def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
+def create_source(db: Session, source: TagSourceSchemaCreate):
     source_data = {key: value for key, value in jsonable_encoder(source).items() if value is not None}
     source_obj = add_source_obj_to_db_session(db, source_data)
     try:
@@ -1432,17 +1432,17 @@ def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    return source_obj.topic_entity_tag_source_id
+    return source_obj.tag_source_id
 
 
-def destroy_source(db: Session, topic_entity_tag_source_id: int):
-    source = get_source_from_db(db, topic_entity_tag_source_id)
+def destroy_source(db: Session, tag_source_id: int):
+    source = get_source_from_db(db, tag_source_id)
     db.delete(source)
     db.commit()
 
 
-def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: TopicEntityTagSourceSchemaUpdate):
-    source = get_source_from_db(db, topic_entity_tag_source_id)
+def patch_source(db: Session, tag_source_id: int, source_patch: TagSourceSchemaUpdate):
+    source = get_source_from_db(db, tag_source_id)
     source_patch_data = source_patch.model_dump(exclude_unset=True)
     add_audited_object_users_if_not_exist(db, source_patch_data)
     for key, value in source_patch_data.items():
@@ -1451,8 +1451,8 @@ def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: Top
     return {"message": "updated"}
 
 
-def show_source(db: Session, topic_entity_tag_source_id: int):
-    source = get_source_from_db(db, topic_entity_tag_source_id)
+def show_source(db: Session, tag_source_id: int):
+    source = get_source_from_db(db, tag_source_id)
     source_data = jsonable_encoder(source)
     del source_data["secondary_data_provider_id"]
     source_data["secondary_data_provider_abbreviation"] = source.secondary_data_provider.abbreviation
@@ -1465,7 +1465,7 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
                              reference_id: int, force_insertion: bool = False):
     """
     Detect duplicate tags. Per SCRUM-5716 strict-REST design:
@@ -1628,22 +1628,22 @@ def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], 
             user_ids.add(tet.created_by)
         if tet.updated_by:
             user_ids.add(tet.updated_by)
-        if tet.topic_entity_tag_source:
-            if tet.topic_entity_tag_source.created_by:
-                user_ids.add(tet.topic_entity_tag_source.created_by)
-            if tet.topic_entity_tag_source.updated_by:
-                user_ids.add(tet.topic_entity_tag_source.updated_by)
+        if tet.tag_source:
+            if tet.tag_source.created_by:
+                user_ids.add(tet.tag_source.created_by)
+            if tet.tag_source.updated_by:
+                user_ids.add(tet.tag_source.updated_by)
     id_to_display_name = get_user_display_name_map(db, user_ids)
 
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
     tet_column_keys = _orm_column_keys(TopicEntityTagModel)
-    source_column_keys = _orm_column_keys(TopicEntityTagSourceModel)
+    source_column_keys = _orm_column_keys(TagSourceModel)
     all_tet = []
     for tet in rows:
         tet_data = _project_orm_columns(tet, tet_column_keys)
-        source = tet.topic_entity_tag_source
+        source = tet.tag_source
         source_data = _project_orm_columns(source, source_column_keys) if source else None
-        tet_data["topic_entity_tag_source"] = source_data
+        tet_data["tag_source"] = source_data
         # Replace top-level created_by/updated_by if we have a display name
         for k in ("created_by", "updated_by"):
             uid = tet_data.get(k)
@@ -1730,7 +1730,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
     # query for the whole result set) is limit-safe, unlike a collection
     # joinedload.
     query = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id == reference_id)
@@ -1760,23 +1760,23 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
                 # check if the column exists in TopicEntityTagModel
                 if hasattr(TopicEntityTagModel, sort_by):
                     column_property = getattr(TopicEntityTagModel, sort_by)
-                elif hasattr(TopicEntityTagSourceModel, sort_by):
-                    column_property = getattr(TopicEntityTagSourceModel, sort_by)
-                    # explicitly join the topic_entity_tag_source table for sorting
-                    query = query.join(TopicEntityTagSourceModel,
-                                       TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                elif hasattr(TagSourceModel, sort_by):
+                    column_property = getattr(TagSourceModel, sort_by)
+                    # explicitly join the tag_source table for sorting
+                    query = query.join(TagSourceModel,
+                                       TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id)
                 elif sort_by == 'secondary_data_provider':
                     column_property_name = "abbreviation"
                     column_property = getattr(ModModel, column_property_name)
                     query = query.join(
-                        TopicEntityTagSourceModel,
-                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                        TagSourceModel,
+                        TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id)
                     query = query.join(
-                        ModModel, TopicEntityTagSourceModel.secondary_data_provider_id == ModModel.mod_id)
+                        ModModel, TagSourceModel.secondary_data_provider_id == ModModel.mod_id)
                 else:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel "
-                                               f"or TopicEntityTagSourceModel.")
+                                               f"or TagSourceModel.")
                 if column_property is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"Failed to get the column '{sort_by}' from the models.")
@@ -1864,13 +1864,13 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
 
     source_methods = filters.get("source_methods")
     if source_methods:
-        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_method, source_methods)))
+        positive_conditions.append(TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_method, source_methods)))
 
     source_evidence_assertions = filters.get("source_evidence_assertions")
     if source_evidence_assertions:
-        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, source_evidence_assertions)))
+        positive_conditions.append(TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_evidence_assertion, source_evidence_assertions)))
 
     if positive_conditions:
         if single_tag:
@@ -1888,8 +1888,8 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
     mods = filters.get("mods")
     if mods:
         upper_mods = [str(m).upper() for m in mods if m]
-        query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
-            TopicEntityTagSourceModel.secondary_data_provider.has(
+        query = query.filter(TopicEntityTagModel.tag_source.has(
+            TagSourceModel.secondary_data_provider.has(
                 func.upper(ModModel.abbreviation).in_(upper_mods))))
 
     entity_types = filters.get("entity_types")
@@ -1912,13 +1912,13 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
 
     negated_source_methods = filters.get("negated_source_methods")
     if negated_source_methods:
-        query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_method, negated_source_methods)))
+        query = query.filter(~TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_method, negated_source_methods)))
 
     negated_source_evidence_assertions = filters.get("negated_source_evidence_assertions")
     if negated_source_evidence_assertions:
-        query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, negated_source_evidence_assertions)))
+        query = query.filter(~TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_evidence_assertion, negated_source_evidence_assertions)))
 
     score_min = filters.get("confidence_score_min")
     score_max = filters.get("confidence_score_max")
@@ -1987,7 +1987,7 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
         topic_bucket[kind] += 1
         topic_bucket["total"] += 1
 
-        label = _source_label(tag.get("topic_entity_tag_source"))
+        label = _source_label(tag.get("tag_source"))
         src_bucket = topic_bucket["by_source"].setdefault(
             label, {"topic_only": 0, "entity_pos": 0, "entity_neg": 0}
         )
@@ -1996,7 +1996,7 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
 
 
 def _is_curator_source_tag(tag: Dict[str, Any]) -> bool:
-    source = tag.get("topic_entity_tag_source") or {}
+    source = tag.get("tag_source") or {}
     return source.get("validation_type") in ("professional_biocurator", "professional_curator")
 
 
@@ -2069,7 +2069,7 @@ def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[
             continue
         ref_id = tag["reference_id"]
         topic = str(tag.get("topic") or "").upper()
-        source_data = tag.get("topic_entity_tag_source") or {}
+        source_data = tag.get("tag_source") or {}
         label = _source_label(source_data)
         grouped[ref_id][topic][label].append(tag)
         source_data_by_label[(ref_id, topic, label)] = source_data
@@ -2163,7 +2163,7 @@ def _build_validation_details(serialized_tags: List[Dict[str, Any]]) -> Dict[int
         if group is None:
             group = {"name": name, "negated": negated, "sources": {}, "species": []}
             bucket["by_curator"][(name, negated)] = group
-        source = tag.get("topic_entity_tag_source") or {}
+        source = tag.get("tag_source") or {}
         method = source.get("source_method")
         if method and method not in group["sources"]:
             sec = source.get("secondary_data_provider_abbreviation")
@@ -2284,7 +2284,7 @@ def _build_discovery(serialized_tags: List[Dict[str, Any]]) -> Dict[str, Any]:
             topics[topic] = {"curie": topic, "name": tag.get("topic_name") or topic}
         if _is_curator_source_tag(tag):
             continue
-        source_data = tag.get("topic_entity_tag_source") or {}
+        source_data = tag.get("tag_source") or {}
         label = _source_label(source_data)
         if label not in sources:
             sources[label] = {
@@ -2355,7 +2355,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
 
     query_start = perf_counter()
     query = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id.in_(ref_ids))
@@ -2452,7 +2452,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     }
 
 
-def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) -> TopicEntityTagSourceModel:
+def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) -> TagSourceModel:
     """Resolve the per-MOD ABC curator source used for grid validations, creating
     it if absent. Server-side equivalent of the UI's getCuratorSourceId (GET the
     source by name, POST to create on 404) so the validate write path no longer
@@ -2476,18 +2476,18 @@ def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) 
                             detail=f"Cannot find the MOD '{mod_abbreviation}'")
 
     def _lookup():
-        return db.query(TopicEntityTagSourceModel).filter(
-            TopicEntityTagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-            TopicEntityTagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
-            TopicEntityTagSourceModel.data_provider == mod_abbreviation,
-            TopicEntityTagSourceModel.secondary_data_provider_id == mod.mod_id,
+        return db.query(TagSourceModel).filter(
+            TagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+            TagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
+            TagSourceModel.data_provider == mod_abbreviation,
+            TagSourceModel.secondary_data_provider_id == mod.mod_id,
         ).first()
 
     source = _lookup()
     if source is not None:
         return source
     try:
-        new_source_id = create_source(db, TopicEntityTagSourceSchemaCreate(
+        new_source_id = create_source(db, TagSourceSchemaCreate(
             source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
             source_method=CURATOR_VALIDATION_SOURCE_METHOD,
             validation_type=CURATOR_VALIDATION_TYPE,
@@ -2515,7 +2515,7 @@ def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Di
     it never has to re-fetch and re-aggregate the whole batch after one edit."""
     topic_upper = str(topic or "").upper()
     rows = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id == reference_id).all()
@@ -2568,7 +2568,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         TopicEntityTagModel.reference_id == reference_id,
         func.upper(TopicEntityTagModel.topic) == topic_upper,
         TopicEntityTagModel.entity.is_(None),
-        TopicEntityTagModel.topic_entity_tag_source_id == source.topic_entity_tag_source_id,
+        TopicEntityTagModel.tag_source_id == source.tag_source_id,
         TopicEntityTagModel.created_by == current_user,
     ).all()
     replaced = bool(prior)
@@ -2593,7 +2593,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         data_context=CURATOR_VALIDATION_DATA_CONTEXT,
         negated=negated,
         note=note,
-        topic_entity_tag_source_id=source.topic_entity_tag_source_id,
+        tag_source_id=source.tag_source_id,
         force_insertion=True,
     )
     tag_id, _ = create_tag(db, tag, validate_on_insert=False)
@@ -2625,7 +2625,7 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                            "get_most_current_email(u.person_id) AS email "
                            "FROM cross_reference cr "
                            "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
-                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id "
                            "JOIN users u ON tet.updated_by = u.id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
@@ -2649,7 +2649,7 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
     src_rows = db.execute(text("SELECT tets.* "
-                               "FROM topic_entity_tag_source tets "
+                               "FROM tag_source tets "
                                "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                                "WHERE m.abbreviation = :mod_abbreviation "
                                "AND tets.source_method = 'abc_literature_system'"),
@@ -2665,7 +2665,7 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     rows = db.execute(text("SELECT DISTINCT tet.reference_id "
                            "FROM topic_entity_tag tet "
-                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
                            "AND tets.source_method = 'abc_literature_system' "
@@ -2691,7 +2691,7 @@ def get_curie_to_name_from_references(db: Session, reference_ids: List[int]):
     if not reference_ids:
         return {}
     ref_related_tets = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+        joinedload(TopicEntityTagModel.tag_source)).filter(
         TopicEntityTagModel.reference_id.in_(reference_ids)).all()
     return build_curie_to_name_map(db, ref_related_tets)
 
@@ -2742,11 +2742,11 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
                 all_entity_curies.add(tet.entity)
         if tet.species:
             tag_species.add(tet.species)
-        if tet.topic_entity_tag_source.source_evidence_assertion:
-            if tet.topic_entity_tag_source.source_evidence_assertion.startswith("ECO:"):
-                source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
-            elif tet.topic_entity_tag_source.source_evidence_assertion.startswith("ATP:"):
-                all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
+        if tet.tag_source.source_evidence_assertion:
+            if tet.tag_source.source_evidence_assertion.startswith("ECO:"):
+                source_eco_codes.add(tet.tag_source.source_evidence_assertion)
+            elif tet.tag_source.source_evidence_assertion.startswith("ATP:"):
+                all_atp_terms.add(tet.tag_source.source_evidence_assertion)
     entity_curie_to_name = _get_cached_curie_names(
         all_atp_terms,
         lambda missing: get_map_ateam_curies_to_names(category="atpterm", curies=missing)
@@ -2778,19 +2778,19 @@ def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, cur
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
     # Shallow-copy only the two levels we add keys to (the top-level tag dict and
-    # its nested topic_entity_tag_source dict) instead of copy.deepcopy(tet). The
+    # its nested tag_source dict) instead of copy.deepcopy(tet). The
     # previous deepcopy recursed into every nested value of every tag and
     # dominated batch serialization (~443ms for 1614 tags); since we only ever
     # add "<field>_name" keys at these two levels, a two-level shallow copy is
     # equivalent and far cheaper while still leaving the input dict untouched.
     new_tet = dict(tet)
     new_source = None
-    source = new_tet.get("topic_entity_tag_source")
+    source = new_tet.get("tag_source")
     if source:
         new_source = dict(source)
-        new_tet["topic_entity_tag_source"] = new_source
+        new_tet["tag_source"] = new_source
     for tet_field_name, tet_field_value in tet.items():
-        if tet_field_name == "topic_entity_tag_source":
+        if tet_field_name == "tag_source":
             if new_source is not None:
                 for source_field_name, source_field_value in tet_field_value.items():
                     if source_field_name in TET_SOURCE_CURIE_FIELDS:
@@ -2810,12 +2810,12 @@ def show_source_by_name(db: Session, source_evidence_assertion: str, source_meth
     if secondary_data_provider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Cannot find the specified secondary data provider")
-    source = db.query(TopicEntityTagSourceModel).filter(
+    source = db.query(TagSourceModel).filter(
         and_(
-            TopicEntityTagSourceModel.source_evidence_assertion == source_evidence_assertion,
-            TopicEntityTagSourceModel.source_method == source_method,
-            TopicEntityTagSourceModel.data_provider == data_provider,
-            TopicEntityTagSourceModel.secondary_data_provider_id == secondary_data_provider.mod_id
+            TagSourceModel.source_evidence_assertion == source_evidence_assertion,
+            TagSourceModel.source_method == source_method,
+            TagSourceModel.data_provider == data_provider,
+            TagSourceModel.secondary_data_provider_id == secondary_data_provider.mod_id
         )
     ).one_or_none()
     if source is None:
@@ -2827,4 +2827,4 @@ def show_source_by_name(db: Session, source_evidence_assertion: str, source_meth
 
 
 def show_all_source(db: Session):
-    return [jsonable_encoder(source) for source in db.query(TopicEntityTagSourceModel).all()]
+    return [jsonable_encoder(source) for source in db.query(TagSourceModel).all()]
