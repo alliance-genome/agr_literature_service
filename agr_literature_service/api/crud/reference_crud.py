@@ -95,6 +95,7 @@ def _extract_publication_year(reference: ReferenceModel) -> Optional[int]:
 def _resource_image_permission_for_reference(
     db: Session,
     reference: ReferenceModel,
+    prefer_display: Optional[bool] = None,
 ) -> Optional[ResourceImagePermissionModel]:
     if not reference.resource_id:
         return None
@@ -111,9 +112,16 @@ def _resource_image_permission_for_reference(
     # for Open Access articles, an SfN exclusive license otherwise). Failing
     # closed is correct for rights clearance; genuinely OA articles are
     # normally resolved by the reference's own license before this fallback.
+    # When the caller already KNOWS display is allowed (an earlier priority in
+    # get_effective_image_permission decided it), prefer_display=True flips the
+    # tie so the returned metadata (attribution text etc.) describes the grant
+    # consistent with that decision rather than the restrictive one.
     def restrictive_first(row):
         perm = row.image_permission
-        return bool(perm.can_display_images) if perm else True
+        if perm is None:
+            return True  # sorts last under either preference
+        can_display = bool(perm.can_display_images)
+        return not can_display if prefer_display else can_display
 
     publication_year = _extract_publication_year(reference)
     if publication_year is None:
@@ -156,9 +164,15 @@ def get_effective_image_permission(
         reference = get_reference(db, curie_or_reference_id)
     publication_year = _extract_publication_year(reference)
 
-    # Always fetch resource image permission metadata to include in response
-    resource_image_permission = _resource_image_permission_for_reference(db, reference)
-    resource_permission_metadata = _build_resource_permission_metadata(resource_image_permission)
+    # Resource permission metadata is included in every response, but which
+    # grant it describes must follow the decision made below: when a priority
+    # has already established that display is allowed, a shared slot (SfN
+    # 2026- OA/non-OA) must yield the display-granting grant's attribution
+    # text, not the restrictive one's "email us for permission" text.
+    def resource_permission_metadata(prefer_display: Optional[bool] = None):
+        rip = _resource_image_permission_for_reference(
+            db, reference, prefer_display=prefer_display)
+        return rip, _build_resource_permission_metadata(rip)
 
     # Priority 1: Reference copyright_license.open_access (curator/PMC override)
     if reference.copyright_license_id:
@@ -166,8 +180,10 @@ def get_effective_image_permission(
             copyright_license_id=reference.copyright_license_id
         ).one_or_none()
         if copyright_license:
+            can_display = bool(copyright_license.open_access)
+            _, metadata = resource_permission_metadata(prefer_display=can_display or None)
             return {
-                "can_display_images": bool(copyright_license.open_access),
+                "can_display_images": can_display,
                 "source": "reference_open_access",
                 "reason": "Reference has copyright license set.",
                 "publication_year": publication_year,
@@ -175,7 +191,7 @@ def get_effective_image_permission(
                 "copyright_license_name": copyright_license.name,
                 "copyright_license_open_access": copyright_license.open_access,
                 "resource_id": reference.resource_id,
-                **resource_permission_metadata,
+                **metadata,
             }
 
     # Priority 2: Resource copyright_license.open_access (if publication_year >= license_start_year)
@@ -189,8 +205,10 @@ def get_effective_image_permission(
             if license_start_year is None or (publication_year and publication_year >= license_start_year):
                 resource_license = resource.copyright_license
                 if resource_license:
+                    can_display = bool(resource_license.open_access)
+                    _, metadata = resource_permission_metadata(prefer_display=can_display or None)
                     return {
-                        "can_display_images": bool(resource_license.open_access),
+                        "can_display_images": can_display,
                         "source": "resource_open_access",
                         "reason": f"Resource has open access license (since {license_start_year or 'all years'}).",
                         "publication_year": publication_year,
@@ -198,10 +216,12 @@ def get_effective_image_permission(
                         "copyright_license_name": resource_license.name,
                         "copyright_license_open_access": resource_license.open_access,
                         "resource_id": reference.resource_id,
-                        **resource_permission_metadata,
+                        **metadata,
                     }
 
-    # Priority 3: Resource image permission (from journal/publisher)
+    # Priority 3: Resource image permission (from journal/publisher); the
+    # default restrictive-first tie-break applies since nothing has decided.
+    resource_image_permission, metadata = resource_permission_metadata()
     if resource_image_permission and resource_image_permission.image_permission:
         image_permission = resource_image_permission.image_permission
         return {
@@ -213,7 +233,7 @@ def get_effective_image_permission(
             "copyright_license_name": None,
             "copyright_license_open_access": None,
             "resource_id": reference.resource_id,
-            **resource_permission_metadata,
+            **metadata,
         }
 
     # Default: no permission
@@ -226,7 +246,7 @@ def get_effective_image_permission(
         "copyright_license_name": None,
         "copyright_license_open_access": None,
         "resource_id": reference.resource_id,
-        **resource_permission_metadata,
+        **metadata,
     }
 
 
