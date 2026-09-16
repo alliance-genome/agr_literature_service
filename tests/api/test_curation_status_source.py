@@ -33,7 +33,8 @@ def loader_source(auth_headers, test_mod): # noqa
 
 class TestCurationStatusSourceAssociation:
 
-    def test_add_source_association(self, test_curation_status, loader_source, auth_headers): # noqa
+    def test_add_source_association(self, test_curation_status, loader_source, test_mod,  # noqa
+                                    auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(url="/curation_status/add_source_association",
                                    headers=auth_headers, json={
@@ -47,6 +48,40 @@ class TestCurationStatusSourceAssociation:
             assert body["tag_source_id"] == loader_source
             assert body["curation_status"] == "ATP:curation_not_needed"
             assert body["source_method"] == "a loader"
+            # the OWNING mod must survive response_model serialisation: it was
+            # added to the crud dict once without being declared on the schema,
+            # and extra='ignore' silently dropped it (found in review)
+            assert body["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
+
+    def test_cross_mod_attribution_is_rejected(self, test_curation_status, test_mod,  # noqa
+                                               auth_headers):  # noqa
+        """A source may disagree about values, but not belong to another MOD."""
+        with TestClient(app) as client:
+            other_mod = client.post(url="/mod/", headers=auth_headers, json={
+                "abbreviation": "XREFMOD",
+                "short_name": "XREFMOD",
+                "full_name": "another test genome database",
+            })
+            assert other_mod.status_code == status.HTTP_201_CREATED
+            foreign_source = client.post(url="/tag_source", headers=auth_headers, json={
+                "source_evidence_assertion": "ECO:0008025",
+                "source_method": "a foreign loader",
+                "validation_type": None,
+                "description": "a source owned by another MOD",
+                "data_provider": test_mod.new_mod_abbreviation,
+                "secondary_data_provider_abbreviation": "XREFMOD",
+            }).json()["tag_source_id"]
+            response = client.post(url="/curation_status/add_source_association",
+                                   headers=auth_headers, json={
+                                       "curation_status_id": test_curation_status.new_curation_status_id,
+                                       "tag_source_id": foreign_source,
+                                       "curation_status": "ATP:curation_not_needed",
+                                   })
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            associations = client.get(
+                url=f"/curation_status/{test_curation_status.new_curation_status_id}/source_associations",
+                headers=auth_headers).json()
+            assert associations == []
 
     def test_it_never_auto_creates_the_anchor_row(self, loader_source, auth_headers): # noqa
         """404 when no curation_status row exists, and nothing is created."""

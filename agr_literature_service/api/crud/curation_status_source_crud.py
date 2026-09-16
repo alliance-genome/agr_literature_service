@@ -57,7 +57,8 @@ def get_tag_source_or_404(db: Session, tag_source_id: int) -> TagSourceModel:
 
 
 def stage_association(db: Session, curation_status_id: int, tag_source_id: int,
-                      values: Dict[str, Any]) -> CurationStatusSourceAssociationModel:
+                      values: Dict[str, Any],
+                      curation_status_mod_id: int) -> CurationStatusSourceAssociationModel:
     """Upsert an association WITHOUT committing; the caller owns the transaction.
 
     curation_status_crud uses this to write the base row and its attribution in
@@ -68,14 +69,26 @@ def stage_association(db: Session, curation_status_id: int, tag_source_id: int,
 
     ``values`` carries only the fields the caller is asserting; fields absent
     from it are left as they are on an existing association, so a PATCH that
-    only changes the note does not blank this source's reported status.
+    only changes the note does not blank this source's reported status. An
+    empty ``values`` is allowed and records that this source touched the row
+    without asserting any value.
 
     date_created is deliberately NOT set here - AuditedModel.before_insert
     stamps it (tz-aware UTC) for every audited table, and pre-setting it both
     duplicates that and makes this table's timestamps naive while every other
     table's are aware.
     """
-    get_tag_source_or_404(db, tag_source_id)
+    source = get_tag_source_or_404(db, tag_source_id)
+    # A source may DISAGREE with the base row, but it may not belong to another
+    # MOD: a WB curation_status attributed to an SGD source would make per-MOD
+    # rollups count a foreign MOD against the paper. The owning MOD is the
+    # source's secondary_data_provider, not its data_provider.
+    if source.secondary_data_provider_id != curation_status_mod_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(f"TagSource {tag_source_id} belongs to a different MOD than "
+                    f"curation_status {curation_status_id}; a curation status may only be "
+                    f"attributed to a source of its own MOD"))
     association = db.query(CurationStatusSourceAssociationModel).filter(
         CurationStatusSourceAssociationModel.curation_status_id == curation_status_id,
         CurationStatusSourceAssociationModel.tag_source_id == tag_source_id,
@@ -92,25 +105,13 @@ def stage_association(db: Session, curation_status_id: int, tag_source_id: int,
     return association
 
 
-def upsert_association(db: Session, curation_status_id: int, tag_source_id: int,
-                       values: Dict[str, Any]) -> CurationStatusSourceAssociationModel:
-    """Record (or re-record) what one source reports for this curation_status.
-
-    Requires an existing curation_status row - it never auto-creates the anchor.
-    """
-    _get_curation_status_or_404(db, curation_status_id)
-    association = stage_association(db, curation_status_id, tag_source_id, values)
-    db.commit()
-    db.refresh(association)
-    return association
-
-
 def upsert_association_and_show(db: Session, curation_status_id: int, tag_source_id: int,
                                 values: Dict[str, Any]) -> Dict[str, Any]:
     """upsert_association, returning the flattened read shape without re-querying."""
-    _get_curation_status_or_404(db, curation_status_id)
+    curation_status = _get_curation_status_or_404(db, curation_status_id)
     source = get_tag_source_or_404(db, tag_source_id)
-    association = stage_association(db, curation_status_id, tag_source_id, values)
+    association = stage_association(db, curation_status_id, tag_source_id, values,
+                                    curation_status.mod_id)
     db.commit()
     db.refresh(association)
     return _as_dict(association, source)
@@ -172,15 +173,6 @@ def show_associations(db: Session, curation_status_id: int) -> List[Dict[str, An
         .all()
     )
     return [_as_dict(association, source) for association, source in rows]
-
-
-def show_association(db: Session,
-                     curation_status_source_association_id: int) -> Dict[str, Any]:
-    """One association, in the same shape show_associations returns."""
-    association = _get_association_or_404(db, curation_status_source_association_id)
-    source = db.query(TagSourceModel).filter(
-        TagSourceModel.tag_source_id == association.tag_source_id).one()
-    return _as_dict(association, source)
 
 
 def _as_dict(association: CurationStatusSourceAssociationModel,

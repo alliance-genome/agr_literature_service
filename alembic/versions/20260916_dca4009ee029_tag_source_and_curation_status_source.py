@@ -221,6 +221,19 @@ def _rewrite_saved_grid_layouts(old: str, new: str) -> None:
       topic_entity_tag_source.source_method -> tag_source.source_method
       topic_entity_tag_source.topic_entity_tag_source_id -> tag_source.tag_source_id
     """
+    # A bare token replace, NOT anchored on the '.' prefix: the colId
+    # topic_entity_tag_source.topic_entity_tag_source_id has to become
+    # tag_source.tag_source_id, and an anchored replace would leave the suffix
+    # stale. Both current shapes are covered, and the only colId embedding the
+    # old name mid-string (topic_entity_tag.topic_entity_tag_source_id) also
+    # maps correctly because the match starts at offset 17.
+    #
+    # Downgrade caveat: this direction rewrites every 'tag_source' occurrence,
+    # so a colId that legitimately contains it for another reason (a future
+    # curation_status_source_association.tag_source_id, say) would be mangled
+    # for anyone who stays on the downgraded revision. A full
+    # downgrade/re-upgrade round trip is clean. Accepted rather than anchored,
+    # because anchoring breaks the real case above to guard a hypothetical one.
     op.execute(f"""
         UPDATE person_setting
            SET json_settings = replace(json_settings::text, '{old}', '{new}')::jsonb

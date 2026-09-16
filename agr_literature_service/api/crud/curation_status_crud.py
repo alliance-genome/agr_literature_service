@@ -63,7 +63,8 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationSt
             curation_status_source_crud.stage_association(
                 db, db_obj.curation_status_id, tag_source_id,
                 {field: getattr(db_obj, field)
-                 for field in curation_status_source_crud.VALUE_FIELDS})
+                 for field in curation_status_source_crud.VALUE_FIELDS},
+                mod_id)
         db.commit()
         db.refresh(db_obj)
     except HTTPException:
@@ -131,7 +132,8 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> Curat
             curation_status_source_crud.stage_association(
                 db, curation_status_db_obj.curation_status_id, tag_source_id,
                 {field: value for field, value in curation_status_data.items()
-                 if field in curation_status_source_crud.VALUE_FIELDS})
+                 if field in curation_status_source_crud.VALUE_FIELDS},
+                curation_status_db_obj.mod_id)
         db.commit()
     except HTTPException:
         db.rollback()

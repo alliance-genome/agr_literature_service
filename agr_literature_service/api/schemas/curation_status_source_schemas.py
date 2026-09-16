@@ -45,4 +45,9 @@ class CurationStatusSourceAssociationSchemaShow(AuditedObjectModelSchema):
     source_evidence_assertion: Optional[str] = None
     source_method: Optional[str] = None
     data_provider: Optional[str] = None
+    # The source's OWNING mod. data_provider is not it - see
+    # test_show_all_reference_tags_batch_mod_filter - so a consumer grouping
+    # attributions per MOD needs this one. Declared explicitly because
+    # extra='ignore' means an undeclared key is dropped from the response.
+    secondary_data_provider_abbreviation: Optional[str] = None
     validation_type: Optional[str] = None
