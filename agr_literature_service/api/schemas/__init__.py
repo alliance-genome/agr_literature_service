@@ -138,6 +138,10 @@ from agr_literature_service.api.schemas.curation_status_schemas import (
     CurationStatusSchemaPost,
     CurationStatusSchemaShow,
     CurationStatusSchemaUpdate)
+from agr_literature_service.api.schemas.curation_status_source_schemas import (
+    CurationStatusSourceAssociationSchemaPost,
+    CurationStatusSourceAssociationSchemaShow,
+    CurationStatusSourceAssociationSchemaUpdate)
 
 from .person_email_schemas import (
     PersonEmailSchemaCreate,
