@@ -3,7 +3,7 @@ topic_entity_tag_model.py
 ==================
 """
 
-from typing import Dict, List
+from typing import List
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Float, \
     and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
@@ -12,6 +12,10 @@ from sqlalchemy.orm import relationship, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+# TagSourceModel lived here until SCRUM-6518 made the source table shared with
+# curation_status. Imported so the "TagSourceModel" relationship target below
+# resolves wherever this module is imported on its own.
+from agr_literature_service.api.models.tag_source_model import TagSourceModel  # noqa: F401
 
 enable_versioning()
 
@@ -63,16 +67,16 @@ class TopicEntityTagModel(AuditedModel, Base):
         back_populates="topic_entity_tags"
     )
 
-    topic_entity_tag_source_id = Column(
+    tag_source_id = Column(
         Integer,
-        ForeignKey("topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
+        ForeignKey("tag_source.tag_source_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
 
-    topic_entity_tag_source = relationship(
-        "TopicEntityTagSourceModel",
-        foreign_keys="TopicEntityTagModel.topic_entity_tag_source_id"
+    tag_source = relationship(
+        "TagSourceModel",
+        foreign_keys="TopicEntityTagModel.tag_source_id"
     )
 
     # Obtained from A-Team ontology node term-id
@@ -213,67 +217,4 @@ class TopicEntityTagModel(AuditedModel, Base):
             ),
             name="valid_entity_type_dependencies"
         ),
-    )
-
-
-class TopicEntityTagSourceModel(AuditedModel, Base):
-    __tablename__ = "topic_entity_tag_source"
-    __versioned__: Dict = {}
-
-    topic_entity_tag_source_id = Column(
-        Integer,
-        primary_key=True,
-        autoincrement=True
-    )
-
-    data_provider = Column(
-        String(),
-        unique=False,
-        nullable=False,
-        index=True
-    )
-
-    secondary_data_provider_id = Column(
-        Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
-    )
-
-    secondary_data_provider = relationship(
-        "ModModel",
-        foreign_keys="TopicEntityTagSourceModel.secondary_data_provider_id"
-    )
-
-    source_evidence_assertion = Column(
-        String(),
-        unique=False,
-        nullable=False,
-        index=True
-    )
-
-    source_method = Column(
-        String(),
-        unique=False,
-        nullable=False,
-        index=True
-    )
-
-    validation_type = Column(
-        String(),
-        unique=False,
-        nullable=True,
-        index=True
-    )
-
-    description = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            'source_evidence_assertion', 'source_method', 'data_provider', 'secondary_data_provider_id',
-            name='topic_entity_tag_source_unique'),
     )

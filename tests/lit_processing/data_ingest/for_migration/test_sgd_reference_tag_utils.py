@@ -373,23 +373,23 @@ def _make_source_db(existing_first, existing_second=None):
 class TestGetOrCreateSource:
 
     def test_returns_existing_source_id(self):
-        db = _make_source_db(MagicMock(topic_entity_tag_source_id=230))
+        db = _make_source_db(MagicMock(tag_source_id=230))
         assert util.get_or_create_source(db) == 230
         db.add.assert_not_called()
 
     def test_creates_source_when_absent(self):
         db = _make_source_db(None)
-        with patch.object(util, "TopicEntityTagSourceModel",
-                          return_value=MagicMock(topic_entity_tag_source_id=500)):
+        with patch.object(util, "TagSourceModel",
+                          return_value=MagicMock(tag_source_id=500)):
             assert util.get_or_create_source(db) == 500
         db.add.assert_called_once()
         db.commit.assert_called_once()
 
     def test_recovers_from_unique_constraint_race(self):
-        db = _make_source_db(None, MagicMock(topic_entity_tag_source_id=230))
+        db = _make_source_db(None, MagicMock(tag_source_id=230))
         db.commit.side_effect = IntegrityError("stmt", "params", Exception("dup"))
-        with patch.object(util, "TopicEntityTagSourceModel",
-                          return_value=MagicMock(topic_entity_tag_source_id=999)):
+        with patch.object(util, "TagSourceModel",
+                          return_value=MagicMock(tag_source_id=999)):
             assert util.get_or_create_source(db) == 230
         db.rollback.assert_called_once()
 

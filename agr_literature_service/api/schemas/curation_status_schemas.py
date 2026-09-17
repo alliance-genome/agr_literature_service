@@ -22,6 +22,11 @@ class CurationStatusSchemaPost(CurationStatusSchemaBase):
     curation_status: Optional[str] = None
     curation_tag: Optional[str] = None
     note: Optional[str] = None
+    # SCRUM-6518. Optional attribution: when given, the values written to the
+    # base row are ALSO recorded as this source's report. When omitted the base
+    # row is written alone and no association is created - the API never
+    # attributes a source by default.
+    tag_source_id: Optional[int] = None
 
 
 class CurationStatusSchemaUpdate(BaseModel):
@@ -34,6 +39,10 @@ class CurationStatusSchemaUpdate(BaseModel):
     curation_status: Optional[str] = None
     curation_tag: Optional[str] = None
     note: Optional[str] = None
+    # See CurationStatusSchemaPost. On a PATCH only the fields actually sent are
+    # mirrored onto the association, so patching just the note does not blank
+    # this source's previously reported status.
+    tag_source_id: Optional[int] = None
 
 
 class CurationStatusSchemaShow(AuditedObjectModelSchema):

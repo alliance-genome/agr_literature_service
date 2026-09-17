@@ -26,7 +26,7 @@ def load_data():
 
     db_session = create_postgres_session(False)
 
-    topic_entity_tag_source_id = get_source_id(db_session)
+    tag_source_id = get_source_id(db_session)
 
     entity_type_to_atp = entity_type_mapping()
     topic_to_atp = topic_mapping()
@@ -86,7 +86,7 @@ def load_data():
             "entity": entity_sgdid,
             "entity_id_validation": source,
             "species": "NCBITaxon:559292",
-            "topic_entity_tag_source_id": topic_entity_tag_source_id,
+            "tag_source_id": tag_source_id,
             "negated": False,
             "note": note,
             "reference_curie": ref_curie
@@ -121,9 +121,9 @@ def ref_curie_mapping(db_session):
 
 def get_source_id(db_session):
 
-    rows = db_session.execute(text(f"SELECT t.topic_entity_tag_source_id "
-                                   f"FROM   topic_entity_tag_source t, mod m "
-                                   f"WHERE  t.mod_id = m.mod_id "
+    rows = db_session.execute(text(f"SELECT t.tag_source_id "
+                                   f"FROM   tag_source t, mod m "
+                                   f"WHERE  t.secondary_data_provider_id = m.mod_id "
                                    f"AND    m.abbreviation = '{mod}'")).fetchall()
     return rows[0][0]
 
