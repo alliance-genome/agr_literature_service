@@ -266,9 +266,9 @@ by dumping `app.routes`.
 /topic_entity_tag/by_reference/{curie_or_reference_id}
 /topic_entity_tag/get_curie_to_name_from_all_tets/
 /topic_entity_tag/revalidate_all_tags/
-/topic_entity_tag/source/all
-/topic_entity_tag/source/{source_evidence_assertion}/{source_method}/{data_provider}/{secondary_data_provider_abbreviation}
-/topic_entity_tag/source/{topic_entity_tag_source_id}
+/tag_source/all
+/tag_source/{source_evidence_assertion}/{source_method}/{data_provider}/{secondary_data_provider_abbreviation}
+/tag_source/{tag_source_id}
 /topic_entity_tag/{topic_entity_tag_id}
 /vocabulary/
 /vocabulary/{name}

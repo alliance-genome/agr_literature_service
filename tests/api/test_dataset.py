@@ -13,7 +13,7 @@ from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod # noqa
 from .test_topic_entity_tag import test_topic_entity_tag # noqa
 from .test_reference import test_reference # noqa
-from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
+from .test_tag_source import test_tag_source # noqa
 
 DatasetTestData = namedtuple('DatasetTestData', ['response', 'mod_abbreviation', 'data_type',
                                                  'dataset_type', 'version'])

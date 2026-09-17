@@ -56,6 +56,21 @@ class ResourceSchemaUpdate(BaseModel):
         return v
 
 
+class ResourceAlliancePermissionSchema(BaseModel):
+    """One alliance image-display grant on a resource; a resource can carry
+    several when the grant differs by publication-year range."""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    resource_image_permission_id: int
+    name: Optional[str] = None
+    permission_text: Optional[str] = None
+    permission_url: Optional[str] = None
+    can_display_images: Optional[bool] = None
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
+    notes: Optional[str] = None
+
+
 class ResourceSchemaShow(AuditedObjectModelSchema):
     """Schema for showing resource with audit fields."""
     model_config = ConfigDict(
@@ -80,6 +95,7 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     copyright_license: Optional[CopyrightLicenseSchemaShow] = None
     license_list: Optional[List[str]] = None
     license_start_year: Optional[int] = None
+    alliance_permissions: Optional[List[ResourceAlliancePermissionSchema]] = Field(default_factory=list)
 
 
 class ResourceSchemaAddCurie(BaseModel):

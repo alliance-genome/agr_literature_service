@@ -23,7 +23,7 @@ surprising behaviour traces back to this.
 | Origin | SCRUM-6183, SCRUM-6188 | SCRUM-6242 |
 | Storage | `topic_entity_tag_validation` join table + two cached string columns | Ordinary topic-level TETs, counted at read time — nothing persisted |
 | Computed | On create / patch / delete / merge, and by the bulk resweep | Fresh on every batch read |
-| `validation_type` it keys on | `author`, `professional_biocurator` | `professional_curator` **and** `professional_biocurator` |
+| `validation_type` it keys on | `author`, `professional_biocurator` | `professional_biocurator` |
 | Surfaced as | `validation_by_author`, `validation_by_professional_biocurator` | `validation` + `filter_flags` blocks in the batch response |
 | Indexed in Elasticsearch | `validation_by_professional_biocurator` only (SCRUM-6228) | not at all |
 
@@ -51,7 +51,7 @@ All in `agr_literature_service/api/models/topic_entity_tag_model.py`.
 - **`__versioned__ = {'exclude': ['validated_by']}`** (`:43-45`) — the edge graph has no
   audit history. The two string columns *are* versioned, so every revalidation writes a
   `topic_entity_tag_version` row.
-- **`TopicEntityTagSourceModel.validation_type`** (`:246`) — nullable free-text string, and
+- **`TagSourceModel.validation_type`** (`:246`) — nullable free-text string, and
   the pivot of the whole system. A tag can validate others only if its source has a
   non-null value here. ML/automated sources are `None`: they can *be* validated but never
   validate.
@@ -95,16 +95,16 @@ Despite the names, these are **not** ATP ids — they are `validation_type` stri
 - Special case: a mixed topic+entity tag also validates the pure **entity-only** tag for
   the same entity (`:617`, `:648`, `:694`, `:703`).
 
-"More generic / more specific" is evaluated **simultaneously across three ATP
+"More generic / more specific" is evaluated **simultaneously across four ATP
 hierarchies** — `topic`, `entity_type` (via `atp_hierarchy_with_self`, `:580`, SCRUM-6188,
-which includes self so exact equality still matches), and `data_novelty`. All three must
-agree on direction. Cross-branch novelty — "existing data" `ATP:0000334` versus "novel
-data" `ATP:0000321` — blocks validation outright.
+which includes self so exact equality still matches), `data_novelty`, and `data_context`
+(SCRUM-5746). All four must agree on direction. Cross-branch novelty — "existing data"
+`ATP:0000334` versus "novel data" `ATP:0000321` — blocks validation outright.
 
-**`data_context` is a fifth ATP field that validation does not yet use.** SCRUM-5697
-added it to every tag. It is stored, indexed, exported to Elasticsearch and editable,
-but `validate_tags` ignores it entirely — so today tags validate each other freely
-across data contexts.
+**`data_context` became the fourth ATP hierarchy — the fifth dimension overall, after
+species — in SCRUM-5746.** SCRUM-5697 added the
+column to every tag; SCRUM-5746 made `validate_tags` read it, through
+`data_context_compatible` at each of the eight `add_validation_to_db` guard sites.
 
 It is a **hierarchy**, not a flat set:
 
@@ -126,12 +126,32 @@ intermediate groupings above them. So `data_context` is walkable by exactly the 
 existing three, not a special case. A tag marked `ATP:0000324` (mentioned data) is
 genuinely *more generic* than one marked `ATP:0000325` (experimentally studied data).
 
-The open question for SCRUM-5746 is therefore semantic, not structural: whether
-"mentioned data" and "marker data" are the right generalisation boundaries for
-validation, and what should happen across the two branches — does an
-expression-marker tag have any bearing on an experimentally-studied one? Note the
-cross-branch precedent already set by `data_novelty`, where "existing data" versus
-"novel data" blocks validation outright.
+**Cross-branch blocks, following the `data_novelty` precedent.** "Mentioned data" and
+"marker data" are in neither each other's ancestors nor descendants, so an
+expression-marker tag and an experimentally-studied one make no claim about each other in
+either direction. That falls out of the hierarchy walk rather than needing a rule. It is
+the conservative reading; allowing cross-branch validation would take an explicit rule.
+The question was put to curators on SCRUM-5746 (comment 97789) and is hypothetical until
+someone picks a marker or background-information term — see the usage note below.
+
+**A NULL `data_context` does not block.** The model declares the column non-null, but the
+database column stays nullable until revision `e4f9a2c81b57`, so between `d7b3e1c95a24`
+and the backfill a real database holds rows with no value. Blocking on those would
+silently stop validating every row the backfill has not reached.
+
+**In practice this changed nothing yet.** Measured against the stage copy on 2026-09-11,
+none of the 608,773 existing validation edges are removed by the new dimension. Only two
+of the seven terms are in use anywhere — `ATP:0000325` (2,173,086 tags) and `ATP:0000323`
+(1,323,656); `324`, `326`, `327`, `328` and `360` have zero. WormBase's `323`/`325` split
+tracks topic-only versus has-entity exactly, and the two pairings the new check would
+block are already impossible under the `entity_type` rules.
+
+**The ATP cache must know the branch.** `atp_get_all_ancestors` falls back to the ontology
+client only when `atp_to_parent` is *entirely* empty, so a top-level branch missing from
+`load_name_to_atp_and_relationships`'s `start_terms` resolves to no ancestors in any warm
+worker, degrading a hierarchy check to exact equality. `ATP:0000323` is a separate
+top-level branch from `ATP:0000177` and `ATP:0000335` and is therefore listed there
+explicitly; `tests/api/test_ontology.py::TestAtpBfsStartTerms` guards it.
 
 **Species is the fourth dimension**, and it follows the same generic/specific logic
 without an ontology behind it (`:612`, `:644`, `:684`, `:691`). Read a **null species as
@@ -185,7 +205,7 @@ The endpoint writes a **topic-level (no entity)** tag from the per-MOD ABC curat
 ```python
 CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"        # :85
 CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"          # :86
-CURATOR_VALIDATION_TYPE = "professional_curator"                    # :87
+CURATOR_VALIDATION_TYPE = "professional_biocurator"                 # :87
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"                     # :88
 ```
 
@@ -236,7 +256,7 @@ must not touch the validated tag's audit fields.
 The ATP hierarchy is mocked by `load_name_to_atp_and_relationships_mock()`
 (`tests/fixtures.py:164`), so tests make no A-team ontology calls.
 
-**Known gaps:** `tests/api/test_topic_entity_tag_source.py` asserts nothing about
+**Known gaps:** `tests/api/test_tag_source.py` asserts nothing about
 `validation_type` — not its allowed values, not that changing it re-derives anything.
 `test_data_novelty_branch_separation` (`:1693`) is an assertion-free stub.
 
@@ -246,7 +266,11 @@ The ATP hierarchy is mocked by `load_name_to_atp_and_relationships_mock()`
 
 Ranked by likelihood of causing a surprise.
 
-1. **`professional_curator` vs `professional_biocurator`.** (SCRUM-6476) Grid votes use the former;
+1. **`professional_curator` vs `professional_biocurator`.** (SCRUM-6476, resolved by SCRUM-6518)
+   RESOLVED: `professional_biocurator` is now the only curator validation_type. The old
+   spelling never matched what validation edges key on, is normalised away by the
+   SCRUM-6518 migration, and is no longer accepted on the read side. Historically:
+   grid votes used the former;
    `calculate_validation_value_for_tag` only matches the latter. Those tags *do* create
    edges in the join table (the gate is merely "`validation_type` is not null"), but the
    edges are filtered out of both buckets — so the tag reads `not_validated` and
@@ -265,7 +289,7 @@ Ranked by likelihood of causing a surprise.
    closes it with no migration and no data change.
 2. **`validation_type` is unconstrained free text**
    (`topic_entity_tag_schemas.py:32,52`). Observed values: `author`,
-   `professional_biocurator`, `professional_curator`, `manual_validation`
+   `professional_biocurator`, `manual_validation`
    (`tests/populate_test_db.py:355` — matches nothing, silently inert), and `None`.
    Separately, `ATP:0000035` / `ATP:0000036` (author / professional biocurator assertion)
    live in `source_evidence_assertion` and drive *deletion* filtering
@@ -273,7 +297,7 @@ Ranked by likelihood of causing a surprise.
 3. **Bulk loaders skip validation and never resweep.** Every MOD loader passes
    `validate_on_insert=False`, and nothing triggers a sweep afterwards. The implicit
    contract is a manual sweep that nobody schedules.
-4. **`PATCH /topic_entity_tag/source/{id}` can change `validation_type`** — altering every
+4. **`PATCH /tag_source/{id}` can change `validation_type`** — altering every
    rollup that depends on that source — without triggering any revalidation.
 5. **The rollup columns are writable through the API**
    (`topic_entity_tag_schemas.py:81-82, 152-153`) despite being server-computed. A PATCH is
@@ -331,7 +355,7 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 - **Full-reference rebuild for a single-tag edit.** Patch, delete and validate all delete
   and re-derive every edge on the reference, then run a second full pass recomputing values.
 - **Sweep cache thrash** (SCRUM-6475) (`:828-830`, `:852-855`) — ordering by
-  `reference_id, topic_entity_tag_source_id, secondary_data_provider_id` means tags of the
+  `reference_id, tag_source_id, secondary_data_provider_id` means tags of the
   same MOD are not guaranteed contiguous. Swapping the last two keys would fix it.
 - **No locking anywhere.** (SCRUM-6475) No `SELECT ... FOR UPDATE`, no advisory locks. Two concurrent
   writes to the same reference can interleave one's `DELETE FROM
@@ -356,21 +380,22 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 
 | Symbol | Location |
 |---|---|
-| `calculate_validation_value_for_tag` | `topic_entity_tag_crud.py:396` |
-| `atp_hierarchy_with_self` | `topic_entity_tag_crud.py:580` |
-| `validate_tags_already_in_db_with_positive_tag` | `topic_entity_tag_crud.py:596` |
-| `validate_tags_already_in_db_with_negative_tag` | `topic_entity_tag_crud.py:628` |
-| `validate_new_tag_with_existing_tags` | `topic_entity_tag_crud.py:660` |
-| `add_validation_to_db` | `topic_entity_tag_crud.py:714` |
-| `validate_tags` | `topic_entity_tag_crud.py:739` |
-| `set_validation_values_to_tag` | `topic_entity_tag_crud.py:810` |
-| `revalidate_all_tags` | `topic_entity_tag_crud.py:817` |
-| `_is_curator_source_tag` | `topic_entity_tag_crud.py:1466` |
-| `_build_validation_details` | `topic_entity_tag_crud.py:1594` |
-| `_build_filter_flags` | `topic_entity_tag_crud.py:1670` |
-| `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:1923` |
-| `_recompute_validation_cell` | `topic_entity_tag_crud.py:1979` |
-| `validate_topic` | `topic_entity_tag_crud.py:1999` |
+| `calculate_validation_value_for_tag` | `topic_entity_tag_crud.py:472` |
+| `atp_hierarchy_with_self` | `topic_entity_tag_crud.py:656` |
+| `data_context_compatible` | `topic_entity_tag_crud.py:672` (SCRUM-5746) |
+| `validate_tags_already_in_db_with_positive_tag` | `topic_entity_tag_crud.py:693` |
+| `validate_tags_already_in_db_with_negative_tag` | `topic_entity_tag_crud.py:729` |
+| `validate_new_tag_with_existing_tags` | `topic_entity_tag_crud.py:765` |
+| `add_validation_to_db` | `topic_entity_tag_crud.py:831` |
+| `validate_tags` | `topic_entity_tag_crud.py:856` |
+| `set_validation_values_to_tag` | `topic_entity_tag_crud.py:931` |
+| `revalidate_all_tags` | `topic_entity_tag_crud.py:938` |
+| `_is_curator_source_tag` | `topic_entity_tag_crud.py:1587` |
+| `_build_validation_details` | `topic_entity_tag_crud.py:1715` |
+| `_build_filter_flags` | `topic_entity_tag_crud.py:1791` |
+| `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:2044` |
+| `_recompute_validation_cell` | `topic_entity_tag_crud.py:2100` |
+| `validate_topic` | `topic_entity_tag_crud.py:2120` |
 
 ---
 

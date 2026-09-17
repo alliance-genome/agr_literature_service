@@ -147,8 +147,8 @@ RULES = [
 
 _SCOPE_JOIN = """
     FROM topic_entity_tag tet
-    JOIN topic_entity_tag_source tets
-      ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+    JOIN tag_source tets
+      ON tet.tag_source_id = tets.tag_source_id
     JOIN mod m ON tets.secondary_data_provider_id = m.mod_id
     WHERE {unset} AND ({extra})
 """
@@ -187,8 +187,8 @@ def report_null_counts(db, unset: str = "tet.data_context IS NULL") -> int:
     rows = db.execute(text(f"""
         SELECT m.abbreviation, count(*)
         FROM topic_entity_tag tet
-        JOIN topic_entity_tag_source tets
-          ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+        JOIN tag_source tets
+          ON tet.tag_source_id = tets.tag_source_id
         JOIN mod m ON tets.secondary_data_provider_id = m.mod_id
         WHERE {unset}
         GROUP BY m.abbreviation

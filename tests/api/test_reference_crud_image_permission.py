@@ -176,8 +176,64 @@ class TestResourceImagePermissionForReference:
         got = reference_crud._resource_image_permission_for_reference(db, ref)
         assert got.resource_image_permission_id == rip1.resource_image_permission_id
 
+    def test_shared_slot_tie_prefers_restrictive_grant(self, db): # noqa
+        """The SfN 2026- case (SCRUM-6416): an OA CC-BY grant (display allowed)
+        and a non-OA exclusive license (no display) share the same
+        (resource, year-range) slot, split by per-article OA status this
+        resolver cannot see. The restrictive grant must win the tie even
+        though the permissive one carries the lower link id."""
+        resource = _mk_resource(db, "AGR:AGR-Resource-100005")
+        ip_oa = _mk_image_permission(db, "perm-oa-ccby", can_display=True)
+        ip_exclusive = _mk_image_permission(db, "perm-exclusive", can_display=False)
+        rip_oa = _mk_rip(db, resource.resource_id, ip_oa.image_permission_id,
+                         start_year=2026)
+        rip_exclusive = _mk_rip(db, resource.resource_id, ip_exclusive.image_permission_id,
+                                start_year=2026)
+        assert rip_oa.resource_image_permission_id < rip_exclusive.resource_image_permission_id
+        ref = _mk_reference(db, "AGRKB:101000100006",
+                            resource_id=resource.resource_id, date_published="2026")
+        got = reference_crud._resource_image_permission_for_reference(db, ref)
+        assert got.resource_image_permission_id == rip_exclusive.resource_image_permission_id
+        # a caller that already decided display is allowed gets the grant
+        # consistent with that decision instead of the restrictive one
+        got = reference_crud._resource_image_permission_for_reference(
+            db, ref, prefer_display=True)
+        assert got.resource_image_permission_id == rip_oa.resource_image_permission_id
+
 
 class TestGetEffectiveImagePermissionDb:
+
+    def test_shared_slot_metadata_follows_the_deciding_priority(self, db): # noqa
+        """SCRUM-6416 review: an OA 2026 article (Priority 1 grants display)
+        must carry the OA grant's attribution metadata, not the exclusive
+        license's 'email us for permission' text; without a deciding license
+        the restrictive grant supplies both the boolean and the metadata."""
+        ip_oa = _mk_image_permission(db, "perm-oa-2026", can_display=True)
+        ip_exclusive = _mk_image_permission(db, "perm-exclusive-2026", can_display=False)
+        resource = _mk_resource(db, "AGR:AGR-Resource-100020")
+        _mk_rip(db, resource.resource_id, ip_oa.image_permission_id, start_year=2026)
+        _mk_rip(db, resource.resource_id, ip_exclusive.image_permission_id, start_year=2026)
+
+        lic = CopyrightLicenseModel(name="CC-BY-2026", open_access=True)
+        db.add(lic)
+        db.commit()
+        db.refresh(lic)
+
+        oa_ref = _mk_reference(db, "AGRKB:101000100020",
+                               resource_id=resource.resource_id, date_published="2026",
+                               copyright_license_id=lic.copyright_license_id)
+        result = reference_crud.get_effective_image_permission(db, oa_ref.curie, reference=oa_ref)
+        assert result["source"] == "reference_open_access"
+        assert result["can_display_images"] is True
+        assert result["image_permission_name"] == "perm-oa-2026"
+
+        non_oa_ref = _mk_reference(db, "AGRKB:101000100021",
+                                   resource_id=resource.resource_id, date_published="2026")
+        result = reference_crud.get_effective_image_permission(db, non_oa_ref.curie,
+                                                               reference=non_oa_ref)
+        assert result["source"] == "resource_image_permission"
+        assert result["can_display_images"] is False
+        assert result["image_permission_name"] == "perm-exclusive-2026"
 
     def test_resource_open_access_path(self, db): # noqa
         lic = CopyrightLicenseModel(name="CC-BY-resource", open_access=True)

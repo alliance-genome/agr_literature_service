@@ -15,10 +15,11 @@ from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
-    TopicEntityTagSourceModel
+    TagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud import curation_status_source_crud
 
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationStatusModel:
@@ -29,6 +30,9 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationSt
     :return:
     """
     curation_status_data = jsonable_encoder(curation_status)
+    # SCRUM-6518. Optional attribution; popped before the model is built because
+    # it is not a curation_status column.
+    tag_source_id = curation_status_data.pop("tag_source_id", None)
     if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
         curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
     if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
@@ -49,9 +53,27 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationSt
         curation_status_data["date_created"] = datetime.now().isoformat()
         db_obj = CurationStatusModel(**curation_status_data)
         db.add(db_obj)
+        if tag_source_id is not None:
+            # Same transaction as the base row: flush to get the PK, stage the
+            # attribution, then commit once. Validating the source AFTER
+            # committing the base row would 404 while leaving an orphaned
+            # curation_status behind, and the caller's retry would then trip the
+            # (topic, reference_id, mod_id) unique constraint (found in review).
+            db.flush()
+            curation_status_source_crud.stage_association(
+                db, db_obj.curation_status_id, tag_source_id,
+                {field: getattr(db_obj, field)
+                 for field in curation_status_source_crud.VALUE_FIELDS},
+                mod_id)
         db.commit()
         db.refresh(db_obj)
+    except HTTPException:
+        # An unresolvable tag_source_id is a 404 about the source, not a 422
+        # about the curation_status; let it through unchanged.
+        db.rollback()
+        raise
     except Exception as err:
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Error creating curation_status: {err}")
     return db_obj
@@ -85,6 +107,7 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> Curat
     """
 
     curation_status_data = curation_status_update.model_dump(exclude_unset=True)
+    tag_source_id = curation_status_data.pop("tag_source_id", None)
     if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
         curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
     if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
@@ -97,9 +120,24 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> Curat
     for field, value in curation_status_data.items():
         setattr(curation_status_db_obj, field, value)
 
-    curation_status_db_obj.dateUpdated = datetime.utcnow()
+    # NB: date_updated is stamped by AuditedModel.before_update; there is no
+    # dateUpdated column, so assigning one here was a silent no-op (removed).
     db.add(curation_status_db_obj)
-    db.commit()
+    try:
+        # Mirror ONLY the fields this PATCH actually sent, so patching the note
+        # does not blank the source's previously reported status. Staged in the
+        # same transaction as the field updates, so a bad tag_source_id cannot
+        # leave the row updated but unattributed.
+        if tag_source_id is not None:
+            curation_status_source_crud.stage_association(
+                db, curation_status_db_obj.curation_status_id, tag_source_id,
+                {field: value for field, value in curation_status_data.items()
+                 if field in curation_status_source_crud.VALUE_FIELDS},
+                curation_status_db_obj.mod_id)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     db.refresh(curation_status_db_obj)
 
     return curation_status_db_obj
@@ -327,14 +365,14 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
 
     # add tet info to the objects
     query = (
-        db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
+        db.query(TopicEntityTagModel, TagSourceModel)
         .join(
-            TopicEntityTagSourceModel,
-            TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+            TagSourceModel,
+            TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id
         )
         .filter(
             TopicEntityTagModel.reference_id == reference_id,
-            TopicEntityTagSourceModel.data_provider == mod_abbreviation
+            TagSourceModel.data_provider == mod_abbreviation
         )
     )
     rows = query.all()

@@ -98,7 +98,7 @@ class TestCleanupRun:
         assert counts["duplicates"] == 2
         assert db.delete.call_count == 2
         db.commit.assert_called_once()  # one commit for the single reference
-        mock_revalidate.assert_called_once_with(curie_or_reference_id="1")
+        mock_revalidate.assert_called_once_with(curie_or_reference_id="1", db=db)
 
     def test_missing_source_short_circuits(self):
         db = MagicMock()

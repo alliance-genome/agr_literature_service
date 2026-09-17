@@ -94,7 +94,11 @@ BEGIN
         END IF;
 
         -- Priority 3: resource image permission matching the publication year;
-        -- row selection mirrors _resource_image_permission_for_reference()
+        -- row selection mirrors _resource_image_permission_for_reference():
+        -- ties on range specificity break toward the restrictive grant (a
+        -- journal can carry two grants on the SAME range split by per-article
+        -- facts, e.g. J Neurosci 2026- OA CC-BY vs non-OA exclusive license;
+        -- fail closed, SCRUM-6416)
         SELECT ip.can_display_images INTO v_can_display
         FROM resource_image_permission rip
         JOIN image_permission ip ON ip.image_permission_id = rip.image_permission_id
@@ -108,6 +112,7 @@ BEGIN
                  COALESCE(rip.start_year, 0) DESC,
                  (rip.end_year IS NULL),
                  COALESCE(rip.end_year, 9999),
+                 (ip.can_display_images IS TRUE),
                  rip.resource_image_permission_id
         LIMIT 1;
         IF FOUND THEN

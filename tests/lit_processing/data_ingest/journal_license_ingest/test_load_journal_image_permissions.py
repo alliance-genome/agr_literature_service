@@ -1,10 +1,13 @@
 """
 Tests for the permission classification logic in load_journal_image_permissions.py
 """
+from types import SimpleNamespace
+from typing import Any
 
 from agr_literature_service.lit_processing.data_ingest.journal_license_ingest.load_journal_image_permissions import (
     detect_permission_type,
     has_positive_permission_signal,
+    link_is_foreign,
 )
 
 
@@ -95,3 +98,53 @@ class TestDetectPermissionType:
     def test_blanket_takes_priority(self):
         row = make_row(WB="Blanket", SGD="OA")
         assert detect_permission_type(row) == "Blanket Permission"
+
+
+class TestLinkIsForeign:
+    """A (resource, range) slot owned by another loader's grant (e.g. an
+    alliance copyright permission, SCRUM-6416) must not be repointed."""
+
+    @staticmethod
+    def _link(permission_name) -> Any:
+        permission = SimpleNamespace(name=permission_name) if permission_name else None
+        return SimpleNamespace(image_permission=permission)
+
+    @staticmethod
+    def _row() -> Any:
+        return SimpleNamespace(
+            publisher="Test Publisher",
+            permission_name="Test Publisher - CC BY 4.0",
+            legacy_permission_name="Journal image permission: Test J | Test Publisher | all years",
+            hashed_permission_name="Test Publisher image permission (abcd1234)",
+        )
+
+    def test_other_loaders_grant_is_foreign(self):
+        # alliance grants use '{publisher}: <type>' names (colon, not dash)
+        assert link_is_foreign(self._link("Portland Press: full permission"), self._row()) is True
+        assert link_is_foreign(self._link("Test Publisher: full permission"), self._row()) is True
+
+    def test_own_current_name_is_not_foreign(self):
+        assert link_is_foreign(self._link("Test Publisher - CC BY 4.0"), self._row()) is False
+
+    def test_own_legacy_and_hashed_names_are_not_foreign(self):
+        assert link_is_foreign(
+            self._link("Journal image permission: Test J | Test Publisher | all years"), self._row()) is False
+        assert link_is_foreign(
+            self._link("Test Publisher image permission (abcd1234)"), self._row()) is False
+
+    def test_own_renamed_grant_is_not_foreign(self):
+        """A curator edited the license type since the last load: the stored
+        name no longer equals any of the row's three names, but it is still a
+        shape this loader minted for this publisher, so the update must follow
+        the rename instead of reporting a conflict."""
+        assert link_is_foreign(self._link("Test Publisher - CC BY-NC 4.0"), self._row()) is False
+        assert link_is_foreign(self._link("Test Publisher image permission (00ff00ff)"), self._row()) is False
+        assert link_is_foreign(
+            self._link("Journal image permission: Old J | Test Publisher | all years"), self._row()) is False
+
+    def test_another_publishers_minted_name_is_foreign(self):
+        assert link_is_foreign(self._link("Other Press - CC BY 4.0"), self._row()) is True
+        assert link_is_foreign(self._link("Other Press image permission (12345678)"), self._row()) is True
+
+    def test_link_without_permission_is_not_foreign(self):
+        assert link_is_foreign(self._link(None), self._row()) is False
