@@ -103,7 +103,7 @@ logger.setLevel(logging.INFO)
 
 def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
                          create: bool = True) -> Optional[int]:
-    """Return the topic_entity_tag_source.id for the GEO pipeline, creating it if absent.
+    """Return the tag_source.tag_source_id for the GEO pipeline, creating it if absent.
 
     ``create=False`` (what --dry-run passes) reports a missing source instead of
     inserting one, so a dry run leaves the database exactly as it found it.
