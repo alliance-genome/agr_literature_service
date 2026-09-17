@@ -16,7 +16,8 @@ from agr_literature_service.api.crud.cross_reference_crud import (
     format_cross_reference_data, set_curie_prefix)
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
-                                               MeshDetailModel, ResourceModel)
+                                               MeshDetailModel, ResourceModel,
+                                               ResourceImagePermissionModel)
 from agr_literature_service.api import resource_descriptor_cache
 from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 from agr_literature_service.global_utils import get_next_resource_curie
@@ -197,6 +198,31 @@ def _serialize_datetime(dt):
     return dt.isoformat() if dt else None
 
 
+def _serialize_alliance_permissions(resource: ResourceModel) -> List[Dict[str, Any]]:
+    """Alliance image-display permissions (publisher/journal grants curated by
+    the image working group), distinct from the OA copyright license: a
+    resource can hold several rows when the grant differs by year range (e.g.
+    J Neurosci pre-2010 / 2010-2014 / 2015-2025). Sorted open-ended-first,
+    then by range and link id so the payload is deterministic."""
+    permissions = []
+    for rip in sorted(resource.resource_image_permissions,
+                      key=lambda r: (r.start_year is not None, r.start_year or 0,
+                                     r.end_year is None, r.end_year or 0,
+                                     r.resource_image_permission_id)):
+        perm = rip.image_permission
+        permissions.append({
+            "resource_image_permission_id": rip.resource_image_permission_id,
+            "name": perm.name if perm else None,
+            "permission_text": perm.permission_text if perm else None,
+            "permission_url": perm.permission_url if perm else None,
+            "can_display_images": perm.can_display_images if perm else None,
+            "start_year": rip.start_year,
+            "end_year": rip.end_year,
+            "notes": rip.notes,
+        })
+    return permissions
+
+
 def show_all(db: Session):
     """
     Returns all resources with full data.
@@ -205,7 +231,9 @@ def show_all(db: Session):
     """
     resources = db.query(ResourceModel).options(
         selectinload(ResourceModel.cross_reference),
-        selectinload(ResourceModel.editor)
+        selectinload(ResourceModel.editor),
+        selectinload(ResourceModel.resource_image_permissions)
+        .selectinload(ResourceImagePermissionModel.image_permission)
     ).all()
 
     all_prefixes = set()
@@ -294,6 +322,7 @@ def show_all(db: Session):
                     "updated_by": editor_obj.updated_by,
                 })
         resource_data['editors'] = editors
+        resource_data['alliance_permissions'] = _serialize_alliance_permissions(resource)
         resources_data.append(resource_data)
     return resources_data
 
@@ -329,6 +358,9 @@ def show(db: Session, curie: str):
             del editor['resource_id']
             editors.append(editor)
     resource_data['editors'] = editors
+    # populate like show_all does: the response model defaults this to [],
+    # which would misreport a granted journal as having no grants
+    resource_data['alliance_permissions'] = _serialize_alliance_permissions(resource)
     return resource_data
 
 
