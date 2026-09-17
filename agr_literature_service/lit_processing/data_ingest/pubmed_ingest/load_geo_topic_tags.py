@@ -50,8 +50,8 @@ from agr_literature_service.api.models import (
     ModCorpusAssociationModel,
     ModModel,
     ReferenceModel,
+    TagSourceModel,
     TopicEntityTagModel,
-    TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaPost,
@@ -109,19 +109,19 @@ def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREV
     inserting one, so a dry run leaves the database exactly as it found it.
     """
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one()
-    existing = db.query(TopicEntityTagSourceModel).filter_by(
+    existing = db.query(TagSourceModel).filter_by(
         source_evidence_assertion=ECO_AUTOMATIC_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
         secondary_data_provider_id=mod.mod_id,
     ).one_or_none()
     if existing:
-        return existing.topic_entity_tag_source_id
+        return existing.tag_source_id
     if not create:
         logger.info("No GEO pipeline TET source for %s yet; a live run would create it",
                     mod_abbreviation)
         return None
-    source = TopicEntityTagSourceModel(
+    source = TagSourceModel(
         source_evidence_assertion=ECO_AUTOMATIC_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
@@ -133,8 +133,8 @@ def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREV
     db.commit()
     db.refresh(source)
     logger.info("Created GEO pipeline TET source id=%s for %s",
-                source.topic_entity_tag_source_id, mod_abbreviation)
-    return source.topic_entity_tag_source_id
+                source.tag_source_id, mod_abbreviation)
+    return source.tag_source_id
 
 
 def _references_with_geo_xref(db: Session,
@@ -173,7 +173,7 @@ def _references_with_geo_xref(db: Session,
             db.query(TopicEntityTagModel.topic_entity_tag_id)
             .filter(TopicEntityTagModel.reference_id == ReferenceModel.reference_id,
                     TopicEntityTagModel.topic == HIGH_THROUGHPUT_ASSAY_ATP,
-                    TopicEntityTagModel.topic_entity_tag_source_id == source_id))
+                    TopicEntityTagModel.tag_source_id == source_id))
         q = q.filter(~already_tagged.exists())
     # A reference can carry several GEO series; it still gets one topic tag.
     q = q.distinct().order_by(ReferenceModel.reference_id)
@@ -186,7 +186,7 @@ def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntit
     return TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
         topic=HIGH_THROUGHPUT_ASSAY_ATP,
-        topic_entity_tag_source_id=source_id,
+        tag_source_id=source_id,
         data_novelty=DATA_NOVELTY_NOT_NEW,
         data_context=DATA_CONTEXT_EXPERIMENTALLY_STUDIED,
         negated=False,

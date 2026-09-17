@@ -29,7 +29,7 @@ class TestBuildTopicTetPayload:
         data = payload.dict()
         assert data["reference_curie"] == "AGRKB:101000000000001"
         assert data["topic"] == mod.HIGH_THROUGHPUT_ASSAY_ATP
-        assert data["topic_entity_tag_source_id"] == 42
+        assert data["tag_source_id"] == 42
         assert data["negated"] is False
         assert data.get("entity") is None
         assert data.get("entity_type") is None
@@ -53,7 +53,7 @@ class TestGetOrCreateSource:
         return db
 
     def test_reuses_an_existing_source(self):
-        db = self._db_returning(MagicMock(topic_entity_tag_source_id=99))
+        db = self._db_returning(MagicMock(tag_source_id=99))
         assert mod.get_or_create_source(db, "FB") == 99
         db.add.assert_not_called()
 
