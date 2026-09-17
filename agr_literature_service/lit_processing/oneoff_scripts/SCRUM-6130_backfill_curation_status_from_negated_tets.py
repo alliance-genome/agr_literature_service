@@ -6,7 +6,7 @@ the original curation event:
 
   topic            <- TET.topic
   reference_id     <- TET.reference_id
-  mod_id           <- TET.topic_entity_tag_source.secondary_data_provider_id
+  mod_id           <- TET.tag_source.secondary_data_provider_id
   curation_status  =  ATP:0000299   (constant)
   curation_tag     =  ATP:0000226   (constant)
   note             <- TET.note
@@ -29,7 +29,7 @@ import logging
 from agr_literature_service.api.models import (
     CurationStatusModel,
     TopicEntityTagModel,
-    TopicEntityTagSourceModel,
+    TagSourceModel,
 )
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -65,19 +65,19 @@ def backfill():
             db.query(
                 TopicEntityTagModel.topic,
                 TopicEntityTagModel.reference_id,
-                TopicEntityTagSourceModel.secondary_data_provider_id.label("mod_id"),
+                TagSourceModel.secondary_data_provider_id.label("mod_id"),
                 TopicEntityTagModel.created_by,
                 TopicEntityTagModel.date_created,
                 TopicEntityTagModel.note,
             )
             .join(
-                TopicEntityTagSourceModel,
-                TopicEntityTagModel.topic_entity_tag_source_id
-                == TopicEntityTagSourceModel.topic_entity_tag_source_id,
+                TagSourceModel,
+                TopicEntityTagModel.tag_source_id
+                == TagSourceModel.tag_source_id,
             )
             .filter(
                 TopicEntityTagModel.negated.is_(True),
-                TopicEntityTagSourceModel.source_method == SOURCE_METHOD,
+                TagSourceModel.source_method == SOURCE_METHOD,
             )
             .all()
         )

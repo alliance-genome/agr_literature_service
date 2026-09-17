@@ -41,7 +41,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import (
 from agr_literature_service.api.models import (
     ModModel,
     TopicEntityTagModel,
-    TopicEntityTagSourceModel,
+    TagSourceModel,
 )
 from agr_literature_service.api.models.audited_model import (
     disable_set_updated_by_onupdate,
@@ -268,8 +268,8 @@ def sgd_display_tag(sgd_topic: Optional[str]) -> Optional[str]:
 log_path = environ.get("LOG_PATH", "")
 
 
-def _query_source(db: Session, mod_id: int) -> Optional[TopicEntityTagSourceModel]:
-    return db.query(TopicEntityTagSourceModel).filter_by(
+def _query_source(db: Session, mod_id: int) -> Optional[TagSourceModel]:
+    return db.query(TagSourceModel).filter_by(
         source_evidence_assertion=SOURCE_EVIDENCE_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
@@ -278,14 +278,14 @@ def _query_source(db: Session, mod_id: int) -> Optional[TopicEntityTagSourceMode
 
 
 def get_or_create_source(db: Session) -> int:
-    """Return the topic_entity_tag_source.id for the shared SGD reference-curation
+    """Return the tag_source.id for the shared SGD reference-curation
     source, creating it if absent. On a unique-constraint race (two first runs at
     once) the insert is rolled back and the now-present row is re-read."""
     mod = db.query(ModModel).filter_by(abbreviation=SECONDARY_DATA_PROVIDER_ABBR).one()
     existing = _query_source(db, mod.mod_id)
     if existing:
-        return existing.topic_entity_tag_source_id
-    source = TopicEntityTagSourceModel(
+        return existing.tag_source_id
+    source = TagSourceModel(
         source_evidence_assertion=SOURCE_EVIDENCE_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
@@ -300,11 +300,11 @@ def get_or_create_source(db: Session) -> int:
         db.rollback()
         existing = _query_source(db, mod.mod_id)
         if existing:
-            return existing.topic_entity_tag_source_id
+            return existing.tag_source_id
         raise
     db.refresh(source)
-    logger.info(f"Created SGD reference-curation TET source id={source.topic_entity_tag_source_id}")
-    return source.topic_entity_tag_source_id
+    logger.info(f"Created SGD reference-curation TET source id={source.tag_source_id}")
+    return source.tag_source_id
 
 
 def build_sgd_ref_curie_map(db: Session) -> Dict[str, str]:
@@ -362,7 +362,7 @@ def load_existing_entity_tags(db: Session, source_id: int,
            "       tet.topic_entity_tag_id, tet.display_tag, tet.date_created, tet.created_by "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.reference_id "
-           "WHERE  tet.topic_entity_tag_source_id = :sid "
+           "WHERE  tet.tag_source_id = :sid "
            "AND    ((tet.topic = tet.entity_type AND tet.entity_type = ANY(:atps)) "
            "        OR (tet.topic = :root_topic AND tet.entity IS NULL "
            "            AND tet.display_tag IS NOT NULL))")
@@ -399,8 +399,8 @@ def load_abc_entity_tags(db: Session,
     sql = ("SELECT r.curie, tet.entity_type, tet.entity, tet.display_tag "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.reference_id "
-           "JOIN   topic_entity_tag_source tets "
-           "       ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+           "JOIN   tag_source tets "
+           "       ON tet.tag_source_id = tets.tag_source_id "
            "JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id "
            "WHERE  tets.source_method = :abc_method "
            "AND    m.abbreviation = :abbr "
@@ -473,7 +473,7 @@ def build_tag_payload(reference_curie: str, topic_atp: str, entity_curie: Option
         display_tag=display_tag,
         data_novelty=NEW_DATA_NOVELTY_ATP if topic_only else EXISTING_DATA_NOVELTY_ATP,
         negated=False,
-        topic_entity_tag_source_id=source_id,
+        tag_source_id=source_id,
         created_by=created_by,
         updated_by=created_by,
         date_created=date_created or None,

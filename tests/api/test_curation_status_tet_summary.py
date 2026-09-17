@@ -292,3 +292,27 @@ def test_assessment_states_conflict_on_computed_tag_stays_unvalidated():
     ]}
     states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
     assert states["no_data"] == "unvalidated"
+
+
+def test_summary_keys_are_unchanged_by_source_associations():
+    """SCRUM-6518 deliberately does NOT extend this payload.
+
+    Curation status sources are read through
+    GET /curation_status/{id}/source_associations instead, so that
+    aggregated_curation_status_and_tet_info stays the size it is. This guard
+    fails if a later story quietly widens it.
+    """
+    summary = get_tet_list_summary("ATP:9999999", {})
+    assert set(summary) == {
+        "tet_info_date_created",
+        "tet_info_topic_source",
+        "tet_info_has_data",
+        "tet_info_new_data",
+        "tet_info_no_data",
+        "tet_info_manual_has_data",
+        "tet_info_manual_new_data",
+        "tet_info_manual_no_data",
+        "tet_info_source_predictions",
+        "tet_info_manual_assessments",
+        "tet_info_assessment_states",
+    }

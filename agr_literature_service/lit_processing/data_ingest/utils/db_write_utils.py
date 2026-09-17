@@ -16,7 +16,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
-    TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel, UserModel
+    TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
@@ -2050,15 +2050,15 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit: bool 
 
             # Delete pipeline-added TET tags for this ref/mod.
             tet_source_ids_stmt = select(
-                TopicEntityTagSourceModel.topic_entity_tag_source_id
+                TagSourceModel.tag_source_id
             ).where(
-                TopicEntityTagSourceModel.secondary_data_provider_id == mod_id,
-                TopicEntityTagSourceModel.source_evidence_assertion.notin_(manual_assertions)
+                TagSourceModel.secondary_data_provider_id == mod_id,
+                TagSourceModel.source_evidence_assertion.notin_(manual_assertions)
             )
 
             delete_tet_stmt = delete(TopicEntityTagModel).where(
                 TopicEntityTagModel.reference_id == reference_id,
-                TopicEntityTagModel.topic_entity_tag_source_id.in_(tet_source_ids_stmt)
+                TopicEntityTagModel.tag_source_id.in_(tet_source_ids_stmt)
             )
             delete_tet_result = db.execute(delete_tet_stmt)
             deleted_tet_rows = delete_tet_result.rowcount or 0
@@ -2075,14 +2075,14 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit: bool 
                 select(func.count())
                 .select_from(TopicEntityTagModel)
                 .join(
-                    TopicEntityTagSourceModel,
-                    TopicEntityTagModel.topic_entity_tag_source_id
-                    == TopicEntityTagSourceModel.topic_entity_tag_source_id
+                    TagSourceModel,
+                    TopicEntityTagModel.tag_source_id
+                    == TagSourceModel.tag_source_id
                 )
                 .where(
                     TopicEntityTagModel.reference_id == reference_id,
-                    TopicEntityTagSourceModel.secondary_data_provider_id == mod_id,
-                    TopicEntityTagSourceModel.source_evidence_assertion.in_(manual_assertions)
+                    TagSourceModel.secondary_data_provider_id == mod_id,
+                    TagSourceModel.source_evidence_assertion.in_(manual_assertions)
                 )
             )
             manual_tet_count = db.execute(manual_tet_count_stmt).scalar_one()

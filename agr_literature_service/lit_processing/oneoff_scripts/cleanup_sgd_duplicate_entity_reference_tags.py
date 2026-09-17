@@ -96,14 +96,14 @@ _FIND_DUPLICATES_SQL = text("""
            sgd.entity_type, sgd.entity, sgd.display_tag
     FROM   topic_entity_tag sgd
     JOIN   reference r ON sgd.reference_id = r.reference_id
-    WHERE  sgd.topic_entity_tag_source_id = ANY(:sids)
+    WHERE  sgd.tag_source_id = ANY(:sids)
     AND    ((sgd.topic = sgd.entity_type
              AND sgd.entity_type = ANY(:atps)
              AND EXISTS (
                  SELECT 1
                  FROM   topic_entity_tag abc
-                 JOIN   topic_entity_tag_source tets
-                        ON abc.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+                 JOIN   tag_source tets
+                        ON abc.tag_source_id = tets.tag_source_id
                  JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id
                  WHERE  tets.source_method = :abc_method
                  AND    m.abbreviation = :abbr
@@ -118,8 +118,8 @@ _FIND_DUPLICATES_SQL = text("""
                 AND EXISTS (
                     SELECT 1
                     FROM   topic_entity_tag abc
-                    JOIN   topic_entity_tag_source tets
-                           ON abc.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+                    JOIN   tag_source tets
+                           ON abc.tag_source_id = tets.tag_source_id
                     JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id
                     WHERE  tets.source_method = :abc_method
                     AND    m.abbreviation = :abbr
@@ -139,14 +139,14 @@ DuplicateRow = Tuple[int, int, str, Optional[str], Optional[str], Optional[str]]
 
 
 def find_sgd_source_ids(db) -> List[int]:
-    """Return the topic_entity_tag_source ids of the SGD reference-curation
+    """Return the tag_source ids of the SGD reference-curation
     source (source_method = sgd_reference_curation for the SGD mod). Expected
     to be a single row (see sgd_reference_tag_utils.get_or_create_source), but
     read as a list so a duplicate source row cannot hide tags from the
     cleanup. Empty if the loaders have never run."""
     rows = db.execute(text(
-        "SELECT tets.topic_entity_tag_source_id "
-        "FROM   topic_entity_tag_source tets "
+        "SELECT tets.tag_source_id "
+        "FROM   tag_source tets "
         "JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id "
         "WHERE  tets.source_method = :method "
         "AND    m.abbreviation = :abbr"

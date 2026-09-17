@@ -23,7 +23,7 @@ surprising behaviour traces back to this.
 | Origin | SCRUM-6183, SCRUM-6188 | SCRUM-6242 |
 | Storage | `topic_entity_tag_validation` join table + two cached string columns | Ordinary topic-level TETs, counted at read time — nothing persisted |
 | Computed | On create / patch / delete / merge, and by the bulk resweep | Fresh on every batch read |
-| `validation_type` it keys on | `author`, `professional_biocurator` | `professional_curator` **and** `professional_biocurator` |
+| `validation_type` it keys on | `author`, `professional_biocurator` | `professional_biocurator` |
 | Surfaced as | `validation_by_author`, `validation_by_professional_biocurator` | `validation` + `filter_flags` blocks in the batch response |
 | Indexed in Elasticsearch | `validation_by_professional_biocurator` only (SCRUM-6228) | not at all |
 
@@ -51,7 +51,7 @@ All in `agr_literature_service/api/models/topic_entity_tag_model.py`.
 - **`__versioned__ = {'exclude': ['validated_by']}`** (`:43-45`) — the edge graph has no
   audit history. The two string columns *are* versioned, so every revalidation writes a
   `topic_entity_tag_version` row.
-- **`TopicEntityTagSourceModel.validation_type`** (`:246`) — nullable free-text string, and
+- **`TagSourceModel.validation_type`** (`:246`) — nullable free-text string, and
   the pivot of the whole system. A tag can validate others only if its source has a
   non-null value here. ML/automated sources are `None`: they can *be* validated but never
   validate.
@@ -205,7 +205,7 @@ The endpoint writes a **topic-level (no entity)** tag from the per-MOD ABC curat
 ```python
 CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"        # :85
 CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"          # :86
-CURATOR_VALIDATION_TYPE = "professional_curator"                    # :87
+CURATOR_VALIDATION_TYPE = "professional_biocurator"                 # :87
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"                     # :88
 ```
 
@@ -256,7 +256,7 @@ must not touch the validated tag's audit fields.
 The ATP hierarchy is mocked by `load_name_to_atp_and_relationships_mock()`
 (`tests/fixtures.py:164`), so tests make no A-team ontology calls.
 
-**Known gaps:** `tests/api/test_topic_entity_tag_source.py` asserts nothing about
+**Known gaps:** `tests/api/test_tag_source.py` asserts nothing about
 `validation_type` — not its allowed values, not that changing it re-derives anything.
 `test_data_novelty_branch_separation` (`:1693`) is an assertion-free stub.
 
@@ -266,7 +266,11 @@ The ATP hierarchy is mocked by `load_name_to_atp_and_relationships_mock()`
 
 Ranked by likelihood of causing a surprise.
 
-1. **`professional_curator` vs `professional_biocurator`.** (SCRUM-6476) Grid votes use the former;
+1. **`professional_curator` vs `professional_biocurator`.** (SCRUM-6476, resolved by SCRUM-6518)
+   RESOLVED: `professional_biocurator` is now the only curator validation_type. The old
+   spelling never matched what validation edges key on, is normalised away by the
+   SCRUM-6518 migration, and is no longer accepted on the read side. Historically:
+   grid votes used the former;
    `calculate_validation_value_for_tag` only matches the latter. Those tags *do* create
    edges in the join table (the gate is merely "`validation_type` is not null"), but the
    edges are filtered out of both buckets — so the tag reads `not_validated` and
@@ -285,7 +289,7 @@ Ranked by likelihood of causing a surprise.
    closes it with no migration and no data change.
 2. **`validation_type` is unconstrained free text**
    (`topic_entity_tag_schemas.py:32,52`). Observed values: `author`,
-   `professional_biocurator`, `professional_curator`, `manual_validation`
+   `professional_biocurator`, `manual_validation`
    (`tests/populate_test_db.py:355` — matches nothing, silently inert), and `None`.
    Separately, `ATP:0000035` / `ATP:0000036` (author / professional biocurator assertion)
    live in `source_evidence_assertion` and drive *deletion* filtering
@@ -293,7 +297,7 @@ Ranked by likelihood of causing a surprise.
 3. **Bulk loaders skip validation and never resweep.** Every MOD loader passes
    `validate_on_insert=False`, and nothing triggers a sweep afterwards. The implicit
    contract is a manual sweep that nobody schedules.
-4. **`PATCH /topic_entity_tag/source/{id}` can change `validation_type`** — altering every
+4. **`PATCH /tag_source/{id}` can change `validation_type`** — altering every
    rollup that depends on that source — without triggering any revalidation.
 5. **The rollup columns are writable through the API**
    (`topic_entity_tag_schemas.py:81-82, 152-153`) despite being server-computed. A PATCH is
@@ -351,7 +355,7 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 - **Full-reference rebuild for a single-tag edit.** Patch, delete and validate all delete
   and re-derive every edge on the reference, then run a second full pass recomputing values.
 - **Sweep cache thrash** (SCRUM-6475) (`:828-830`, `:852-855`) — ordering by
-  `reference_id, topic_entity_tag_source_id, secondary_data_provider_id` means tags of the
+  `reference_id, tag_source_id, secondary_data_provider_id` means tags of the
   same MOD are not guaranteed contiguous. Swapping the last two keys would fix it.
 - **No locking anywhere.** (SCRUM-6475) No `SELECT ... FOR UPDATE`, no advisory locks. Two concurrent
   writes to the same reference can interleave one's `DELETE FROM

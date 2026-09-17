@@ -3,7 +3,7 @@ Populate data_novelty column based on novel_topic_data and source_evidence_asser
 
 This script sets the data_novelty column to "ATP:0000321" when:
 - novel_topic_data is true AND
-- topic_entity_tag_source.source_evidence_assertion is "ATP:0000036"
+- tag_source.source_evidence_assertion is "ATP:0000036"
 """
 from os import path
 import logging
@@ -29,7 +29,7 @@ def populate_data_novelty():
     rows = db.execute(text("""
         SELECT tet.topic_entity_tag_id, tet.novel_topic_data, tets.source_evidence_assertion
         FROM topic_entity_tag tet
-        JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+        JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id
         WHERE tet.novel_topic_data = true
     """)).fetchall()
 
