@@ -284,6 +284,12 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
 
     add(res_ref, author_db_obj)
 
+    # An explicit "person_curie": null means unlink; the key simply being absent means
+    # leave the link alone. The router builds the patch with model_dump(exclude_unset=True),
+    # so the two are distinguishable here -- but only before _resolve_person_curie pops the
+    # key and collapses both to None. Hence reading it first.
+    unlink_person = "person_curie" in author_data and author_data["person_curie"] is None
+
     person_id = _resolve_person_curie(db, author_data)
     author_data.pop("person_id", None)  # never set person_id directly from the payload
 
@@ -306,6 +312,17 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         setattr(author_db_obj, field, value)
     if person_id is not None:
         link_person(db, author_db_obj, person_id)
+    elif unlink_person:
+        # ck_author_person_or_order needs person_id OR author_order, so an ordered author
+        # can always drop its person. A person-only row has nothing left to satisfy the
+        # check and would fail at commit as a raw 500, so refuse it here: removing one of
+        # those means deleting the row, not clearing a column.
+        if author_db_obj.author_order is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Cannot unlink the person from a person-only row (no author_order); "
+                       "delete the author row instead")
+        author_db_obj.person_id = None
 
     author_db_obj.dateUpdated = datetime.utcnow()
     db.add(author_db_obj)
