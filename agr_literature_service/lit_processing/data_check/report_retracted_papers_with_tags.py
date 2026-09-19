@@ -18,8 +18,8 @@ def check_data():
     data_to_report = []
     try:
         sql_query = """ SELECT DISTINCT curie, mod.abbreviation as mod
-        FROM topic_entity_tag as A, topic_entity_tag_source as B, reference, mod_corpus_association as C, mod
-        WHERE A.topic_entity_tag_source_id = B.topic_entity_tag_source_id
+        FROM topic_entity_tag as A, tag_source as B, reference, mod_corpus_association as C, mod
+        WHERE A.tag_source_id = B.tag_source_id
         AND A.reference_id = reference.reference_id
         AND source_evidence_assertion = 'ATP:0000036'
         AND C.mod_id = mod.mod_id

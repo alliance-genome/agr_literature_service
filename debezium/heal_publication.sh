@@ -43,7 +43,7 @@ BEGIN
     RETURN;
   END IF;
   FOREACH tbl IN ARRAY ARRAY[
-    'citation','reference','resource','mod_corpus_association','topic_entity_tag_source',
+    'citation','reference','resource','mod_corpus_association','tag_source',
     'mod_referencetype','mod','referencetype','copyright_license','cross_reference','author',
     'obsolete_reference_curie','reference_mod_referencetype','topic_entity_tag','workflow_tag',
     'reference_relation','mesh_detail','reference_email','indexing_priority','manual_indexing_tag',

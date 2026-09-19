@@ -76,7 +76,7 @@ def find_over_cap_references(db, source_id: int, entity_atp: str) -> List[Tuple[
     rows = (
         db.query(TopicEntityTagModel.reference_id, func.count().label("n"))
         .filter(
-            TopicEntityTagModel.topic_entity_tag_source_id == source_id,
+            TopicEntityTagModel.tag_source_id == source_id,
             TopicEntityTagModel.topic == entity_atp,
             TopicEntityTagModel.entity_type == entity_atp,
         )
@@ -102,7 +102,7 @@ def delete_reference_tags(db, source_id: int, entity_atp: str, reference_id: int
     result = db.execute(
         text(
             "DELETE FROM topic_entity_tag "
-            "WHERE topic_entity_tag_source_id = :sid "
+            "WHERE tag_source_id = :sid "
             "AND topic = :atp AND entity_type = :atp "
             "AND reference_id = :ref"
         ),
@@ -127,7 +127,7 @@ def count_affected_dataset_entries(db, source_id: int,
     total = 0
     for entity_atp, reference_ids in refs_by_atp.items():
         tag_ids = select(TopicEntityTagModel.topic_entity_tag_id).where(
-            TopicEntityTagModel.topic_entity_tag_source_id == source_id,
+            TopicEntityTagModel.tag_source_id == source_id,
             TopicEntityTagModel.topic == entity_atp,
             TopicEntityTagModel.entity_type == entity_atp,
             TopicEntityTagModel.reference_id.in_(reference_ids),
@@ -195,8 +195,13 @@ def cleanup_zfin_over_cap_reference_tags(delete: bool = False,
             db.commit()
             if revalidate:
                 try:
-                    revalidate_all_tags(curie_or_reference_id=str(reference_id))
+                    # SCRUM-6475: reuse this script's session instead of having
+                    # revalidate_all_tags build (and leak) an engine per reference.
+                    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
                 except Exception as e:  # best-effort: one failure must not abort the rest
+                    # Sharing the session means a failure leaves the transaction aborted,
+                    # so it has to be rolled back or every later reference fails too.
+                    db.rollback()
                     logger.warning("Revalidation failed for reference_id=%d: %s",
                                    reference_id, e)
         return counts

@@ -86,8 +86,8 @@ def load_data():
 def get_source_id(db):
 
     row = db.execute(text("""
-        SELECT topic_entity_tag_source_id
-        FROM topic_entity_tag_source
+        SELECT tag_source_id
+        FROM tag_source
         WHERE source_method = 'abc_document_classifier'
         AND data_provider = 'ZFIN'
     """)).fetchone()
