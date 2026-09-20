@@ -249,6 +249,16 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     # can carry both. A same-reference PATCH is untouched: metadata-only patches routinely
     # resend the author's own reference_curie. Checked before add() so
     # author_db_obj.reference_id is still the original and no relationship has been mutated.
+    # An explicit "person_curie": null means unlink; the key simply being absent means
+    # leave the link alone. The router builds the patch with model_dump(exclude_unset=True),
+    # so the two are distinguishable here -- but only before _resolve_person_curie pops the
+    # key and collapses both to None. Hence reading it first.
+    #
+    # Read before the reparent guards rather than after, because the person guard below
+    # has to know: a reparent that also unlinks cannot collide on a person it is about
+    # to drop.
+    unlink_person = "person_curie" in author_data and author_data["person_curie"] is None
+
     dest_ref = res_ref.get("reference")
     if dest_ref is not None and dest_ref.reference_id != author_db_obj.reference_id:
         # no_autoflush: an autoflush here would push the very write these guards prevent.
@@ -268,7 +278,12 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
 
         # A NULL person_id never collides: Postgres treats NULLs as distinct in a unique
         # index, which is why the many unlinked authors on one reference do not conflict.
-        if author_db_obj.person_id is not None:
+        #
+        # Skipped when this same PATCH unlinks. The guard is computed from the person the
+        # row carries NOW, but after the patch that column is NULL, so uq_author_ref_person
+        # cannot fire -- without this, moving an author to a reference that already links
+        # its (about to be dropped) person was refused for a collision that never happens.
+        if author_db_obj.person_id is not None and not unlink_person:
             with db.no_autoflush:
                 person_taken = db.query(AuthorModel.author_id).filter(
                     AuthorModel.reference_id == dest_ref.reference_id,
@@ -283,12 +298,6 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
                            f"reference, so merge or remove that author first")
 
     add(res_ref, author_db_obj)
-
-    # An explicit "person_curie": null means unlink; the key simply being absent means
-    # leave the link alone. The router builds the patch with model_dump(exclude_unset=True),
-    # so the two are distinguishable here -- but only before _resolve_person_curie pops the
-    # key and collapses both to None. Hence reading it first.
-    unlink_person = "person_curie" in author_data and author_data["person_curie"] is None
 
     person_id = _resolve_person_curie(db, author_data)
     author_data.pop("person_id", None)  # never set person_id directly from the payload

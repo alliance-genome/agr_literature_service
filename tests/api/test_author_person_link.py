@@ -641,3 +641,76 @@ class TestReachable500Hardening:
         db.expire_all()
         a = db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one()
         assert a.person_id == person.person_id
+
+    def test_patch_reparent_and_unlink_together_is_allowed(self, db, auth_headers, test_reference):  # noqa
+        # The reparent guard is computed from the person the row carries NOW, but a
+        # PATCH that also unlinks leaves person_id NULL, so uq_author_ref_person cannot
+        # fire. Without skipping the guard when unlink is requested, moving an author to
+        # a reference that already links its about-to-be-dropped person was refused for
+        # a collision that never happens.
+        person = PersonModel(display_name="Shared Person", curie="AGR:AP-UNLINK-4")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Reparent unlink dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+
+            # The destination already links this person to one of its own authors.
+            blocker = client.post(url="/author/",
+                                  json={"author_order": 1, "name": "Blocker",
+                                        "person_curie": person.curie,
+                                        "reference_curie": dest_curie},
+                                  headers=auth_headers)
+            assert blocker.status_code == status.HTTP_201_CREATED
+
+            mover = client.post(url="/author/",
+                                json={"author_order": 7, "name": "Mover",
+                                      "person_curie": person.curie,
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert mover.status_code == status.HTTP_201_CREATED
+            mover_id = mover.json()["author_id"]
+
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie, "person_curie": None},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
+        assert a.person_id is None
+        assert a.author_order == 7
+
+    def test_patch_reparent_without_unlink_still_rejects_the_collision(self, db, auth_headers, test_reference):  # noqa
+        # The counterpart: skipping the guard must depend on the unlink, not on the
+        # reparent. A move that keeps the person still has to be refused.
+        person = PersonModel(display_name="Kept Person", curie="AGR:AP-UNLINK-5")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Reparent keep dest", "category": "thesis"},
+                               headers=auth_headers)
+            dest_curie = dest.json()["curie"]
+            client.post(url="/author/",
+                        json={"author_order": 1, "name": "Blocker",
+                              "person_curie": person.curie, "reference_curie": dest_curie},
+                        headers=auth_headers)
+            mover = client.post(url="/author/",
+                                json={"author_order": 8, "name": "Mover",
+                                      "person_curie": person.curie,
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            mover_id = mover.json()["author_id"]
+
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "already links this person" in r.json()["detail"]
