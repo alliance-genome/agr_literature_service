@@ -259,6 +259,21 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     # to drop.
     unlink_person = "person_curie" in author_data and author_data["person_curie"] is None
 
+    # "" is refused rather than guessed. On this path the key's PRESENCE is the signal,
+    # so an empty string sits between two opposite intents -- unlink (send null) and
+    # leave alone (omit the key) -- and _resolve_person_curie's `if not curie` would
+    # quietly pick neither, returning 200 with the link untouched.
+    #
+    # Deliberately asymmetric with create(), where "" is an unambiguous "no person" for
+    # a row being built from nothing and stays allowed. The guard lives here rather than
+    # on the schema for exactly that reason: POST and PATCH both bind AuthorSchemaCreate,
+    # so a field_validator would reject "" on create too.
+    if author_data.get("person_curie") == "":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='person_curie must be a person curie or null; "" is neither a way to '
+                   'unlink (send null) nor a way to leave the link alone (omit the key)')
+
     dest_ref = res_ref.get("reference")
     if dest_ref is not None and dest_ref.reference_id != author_db_obj.reference_id:
         # no_autoflush: an autoflush here would push the very write these guards prevent.

@@ -714,3 +714,48 @@ class TestReachable500Hardening:
 
         assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert "already links this person" in r.json()["detail"]
+
+    def test_patch_empty_person_curie_is_rejected(self, db, auth_headers, test_reference):  # noqa
+        # "" is ambiguous on this path -- the key's presence is the signal, so it sits
+        # between "unlink" (null) and "leave alone" (omit). Refusing it is what stops
+        # _resolve_person_curie's `if not curie` returning a 200 that changed nothing.
+        person = PersonModel(display_name="Empty Curie Person", curie="AGR:AP-UNLINK-6")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"author_order": 5, "name": "Empty Curie Target",
+                                        "person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            author_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{author_id}",
+                             json={"person_curie": ""},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "neither a way to unlink" in r.json()["detail"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()
+        assert a.person_id == person.person_id
+
+    def test_create_still_accepts_an_empty_person_curie(self, db, auth_headers, test_reference):  # noqa
+        # The asymmetry the guard's comment describes, pinned: on create there is no
+        # existing link, so "" is an unambiguous "no person" and must keep working --
+        # which is also why the guard cannot live on the shared schema.
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"author_order": 6, "name": "No Person",
+                                  "person_curie": "",
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+
+        assert r.status_code == status.HTTP_201_CREATED
+        db.expire_all()
+        a = db.query(AuthorModel).filter(
+            AuthorModel.author_id == r.json()["author_id"]).one()
+        assert a.person_id is None
+        assert a.author_order == 6
