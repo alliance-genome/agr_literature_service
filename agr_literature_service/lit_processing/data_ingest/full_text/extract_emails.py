@@ -198,11 +198,15 @@ _ALLOWED_LONG_TLDS = {
     "ac",
 }
 
+# The trailing guard rejects a truncated domain (a '.' leading into more
+# domain characters) but must still accept a sentence-ending '.' right after
+# the address ("... or markg@fhcrc.org."), so '.' is only refused when
+# followed by another domain character.
 EMAIL_RE = re.compile(
     r"(?<![A-Za-z0-9._%+-])"
     r"([A-Za-z0-9][A-Za-z0-9._%+-]{0,63}"
     r"@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63})"
-    r"(?![A-Za-z0-9._%+-])",
+    r"(?![A-Za-z0-9_%+-])(?!\.[A-Za-z0-9])",
     re.IGNORECASE,
 )
 

@@ -32,8 +32,9 @@ class TestBuildPayloads:
         data = payload.dict()
         assert data["reference_curie"] == "AGR:R1"
         assert data["topic"] == mod.PROTEIN_STRUCTURE_ATP
-        assert data["topic_entity_tag_source_id"] == 42
+        assert data["tag_source_id"] == 42
         assert data["data_novelty"] == mod.DATA_NOVELTY_NOT_NEW
+        assert data["data_context"] == mod.DATA_CONTEXT_EXPERIMENTALLY_STUDIED
         assert data["negated"] is False
         assert data.get("entity") is None
         assert data.get("entity_type") is None
@@ -226,7 +227,7 @@ class TestLoad:
         tet_payload = mock_create_tag.call_args[0][1].dict()
         assert tet_payload["topic"] == mod.PROTEIN_STRUCTURE_ATP
         assert tet_payload["reference_curie"] == "AGR:AGR-Reference-0000000001"
-        assert tet_payload["topic_entity_tag_source_id"] == 42
+        assert tet_payload["tag_source_id"] == 42
         assert tet_payload.get("entity") is None
 
     @patch.object(mod, "create_tag", return_value=(123, False))

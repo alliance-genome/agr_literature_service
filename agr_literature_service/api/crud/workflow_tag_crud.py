@@ -406,11 +406,27 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
         job_condition_on_start_process(db, workflow_tag, orig_wft)
 
 
+def normalize_reference_identifier(db: Session, curie_or_reference_id) -> str:
+    """Normalize any cross-reference curie, such as a PMID (e.g.
+    PMID:39739753) or a MOD curie (e.g. SGD:S000342424), to the AGRKB curie so
+    the AGRKB-only lookups in this module resolve it (SCRUM-6319). AGRKB
+    curies pass through unchanged, as do bare digits — but a numeric
+    reference_id is only honoured by callers whose subsequent lookup accepts
+    one (transition_sanity_check via get_reference); the direct
+    ReferenceModel.curie lookups (patch, set_priority,
+    show_by_reference_mod_abbreviation) never match a bare integer."""
+    ident = str(curie_or_reference_id)
+    if not ident.isdigit() and not ident.startswith("AGRKB:"):
+        ident = normalize_reference_curie(db, ident)
+    return ident
+
+
 def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_reference_id, new_workflow_tag_atp_id):
     logger.info("Transition sanity check")
     if transition_type not in ["manual", "automated"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Transition type must be manual or automated")
+    curie_or_reference_id = normalize_reference_identifier(db, curie_or_reference_id)
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id)
     mod: ModModel = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     if not mod:
@@ -702,7 +718,7 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
     for field, value in workflow_tag_data.items():
         if field == "reference_curie":
             if value is not None:
-                reference_curie = value
+                reference_curie = normalize_reference_identifier(db, value)
                 new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
                 if not new_reference:
                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -798,10 +814,11 @@ def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_ab
     """
 
     :param db:
-    :param reference_curie:
+    :param reference_curie: AGRKB curie or any cross-reference curie (PMID/MOD)
     :param mod_abbreviation:
     :return: list of id's (int)
     """
+    reference_curie = normalize_reference_identifier(db, reference_curie)
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not mod:
@@ -1463,6 +1480,8 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
 
 
 def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
+
+    reference_curie = normalize_reference_identifier(db, reference_curie)
 
     priority_to_atp_mapping = {
         "priority_1": get_atp_id_by_name('priority 1', fallback='ATP:0000211'),

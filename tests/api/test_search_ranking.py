@@ -202,6 +202,31 @@ class TestScoringAndSort:
         # _score comes after the date fields for non-text search
         assert es_body["sort"][2] == {"_score": {"order": "desc"}}
 
+    def test_explicit_date_sort_is_date_first_even_for_text_search(self):
+        # User picked "Oldest first" on a text search: chronological order must
+        # drive the sort, with score only as a tie-breaker (SCRUM-6451).
+        es_body = {"query": {"match": {"title": "x"}}}
+        sr.apply_scoring_and_sort(
+            es_body, is_text_search=True, uses_rescore=False, order="asc",
+            explicit_date_sort=True,
+        )
+        assert es_body["sort"][0]["date_published_start"]["order"] == "asc"
+        assert es_body["sort"][1]["date_created"]["order"] == "asc"
+        assert es_body["sort"][2] == {"_score": {"order": "desc"}}
+        # No recency function_score wrapping when the user asked for a date sort
+        assert "function_score" not in es_body["query"]
+
+    def test_explicit_date_sort_overrides_rescore(self):
+        # ES rejects an explicit sort combined with rescore, so the rescore
+        # block must be dropped when the user asks for a date sort.
+        es_body = {"query": {"match": {"title": "x"}}, "rescore": {"window_size": 200}}
+        sr.apply_scoring_and_sort(
+            es_body, is_text_search=True, uses_rescore=True, order="desc",
+            explicit_date_sort=True,
+        )
+        assert "rescore" not in es_body
+        assert es_body["sort"][0]["date_published_start"]["order"] == "desc"
+
 
 class TestContentGate:
     def test_content_tokens_drop_stopwords_and_short(self):

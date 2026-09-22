@@ -1,10 +1,17 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from .base_schemas import AuditedObjectModelSchema
-from .laboratory_position_enum import LabPosition
+
+if TYPE_CHECKING:
+    # Imported for typing only. A runtime import here would create a schemas<->crud
+    # import cycle (person_schemas -> laboratory_person_schemas -> vocabulary_crud ->
+    # person_schemas). The lab_position forward reference is resolved at runtime by
+    # laboratory_person_crud, which calls model_rebuild() with VocabularyTermRefSchema
+    # in scope.
+    from agr_literature_service.api.crud.vocabulary_crud import VocabularyTermRefSchema
 
 
 class LaboratoryPersonSchemaPost(BaseModel):
@@ -23,7 +30,7 @@ class LaboratoryPersonSchemaPost(BaseModel):
     alum: Optional[datetime] = None
     is_lab_contact: bool = False
     can_edit_lab: bool = False
-    lab_position: Optional[LabPosition] = None
+    lab_position: Optional[int] = None
 
 
 class LaboratoryPersonSchemaUpdate(BaseModel):
@@ -34,7 +41,7 @@ class LaboratoryPersonSchemaUpdate(BaseModel):
     alum: Optional[datetime] = None
     is_lab_contact: Optional[bool] = None
     can_edit_lab: Optional[bool] = None
-    lab_position: Optional[LabPosition] = None
+    lab_position: Optional[int] = None
 
 
 class LaboratoryPersonSchemaShow(AuditedObjectModelSchema):
@@ -53,7 +60,7 @@ class LaboratoryPersonSchemaShow(AuditedObjectModelSchema):
     alum: Optional[datetime] = None
     is_lab_contact: bool = False
     can_edit_lab: bool = False
-    lab_position: Optional[str] = None
+    lab_position: Optional[VocabularyTermRefSchema] = None
 
 
 class LaboratoryPersonSchemaRelated(AuditedObjectModelSchema):
@@ -72,4 +79,4 @@ class LaboratoryPersonSchemaRelated(AuditedObjectModelSchema):
     alum: Optional[datetime] = None
     is_lab_contact: bool = False
     can_edit_lab: bool = False
-    lab_position: Optional[str] = None
+    lab_position: Optional[VocabularyTermRefSchema] = None

@@ -11,7 +11,7 @@ from agr_literature_service.api.models import (
     drop_open_db_sessions)
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from os import environ, path
 
@@ -25,6 +25,19 @@ def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
         with engine.begin() as conn:  # Use connection context
+            # Break the person<->users FK cycle before deleting person rows. The
+            # cleanup never deletes the "users" table (the default user is preserved
+            # below), so a curator (person-linked) users row would survive while its
+            # person is deleted -- firing author/users ON DELETE SET NULL on
+            # users.person_id and leaving the row violating the users
+            # (person_id IS NULL) <> (automation_username IS NULL) check. Convert any
+            # such row to an automation user first so the person delete is safe.
+            conn.execute(text(
+                "UPDATE users "
+                "SET automation_username = COALESCE(automation_username, 'test_cleanup'), "
+                "person_id = NULL "
+                "WHERE person_id IS NOT NULL"
+            ))
             for table in reversed(Base.metadata.sorted_tables):
                 if table.fullname != "users":
                     conn.execute(table.delete())  # Use connection for execution
@@ -198,7 +211,13 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:task1_failed': [], 'ATP:task2_failed': [], 'ATP:task3_failed': [],
         'ATP:task1_complete': [], 'ATP:task2_complete': [], 'ATP:task3_complete': [],
         'ATP:0000334': [],
-        'ATP:0000228': [], 'ATP:0000229': []
+        'ATP:0000228': [], 'ATP:0000229': [],
+        # SCRUM-5697 data_context hierarchy (see docs/validation.md)
+        'ATP:0000323': ['ATP:0000324', 'ATP:0000326'],
+        'ATP:0000324': ['ATP:0000360', 'ATP:0000325'],
+        'ATP:0000326': ['ATP:0000328', 'ATP:0000327'],
+        'ATP:0000325': [], 'ATP:0000360': [],
+        'ATP:0000327': [], 'ATP:0000328': []
     }
 
     atp_to_name = {
@@ -233,7 +252,15 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000332': 'first pass curation in progress',
         'ATP:0000333': 'first pass curation blocked',
         'ATP:0000371': 'first pass curation TBD',
-        'ATP:0000330': 'first pass curation finished'
+        'ATP:0000330': 'first pass curation finished',
+        # SCRUM-5697 data_context hierarchy (root, two groupings, four leaves).
+        'ATP:0000323': 'data context',
+        'ATP:0000324': 'mentioned data',
+        'ATP:0000360': 'background information',
+        'ATP:0000325': 'experimentally studied data',
+        'ATP:0000326': 'marker data',
+        'ATP:0000328': 'expression marker',
+        'ATP:0000327': 'genetic marker'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -264,7 +291,14 @@ def load_name_to_atp_and_relationships_mock():
         'first pass curation in progress': 'ATP:0000332',
         'first pass curation blocked': 'ATP:0000333',
         'first pass curation TBD': 'ATP:0000371',
-        'first pass curation finished': 'ATP:0000330'
+        'first pass curation finished': 'ATP:0000330',
+        'data context': 'ATP:0000323',
+        'mentioned data': 'ATP:0000324',
+        'background information': 'ATP:0000360',
+        'experimentally studied data': 'ATP:0000325',
+        'marker data': 'ATP:0000326',
+        'expression marker': 'ATP:0000328',
+        'genetic marker': 'ATP:0000327'
     }
     workflow_parent = {}
     for atp in workflow_children.keys():

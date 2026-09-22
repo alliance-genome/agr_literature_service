@@ -6,7 +6,7 @@ from sqlalchemy import text
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, MeshDetailModel, \
     ReferenceRelationModel, ReferenceModReferencetypeAssociationModel, \
-    ReferencefileModel, ReferencefileModAssociationModel
+    ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -20,7 +20,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     cleanup_tags_for_one_retracted_paper, \
     cleanup_tags_for_retracted_papers, \
     set_retraction_status, \
-    restore_file_upload_workflow_tags
+    restore_file_upload_workflow_tags, \
+    add_zfin_corpus_entry_tags
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, \
     authors_lists_are_equal, authors_have_same_name
 
@@ -29,6 +30,80 @@ from ....fixtures import db, load_sanitized_references, populate_test_mod_refere
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+class TestZfinCorpusEntryTags:
+    """SCRUM-5764: ATP:0000380 is granted alongside ATP:0000306 at corpus entry."""
+
+    PRE_INDEXING_NEEDED = "ATP:0000306"
+    PRE_INDEXING_COMPLETE = "ATP:0000303"
+    PROBE_NEEDED = "ATP:0000380"
+    PROBE_COMPLETE = "ATP:0000387"
+
+    def _zfin_ref(self, db): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'ZFIN').scalar()
+        return ref.reference_id, mod_id
+
+    def _tags(self, db, reference_id, mod_id): # noqa
+        return {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id).all()}
+
+    def _count(self, db, reference_id, mod_id, atp_id): # noqa
+        return db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id,
+            WorkflowTagModel.workflow_tag_id == atp_id).count()
+
+    def _seed(self, db, *atp_ids): # noqa
+        """Give the reference a known ZFIN tag set.
+
+        load_sanitized_references already leaves ATP:0000306 on the ZFIN
+        reference, so the starting state has to be reset for these assertions to
+        mean anything. The db fixture is per-test and truncates every table
+        around each test, so this cannot leak.
+        """
+        reference_id, mod_id = self._zfin_ref(db)
+        db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id).delete()
+        for atp_id in atp_ids:
+            db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                    workflow_tag_id=atp_id))
+        db.commit()
+        return reference_id, mod_id
+
+    def test_grants_both_tags(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db)
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED}
+
+    def test_probe_tag_granted_when_pre_indexing_already_present(self, db, load_sanitized_references): # noqa
+        """The behaviour the backfill depends on: each tag is guarded against its OWN
+        workflow's states, so a reference that already finished pre-indexing
+        prioritization still picks up the probe tag, and pre-indexing is not
+        re-granted."""
+        reference_id, mod_id = self._seed(db, self.PRE_INDEXING_COMPLETE)
+
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_COMPLETE, self.PROBE_NEEDED}
+
+    def test_is_idempotent(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db)
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+        assert self._count(db, reference_id, mod_id, self.PROBE_NEEDED) == 1
+        assert self._count(db, reference_id, mod_id, self.PRE_INDEXING_NEEDED) == 1
+
+    def test_probe_tag_not_regranted_once_complete(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db, self.PROBE_COMPLETE)
+
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+
+        # probe already entered its workflow; pre-indexing had not, so only it is granted
+        assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED}
 
 
 class TestDbReadUtils:

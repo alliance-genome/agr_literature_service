@@ -31,7 +31,7 @@ def create(
     """Create a validated (canonical) person-to-person relationship."""
     set_global_user_from_cognito(db, user)
     lineage = person_lineage_crud.create(db, request.model_dump())
-    response.headers["Location"] = person_lineage_url(lineage.person_lineage_id)
+    response.headers["Location"] = person_lineage_url(lineage["person_lineage_id"])
     return lineage
 
 

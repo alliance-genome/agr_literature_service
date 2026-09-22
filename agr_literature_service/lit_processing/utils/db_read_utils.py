@@ -176,6 +176,7 @@ def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
                                            f"WHERE a.reference_id = mca.reference_id "
                                            f"AND mca.mod_id = m.mod_id "
                                            f"AND m.abbreviation = '{mod}' "
+                                           f"AND a.author_order IS NOT NULL "
                                            f"ORDER BY a.reference_id, a.author_order "
                                            f"LIMIT {author_limit} "
                                            f"OFFSET {offset}")).fetchall()
@@ -191,6 +192,7 @@ def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
                                        f"a.last_name, a.first_initial "
                                        f"FROM author a "
                                        f"WHERE  reference_id IN ({ref_ids}) "
+                                       f"AND a.author_order IS NOT NULL "
                                        f"ORDER BY a.reference_id, a.author_order")).fetchall()
         for x in rows:
             adding_author_row(x, reference_id_to_authors)
@@ -606,6 +608,7 @@ def get_author_data_for_ref_ids(db_session: Session, ref_ids):
                                    f"a.last_name, a.first_initial, a.date_updated, a.date_created "
                                    f"FROM author a "
                                    f"WHERE reference_id IN ({ref_ids}) "
+                                   f"AND a.author_order IS NOT NULL "
                                    f"ORDER BY a.reference_id, a.author_order")).fetchall()
     for x in rows:
         data = []

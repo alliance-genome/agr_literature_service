@@ -49,6 +49,11 @@ echo "(alias '${INDEX_ALIAS}' keeps serving the other slot until the cutover)"
 # Set initial reindexing status
 set_reindex_status "setup" "{\"env_state\": \"${ENV_STATE}\", \"slot\": \"${SLOT}\"}"
 
+# Ingest pipeline that sorts the authors array by author_order at index time. Both settings
+# files set it as index.default_pipeline, so it MUST exist before the indexes receive writes
+# (a missing default_pipeline makes every bulk index request fail). PUT is idempotent.
+curl -i -X PUT -H "Accept:application/json" -H "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_ingest/pipeline/sort_authors_by_order -d @/sort-authors-pipeline.json
+
 # Delete + recreate ONLY the inactive slot (the live slot is never touched here)
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT} -d @/elasticsearch-settings.json
@@ -57,8 +62,11 @@ curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_IN
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT} -d @/elasticsearch-settings-public.json
 
 export PGPASSWORD=${PSQL_PASSWORD}
-# Drop replication slots (both old and new)
-psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE slot text; BEGIN FOREACH slot IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_curation_status','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource'] LOOP IF EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = slot) THEN PERFORM pg_drop_replication_slot(slot); END IF; END LOOP; END\$\$;"
+# Drop replication slots (both old and new).
+# NOTE: this is a HISTORICAL cleanup list - names are only ever ADDED, never
+# renamed. A renamed object still exists under its old name in any environment
+# that has not been re-set-up, and an orphaned slot pins WAL indefinitely.
+psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE slot text; BEGIN FOREACH slot IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_tag_source','debezium_curation_status','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource'] LOOP IF EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = slot) THEN PERFORM pg_drop_replication_slot(slot); END IF; END LOOP; END\$\$;"
 
 # Drop publications so the connector recreates them from the CURRENT table.include.list.
 # The connector uses publication.autocreate.mode=filtered, which only creates a publication
@@ -66,7 +74,7 @@ psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c 
 # publication. Without dropping them here, tables added to table.include.list after the
 # publication was first created (e.g. indexing_priority, manual_indexing_tag) never get
 # published, so their row changes never stream into the index.
-psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE pub text; BEGIN FOREACH pub IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_curation_status','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource'] LOOP EXECUTE format('DROP PUBLICATION IF EXISTS %I', pub); END LOOP; END\$\$;"
+psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE pub text; BEGIN FOREACH pub IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_tag_source','debezium_curation_status','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource'] LOOP EXECUTE format('DROP PUBLICATION IF EXISTS %I', pub); END LOOP; END\$\$;"
 
 # Create single unified connector
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-unified.json)
@@ -163,6 +171,18 @@ export PUBLIC_SINK_NAME="elastic-sink-public"
 export SINK_INDEX_NAME="${INDEX_NAME_CURRENT}"
 export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_CURRENT}"
 
+# Clear each sink's committed offsets BEFORE deleting it: the connector goes away but its consumer
+# group does not, and the ksql CTAS topics are reused across rebuilds, so a recreated sink would
+# resume mid-topic and leave the freshly-emptied slot short (see reset_sink_offsets).
+# Carry the outcome to the promotion decision below. A failed reset leaves the recreated sink
+# resuming mid-topic, so the slot finishes SHORT with the connector RUNNING, 0 failed tasks and
+# lag 0. The doc-count guard cannot catch that -- the measured 906,714-of-1,113,157 case is still
+# "> 0" -- so without this flag a truncated index would be force-merged and promoted over a
+# healthy one.
+OFFSETS_RESET_OK=1
+reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${SINK_NAME}" || OFFSETS_RESET_OK=0
+reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${PUBLIC_SINK_NAME}" || OFFSETS_RESET_OK=0
+
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${SINK_NAME}
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${PUBLIC_SINK_NAME}
 
@@ -223,7 +243,7 @@ DATA_PROCESSING_DURATION=$((DATA_PROCESSING_END - SETUP_END))
 # it. The old slot stays as the instant-rollback backup (overwritten on the next rebuild). Same
 # path for test and prod. Guard: never flip to an empty slot, so a failed/empty build can never
 # replace a healthy live index.
-if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
+if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]] && [[ $OFFSETS_RESET_OK -eq 1 ]]; then
     set_reindex_status "reindexing" "{\"phase\": \"optimize_and_flip\", \"slot\": \"${SLOT}\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 
     # Optimize + warm OFF the serving path (the alias still points at the old slot here). These are
@@ -247,6 +267,14 @@ if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
         set_reindex_status "error" "{\"message\": \"alias flip failed; live index unchanged\", \"slot\": \"${SLOT}\"}"
         exit 1
     fi
+elif [[ $OFFSETS_RESET_OK -ne 1 ]]; then
+    # The sink offsets could not be cleared, so this slot was built by a sink that resumed
+    # mid-topic and is short by an unknown amount. Refusing to flip is the safe side: a stale but
+    # complete live index beats a fresh truncated one. Same frozen-slot caveat as the empty case.
+    echo "ERROR: sink offsets were NOT reset (see reset_sink_offsets output above); build slot _${SLOT} is likely INCOMPLETE (private=${new_index_doc_count}, public=${public_index_doc_count}). NOT flipping alias."
+    echo "The previous slot keeps serving but is now FROZEN (its sink moved to this slot) until a rebuild succeeds. If this is Kafka Connect < 3.6, DELETE /offsets is unsupported and the sinks must be recreated under a new connector name instead."
+    set_reindex_status "error" "{\"message\": \"sink offset reset failed; slot likely short; alias not flipped; served slot frozen\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
+    exit 1
 else
     # A 0-doc build means the pipeline produced nothing. Do NOT flip (this guard protects the live
     # slot). NOTE: the sink was already repointed at this (empty) build slot above, so the previous

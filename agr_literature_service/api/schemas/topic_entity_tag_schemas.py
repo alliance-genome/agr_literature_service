@@ -4,6 +4,7 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field, field_validator, constr, confloat
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
+from agr_literature_service.api.schemas.tag_source_schemas import TagSourceSchemaShow
 
 
 class ConfidenceMixin(BaseModel):
@@ -23,42 +24,6 @@ class ConfidenceMixin(BaseModel):
         return round(v, 2)
 
 
-class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
-    """Schema for creating a topic entity tag source."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
-
-    source_evidence_assertion: str = Field(..., min_length=1)
-    source_method: str = Field(..., min_length=1)
-    validation_type: Optional[constr(min_length=1)] = None  # type: ignore
-    description: str
-    data_provider: str
-    secondary_data_provider_abbreviation: str
-
-
-class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
-    """Schema for showing a topic entity tag source."""
-    model_config = ConfigDict(extra='ignore', from_attributes=True)
-
-    topic_entity_tag_source_id: int
-    source_evidence_assertion_name: Optional[str] = None
-
-
-class TopicEntityTagSourceSchemaUpdate(BaseModel):
-    """Schema for updating a topic entity tag source."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
-
-    source_evidence_assertion: Optional[constr(min_length=1)] = None  # type: ignore
-    source_method: Optional[constr(min_length=1)] = None  # type: ignore
-    validation_type: Optional[constr(min_length=1)] = None  # type: ignore
-    description: Optional[constr(min_length=1)] = None  # type: ignore
-    data_provider: Optional[constr(min_length=1)] = None  # type: ignore
-    secondary_data_provider_abbreviation: Optional[constr(min_length=1)] = None  # type: ignore
-    date_created: Optional[constr(min_length=1)] = None  # type: ignore
-    date_updated: Optional[constr(min_length=1)] = None  # type: ignore
-    created_by: Optional[constr(min_length=1)] = None  # type: ignore
-    updated_by: Optional[constr(min_length=1)] = None  # type: ignore
-
-
 class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for creating a topic entity tag."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
@@ -73,9 +38,10 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     entity_id_validation: Optional[constr(min_length=1)] = None  # type: ignore
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
-    topic_entity_tag_source_id: int
+    tag_source_id: int
     negated: Optional[bool] = False
     data_novelty: Optional[constr(min_length=1)] = None  # type: ignore
+    data_context: Optional[constr(min_length=1)] = None  # type: ignore
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
@@ -112,10 +78,12 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     species_name: Optional[str] = None
     display_tag: Optional[str] = None
     display_tag_name: Optional[str] = None
-    topic_entity_tag_source_id: int
-    topic_entity_tag_source: Optional[TopicEntityTagSourceSchemaShow] = None
+    tag_source_id: int
+    tag_source: Optional[TagSourceSchemaShow] = None
     negated: Optional[bool] = False
     data_novelty: Optional[str] = None
+    data_context: Optional[str] = None
+    data_context_name: Optional[str] = None
     confidence_level: Optional[str] = None
     note: Optional[str] = None
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
@@ -147,6 +115,7 @@ class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     negated: Optional[bool] = False
     data_novelty: Optional[constr(min_length=1)] = None  # type: ignore
+    data_context: Optional[constr(min_length=1)] = None  # type: ignore
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore

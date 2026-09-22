@@ -5,6 +5,7 @@ import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
+import agr_literature_service.api.resource_descriptor_cache as rdc
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import LaboratoryModel, LaboratoryCrossReferenceModel
 from ..fixtures import db  # noqa
@@ -182,3 +183,61 @@ class TestLaboratoryCrossReference:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestLaboratoryCrossReferenceUrls:
+    """Same contract as person cross references: a resolved `url` and page names
+    upgraded to {name, url} from the A-team resource descriptors.
+    """
+
+    def test_show_resolves_url_from_descriptor(self, auth_headers, test_xref):  # noqa
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="WB", name="WormBase",
+                                       default_url="https://wormbase.org/resources/laboratory/[%s]"),
+            ])
+            res = client.get(
+                f"/laboratory_cross_reference/{test_xref.new_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["url"] == "https://wormbase.org/resources/laboratory/WBlab9001"
+
+    def test_list_for_laboratory_resolves_url(self, auth_headers, test_xref):  # noqa
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="WB", name="WormBase",
+                                       default_url="https://wormbase.org/resources/laboratory/[%s]"),
+            ])
+            res = client.get(
+                f"/laboratory_cross_reference/laboratory/{test_xref.laboratory_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            urls = [x["url"] for x in res.json()]
+            assert "https://wormbase.org/resources/laboratory/WBlab9001" in urls
+
+    def test_unknown_prefix_leaves_url_null(self, auth_headers, test_xref):  # noqa
+        with TestClient(app) as client:
+            rdc._seed([rdc.ResourceDescriptor(db_prefix="OTHER", default_url="https://x/[%s]")])
+            res = client.get(
+                f"/laboratory_cross_reference/{test_xref.new_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["url"] is None
+
+    def test_nested_in_laboratory_record(self, auth_headers, seeded_laboratory, test_xref):  # noqa
+        """The lab display reads xrefs nested in GET /laboratory/{curie}."""
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="WB", name="WormBase",
+                                       default_url="https://wormbase.org/resources/laboratory/[%s]"),
+            ])
+            res = client.get(
+                f"/laboratory/{seeded_laboratory['laboratory_id']}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            urls = [x["url"] for x in res.json()["cross_references"]]
+            assert "https://wormbase.org/resources/laboratory/WBlab9001" in urls

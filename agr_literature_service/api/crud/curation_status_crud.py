@@ -15,10 +15,11 @@ from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
-    TopicEntityTagSourceModel
+    TagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud import curation_status_source_crud
 
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationStatusModel:
@@ -29,6 +30,9 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationSt
     :return:
     """
     curation_status_data = jsonable_encoder(curation_status)
+    # SCRUM-6518. Optional attribution; popped before the model is built because
+    # it is not a curation_status column.
+    tag_source_id = curation_status_data.pop("tag_source_id", None)
     if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
         curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
     if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
@@ -49,9 +53,27 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationSt
         curation_status_data["date_created"] = datetime.now().isoformat()
         db_obj = CurationStatusModel(**curation_status_data)
         db.add(db_obj)
+        if tag_source_id is not None:
+            # Same transaction as the base row: flush to get the PK, stage the
+            # attribution, then commit once. Validating the source AFTER
+            # committing the base row would 404 while leaving an orphaned
+            # curation_status behind, and the caller's retry would then trip the
+            # (topic, reference_id, mod_id) unique constraint (found in review).
+            db.flush()
+            curation_status_source_crud.stage_association(
+                db, db_obj.curation_status_id, tag_source_id,
+                {field: getattr(db_obj, field)
+                 for field in curation_status_source_crud.VALUE_FIELDS},
+                mod_id)
         db.commit()
         db.refresh(db_obj)
+    except HTTPException:
+        # An unresolvable tag_source_id is a 404 about the source, not a 422
+        # about the curation_status; let it through unchanged.
+        db.rollback()
+        raise
     except Exception as err:
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Error creating curation_status: {err}")
     return db_obj
@@ -85,6 +107,7 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> Curat
     """
 
     curation_status_data = curation_status_update.model_dump(exclude_unset=True)
+    tag_source_id = curation_status_data.pop("tag_source_id", None)
     if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
         curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
     if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
@@ -97,9 +120,24 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> Curat
     for field, value in curation_status_data.items():
         setattr(curation_status_db_obj, field, value)
 
-    curation_status_db_obj.dateUpdated = datetime.utcnow()
+    # NB: date_updated is stamped by AuditedModel.before_update; there is no
+    # dateUpdated column, so assigning one here was a silent no-op (removed).
     db.add(curation_status_db_obj)
-    db.commit()
+    try:
+        # Mirror ONLY the fields this PATCH actually sent, so patching the note
+        # does not blank the source's previously reported status. Staged in the
+        # same transaction as the field updates, so a bad tag_source_id cannot
+        # leave the row updated but unattributed.
+        if tag_source_id is not None:
+            curation_status_source_crud.stage_association(
+                db, curation_status_db_obj.curation_status_id, tag_source_id,
+                {field: value for field, value in curation_status_data.items()
+                 if field in curation_status_source_crud.VALUE_FIELDS},
+                curation_status_db_obj.mod_id)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     db.refresh(curation_status_db_obj)
 
     return curation_status_db_obj
@@ -123,6 +161,55 @@ def show(db: Session, curation_status_id: int) -> dict:
     return curation_status_data
 
 
+# Source evidence assertions that identify a manually created tag (author or
+# professional biocurator). Everything else is treated as a computed prediction.
+MANUAL_ASSERTIONS = {'ATP:0000035', 'ATP:0000036'}  # author, professional biocurator
+# Data-novelty terms that mark a positive tag as "new data".
+NEW_NOVELTY_TERMS = {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}
+
+# Exact data-novelty term -> quick-add assessment column (no ontology-tree
+# expansion; the column is filled only on an exact match).
+NOVELTY_TO_COLUMN = {
+    'ATP:0000321': 'new_data',
+    'ATP:0000228': 'new_to_db',
+    'ATP:0000229': 'new_to_field',
+}
+# The quick-add assessment columns, in display order.
+ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field', 'no_data']
+# The positive (has-data) columns; "no_data" is their negated counterpart.
+POSITIVE_ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field']
+# validation_by_professional_biocurator values that count as curator-validated
+# (green ✓); 'validated_wrong' is excluded entirely; everything else is "?".
+# 'validation_conflict' (biocurators disagree) must never read as settled: it
+# blocks the biocurator-asserted auto-validation and renders as "?" so the
+# disagreement stays visible and actionable (PR review, SCRUM-6398).
+BIOCURATOR_VALIDATED = {'validated_right', 'validated_right_self'}
+BIOCURATOR_VALIDATED_WRONG = 'validated_wrong'
+BIOCURATOR_VALIDATION_CONFLICT = 'validation_conflict'
+
+
+def _assessment_kind(tet):
+    """Which assessment column a tag falls under: 'no', 'new', or 'has'."""
+    if tet.negated:
+        return 'no'
+    if tet.data_novelty in NEW_NOVELTY_TERMS:
+        return 'new'
+    return 'has'
+
+
+def _assessment_columns(tet):
+    """Quick-add columns a tag fills: 'no_data' when negated; otherwise
+    'has_data' plus its exact-novelty column (new_data / new_to_db /
+    new_to_field) when the data_novelty matches one."""
+    if tet.negated:
+        return ['no_data']
+    cols = ['has_data']
+    col = NOVELTY_TO_COLUMN.get(tet.data_novelty)
+    if col:
+        cols.append(col)
+    return cols
+
+
 def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     if topic_curie not in topic_tet_list_dict or len(topic_tet_list_dict[topic_curie]) == 0:
         return {
@@ -130,7 +217,13 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             "tet_info_topic_source": [],
             "tet_info_has_data": False,
             "tet_info_new_data": False,
-            "tet_info_no_data": False
+            "tet_info_no_data": False,
+            "tet_info_manual_has_data": False,
+            "tet_info_manual_new_data": False,
+            "tet_info_manual_no_data": False,
+            "tet_info_source_predictions": [],
+            "tet_info_manual_assessments": [],
+            "tet_info_assessment_states": {c: None for c in ASSESSMENT_COLUMNS}
         }
     # initialize earliest_dt from the very first row
     first_tet, _ = topic_tet_list_dict[topic_curie][0]
@@ -140,15 +233,21 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
         date_str = str(first_tet.date_created).split()[0]
         earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
     has_data = new_data = no_data = False
+    manual_has = manual_new = manual_no = False
     topic_sources = set()
+    source_predictions = []
+    manual_assessments = []
+    # Per-column validation state for the quick-add grid.
+    col_validated = set()
+    col_unvalidated = set()
     source_map = {
         'ATP:0000035': 'author',
         'ATP:0000036': 'biocurator'
     }
     for tet, tet_source in topic_tet_list_dict[topic_curie]:
-        topic_sources.add(
-            source_map.get(tet_source.source_evidence_assertion, 'computational')
-        )
+        assertion = tet_source.source_evidence_assertion
+        is_manual = assertion in MANUAL_ASSERTIONS
+        topic_sources.add(source_map.get(assertion, 'computational'))
         if isinstance(tet.date_created, datetime):
             dt = tet.date_created
         else:
@@ -156,19 +255,96 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             dt = datetime.strptime(date_str, "%Y-%m-%d")
         if dt < earliest_dt:
             earliest_dt = dt
-        if tet.negated:
+        kind = _assessment_kind(tet)
+        if kind == 'no':
             no_data = True
+            if is_manual:
+                manual_no = True
         else:
             has_data = True
-            if tet.data_novelty in {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}:
+            if is_manual:
+                manual_has = True
+            if kind == 'new':
                 new_data = True
+                if is_manual:
+                    manual_new = True
+        # Expose each computed (non-manual) tag so the UI can show which source
+        # predicted what, with its confidence, for curator validation. Manual
+        # tags go to manual_assessments so the UI can tell an author-recorded
+        # (unvalidated) bucket from a biocurator-validated one.
+        if not is_manual:
+            source_predictions.append({
+                "source_method": tet_source.source_method,
+                "source_evidence_assertion": assertion,
+                "confidence_score": tet.confidence_score,
+                "confidence_level": tet.confidence_level,
+                "negated": bool(tet.negated),
+                "assessment": kind,
+                "data_novelty": tet.data_novelty,
+                "entity": tet.entity,
+                "entity_type": tet.entity_type
+            })
+        else:
+            manual_assessments.append({
+                "source": source_map.get(assertion),
+                "negated": bool(tet.negated),
+                "assessment": kind,
+                "data_novelty": tet.data_novelty
+            })
+        # Quick-add column state: skip tags a biocurator marked wrong. A tag is
+        # "validated" (green ✓) when a biocurator asserted it directly
+        # (source_evidence_assertion = professional biocurator, e.g. loaded
+        # curator data) OR when it was validated by a biocurator; everything
+        # else (author / computational) is "unvalidated" ("?"). A tag whose
+        # validators DISAGREE (validation_conflict) is never treated as
+        # validated — not even a biocurator-asserted one — so the conflict
+        # surfaces as "?" instead of a settled green ✓.
+        vpb = tet.validation_by_professional_biocurator
+        if vpb != BIOCURATOR_VALIDATED_WRONG:
+            is_biocurator_asserted = source_map.get(assertion) == 'biocurator'
+            validated = (
+                vpb != BIOCURATOR_VALIDATION_CONFLICT
+                and (is_biocurator_asserted or vpb in BIOCURATOR_VALIDATED)
+            )
+            target = col_validated if validated else col_unvalidated
+            for col in _assessment_columns(tet):
+                target.add(col)
+    # Per-column state with a polarity guard: a biocurator-validated tag only
+    # suppresses the OPPOSITE-polarity "?" (a validated positive hides a "no
+    # data" prediction and vice versa), so an unvalidated prediction on a column
+    # the biocurator hasn't resolved still shows "?" for the curator to act on.
+    # The guard applies to ALL unvalidated tags on the opposite polarity —
+    # author-recorded manual assessments included, not just computed
+    # predictions: a biocurator-validated no_data deliberately blanks an
+    # author's positive "?" (the biocurator overruled the author). The
+    # tet_info_manual_* booleans still report the author's assessment.
+    has_validated_positive = bool(col_validated & set(POSITIVE_ASSESSMENT_COLUMNS))
+    has_validated_no = 'no_data' in col_validated
+    assessment_states = {}
+    for col in ASSESSMENT_COLUMNS:
+        if col in col_validated:
+            assessment_states[col] = 'validated'
+        elif col in col_unvalidated:
+            suppressed = (
+                (col == 'no_data' and has_validated_positive)
+                or (col in POSITIVE_ASSESSMENT_COLUMNS and has_validated_no)
+            )
+            assessment_states[col] = None if suppressed else 'unvalidated'
+        else:
+            assessment_states[col] = None
     topic_added = earliest_dt.isoformat()
     return {
         "tet_info_date_created": topic_added,
         "tet_info_topic_source": sorted(topic_sources),
         "tet_info_has_data": has_data,
         "tet_info_new_data": new_data,
-        "tet_info_no_data": no_data
+        "tet_info_no_data": no_data,
+        "tet_info_manual_has_data": manual_has,
+        "tet_info_manual_new_data": manual_new,
+        "tet_info_manual_no_data": manual_no,
+        "tet_info_source_predictions": source_predictions,
+        "tet_info_manual_assessments": manual_assessments,
+        "tet_info_assessment_states": assessment_states
     }
 
 
@@ -189,14 +365,14 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
 
     # add tet info to the objects
     query = (
-        db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
+        db.query(TopicEntityTagModel, TagSourceModel)
         .join(
-            TopicEntityTagSourceModel,
-            TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+            TagSourceModel,
+            TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id
         )
         .filter(
             TopicEntityTagModel.reference_id == reference_id,
-            TopicEntityTagSourceModel.data_provider == mod_abbreviation
+            TagSourceModel.data_provider == mod_abbreviation
         )
     )
     rows = query.all()

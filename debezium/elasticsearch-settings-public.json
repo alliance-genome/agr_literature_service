@@ -4,6 +4,7 @@
     "number_of_replicas": "0",
     "max_ngram_diff": "20",
     "max_result_window": 2500000,
+    "default_pipeline": "sort_authors_by_order",
     "analysis": {
       "filter": {
         "ngram_filter": {
@@ -226,6 +227,9 @@
                 "ignore_above": 256
               }
             }
+          },
+          "author_order": {
+            "type": "integer"
           }
         }
       },

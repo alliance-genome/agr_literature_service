@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import laboratory_crud, laboratory_cross_reference_crud
+from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.schemas import (
     LaboratoryCrossReferenceSchemaPost,
     LaboratoryCrossReferenceSchemaUpdate,
@@ -49,6 +50,30 @@ def list_for_laboratory(
 ):
     laboratory_id = laboratory_crud.resolve_laboratory_id(db, curie_or_laboratory_id)
     return laboratory_cross_reference_crud.list_for_laboratory(db, laboratory_id)
+
+
+# Laboratory xref curie-pattern checks. These live on the Laboratory router (not
+# the generic /cross_reference/check/{datatype} route) so they group under the
+# "Laboratory" Swagger tag and are discoverable next to the other laboratory-xref
+# endpoints -- recommended over sharing the cross_reference route, whose tag would
+# bury them. They reuse the same patterns_check yml mechanism (laboratory.yml) that
+# backs the reference/resource checks. Declared before /{...id} (int) to be safe.
+@router.get("/check/patterns", status_code=status.HTTP_200_OK)
+def show_patterns(
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+):
+    return patterns_check.get_patterns()["laboratory"]
+
+
+@router.get("/check/curie/{curie:path}", status_code=status.HTTP_200_OK)
+def check_curie(
+    curie: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+):
+    ret = patterns_check.check_pattern("laboratory", curie)
+    if ret is None:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret
 
 
 @router.get(

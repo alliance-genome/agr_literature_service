@@ -1,7 +1,7 @@
 from typing import Dict
 from sqlalchemy import (
     Column, DateTime, Integer, String, ARRAY, Boolean,
-    Index, CheckConstraint,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
@@ -20,7 +20,6 @@ class PersonModel(Base, AuditedModel):
 
     curie = Column(String(), nullable=False, unique=True, index=True)    # required, server-generated
     mod_roles = Column(ARRAY(String), nullable=True)
-    institution = Column(ARRAY(String), nullable=True)
     webpage = Column(ARRAY(String), nullable=True)
     active_status = Column(
         String(),
@@ -58,6 +57,12 @@ class PersonModel(Base, AuditedModel):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    institutions = relationship(
+        "PersonInstitutionModel",
+        back_populates="person",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     cross_references = relationship("PersonCrossReferenceModel", back_populates="person", cascade="all, delete-orphan")
     settings = relationship("PersonSettingModel", back_populates="person", cascade="all, delete-orphan")
     names = relationship("PersonNameModel", back_populates="person", cascade="all, delete-orphan")
@@ -70,14 +75,6 @@ class PersonModel(Base, AuditedModel):
             "display_name",
             postgresql_using="gin",
             postgresql_ops={"display_name": "gin_trgm_ops"},
-        ),
-        CheckConstraint(
-            "active_status IN ('active', 'retired', 'deceased')",
-            name="ck_person_active_status",
-        ),
-        CheckConstraint(
-            "privacy IN ('show_all', 'logged_in_only', 'fully_hidden', 'hide_email')",
-            name="ck_person_privacy",
         ),
     )
 

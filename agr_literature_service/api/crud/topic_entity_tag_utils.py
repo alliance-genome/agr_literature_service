@@ -11,7 +11,7 @@ from starlette import status
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.crud.ateam_db_helpers import \
     map_curies_to_names, search_ancestors_or_descendants
-from agr_literature_service.api.models import TopicEntityTagSourceModel, \
+from agr_literature_service.api.models import TagSourceModel, \
     ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
 
@@ -75,9 +75,9 @@ def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
     return reference_id
 
 
-def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEntityTagSourceModel:
-    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_source_id).one_or_none()
+def get_source_from_db(db: Session, tag_source_id: int) -> TagSourceModel:
+    source: TagSourceModel = db.query(TagSourceModel).filter(
+        TagSourceModel.tag_source_id == tag_source_id).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     return source
@@ -104,7 +104,7 @@ def add_source_obj_to_db_session(db: Session, source: Dict):
     add_audited_object_users_if_not_exist(db, source)
     del source["secondary_data_provider_abbreviation"]
     source["secondary_data_provider_id"] = secondary_data_provider.mod_id
-    source_obj = TopicEntityTagSourceModel(**source)
+    source_obj = TagSourceModel(**source)
     db.add(source_obj)
     return source_obj
 
@@ -282,6 +282,16 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
     display_tag = topic_entity_tag_data['display_tag']
     if entity_type and not entity:
         topic_entity_tag_data['entity_type'] = None
+    if topic == entity_type and entity and display_tag:
+        # A pure entity tag (topic == entity_type) arriving with an explicit
+        # display_tag: the SGD entity-reference loaders (SCRUM-6404) derive it
+        # from the association's literature topic in SGD (Primary Literature /
+        # Additional Literature / Reviews / Omics), which the topic-based
+        # stamping below cannot see -- e.g. a complex annotated as Additional
+        # Literature must not be forced to primary display. Keep the supplied
+        # value; the stamping below remains the fallback for pure entity tags
+        # created without one.
+        return
     if topic in sgd_primary_topics and display_tag != sgd_primary_display_tag:
         topic_entity_tag_data['display_tag'] = sgd_primary_display_tag
     elif topic in sgd_review_topics and display_tag != sgd_review_display_tag:
@@ -321,9 +331,9 @@ def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation
         sql_query = text("""
             DELETE FROM topic_entity_tag
             WHERE reference_id = :reference_id
-            AND topic_entity_tag_source_id IN (
-                SELECT topic_entity_tag_source_id
-                FROM topic_entity_tag_source
+            AND tag_source_id IN (
+                SELECT tag_source_id
+                FROM tag_source
                 WHERE secondary_data_provider_id = :mod_id
                 AND (
                    (source_method = 'abc_literature_system' AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')) OR
@@ -364,15 +374,15 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
         WHERE reference_id = :reference_id
         AND EXISTS (
             SELECT 1
-            FROM topic_entity_tag_source
-            WHERE topic_entity_tag_source_id = topic_entity_tag.topic_entity_tag_source_id
+            FROM tag_source
+            WHERE tag_source_id = topic_entity_tag.tag_source_id
             AND secondary_data_provider_id = :mod_id
             AND source_method = 'abc_literature_system'
         )
         AND NOT EXISTS (
             SELECT 1
-            FROM topic_entity_tag_source
-            WHERE topic_entity_tag_source_id = topic_entity_tag.topic_entity_tag_source_id
+            FROM tag_source
+            WHERE tag_source_id = topic_entity_tag.tag_source_id
             AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')
         )
         """)
@@ -402,9 +412,9 @@ def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: st
     sql_query = text("""
         SELECT * FROM topic_entity_tag
         WHERE reference_id = :reference_id
-        AND topic_entity_tag_source_id in (
-            SELECT topic_entity_tag_source_id
-            FROM topic_entity_tag_source
+        AND tag_source_id in (
+            SELECT tag_source_id
+            FROM tag_source
             WHERE secondary_data_provider_id = :mod_id
             AND (
                (source_method = 'abc_literature_system' AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')) OR

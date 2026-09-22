@@ -40,6 +40,12 @@ def create(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
+    """
+    Create a manual_indexing_tag and return its id.
+
+    The reference can be identified by AGRKB curie, PMID curie
+    (PMID:39739753), or MOD curie (e.g. WB:WBPaper00000001).
+    """
     set_global_user_from_cognito(db, user)
     new_id = manual_indexing_tag_crud.create(db, request)
     return new_id
@@ -71,6 +77,12 @@ async def patch(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """
+    Update a manual_indexing_tag.
+
+    A reference_curie update accepts an AGRKB curie, PMID curie
+    (PMID:39739753), or MOD curie (e.g. WB:WBPaper00000001).
+    """
     set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
     manual_indexing_tag_crud.patch(db, manual_indexing_tag_id, updates)
@@ -109,12 +121,20 @@ def get_manual_indexing_tag(
 @router.post(
     "/set_manual_indexing_tag",
     status_code=status.HTTP_200_OK,
+    deprecated=True,
 )
 def set_manual_indexing_tag(
     body: SetManualIndexingTagBody,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """
+    Deprecated duplicate of POST /manual_indexing_tag/, scheduled for removal.
+
+    It writes the same manual_indexing_tag row via the same crud create(); the
+    only difference is that it returns the created record instead of its id.
+    Use POST /manual_indexing_tag/ instead.
+    """
     set_global_user_from_cognito(db, user)
     return manual_indexing_tag_crud.set_manual_indexing_tag(
         db,

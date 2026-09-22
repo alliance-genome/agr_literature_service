@@ -38,9 +38,30 @@ def get_ref_ids_with_curation_tag(
     return [row.reference_id for row in q.all()]
 
 
+def _resolve_reference_curie(db: Session, curie: str) -> str:
+    """
+    Resolve a MOD xref or PMID curie to its AGRKB curie.
+
+    Wraps normalize_reference_curie so an unresolvable identifier raises 422,
+    matching the rest of the create/patch validation, instead of 404.
+    An AGRKB curie is returned unchanged.
+    """
+    try:
+        return normalize_reference_curie(db, curie)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Reference with curie {curie} does not exist",
+        ) from None
+
+
 def create(db: Session, manual_indexing_tag: ManualIndexingTagSchemaPost) -> int:
     """
     Create a new manual_indexing_tag entry and return its ID.
+
+    reference_curie accepts an AGRKB curie, a PMID curie (PMID:39739753) or a
+    MOD curie (e.g. WB:WBPaper00000001); anything other than an AGRKB curie is
+    normalized via the cross_reference table.
     """
     data: Dict[str, Any] = jsonable_encoder(manual_indexing_tag)
 
@@ -49,9 +70,11 @@ def create(db: Session, manual_indexing_tag: ManualIndexingTagSchemaPost) -> int
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    reference_curie: str = data.pop("reference_curie")
+    submitted_curie: str = data.pop("reference_curie")
     mod_abbreviation: str = data.pop("mod_abbreviation")
     curation_tag: str = data["curation_tag"]
+
+    reference_curie = _resolve_reference_curie(db, submitted_curie)
 
     reference = (
         db.query(ReferenceModel)
@@ -61,7 +84,7 @@ def create(db: Session, manual_indexing_tag: ManualIndexingTagSchemaPost) -> int
     if not reference:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Reference with curie {reference_curie} does not exist",
+            detail=f"Reference with curie {submitted_curie} does not exist",
         )
 
     mod = (
@@ -121,7 +144,12 @@ def destroy(db: Session, manual_indexing_tag_id: int) -> None:
 
 
 def patch(db: Session, manual_indexing_tag_id: int, manual_indexing_tag_update: Dict[str, Any]) -> None:
+    """
+    Update an existing manual_indexing_tag entry.
 
+    As for create(), a reference_curie update accepts an AGRKB curie, a PMID
+    curie or a MOD curie.
+    """
     data: Dict[str, Any] = jsonable_encoder(manual_indexing_tag_update)
 
     if "created_by" in data and data["created_by"] is not None:
@@ -143,7 +171,8 @@ def patch(db: Session, manual_indexing_tag_id: int, manual_indexing_tag_update: 
     for field, value in data.items():
         if field == "reference_curie":
             if value is not None:
-                ref = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+                curie = _resolve_reference_curie(db, value)
+                ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).first()
                 if not ref:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -272,7 +301,17 @@ def set_manual_indexing_tag(
     curation_tag: str,
     confidence_score: float,
 ) -> Dict[str, Any]:
-
+    """
+    Deprecated: thin wrapper around create() kept for the equally deprecated
+    POST /manual_indexing_tag/set_manual_indexing_tag route. Its only real
+    difference is returning the created record rather than its id. New callers
+    should use create() / POST /manual_indexing_tag/ instead.
+    """
+    logger.warning(
+        "DEPRECATED endpoint POST /manual_indexing_tag/set_manual_indexing_tag called "
+        "for reference %s, MOD %s, curation_tag %s; use POST /manual_indexing_tag/ instead",
+        reference_curie, mod_abbreviation, curation_tag,
+    )
     payload = ManualIndexingTagSchemaPost(
         curation_tag=curation_tag,
         mod_abbreviation=mod_abbreviation,

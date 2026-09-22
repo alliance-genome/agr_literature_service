@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
+from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids, map_curies_to_names
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
@@ -39,7 +39,33 @@ def get_ml_model_s3_folder(task_type: str, mod_abbreviation: str, topic: str):
     return folder
 
 
+def validate_data_context(data_context: Optional[str]) -> None:
+    """Reject a data_context that is not a real ATP term, at upload time.
+
+    SCRUM-5697. ``ml_model.data_context`` is read by ``create_tag``
+    (``resolve_default_data_context``) and joins the tag's ATP validity check, so
+    a typo stored here would 422 every tag the model's pipeline creates -- a
+    failure a long way from its cause. Checking on the way in turns that into one
+    rejected upload.
+
+    ``data_novelty`` is deliberately not checked: it is not part of create_tag's
+    ATP validation, so a bad value there fails differently (silently stored
+    rather than blocking tags), and adding a check would newly reject uploads
+    that succeed today. Worth doing, but as its own change.
+    """
+    if data_context is None:
+        return
+    if atp_return_invalid_ids([data_context]):
+        raise HTTPException(
+            status_code=422,
+            detail=f"data_context '{data_context}' is not a valid ATP term")
+
+
 def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
+    # Before anything is written or mutated: the production-flag flip below
+    # clears the previous model's flag, so a late rejection would leave the MOD
+    # with no production model for this task/topic.
+    validate_data_context(request.data_context)
     mod = get_mod(db, request.mod_abbreviation)
     if request.version_num is None or request.version_num <= 0:
         latest_version_num = db.query(MLModel.version_num).filter(
@@ -81,6 +107,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         production=request.production,
         species=request.species,
         data_novelty=request.data_novelty,
+        data_context=request.data_context,
         negated=request.negated,
         file_classes=request.file_classes,
         description=request.description,
@@ -183,6 +210,7 @@ def get_model_schema_from_orm(model: MLModel):
         "production": model.production,
         "species": model.species,
         "data_novelty": model.data_novelty,
+        "data_context": model.data_context,
         "negated": model.negated,
         "file_classes": model.file_classes,
         "description": model.description,
@@ -208,7 +236,9 @@ def get_all_models(db: Session, mod_abbreviation: Optional[str] = None):
         mod = get_mod(db, mod_abbreviation)
         query = query.filter(MLModel.mod_id == mod.mod_id)
     models = query.order_by(MLModel.ml_model_id).all()
-    atp_ids = {m.topic for m in models if m.topic} | {m.data_novelty for m in models if m.data_novelty}
+    atp_ids = ({m.topic for m in models if m.topic}
+               | {m.data_novelty for m in models if m.data_novelty}
+               | {m.data_context for m in models if m.data_context})
     species_ids = {m.species for m in models if m.species}
     atp_to_name = map_curies_to_names('atpterm', atp_ids) if atp_ids else {}
     species_to_name = map_curies_to_names('species', species_ids) if species_ids else {}
@@ -219,6 +249,7 @@ def get_all_models(db: Session, mod_abbreviation: Optional[str] = None):
             **base.model_dump(),
             topic_name=atp_to_name.get(m.topic) if m.topic else None,
             data_novelty_name=atp_to_name.get(m.data_novelty) if m.data_novelty else None,
+            data_context_name=atp_to_name.get(m.data_context) if m.data_context else None,
             species_name=species_to_name.get(m.species) if m.species else None,
         ))
     return result

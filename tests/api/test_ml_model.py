@@ -343,3 +343,83 @@ def test_download_model_s3_error_returns_502(db, monkeypatch):  # noqa
         ml_model_crud.download_model_file(
             db, "biocuration_entity_extraction", "MLT3", "ATP:0000110", "7")
     assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
+
+
+def _upload_model(client, headers, mod, **overrides):
+    """Upload through the same path the test_ml_model fixture uses.
+
+    The router's scalars are query parameters, not form fields, so an upload that
+    sends them in the body falls through to the model_data_file branch -- which is
+    what the fixture (and the extraction pipelines) actually exercise.
+    """
+    model_data = {
+        "task_type": "document_classification",
+        "mod_abbreviation": mod.new_mod_abbreviation,
+        "topic": "ATP:0000061",
+        "version_num": None,
+        "file_extension": "joblib",
+        "model_type": "MLP",
+        "precision": 0.9,
+        "recall": 0.8,
+        "f1_score": 0.85,
+        "parameters": "{}",
+        "dataset_id": None,
+        "production": False,
+        "negated": True,
+        "data_novelty": "ATP:0000062",
+        "species": None,
+        "file_classes": ["main"],
+    }
+    model_data.update(overrides)
+    files = {
+        "file": ("file.joblib", io.BytesIO(model_file_test_content), "application/octet-stream"),
+        "model_data_file": ("model_data.txt",
+                            io.BytesIO(json.dumps(model_data).encode("utf-8")), "text/plain"),
+    }
+    upload_headers = headers.copy()
+    del upload_headers["Content-Type"]
+    return client.post(url="/ml_model/upload", files=files, headers=upload_headers)
+
+
+class TestMLModelDataContextValidation:
+    """SCRUM-5697. ml_model.data_context is read by create_tag's
+    resolve_default_data_context and joins the tag's ATP validity check, so a
+    typo stored on a model row would 422 every tag that model's pipeline
+    creates. Validating on the way in turns that into one rejected upload."""
+
+    def test_upload_rejects_an_invalid_data_context(self, db, test_mod, auth_headers):  # noqa
+        with patch.object(ml_model_crud, "atp_return_invalid_ids",
+                          side_effect=lambda ids: [i for i in ids if i != "ATP:0000325"]):
+            with TestClient(app) as client:
+                response = _upload_model(client, auth_headers, test_mod,
+                                         data_context="ATP:000325")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        # The message names the offending term, so the cause is not a guess.
+        assert "ATP:000325" in str(response.json()["detail"])
+
+    def test_upload_accepts_a_valid_data_context(self, db, test_mod, auth_headers):  # noqa
+        with patch.object(ml_model_crud, "atp_return_invalid_ids", return_value=[]):
+            with TestClient(app) as client:
+                response = _upload_model(client, auth_headers, test_mod,
+                                         data_context="ATP:0000325")
+                assert response.status_code == status.HTTP_201_CREATED
+                model_id = response.json()["ml_model_id"]
+                stored = db.query(MLModel).filter(MLModel.ml_model_id == model_id).one()
+                assert stored.data_context == "ATP:0000325"
+                client.delete(url=f"/ml_model/{model_id}", headers=auth_headers)
+
+    def test_a_rejected_upload_leaves_the_existing_production_model_alone(  # noqa
+            self, db, test_ml_model, test_mod, auth_headers):  # noqa
+        """Validation runs before the production-flag flip. Otherwise a rejected
+        upload would clear the previous model's flag and leave the MOD with no
+        production model for that task and topic."""
+        existing_id = test_ml_model["ml_model_id"]
+        with patch.object(ml_model_crud, "atp_return_invalid_ids",
+                          side_effect=lambda ids: [i for i in ids if i != "ATP:0000325"]):
+            with TestClient(app) as client:
+                response = _upload_model(client, auth_headers, test_mod,
+                                         production=True, data_context="ATP:000325")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        db.expire_all()
+        assert db.query(MLModel).filter(
+            MLModel.ml_model_id == existing_id).one().production is True

@@ -30,6 +30,11 @@ omit =
 	agr_literature_service/lit_processing/data_check/*
 	agr_literature_service/lit_processing/data_export/dump_database.py
 
+        # DB-loading scripts: parsing/classification logic is unit tested, the
+        # rest is ORM orchestration that needs a live database
+        agr_literature_service/lit_processing/data_ingest/journal_license_ingest/load_doaj_licenses.py
+        agr_literature_service/lit_processing/data_ingest/journal_license_ingest/load_journal_image_permissions.py
+
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_resource_updates.py

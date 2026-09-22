@@ -29,7 +29,6 @@ from agr_literature_service.api.schemas.response_message_schemas import Response
 from agr_literature_service.api.schemas.pubmed_publication_status_enum import PubMedPublicationStatus
 
 from agr_literature_service.api.schemas.tag_name_enum import TagName
-from agr_literature_service.api.schemas.tag_source_enum import TagSource
 
 from agr_literature_service.api.schemas.reference_category_schemas import ReferenceCategory
 
@@ -88,10 +87,12 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaCreate,
     TopicEntityTagSchemaPost,
     TopicEntityTagSchemaShow,
-    TopicEntityTagSchemaUpdate,
-    TopicEntityTagSourceSchemaCreate,
-    TopicEntityTagSourceSchemaShow,
-    TopicEntityTagSourceSchemaUpdate
+    TopicEntityTagSchemaUpdate
+)
+from agr_literature_service.api.schemas.tag_source_schemas import (
+    TagSourceSchemaCreate,
+    TagSourceSchemaShow,
+    TagSourceSchemaUpdate
 )
 
 from agr_literature_service.api.schemas.referencefile_mod_schemas import (
@@ -137,12 +138,22 @@ from agr_literature_service.api.schemas.curation_status_schemas import (
     CurationStatusSchemaPost,
     CurationStatusSchemaShow,
     CurationStatusSchemaUpdate)
+from agr_literature_service.api.schemas.curation_status_source_schemas import (
+    CurationStatusSourceAssociationSchemaPost,
+    CurationStatusSourceAssociationSchemaShow,
+    CurationStatusSourceAssociationSchemaUpdate)
 
 from .person_email_schemas import (
     PersonEmailSchemaCreate,
     PersonEmailSchemaUpdate,
     PersonEmailSchemaShow,
     PersonEmailSchemaRelated,
+)
+from .person_institution_schemas import (
+    PersonInstitutionSchemaCreate,
+    PersonInstitutionSchemaUpdate,
+    PersonInstitutionSchemaShow,
+    PersonInstitutionSchemaRelated,
 )
 from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaPost,
@@ -163,7 +174,6 @@ from .person_setting_schemas import (
     PersonSettingSchemaUpdate,
     PersonSettingSchemaShow
 )
-from .person_lineage_relationship_enum import PersonPersonRole, SYMMETRIC_RELATIONSHIPS
 from .person_lineage_schemas import (
     PersonLineageSchemaCreate,
     PersonLineageSchemaUpdate,
@@ -177,7 +187,6 @@ from .person_lineage_submission_schemas import (
     PersonLineageSubmissionSchemaRelated,
     PersonLineageSubmissionValidateSchema,
 )
-from .laboratory_position_enum import LabPosition
 from .laboratory_cross_reference_schemas import (
     LaboratoryCrossReferenceSchemaCreate,
     LaboratoryCrossReferenceSchemaPost,
@@ -210,3 +219,11 @@ from .reference_email_schemas import (
     ReferenceEmailSchemaShow,
     ReferenceEmailSchemaRelated,
 )
+
+from agr_literature_service.api.schemas.vocabulary_abc_schemas import (  # noqa
+    VocabularyAbcSchemaPost, VocabularyAbcSchemaUpdate, VocabularyAbcSchemaShow)
+from agr_literature_service.api.schemas.vocabulary_term_abc_schemas import (  # noqa
+    VocabularyTermAbcSchemaPost, VocabularyTermAbcSchemaUpdate, VocabularyTermAbcSchemaShow)
+from agr_literature_service.api.schemas.vocabulary_term_synonym_abc_schemas import (  # noqa
+    VocabularyTermSynonymAbcSchemaPost, VocabularyTermSynonymAbcSchemaUpdate,
+    VocabularyTermSynonymAbcSchemaShow)

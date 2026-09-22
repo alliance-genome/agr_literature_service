@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import person_crud, person_cross_reference_crud
+from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.schemas import (
     PersonCrossReferenceSchemaPost,
     PersonCrossReferenceSchemaShow,
@@ -50,6 +51,30 @@ def list_for_person(
 ):
     person_id = person_crud.resolve_person_id(db, curie_or_person_id)
     return person_cross_reference_crud.list_for_person(db, person_id)
+
+
+# Person xref curie-pattern checks. These live on the Person router (not the
+# generic /cross_reference/check/{datatype} route) so they group under the
+# "Person" Swagger tag and are discoverable next to the other person-xref
+# endpoints -- recommended over sharing the cross_reference route, whose tag would
+# bury them. They reuse the same patterns_check yml mechanism (person.yml) that
+# backs the reference/resource checks. Declared before /{...id} (int) to be safe.
+@router.get("/check/patterns", status_code=status.HTTP_200_OK)
+def show_patterns(
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+):
+    return patterns_check.get_patterns()["person"]
+
+
+@router.get("/check/curie/{curie:path}", status_code=status.HTTP_200_OK)
+def check_curie(
+    curie: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+):
+    ret = patterns_check.check_pattern("person", curie)
+    if ret is None:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    return ret
 
 
 # Get one cross-reference by ID

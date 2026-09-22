@@ -26,7 +26,8 @@ from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefi
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
-from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation
+from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation, \
+    normalize_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
@@ -94,6 +95,7 @@ def _extract_publication_year(reference: ReferenceModel) -> Optional[int]:
 def _resource_image_permission_for_reference(
     db: Session,
     reference: ReferenceModel,
+    prefer_display: Optional[bool] = None,
 ) -> Optional[ResourceImagePermissionModel]:
     if not reference.resource_id:
         return None
@@ -104,6 +106,23 @@ def _resource_image_permission_for_reference(
     if not rows:
         return None
 
+    # Ties on range specificity are broken toward the restrictive grant: a
+    # journal can carry two grants on the SAME year range whose split depends
+    # on per-article facts this resolver cannot see (J Neurosci 2026-: CC-BY
+    # for Open Access articles, an SfN exclusive license otherwise). Failing
+    # closed is correct for rights clearance; genuinely OA articles are
+    # normally resolved by the reference's own license before this fallback.
+    # When the caller already KNOWS display is allowed (an earlier priority in
+    # get_effective_image_permission decided it), prefer_display=True flips the
+    # tie so the returned metadata (attribution text etc.) describes the grant
+    # consistent with that decision rather than the restrictive one.
+    def restrictive_first(row):
+        perm = row.image_permission
+        if perm is None:
+            return True  # sorts last under either preference
+        can_display = bool(perm.can_display_images)
+        return not can_display if prefer_display else can_display
+
     publication_year = _extract_publication_year(reference)
     if publication_year is None:
         undated_rows = [
@@ -112,7 +131,7 @@ def _resource_image_permission_for_reference(
         ]
         return sorted(
             undated_rows,
-            key=lambda row: row.resource_image_permission_id
+            key=lambda row: (restrictive_first(row), row.resource_image_permission_id)
         )[0] if undated_rows else None
 
     matching_rows = [
@@ -130,6 +149,7 @@ def _resource_image_permission_for_reference(
             -(row.start_year or 0),
             row.end_year is None,
             row.end_year or 9999,
+            restrictive_first(row),
             row.resource_image_permission_id,
         )
     )[0]
@@ -142,11 +162,20 @@ def get_effective_image_permission(
 ) -> Dict[str, Any]:
     if reference is None:
         reference = get_reference(db, curie_or_reference_id)
-    publication_year = _extract_publication_year(reference)
+    # fresh non-Optional binding: mypy discards None-narrowing for variables
+    # captured by a closure, so the nested function below closes over ref
+    ref: ReferenceModel = reference
+    publication_year = _extract_publication_year(ref)
 
-    # Always fetch resource image permission metadata to include in response
-    resource_image_permission = _resource_image_permission_for_reference(db, reference)
-    resource_permission_metadata = _build_resource_permission_metadata(resource_image_permission)
+    # Resource permission metadata is included in every response, but which
+    # grant it describes must follow the decision made below: when a priority
+    # has already established that display is allowed, a shared slot (SfN
+    # 2026- OA/non-OA) must yield the display-granting grant's attribution
+    # text, not the restrictive one's "email us for permission" text.
+    def resource_permission_metadata(prefer_display: Optional[bool] = None):
+        rip = _resource_image_permission_for_reference(
+            db, ref, prefer_display=prefer_display)
+        return rip, _build_resource_permission_metadata(rip)
 
     # Priority 1: Reference copyright_license.open_access (curator/PMC override)
     if reference.copyright_license_id:
@@ -154,8 +183,10 @@ def get_effective_image_permission(
             copyright_license_id=reference.copyright_license_id
         ).one_or_none()
         if copyright_license:
+            can_display = bool(copyright_license.open_access)
+            _, metadata = resource_permission_metadata(prefer_display=can_display or None)
             return {
-                "can_display_images": bool(copyright_license.open_access),
+                "can_display_images": can_display,
                 "source": "reference_open_access",
                 "reason": "Reference has copyright license set.",
                 "publication_year": publication_year,
@@ -163,7 +194,7 @@ def get_effective_image_permission(
                 "copyright_license_name": copyright_license.name,
                 "copyright_license_open_access": copyright_license.open_access,
                 "resource_id": reference.resource_id,
-                **resource_permission_metadata,
+                **metadata,
             }
 
     # Priority 2: Resource copyright_license.open_access (if publication_year >= license_start_year)
@@ -177,8 +208,10 @@ def get_effective_image_permission(
             if license_start_year is None or (publication_year and publication_year >= license_start_year):
                 resource_license = resource.copyright_license
                 if resource_license:
+                    can_display = bool(resource_license.open_access)
+                    _, metadata = resource_permission_metadata(prefer_display=can_display or None)
                     return {
-                        "can_display_images": bool(resource_license.open_access),
+                        "can_display_images": can_display,
                         "source": "resource_open_access",
                         "reason": f"Resource has open access license (since {license_start_year or 'all years'}).",
                         "publication_year": publication_year,
@@ -186,10 +219,12 @@ def get_effective_image_permission(
                         "copyright_license_name": resource_license.name,
                         "copyright_license_open_access": resource_license.open_access,
                         "resource_id": reference.resource_id,
-                        **resource_permission_metadata,
+                        **metadata,
                     }
 
-    # Priority 3: Resource image permission (from journal/publisher)
+    # Priority 3: Resource image permission (from journal/publisher); the
+    # default restrictive-first tie-break applies since nothing has decided.
+    resource_image_permission, metadata = resource_permission_metadata()
     if resource_image_permission and resource_image_permission.image_permission:
         image_permission = resource_image_permission.image_permission
         return {
@@ -201,7 +236,7 @@ def get_effective_image_permission(
             "copyright_license_name": None,
             "copyright_license_open_access": None,
             "resource_id": reference.resource_id,
-            **resource_permission_metadata,
+            **metadata,
         }
 
     # Default: no permission
@@ -214,7 +249,7 @@ def get_effective_image_permission(
         "copyright_license_name": None,
         "copyright_license_open_access": None,
         "resource_id": reference.resource_id,
-        **resource_permission_metadata,
+        **metadata,
     }
 
 
@@ -268,6 +303,8 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     }
     reference_data = {}  # type: Dict[str, Any]
     author_names_order = []
+    seen_person_ids: set = set()
+    seen_orders: set = set()
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -292,9 +329,56 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                 db_obj = None
                 if field in ["authors"]:
-                    db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
-                    if db_obj.name:
-                        author_names_order.append((db_obj.name, db_obj.author_order))
+                    from agr_literature_service.api.crud.author_crud import (
+                        _resolve_person_curie, _validate_author_constraints)
+                    # no_autoflush over the WHOLE per-author build: authors added
+                    # earlier in this loop are still pending with no reference_id yet.
+                    # Both the person lookup AND create_obj->stripout (which queries
+                    # ReferenceModel/ResourceModel when an embedded author carries a
+                    # reference_curie/resource_curie) would otherwise autoflush those
+                    # pending rows and violate author.reference_id NOT NULL. They are
+                    # flushed with the parent reference at db.commit().
+                    with db.no_autoflush:
+                        try:
+                            pid = _resolve_person_curie(db, obj_data)
+                        except HTTPException as exc:
+                            # a bad embedded person_curie is POST-body validation here:
+                            # surface it as 422 for consistency with the other reference
+                            # create validations (resource/merged_into), not 404.
+                            if exc.status_code == status.HTTP_404_NOT_FOUND:
+                                raise HTTPException(
+                                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=exc.detail)
+                            raise
+                        if pid is not None:
+                            # a person may link to only one author on a reference; a
+                            # duplicate in this payload would violate uq_author_ref_person
+                            # at commit -> raw IntegrityError/500. Surface it as a clean 409.
+                            if pid in seen_person_ids:
+                                raise HTTPException(
+                                    status_code=status.HTTP_409_CONFLICT,
+                                    detail="A person cannot be linked to more than one author "
+                                           "on the same reference")
+                            seen_person_ids.add(pid)
+                            obj_data["person_id"] = pid
+                        # two embedded authors sharing an author_order would violate
+                        # uq_author_ref_order at commit -> raw IntegrityError/500.
+                        # Catch it here as a clean 409 before the flush.
+                        order = obj_data.get("author_order")
+                        if order is not None:
+                            if order in seen_orders:
+                                raise HTTPException(
+                                    status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"author_order {order} is duplicated among the "
+                                           f"reference's authors")
+                            seen_orders.add(order)
+                        # pre-validate the author CHECK constraints (embedded authors
+                        # inherit the parent reference, so reference_curie isn't required)
+                        # to surface a clean 422 instead of a raw IntegrityError/500.
+                        _validate_author_constraints(obj_data, pid)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
+                        if db_obj.name:
+                            author_names_order.append((db_obj.name, db_obj.author_order))
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
@@ -307,13 +391,19 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             else:
                 reference_data[field] = db_objs
         elif field == "resource":
-            resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
+            # no_autoflush: authors added above are still pending and have no
+            # reference_id yet; a plain query here would autoflush them and
+            # violate author.reference_id NOT NULL. They are flushed with the
+            # parent reference at db.commit() below.
+            with db.no_autoflush:
+                resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {value} does not exist")
             reference_data["resource"] = resource
         elif field == "merged_into_reference_curie":
-            merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+            with db.no_autoflush:
+                merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
             if not merged_into_obj:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Merged_into Reference with curie {value} does not exist")
@@ -400,7 +490,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         logger.warning("skipping topic_entity_tag as that is already associated to "
                                        "the reference")
                 db.commit()
-                revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id))
+                revalidate_all_tags(curie_or_reference_id=str(reference_db_obj.reference_id), db=db)
         elif field == "mod_reference_types":
             for obj in value or []:
                 insert_mod_reference_type_into_db(db, reference.pubmed_types, obj.mod_abbreviation, obj.reference_type,
@@ -491,7 +581,13 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
 
 
 def get_reference_emails(db: Session, curie_or_reference_id: str):
-    """Return list of emails associated with a reference via reference_email."""
+    """Return list of emails associated with a reference via reference_email.
+
+    Accepts an AGRKB curie, a numeric reference_id, or any cross-reference
+    curie such as a PMID (e.g. PMID:39739753) or MOD curie (e.g. SGD:S000342424).
+    """
+    if not curie_or_reference_id.isdigit() and not curie_or_reference_id.startswith("AGRKB:"):
+        curie_or_reference_id = normalize_reference_curie(db, curie_or_reference_id)
     reference: ReferenceModel = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
 
@@ -900,12 +996,18 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_data['mesh_terms'] = reference_data['mesh_term']
 
     if reference.author:
-        authors = []
+        real_authors, person_only = [], []
         for author in reference_data["author"]:
-            del author["reference_id"]
-            authors.append(author)
-        reference_data['authors'] = authors
-        del reference_data['author']
+            author.pop("reference_id", None)
+            if author.get("author_order") is not None:
+                real_authors.append(author)
+            else:
+                person_only.append(author)
+        reference_data["authors"] = real_authors
+        reference_data["author_person_without_author_order"] = person_only
+        del reference_data["author"]
+    else:
+        reference_data["author_person_without_author_order"] = []
 
     reference_relations_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
     for reference_relation in reference.reference_relation_out:
@@ -1017,9 +1119,10 @@ def merge_references(db: Session,
             "entity_id_validation": old_tet.entity_id_validation,
             "species": old_tet.species,
             "display_tag": old_tet.display_tag,
-            "topic_entity_tag_source_id": old_tet.topic_entity_tag_source_id,
+            "tag_source_id": old_tet.tag_source_id,
             "negated": old_tet.negated,
             "data_novelty": old_tet.data_novelty,
+            "data_context": old_tet.data_context,
             "confidence_score": old_tet.confidence_score,
             "confidence_level": old_tet.confidence_level,
             "note": old_tet.note,
@@ -1037,7 +1140,7 @@ def merge_references(db: Session,
             logger.warning("skipping topic_entity_tag during merge; already present on target reference")
     db.commit()
 
-    revalidate_all_tags(curie_or_reference_id=new_ref.curie)
+    revalidate_all_tags(curie_or_reference_id=new_ref.curie, db=db)
 
     # Check if old_curie is already in the obsolete table (It may have been merged itself)
     # by looking for it in the new_id column.
@@ -1445,7 +1548,8 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info = BibInfo()
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
-    for author in sorted(reference.author, key=lambda a: a.author_order):
+    real = [a for a in reference.author if a.author_order is not None]
+    for author in sorted(real, key=lambda a: a.author_order):
         last_name = str(author.last_name or '')
         first_initial = str(author.first_initial or '')
         full_name = str(author.name or '')

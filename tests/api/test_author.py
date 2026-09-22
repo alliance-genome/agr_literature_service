@@ -82,3 +82,12 @@ class TestAuthor:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/author/{test_author.new_author_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_author_show_exposes_person_fields(db, auth_headers, test_author):  # noqa
+    from starlette.testclient import TestClient
+    from agr_literature_service.api.main import app
+    with TestClient(app) as client:
+        got = client.get(url=f"/author/{test_author.new_author_id}", headers=auth_headers).json()
+    assert "person_id" in got
+    assert got["person_id"] is None

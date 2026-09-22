@@ -388,6 +388,7 @@ class TestPreviouslyUnprotectedEndpointsRequireAuth:
                     "/check/check_duplicate_orcids",
                     "/check/environments",
                     "/check/debezium_status",
+                    "/check/qc_report_dates/obsolete_entities",
                 ]:
                     self._assert_401(client, "get", path)
 

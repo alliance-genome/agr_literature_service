@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship as orm_relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -33,8 +33,15 @@ class PersonLineageModel(Base, AuditedModel):
         index=True,
     )
 
-    # Controlled vocabulary enforced by the API (PersonPersonRole).
-    relationship = Column(String(), nullable=False)
+    # Controlled vocabulary: FK to the "person_person_relationship" vocabulary term.
+    # FK to the vocabulary_term_abc table; 'vocab' abbreviates 'vocabulary' so the
+    # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
+    relationship_vocab_term_abc_id = Column(
+        Integer,
+        ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
+        nullable=False,
+        index=True,
+    )
 
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
@@ -65,10 +72,13 @@ class PersonLineageModel(Base, AuditedModel):
 
     __table_args__ = (
         UniqueConstraint(
-            "person_subject_id", "person_object_id", "relationship",
+            "person_subject_id", "person_object_id", "relationship_vocab_term_abc_id",
             name="uq_person_lineage_person_ids_relationship",
         ),
     )
 
     def __str__(self) -> str:
-        return f"person_lineage({self.person_subject_id} -[{self.relationship}]-> {self.person_object_id})"
+        return (
+            f"person_lineage({self.person_subject_id} "
+            f"-[{self.relationship_vocab_term_abc_id}]-> {self.person_object_id})"
+        )

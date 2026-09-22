@@ -1,0 +1,11 @@
+{
+  "description": "Sort the authors array by author_order so the indexed _source matches the database author order (ksqlDB collect_list emits authors in CDC event-arrival order, which drifts whenever an author row is updated). Applied as default_pipeline on both the reference index and the public reference index.",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": "if (ctx.authors != null) { ctx.authors.sort((a, b) -> { int ai = Integer.MAX_VALUE; int bi = Integer.MAX_VALUE; try { if (a != null && a.author_order != null) { ai = Integer.parseInt(a.author_order.toString()); } } catch (Exception e) {} try { if (b != null && b.author_order != null) { bi = Integer.parseInt(b.author_order.toString()); } } catch (Exception e) {} return Integer.compare(ai, bi); }); }"
+      }
+    }
+  ]
+}

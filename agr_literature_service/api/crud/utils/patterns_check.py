@@ -20,7 +20,11 @@ patterns: Dict[str, Dict[str, str]] = {}
 
 def get_patterns() -> Dict[str, Dict[str, str]]:
     global patterns
-    filenames = ['reference', 'resource']
+    # 'person'/'laboratory' back the curie-pattern checks exposed on the Person /
+    # Laboratory routers (person_cross_reference_router / laboratory_cross_reference_router);
+    # 'reference'/'resource' back the checks on the cross_reference router. All share
+    # this one loader; the datatype key must equal the yml filename.
+    filenames = ['reference', 'resource', 'person', 'laboratory']
     if not patterns:
         for filename in filenames:
             file_path = f'{path.dirname(__file__)}/yml/{filename}.yml'

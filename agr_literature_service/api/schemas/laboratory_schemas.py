@@ -94,7 +94,10 @@ class LaboratorySchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     laboratory_id: int
-    curie: Optional[str] = None
+    # Required, like PersonSchemaShow.curie: the column is NOT NULL and the curie
+    # is server-allocated on create. Declaring it Optional published a nullable
+    # curie in the OpenAPI spec, which is not a state any laboratory can be in.
+    curie: str
     name: Optional[str] = None
     strain_designation: Optional[str] = None
     institution: Optional[List[str]] = None

@@ -4,6 +4,7 @@
     "number_of_replicas": "0",
     "max_ngram_diff": "20",
     "max_result_window": 1000000,
+    "default_pipeline": "sort_authors_by_order",
     "analysis": {
       "filter": {
         "ngram_filter": {
@@ -227,6 +228,9 @@
                 "ignore_above": 256
               }
             }
+          },
+          "author_order": {
+            "type": "integer"
           }
         }
       },
@@ -545,6 +549,18 @@
           },
           "novel_entity_data": {
             "type": "boolean"
+          },
+          "data_context": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
           },
 	      "data_provider": {
             "type": "keyword",

@@ -242,7 +242,8 @@ def show_sort_result(references, mod_abbreviation, db):
                 referencefile_mods=get_referencefile_mod(rf.referencefile_id, db)) for rf in reference.referencefiles],
             authors=[{"author_order": author.author_order,
                       "author_id": author.author_id,
-                      "name": author.name} for author in reference.author],
+                      "name": author.name}
+                     for author in reference.author if author.author_order is not None],
             workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id,
                             "workflow_tag_id": wft.workflow_tag_id,
                             "mod_abbreviation": mod_id_to_mod.get(wft.mod_id, '')} for wft in reference.workflow_tag])

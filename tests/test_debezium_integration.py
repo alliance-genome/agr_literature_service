@@ -94,14 +94,21 @@ class MockDataFactory:
         db_session.flush()
         return reference
 
-    def create_author(self, db_session, reference: ReferenceModel, author_id: int) -> AuthorModel:
-        """Create a realistic author based on RDS dev patterns."""
+    def create_author(self, db_session, reference: ReferenceModel, author_id: int,
+                      author_order: int = 1) -> AuthorModel:
+        """Create a realistic author based on RDS dev patterns.
+
+        author_order is required by ck_author_person_or_order (SCRUM-6155) for a
+        named author, and must be distinct per reference for uq_author_ref_order --
+        pass it explicitly when putting more than one author on a reference.
+        """
         author_patterns = self.mock_patterns.get('authors', [{}])
         author_pattern = (author_patterns[author_id % len(author_patterns)]
                           if author_patterns else {})
 
         author = AuthorModel(
             reference_id=reference.reference_id,
+            author_order=author_order,
             name=author_pattern.get('name', f"Test Author {author_id}"),
             orcid=f"0000-0000-0000-{author_id:04d}"
         )
@@ -401,7 +408,7 @@ class TestDebeziumIntegration:
         citation = mock_data_factory.create_citation(db, 998)
         reference = mock_data_factory.create_reference(db, 998, citation, resource)
         mock_data_factory.create_author(db, reference, 9981)
-        author_to_delete = mock_data_factory.create_author(db, reference, 9982)
+        author_to_delete = mock_data_factory.create_author(db, reference, 9982, author_order=2)
 
         # Reuse the WB MOD created by populate_test_db.py (abbreviation is unique)
         mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").first()

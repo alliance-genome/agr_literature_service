@@ -14,12 +14,13 @@ from time import perf_counter
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, or_, func, create_engine, text, inspect as sa_inspect
+from sqlalchemy import case, and_, or_, func, create_engine, select, text, inspect as sa_inspect
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
-    get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
+    get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
     get_ancestors, get_descendants, get_map_entity_curies_to_names, \
     id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation, \
@@ -27,9 +28,10 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
-    ReferenceModel, TopicEntityTagSourceModel, ModModel, CrossReferenceModel
+    ReferenceModel, TagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
+from agr_literature_service.api.models.topic_entity_tag_model import topic_entity_tag_validation
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     get_current_workflow_status
 from agr_literature_service.api.models.audited_model import (
@@ -40,12 +42,11 @@ from agr_literature_service.api.models.audited_model import (
 )
 from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
-                                                                         TopicEntityTagSourceSchemaUpdate,
-                                                                         TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
-from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
+from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +70,57 @@ def _log_tet_batch_timing(message, *args):
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
-TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
+# SCRUM-6475: namespace for this module's PostgreSQL advisory locks. Advisory locks are
+# global to the database, so the first key keeps ours distinct from any other subsystem's;
+# the second key is the reference id, or SWEEP_KEY for the whole-table sweep.
+TET_REVALIDATION_LOCK_NAMESPACE = 6475
+# Safe as a sentinel because reference_id comes from a sequence starting at 1, so no
+# single-reference lock can ever collide with the whole-table sweep's key.
+TET_REVALIDATION_SWEEP_KEY = 0
+
+# SCRUM-6474: what the completion email says for each run_revalidation outcome. Only
+# "completed" means work was actually done -- this endpoint's email is the sole feedback
+# an admin gets, so it must not report success for a run that returned early or died.
+REVALIDATION_EMAIL_BODIES = {
+    "completed": ("all tags re-validated",
+                  "Finished re-validating all tags{target}"),
+    "no_reference": ("re-validation could not run",
+                     "No re-validation was performed{target}: no such reference."),
+    "no_tags": ("nothing to re-validate",
+                "No re-validation was performed{target}: it has no topic entity tags."),
+    # Deliberately does NOT promise a retry: pg_try_advisory_lock failing makes
+    # run_revalidation return immediately, and revalidate_tags_process_wrapper only clears
+    # its already_running flag, so nothing anywhere queues the request.
+    "already_running": ("re-validation skipped",
+                        "No re-validation was performed{target}: a full sweep is already "
+                        "running. Please re-submit once that sweep has finished."),
+    "failed": ("re-validation FAILED",
+               "Re-validation{target} failed with an error and did not complete. The "
+               "server log has the traceback."),
+}
+
+TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species',
+                    'data_context']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 # SCRUM-6183: data_novelty term "existing data" used on the companion pure entity
 # tag auto-created from a positive mixed topic+entity tag.
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
+
+# SCRUM-5697: data_context is a hierarchy, not a flat set of alternatives.
+#     ATP:0000323  data context
+#     |-- ATP:0000324  mentioned data
+#     |   |-- ATP:0000360  background information
+#     |   +-- ATP:0000325  experimentally studied data
+#     +-- ATP:0000326  marker data
+#         |-- ATP:0000328  expression marker
+#         +-- ATP:0000327  genetic marker
+# The four leaves are what the editor offers as curation choices, but they are
+# not the only values stored: WB topic tags legitimately carry the ATP:0000323
+# root (see resolve_default_data_context below).
+# "Experimentally studied data" is the default the server applies wherever it
+# synthesises a tag rather than taking one from a client.
+EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
 
 # SCRUM-6242 (increment 5): the curator validation written by the grid's
 # Validation column. These mirror exactly what the UI (CellValidationStrip /
@@ -82,13 +128,75 @@ EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 # identical tag: a topic-level (no entity) tag from the per-MOD ABC curator
 # source. data_novelty is required (non-null column) and the UI hardcodes the
 # "no data" term for these topic-level validations.
-CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
-CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"
-CURATOR_VALIDATION_TYPE = "professional_curator"
+# The source-identifying constants moved to tag_source_crud with the ABC-source
+# helper (SCRUM-6518). Only these two are still used here: they describe the TET
+# rows the validation path writes, not the source itself.
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
-CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
-    "Trained professional biocurator specializing in curation of model organism "
-    "data using the ABC data entry form.")
+CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+
+
+def resolve_default_data_context(db: Session, topic_entity_tag_data: dict) -> str:
+    """The data_context to store when the client sent none.
+
+    SCRUM-5697. The ml_model row is authoritative. A pipeline's data-context
+    policy is curation policy, decided per MOD and per model kind (WB's topic
+    classifiers carry ATP:0000323, its entity extractors ATP:0000325), so it
+    belongs on ``ml_model.data_context`` rather than in each producer's code.
+    Reading it here means a tag created from a model inherits that policy even
+    when the producer never sends the field, and changing the policy is an
+    ml_model update rather than a release of every pipeline.
+
+    Falls back to the module constant in the two cases where a model cannot
+    answer: the tag was not created from a model at all (curator and author
+    entry, the MOD loaders), or the model carries no data_context of its own.
+    """
+    ml_model_id = topic_entity_tag_data.get('ml_model_id')
+    if ml_model_id is not None:
+        ml_model = db.get(MLModel, ml_model_id)
+        if ml_model is not None and ml_model.data_context:
+            return str(ml_model.data_context)
+    return EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+
+
+def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
+                                source: TagSourceModel):
+    """Fill in the fields the server derives rather than takes from the client.
+
+    SGD is the exception throughout the TET code: its curators' tags carry a
+    generalized topic plus a display_tag, and data_novelty is re-derived here
+    from the topic/entity_type shape, so anything the caller sent for that field
+    is overwritten. data_context is NOT: curators may record whatever term they
+    judge right, and the server only supplies the common default when they say
+    nothing. Every other provider supplies data_novelty itself (a 404 if
+    missing, since the column is non-null) and gets its species checked.
+    """
+    if source.secondary_data_provider.abbreviation == "SGD":
+        check_and_set_sgd_display_tag(topic_entity_tag_data)
+        if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
+            topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
+        else:
+            topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
+        # A default, not an override (unlike data_novelty above): an SGD curator's
+        # explicit data_context is theirs to choose and is left alone.
+        if topic_entity_tag_data.get('data_context') is None:
+            topic_entity_tag_data['data_context'] = resolve_default_data_context(
+                db, topic_entity_tag_data)
+        return
+
+    if topic_entity_tag_data.get('data_novelty') is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="The 'data_novelty' is not passed in")
+    if topic_entity_tag_data.get('data_context') is None:
+        # SCRUM-5697. data_context is not required of clients: the column is
+        # still nullable while the pipelines, the MOD loaders and the UI are
+        # updated. Defaulting keeps every existing caller working AND keeps the
+        # backfilled rows consistent with newly-created ones, which matters
+        # because check_for_duplicate_tags keys on every payload field -- a
+        # mismatch there turns would-be 409s into duplicate rows. An explicit
+        # value from the client always wins; this only fills a gap.
+        topic_entity_tag_data['data_context'] = resolve_default_data_context(
+            db, topic_entity_tag_data)
+    check_and_set_species(topic_entity_tag_data)
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
@@ -121,26 +229,18 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     topic_entity_tag_data["reference_id"] = reference_id
     force_insertion = topic_entity_tag_data.pop("force_insertion", None)
     index_wft = topic_entity_tag_data.pop("index_wft", None)
-    logger.info("Querying topic_entity_tag_source")
-    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
+    logger.info("Querying tag_source")
+    source: TagSourceModel = db.query(TagSourceModel).filter(
+        TagSourceModel.tag_source_id == topic_entity_tag_data["tag_source_id"]
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     logger.info("Setting display_tag/species based on data provider")
-    if source.secondary_data_provider.abbreviation == "SGD":
-        check_and_set_sgd_display_tag(topic_entity_tag_data)
-        if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
-            topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
-        else:
-            topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
-    else:
-        if topic_entity_tag_data.get('data_novelty') is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The 'data_novelty' is not passed in")
-        check_and_set_species(topic_entity_tag_data)
+    set_provider_derived_fields(db, topic_entity_tag_data, source)
     # check atp ID's validity
     logger.info("Validating ATP IDs")
-    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
+    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type'],
+               topic_entity_tag_data.get('data_context')]
     if 'display_tag' in topic_entity_tag_data and topic_entity_tag_data['display_tag'] is not None:
         atp_ids.append(topic_entity_tag_data['display_tag'])
     atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
@@ -180,9 +280,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         logger.info("Adding new tag to database")
         db.add(new_db_obj)
         db.commit()
-        logger.info("Tag committed, refreshing with topic_entity_tag_source")
-        # Optimize: Eagerly load topic_entity_tag_source to avoid lazy loading during validation
-        db.refresh(new_db_obj, ['topic_entity_tag_source'])
+        logger.info("Tag committed, refreshing with tag_source")
+        # Optimize: Eagerly load tag_source to avoid lazy loading during validation
+        db.refresh(new_db_obj, ['tag_source'])
 
         logger.info("Adding paper to MOD if needed")
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
@@ -193,6 +293,17 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
             logger.info("Starting tag validation")
+            # SCRUM-6474: take the same per-reference lock revalidation uses, so this
+            # tag's edges cannot be written while a PATCH or DELETE on the same paper is
+            # midway through its delete-and-rebuild. run_revalidation snapshots the
+            # reference's tag ids *after* taking the lock and then deletes every edge with
+            # one of those ids on either side; an unlocked insert landing in that window
+            # had all of its edges deleted (each has an existing tag on one side) and none
+            # recreated, because the rebuild iterates the same snapshot. The tag was left
+            # with no validation edges and stale rollups until the next sweep.
+            # Transaction-scoped, so validate_tags' own commit below releases it.
+            db.execute(select(func.pg_advisory_xact_lock(
+                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
             validate_tags(db=db, new_tag_obj=new_db_obj)
             logger.info("Tag validation completed")
             # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
@@ -261,6 +372,9 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         entity_tag_data = copy.copy(mixed_tag_data)
         entity_tag_data["topic"] = entity_type
         entity_tag_data["data_novelty"] = EXISTING_DATA_NOVELTY_ATP
+        # The companion asserts the bare entity was studied in the paper, which is
+        # the same data context as the mixed tag it is derived from; carry the
+        # parent's value through rather than resetting it.
         entity_tag_data["negated"] = False
         # The remaining fields describe the topic-specific assertion, not the bare
         # entity, so they are reset on the companion tag.
@@ -272,7 +386,7 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         db.add(new_db_obj)
         db.commit()
         committed = True
-        db.refresh(new_db_obj, ['topic_entity_tag_source'])
+        db.refresh(new_db_obj, ['tag_source'])
         validate_tags(db=db, new_tag_obj=new_db_obj)
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
     except Exception as e:
@@ -393,7 +507,35 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
                             detail=f"An error: '{e}' occurred when adding {reference_curie} into corpus/adding file needed tag")
 
 
+def decide_validation_value(own_negated, own_source_matches: bool, validating_negated_values: List):
+    """The validation rule itself, isolated from how the validating tags were gathered.
+
+    SCRUM-6474: two code paths need this verdict -- the ORM relationship walk below and
+    the in-memory graph walk used when recomputing a whole reference+MOD group -- so the
+    rule lives in exactly one place and the two cannot drift apart.
+
+    ``validating_negated_values`` holds the ``negated`` flag of every tag in the
+    transitive validation closure whose source has the validation type being computed.
+    """
+    if validating_negated_values:
+        values = list(validating_negated_values)
+        if own_source_matches:
+            values.append(own_negated)
+        if len(set(values)) == 1:
+            return "validated_right" if own_negated == values[0] else "validated_wrong"
+        return "validation_conflict"
+    if own_source_matches:
+        return "validated_right_self"
+    return "not_validated"
+
+
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
+    """Walk ``validated_by`` transitively via the ORM relationship and apply the rule.
+
+    Kept for callers that already hold eagerly-loaded tags (the values-only phase of
+    revalidate_all_tags). The create path uses the edge-map variant instead, which does
+    not lazy-load a relationship per node -- see recompute_validation_values_for_tags.
+    """
     validating_tags_values = []
     validating_tags_added_ids = set()
     validating_tags_to_add = [topic_entity_tag_db_obj]
@@ -402,24 +544,17 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
         validating_tag = validating_tags_to_add.pop()
         additional_validating_tags = [
             tag for tag in validating_tag.validated_by
-            if tag.topic_entity_tag_source.validation_type == validation_type and tag.topic_entity_tag_id not in
+            if tag.tag_source.validation_type == validation_type and tag.topic_entity_tag_id not in
             validating_tags_added_ids]
         additional_validating_tag_values = [tag.negated for tag in additional_validating_tags]
         additional_validating_tag_ids = [tag.topic_entity_tag_id for tag in additional_validating_tags]
         validating_tags_values.extend(additional_validating_tag_values)
         validating_tags_added_ids.update(additional_validating_tag_ids)
         validating_tags_to_add.extend(additional_validating_tags)
-    if len(validating_tags_values) > 0:
-        if topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
-            validating_tags_values.append(topic_entity_tag_db_obj.negated)
-        if len(set(validating_tags_values)) == 1:
-            return "validated_right" if topic_entity_tag_db_obj.negated == validating_tags_values[0] else \
-                "validated_wrong"
-        else:
-            return "validation_conflict"
-    elif topic_entity_tag_db_obj.topic_entity_tag_source.validation_type == validation_type:
-        return "validated_right_self"
-    return "not_validated"
+    return decide_validation_value(
+        topic_entity_tag_db_obj.negated,
+        topic_entity_tag_db_obj.tag_source.validation_type == validation_type,
+        validating_tags_values)
 
 
 def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
@@ -446,7 +581,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
-        "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
+        "tag_source_id"] = topic_entity_tag.tag_source.tag_source_id
     if topic_entity_tag_data.get("entity"):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
@@ -474,8 +609,8 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
         user_ids.add(topic_entity_tag_data["updated_by"])
 
     # nested source created_by / updated_by
-    if topic_entity_tag_data.get("topic_entity_tag_source"):
-        src = topic_entity_tag_data["topic_entity_tag_source"]
+    if topic_entity_tag_data.get("tag_source"):
+        src = topic_entity_tag_data["tag_source"]
         if src.get("created_by"):
             user_ids.add(src["created_by"])
         if src.get("updated_by"):
@@ -497,11 +632,11 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
             topic_entity_tag_data[k] = id_to_display[uid]
 
     # Replace nested source created_by/updated_by
-    if topic_entity_tag_data.get("topic_entity_tag_source"):
+    if topic_entity_tag_data.get("tag_source"):
         for k in ("created_by", "updated_by"):
-            uid = topic_entity_tag_data["topic_entity_tag_source"].get(k)
+            uid = topic_entity_tag_data["tag_source"].get(k)
             if uid and uid in id_to_display:
-                topic_entity_tag_data["topic_entity_tag_source"][k] = id_to_display[uid]
+                topic_entity_tag_data["tag_source"][k] = id_to_display[uid]
 
     # Replace validating_users list items with display names where available
     if validating_user_ids:
@@ -520,15 +655,27 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
-    if "created_by" in patch_data_dict and patch_data_dict["created_by"] is not None:
-        patch_data_dict["created_by"] = map_to_user_id(patch_data_dict["created_by"], db)
-    if "updated_by" in patch_data_dict and patch_data_dict["updated_by"] is not None:
-        patch_data_dict["updated_by"] = map_to_user_id(patch_data_dict["updated_by"], db)
+    # Audit fields on a PATCH must resolve to an EXISTING user. An identifier
+    # that maps to no users row (e.g. the UI sending its Cognito token sub,
+    # SCRUM-6459) is dropped so the audited-model before_update listener stamps
+    # the authenticated user, instead of the raw value being stored and an
+    # orphan automation users row being minted by the auto-create path.
+    for audit_field in ("created_by", "updated_by"):
+        if patch_data_dict.get(audit_field) is None:
+            continue
+        resolved = map_to_existing_user_id(patch_data_dict[audit_field], db)
+        if resolved is None:
+            logger.warning(
+                f"patch_tag: dropping {audit_field}={patch_data_dict[audit_field]!r} on tag "
+                f"{topic_entity_tag_id}: does not resolve to an existing user")
+            del patch_data_dict[audit_field]
+        else:
+            patch_data_dict[audit_field] = resolved
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
     db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id))
+    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id), db=db)
     return {"message": "updated"}
 
 
@@ -545,12 +692,12 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     This allows us to set `created_by_mod` based on the mod to which `created_by` is associated,
     assuming person data is available in the database. However, if the tag is added by a script,
     `created_by` is set to `curator_id`. In this case, we set
-    `created_by_mod` based on the mod in the `topic_entity_tag_source` table.
-    Currently, `created_by_mod` always defaults to the mod in the `topic_entity_tag_source` table,
+    `created_by_mod` based on the mod in the `tag_source` table.
+    Currently, `created_by_mod` always defaults to the mod in the `tag_source` table,
     as we lack the database data to map each user's id to a mod.
     """
     user_mod = MOD_ACCESS_ABBR[mod_access]
-    created_by_mod = topic_entity_tag.topic_entity_tag_source.secondary_data_provider.abbreviation
+    created_by_mod = topic_entity_tag.tag_source.secondary_data_provider.abbreviation
     """
     fixed HTTP_403_Forbidden to HTTP_404_NOT_FOUND in following code since mypy complains
     about "HTTP_403_Forbidden" not found
@@ -562,7 +709,27 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     reference_id = topic_entity_tag.reference_id
     db.delete(topic_entity_tag)
     db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False, validation_values_only=False)
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False,
+                        validation_values_only=False, db=db)
+
+
+# SCRUM-6474: ATP:0000002 "topic tag", and ATP:0000001 above it, are containers rather
+# than real terms -- 002's children (phenotype, gene expression, disease, ...) are the
+# actual top-level topics, and 001's other children are workflow/bibliographic/qualifier
+# tags. SGD legitimately tags papers with 002 itself (11.8k rows in production), but per
+# curators such a tag takes no part in the hierarchy: it must neither validate its
+# descendants nor be validated by them.
+#
+# This is a precondition for loading the topic branch into the ATP cache. Without it,
+# making ancestors resolve would promote every one of those tags into a universal
+# validator for its reference, 002 being an ancestor of all 124 topics.
+#
+# Applied on every ATP axis, not just topic: ATP:0000002 is the entity_type root as well,
+# so guarding only the topic sets left the identical hole reachable through entity_type --
+# an entity-only tag whose topic == entity_type == ATP:0000002 drew in every mixed tag for
+# the same entity. ATP:0000323, the data_context root, is a real curated value (1.3M rows)
+# and is deliberately NOT in this set.
+ATP_HIERARCHY_CONTAINERS = frozenset({"ATP:0000001", "ATP:0000002"})
 
 
 def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
@@ -572,26 +739,52 @@ def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
     Returns an empty set when ``atp_id`` is None (``entity_type`` is nullable). Always
     includes ``atp_id`` itself, so an exact-equality match is preserved even when the
     node has no ancestors/descendants in the ontology graph.
+
+    SCRUM-6474: container terms are dropped from the result, and a container matches only
+    itself -- so two tags both carrying one still validate each other by exact equality,
+    while the hierarchy relation is severed in both directions.
     """
     if atp_id is None:
         return set()
+    if atp_id in ATP_HIERARCHY_CONTAINERS:
+        return {atp_id}
     related = get_ancestors(onto_node=atp_id) if ancestors else get_descendants(onto_node=atp_id)
-    result = set(related)
-    result.add(atp_id)
-    return result
+    return ({atp_id} | set(related)) - ATP_HIERARCHY_CONTAINERS
+
+
+def data_context_compatible(existing_context: Optional[str], new_context: Optional[str],
+                            related_contexts: Set[str]) -> bool:
+    """SCRUM-5746: whether an existing tag's data_context permits validation.
+
+    ``related_contexts`` is ``atp_hierarchy_with_self(new_context, ...)`` for the direction
+    being checked, so this is the same generic/specific test the topic, entity_type and
+    data_novelty dimensions already apply.
+
+    A NULL on either side is treated as "makes no claim" and does not block. The column is
+    nullable until revision e4f9a2c81b57 lands, and a database mid-backfill would otherwise
+    stop validating every row that has no value yet.
+
+    Terms on different branches of the hierarchy -- marker data versus mentioned data --
+    are in neither each other's ancestors nor descendants, so they block in both
+    directions, exactly as data_novelty already does for "existing" versus "novel data".
+    """
+    if existing_context is None or new_context is None:
+        return True
+    return existing_context in related_contexts
 
 
 def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
-                                                  calculate_validation_values: bool = True):
+                                                  pending_edges: List[Tuple[int, int]]):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
-    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
-    more_generic_topics.add(new_tag_obj.topic)
+    more_generic_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=True)
     more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more specific new tag
     # validates a more generic existing tag), consistent with topic/data_novelty above.
     more_generic_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=True)
+    # SCRUM-5746: data_context is a fifth dimension, read in the same direction.
+    more_generic_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=True)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_generic_topics:
@@ -599,40 +792,41 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                     # Check data novelty
-                    if tag_in_db.data_novelty in more_generic_novelty:
-                        add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                             calculate_validation_values=calculate_validation_values)
+                    if tag_in_db.data_novelty in more_generic_novelty and data_context_compatible(
+                            tag_in_db.data_context, new_tag_obj.data_context, more_generic_contexts):
+                        add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
     # validate pure entity-only tags if the new tag is a mixed topic + entity tag for the same entity
     if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_tags_in_db:
             if (tag_in_db.topic == tag_in_db.entity_type
                     and tag_in_db.entity_type in more_generic_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
-                if tag_in_db.data_novelty in more_generic_novelty:
-                    add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                         calculate_validation_values=calculate_validation_values)
+                if tag_in_db.data_novelty in more_generic_novelty and data_context_compatible(
+                        tag_in_db.data_context, new_tag_obj.data_context, more_generic_contexts):
+                    add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
 
 
 def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
-                                                  calculate_validation_values: bool = True):
+                                                  pending_edges: List[Tuple[int, int]]):
     # 1. new tag negative, existing tag positive = validate existing (wrong) if existing is more specific
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
-    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
-    more_specific_topics.add(new_tag_obj.topic)
+    more_specific_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=False)
     more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more generic negative
     # new tag validates a more specific existing tag), consistent with topic above.
     more_specific_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=False)
+    # SCRUM-5746: data_context is a fifth dimension, read in the same direction.
+    more_specific_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=False)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_specific_topics:
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
-                    if tag_in_db.data_novelty in more_specific_novelty:
-                        add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                             calculate_validation_values=calculate_validation_values)
+                    if tag_in_db.data_novelty in more_specific_novelty and data_context_compatible(
+                            tag_in_db.data_context, new_tag_obj.data_context, more_specific_contexts):
+                        add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
     # validate existing tag only if it is positive
     if new_tag_obj.topic == new_tag_obj.entity_type:
@@ -640,94 +834,224 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
             if (tag_in_db.negated is False and tag_in_db.entity_type != tag_in_db.topic
                     and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
-                if tag_in_db.data_novelty in more_specific_novelty:
-                    add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                         calculate_validation_values=calculate_validation_values)
+                if tag_in_db.data_novelty in more_specific_novelty and data_context_compatible(
+                        tag_in_db.data_context, new_tag_obj.data_context, more_specific_contexts):
+                    add_validation_to_db(db, tag_in_db, new_tag_obj, pending_edges)
 
 
 def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, related_validating_tags_in_db,
-                                        calculate_validation_values: bool = True):
+                                        pending_edges: List[Tuple[int, int]]):
     # 1. new tag positive, existing tag positive = validate new tag (right) if existing is more specific
     # 2. new tag negative, existing tag positive = validate new tag (wrong) if existing is more specific
     # 3. new tag positive, existing tag negative = validate new tag (wrong) if existing is more generic
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
-    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
-    more_specific_topics.add(new_tag_obj.topic)
+    more_specific_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=False)
     more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
-    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
-    more_generic_topics.add(new_tag_obj.topic)
+    more_generic_topics = atp_hierarchy_with_self(new_tag_obj.topic, ancestors=True)
     more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
     # SCRUM-6188: entity_type matching is ATP-hierarchy-aware, following the same
     # generic/specific direction as the topic/data_novelty checks in each branch.
     more_specific_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=False)
     more_generic_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=True)
+    # SCRUM-5746: data_context is a fifth dimension, each branch reading the same
+    # direction as the topic/data_novelty checks beside it.
+    more_specific_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=False)
+    more_generic_contexts = atp_hierarchy_with_self(new_tag_obj.data_context, ancestors=True)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
         if (tag_in_db.negated is False and tag_in_db.topic in more_specific_topics
-                and tag_in_db.data_novelty in more_specific_novelty):
+                and tag_in_db.data_novelty in more_specific_novelty
+                and data_context_compatible(tag_in_db.data_context, new_tag_obj.data_context,
+                                            more_specific_contexts)):
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
-                    add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
         elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics
-              and tag_in_db.data_novelty in more_generic_novelty):
+              and tag_in_db.data_novelty in more_generic_novelty
+              and data_context_compatible(tag_in_db.data_context, new_tag_obj.data_context,
+                                          more_generic_contexts)):
             if tag_in_db.entity_type is None or (tag_in_db.entity_type in more_generic_entity_types
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
-                    add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                         calculate_validation_values=calculate_validation_values)
+                    add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
     # validate positive or negative new tag only if existing is positive
     if new_tag_obj.topic == new_tag_obj.entity_type:
         for tag_in_db in related_validating_tags_in_db:
             if (tag_in_db.entity_type != tag_in_db.topic and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.negated is False):
-                if tag_in_db.data_novelty in more_specific_novelty:
-                    add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                         calculate_validation_values=calculate_validation_values)
+                if tag_in_db.data_novelty in more_specific_novelty and data_context_compatible(
+                        tag_in_db.data_context, new_tag_obj.data_context, more_specific_contexts):
+                    add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
     # if the new tag is a mixed topic + entity tag and there are pure entity-only tags with the same entity
     # validate only positive new tag if existing is negative
     if new_tag_obj.negated is False and new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_validating_tags_in_db:
             if (tag_in_db.negated is True and tag_in_db.topic == tag_in_db.entity_type
                     and tag_in_db.entity_type in more_generic_entity_types
-                    and new_tag_obj.entity == tag_in_db.entity and tag_in_db.data_novelty in more_generic_novelty):
-                add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                     calculate_validation_values=calculate_validation_values)
+                    and new_tag_obj.entity == tag_in_db.entity
+                    and tag_in_db.data_novelty in more_generic_novelty
+                    and data_context_compatible(tag_in_db.data_context, new_tag_obj.data_context,
+                                                more_generic_contexts)):
+                add_validation_to_db(db, new_tag_obj, tag_in_db, pending_edges)
 
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
-                         calculate_validation_values: bool = True):
-    logger.info(f"Adding validation: tag {validated_tag.topic_entity_tag_id} validated by tag {validating_tag.topic_entity_tag_id}")
-    # topic_entity_tag_validation is a set-membership join table (composite PK, no other
-    # columns). The overlapping validation rules can re-assert the same (validated,
-    # validating) pair within a single pass -- e.g. a pure-entity companion tag matched by
-    # the originating mixed tag under more than one rule -- so the insert must be idempotent.
-    # A bare INSERT would raise UniqueViolation and abort the whole validation pass.
-    result = db.execute(text("INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-                             "validating_topic_entity_tag_id) VALUES (:validated_id, :validating_id) "
-                             "ON CONFLICT DO NOTHING"),
-                        {"validated_id": validated_tag.topic_entity_tag_id,
-                         "validating_id": validating_tag.topic_entity_tag_id})
-    if result.rowcount == 0:
-        # Pair already recorded; nothing changed, so there is nothing to recompute.
+                         pending_edges: List[Tuple[int, int]]):
+    """Record that ``validated_tag`` is validated by ``validating_tag``.
+
+    SCRUM-6474: this used to INSERT the edge, COMMIT, re-SELECT the validated tag with no
+    loader options and recompute both of its rollup columns -- for every single edge. One
+    POST could therefore issue hundreds of round trips and hundreds of commits, and since
+    the session uses the default expire_on_commit=True each of those commits expired the
+    whole identity map, so nothing stayed cached from one edge to the next.
+
+    The pair is only collected here; validate_tags writes the batch in one statement and
+    recomputes once. That is equivalent, not merely cheaper: a tag's rollup is a pure
+    function of the edge set -- decide_validation_value reads `negated` and
+    `validation_type`, never another tag's computed value -- so there is no fixed point to
+    iterate towards and no order dependence. Evaluating it once over the final edge set
+    gives the same answer as evaluating it after each insert, on strictly more complete
+    input.
+    """
+    # Logged at debug: this fires once per edge, and at INFO it was itself a measurable
+    # part of the per-edge cost this ticket is about.
+    logger.debug("Recording validation: tag %s validated by tag %s",
+                 validated_tag.topic_entity_tag_id, validating_tag.topic_entity_tag_id)
+    pending_edges.append((validated_tag.topic_entity_tag_id, validating_tag.topic_entity_tag_id))
+
+
+def flush_validation_edges(db: Session, pending_edges: List[Tuple[int, int]]) -> bool:
+    """Write the collected validation edges in a single statement.
+
+    Returns True when at least one edge was genuinely new.
+
+    topic_entity_tag_validation is a set-membership join table (composite PK, no other
+    columns) and the overlapping validation rules can re-assert the same (validated,
+    validating) pair within one pass -- e.g. a pure-entity companion tag matched by the
+    originating mixed tag under more than one rule -- so the insert stays idempotent via
+    ON CONFLICT DO NOTHING; a bare INSERT would raise UniqueViolation and abort the pass.
+
+    RETURNING reports only the rows actually written, which preserves the rowcount == 0
+    short-circuit the per-edge version relied on: an edge that was already recorded does
+    not count as a change and so does not trigger a recompute.
+
+    Pairs are de-duplicated and sorted so concurrent passes touching overlapping edges
+    take row locks in a consistent order.
+    """
+    if not pending_edges:
+        return False
+    unique_edges = sorted(set(pending_edges))
+    statement = pg_insert(topic_entity_tag_validation).values(
+        [{"validated_topic_entity_tag_id": validated_id,
+          "validating_topic_entity_tag_id": validating_id}
+         for validated_id, validating_id in unique_edges]
+    ).on_conflict_do_nothing().returning(
+        topic_entity_tag_validation.c.validated_topic_entity_tag_id)
+    inserted = db.execute(statement).fetchall()
+    # Debug, not info: this fires once per tag that produced any edge, so at INFO it was
+    # itself a large share of a full sweep's log volume (SCRUM-6474).
+    logger.debug("Wrote %s new validation edge(s) from %s candidate pair(s)",
+                 len(inserted), len(unique_edges))
+    return len(inserted) > 0
+
+
+def load_validation_edge_map(db: Session, tag_ids: Set[int]) -> Tuple[Dict[int, List[int]], Set[int]]:
+    """Load the validation edges reachable from ``tag_ids``, following them transitively.
+
+    Returns ``(edges, all_tag_ids)`` where ``edges`` maps a validated tag id to the ids of
+    the tags that validate it, and ``all_tag_ids`` is every tag touched (the inputs plus
+    their transitive closure). One query per level of depth; the graph is shallow in
+    practice, so this is a small constant rather than the per-node relationship load the
+    ORM walk performs.
+    """
+    edges: Dict[int, List[int]] = defaultdict(list)
+    seen: Set[int] = set()
+    frontier = set(tag_ids)
+    while frontier:
+        rows = db.execute(
+            select(topic_entity_tag_validation.c.validated_topic_entity_tag_id,
+                   topic_entity_tag_validation.c.validating_topic_entity_tag_id)
+            .where(topic_entity_tag_validation.c.validated_topic_entity_tag_id.in_(frontier))
+        ).all()
+        seen.update(frontier)
+        next_frontier: Set[int] = set()
+        for validated_id, validating_id in rows:
+            edges[validated_id].append(validating_id)
+            if validating_id not in seen:
+                next_frontier.add(validating_id)
+        frontier = next_frontier
+    return edges, seen
+
+
+def validation_value_from_edge_map(tag: TopicEntityTagModel, validation_type: str,
+                                   edges: Dict[int, List[int]],
+                                   tags_by_id: Dict[int, TopicEntityTagModel]):
+    """calculate_validation_value_for_tag, but walking a preloaded edge map.
+
+    Same traversal and same verdict as the ORM version -- both end in
+    decide_validation_value -- without lazy-loading `validated_by` at every node.
+    """
+    validating_negated_values: List = []
+    visited = {tag.topic_entity_tag_id}
+    to_visit = [tag.topic_entity_tag_id]
+    while to_visit:
+        current_id = to_visit.pop()
+        for validating_id in edges.get(current_id, ()):
+            if validating_id in visited:
+                continue
+            validating_tag = tags_by_id.get(validating_id)
+            if validating_tag is None or \
+                    validating_tag.tag_source.validation_type != validation_type:
+                # Non-matching sources are not traversed, matching the ORM walk: the
+                # closure for a validation type only runs through tags of that type.
+                continue
+            visited.add(validating_id)
+            validating_negated_values.append(validating_tag.negated)
+            to_visit.append(validating_id)
+    return decide_validation_value(
+        tag.negated,
+        tag.tag_source.validation_type == validation_type,
+        validating_negated_values)
+
+
+def recompute_validation_values_for_tags(db: Session, tag_ids: Set[int]):
+    """Recompute both rollup columns for ``tag_ids`` from a single load of the edge graph.
+
+    SCRUM-6474: replaces re-walking the ORM relationship (and re-querying) once per tag.
+    Costs one query per graph level plus one query for the tags, instead of a
+    `validated_by` load for every node of every tag's closure, twice over (once for the
+    curator axis, once for the author axis).
+    """
+    tag_ids = {tag_id for tag_id in tag_ids if tag_id is not None}
+    if not tag_ids:
         return
-    if calculate_validation_values:
-        logger.info("Committing validation insert and recalculating validation values")
-        db.commit()
-        validated_tag_obj = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
-        set_validation_values_to_tag(validated_tag_obj)
-        logger.info(f"Validation values updated for tag {validated_tag.topic_entity_tag_id}")
+    edges, all_tag_ids = load_validation_edge_map(db, tag_ids)
+    tags_by_id = {
+        tag.topic_entity_tag_id: tag
+        for tag in db.query(TopicEntityTagModel).options(
+            joinedload(TopicEntityTagModel.tag_source)
+        ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids)).all()
+    }
+    for tag_id in tag_ids:
+        tag = tags_by_id.get(tag_id)
+        if tag is None:
+            continue
+        disable_set_updated_by_onupdate(tag)
+        disable_set_date_updated_onupdate(tag)
+        tag.validation_by_professional_biocurator = validation_value_from_edge_map(
+            tag, ATP_ID_SOURCE_CURATOR, edges, tags_by_id)
+        tag.validation_by_author = validation_value_from_edge_map(
+            tag, ATP_ID_SOURCE_AUTHOR, edges, tags_by_id)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
                   commit_changes: bool = True, calculate_validation_values: bool = True, related_tags_in_db=None):
     if related_tags_in_db is None:
-        logger.info("Reading related tags from db")
+        logger.debug("Reading related tags from db")
         related_tags_in_db = db.query(
             TopicEntityTagModel.topic_entity_tag_id,
             TopicEntityTagModel.topic,
@@ -736,62 +1060,79 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagModel.species,
             TopicEntityTagModel.negated,
             TopicEntityTagModel.data_novelty,
-            TopicEntityTagSourceModel.validation_type
+            # SCRUM-5746: the validation rules read data_context, so it has to be in the
+            # projection -- these rows are column tuples, not ORM instances, and a missing
+            # column raises KeyError rather than lazy-loading.
+            TopicEntityTagModel.data_context,
+            TagSourceModel.validation_type
         ).join(
-            TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source
+            TagSourceModel, TopicEntityTagModel.tag_source
         ).filter(
             TopicEntityTagModel.reference_id == new_tag_obj.reference_id,
-            TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
+            TagSourceModel.secondary_data_provider_id == new_tag_obj.tag_source.secondary_data_provider_id,
             TopicEntityTagModel.negated.isnot(None)
         ).all()
-        logger.info("Query for related tags completed")
+        logger.debug("Query for related tags completed")
     all_related_tags = related_tags_in_db
     related_tags_in_db = [tag for tag in related_tags_in_db if
                           tag.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id]
+    # SCRUM-6474: the rules below collect (validated, validating) pairs here instead of
+    # inserting and committing one at a time; the whole batch is written once, below.
+    pending_edges: List[Tuple[int, int]] = []
     # The current tag can validate existing tags or be validated by other tags only if it has a True or False negated
     # value
-    logger.info(f"Found {str(len(related_tags_in_db))} related tags")
+    logger.debug(f"Found {str(len(related_tags_in_db))} related tags")
     if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
         # Validate existing tags
-        if new_tag_obj.topic_entity_tag_source.validation_type is not None:
-            logger.info(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
+        if new_tag_obj.tag_source.validation_type is not None:
+            logger.debug(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
             if new_tag_obj.negated is False:
-                validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db,
-                                                              calculate_validation_values=calculate_validation_values)
+                validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
             else:
-                validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db,
-                                                              calculate_validation_values=calculate_validation_values)
-            logger.info("Existing tag validation completed")
+                validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db, pending_edges)
+            logger.debug("Existing tag validation completed")
         # Validate current tag with existing ones
         if validate_new_tag:
             related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
                                              related_tag.validation_type is not None]
-            logger.info(f"Validating new tag with {len(related_validating_tags_in_db)} existing validating tags")
+            logger.debug(f"Validating new tag with {len(related_validating_tags_in_db)} existing validating tags")
             validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db,
-                                                calculate_validation_values=calculate_validation_values)
-            logger.info("New tag validation completed")
+                                                pending_edges)
+            logger.debug("New tag validation completed")
+    # Write every edge discovered above in one statement. This runs regardless of
+    # calculate_validation_values: the sweep in revalidate_all_tags still needs the edges,
+    # it just defers the rollups to its own values-only phase.
+    edges_changed = flush_validation_edges(db, pending_edges)
     if calculate_validation_values:
-        logger.info("Calculating validation values for new tag")
-        set_validation_values_to_tag(new_tag_obj)
+        if edges_changed:
+            # SCRUM-6474: recompute every tag on this reference+MOD in one pass.
+            #
+            # This replaces a fan-out that recomputed the same group but only when the NEW
+            # tag itself landed in validation_conflict. That condition is a proxy for
+            # "something downstream may have changed", and it misses the case where the new
+            # tag is the deepest node of a chain: an intermediate tag goes into conflict
+            # while the new tag reads validated_right_self, so nothing fired and an
+            # ancestor kept a value computed before this tag existed. Reachable because the
+            # validation relation is not transitive -- it composes the positive rule
+            # (ancestors) with the negative rule (descendants), so a valid two-hop path can
+            # have endpoints in no hierarchy relation and thus no direct edge.
+            #
+            # "Did the edge set change?" is the exact condition rather than a proxy, and it
+            # is now cheap enough to always ask: the group costs one query per graph level
+            # plus an in-memory walk, where it used to cost relationship loads per tag.
+            group_tag_ids = {related_tag.topic_entity_tag_id for related_tag in all_related_tags}
+            group_tag_ids.add(new_tag_obj.topic_entity_tag_id)
+            logger.debug("Recomputing validation values for %s tag(s) on the reference", len(group_tag_ids))
+            recompute_validation_values_for_tags(db, group_tag_ids)
+        else:
+            # No edge changed, so no existing tag's rollup can have changed either; only
+            # the new tag still needs its own values written. This is the common case --
+            # most references have no validation edges at all.
+            logger.debug("No validation edges changed; setting values for the new tag only")
+            set_validation_values_to_tag(new_tag_obj)
     if commit_changes:
-        logger.info("Committing validation changes")
+        logger.debug("Committing validation changes")
         db.commit()
-    if new_tag_obj.validation_by_professional_biocurator == "validation_conflict" or \
-            new_tag_obj.validation_by_author == "validation_conflict":
-        logger.info("Validation conflict detected, batch loading related tags for revalidation")
-        # Optimize: Batch load all related tags at once with eager loading
-        related_tag_ids = [related_tag.topic_entity_tag_id for related_tag in related_tags_in_db]
-        if related_tag_ids:
-            related_tag_objs = db.query(TopicEntityTagModel).options(
-                joinedload(TopicEntityTagModel.topic_entity_tag_source),
-                joinedload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.topic_entity_tag_source)
-            ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(related_tag_ids)).all()
-            logger.info(f"Setting validation values for {len(related_tag_objs)} conflicting tags")
-            for related_tag_obj in related_tag_objs:
-                set_validation_values_to_tag(related_tag_obj)
-        if commit_changes:
-            logger.info("Committing conflict resolution changes")
-            db.commit()
     return all_related_tags
 
 
@@ -803,116 +1144,279 @@ def set_validation_values_to_tag(tag: TopicEntityTagModel):
 
 
 def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
-                        validation_values_only: bool = False):
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-    new_session = sessionmaker(bind=engine, autoflush=True)
-    db = new_session()
+                        validation_values_only: bool = False, db: Optional[Session] = None):
+    """Rebuild validation edges and/or recompute rollup values.
+
+    ``db``: pass the caller's session when this runs inside a request -- patch_tag,
+    destroy_tag, validate_topic and the reference merge all call it synchronously. Omit it
+    for the background sweep, which the router runs inside a forked Process: a forked child
+    must never reuse the parent's pooled connections, so that path gets a private engine.
+    """
+    # SCRUM-6474: report a crash rather than going silent. The `if email:` block below sits
+    # after the call, so an exception used to skip it entirely -- in the forked-process
+    # sweep the child simply died and the requesting SuperAdmin got nothing, which is
+    # indistinguishable from a sweep still grinding away hours later. The email is this
+    # endpoint's only feedback channel, so failure has to travel through it too. The
+    # exception is still re-raised: the caller's logging and exit status are unchanged.
+    outcome = "failed"
+    try:
+        outcome = _run_revalidation_session(db, delete_all_first, curie_or_reference_id,
+                                            validation_values_only)
+    except Exception:
+        _send_revalidation_email(email, curie_or_reference_id, outcome)
+        raise
+    _send_revalidation_email(email, curie_or_reference_id, outcome)
+
+
+def _send_revalidation_email(email: Optional[str], curie_or_reference_id: Optional[str],
+                             outcome: str):
+    """Tell the requester what actually happened, for every outcome including failure."""
+    if not email:
+        return
+    sender_email = environ.get('SENDER_EMAIL', None)
+    sender_password = environ.get('SENDER_PASSWORD', None)
+    reply_to = environ.get('REPLY_TO', sender_email)
+    target = f" for reference {curie_or_reference_id}" if curie_or_reference_id else ""
+    subject, email_body = REVALIDATION_EMAIL_BODIES[outcome]
+    try:
+        send_email(f"Alliance ABC notification: {subject}", email,
+                   email_body.format(target=target), sender_email, sender_password, reply_to)
+    except Exception as email_error:
+        # Never let the notification mask the outcome it is reporting.
+        logger.warning("Could not send the revalidation notification: %s", email_error)
+
+
+def _run_revalidation_session(db: Optional[Session], delete_all_first: bool,
+                              curie_or_reference_id: Optional[str],
+                              validation_values_only: bool) -> str:
+    """Pick the session to run under, and guarantee the private engine is disposed."""
+    if db is not None:
+        return run_revalidation(db, delete_all_first, curie_or_reference_id,
+                                validation_values_only)
+    else:
+        # SCRUM-6475: this engine (and its pool) used to leak on every single call --
+        # db.close() only returns the connection to the pool, it does not dispose the pool.
+        # Since the interactive callers above invoke this synchronously, every PATCH and
+        # DELETE of a tag opened a brand new backend connection rather than reusing the
+        # application pool. It is now disposed in the finally below, and request-context
+        # callers pass their own session so they never reach this branch at all.
+        engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+        own_db = sessionmaker(bind=engine, autoflush=True)()
+        try:
+            return run_revalidation(own_db, delete_all_first, curie_or_reference_id,
+                                    validation_values_only)
+        finally:
+            own_db.close()
+            engine.dispose()
+
+
+def resolve_revalidation_reference_id(db: Session, curie_or_reference_id: str):
+    """Resolve a curie or numeric id to a reference_id, or None when it matches nothing."""
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    if reference_id is None:
+        # SCRUM-6471: resolve the curie to a real id. Assigning the Query object itself
+        # relied on SQLAlchemy implicitly coercing it to a scalar subquery, which is
+        # deprecated in 2.0 (it warns today and is slated for removal). It also failed
+        # silently: an unmatched curie made the subquery NULL, so the filter matched
+        # nothing and the whole call became a no-op instead of reporting the bad reference.
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == curie_or_reference_id).scalar()
+    return reference_id
+
+
+def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id: Optional[str],
+                     validation_values_only: bool):      # noqa: C901
+    """Body of revalidate_all_tags, split out so the session/engine lifecycle above is
+    guaranteed by a single try/finally regardless of how this returns or raises."""
+    single_reference = bool(curie_or_reference_id)
+    sweep_lock_held = False
     reference_query_filter = ""
     query_tags = (db.query(TopicEntityTagModel)
-                  .join(TopicEntityTagModel.topic_entity_tag_source)
-                  .options(joinedload(TopicEntityTagModel.topic_entity_tag_source))
-                  .options(joinedload(TopicEntityTagModel.validated_by))
+                  .join(TopicEntityTagModel.tag_source)
+                  .options(joinedload(TopicEntityTagModel.tag_source))
                   .options(noload(TopicEntityTagModel.reference))
+                  # SCRUM-6475: MOD before source id. secondary_data_provider_id is
+                  # functionally determined by tag_source_id, so as the third
+                  # key it was inert -- yet the rebuild loop drops its cached related-tags
+                  # list whenever the MOD changes, so tags of one MOD were not contiguous
+                  # and the cache was reset far more often than necessary. The trailing
+                  # topic_entity_tag_id makes the ordering total, which matters because a
+                  # non-unique ORDER BY lets rows move between pages.
                   .order_by(TopicEntityTagModel.reference_id,
-                            TopicEntityTagModel.topic_entity_tag_source_id,
-                            TopicEntityTagSourceModel.secondary_data_provider_id))
-    if not validation_values_only:
+                            TagSourceModel.secondary_data_provider_id,
+                            TopicEntityTagModel.tag_source_id,
+                            TopicEntityTagModel.topic_entity_tag_id))
+    try:
         if curie_or_reference_id:
-            delete_all_first = True
-            reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
-            if not reference_id:
-                reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
+            reference_id = resolve_revalidation_reference_id(db, curie_or_reference_id)
+            if reference_id is None:
+                logger.warning("revalidate_all_tags: no reference matches %r; nothing to do",
+                               curie_or_reference_id)
+                return "no_reference"
+            # SCRUM-6475: serialise concurrent revalidations of the SAME reference. Two
+            # interactive writes on one paper (a PATCH and a DELETE) could otherwise
+            # interleave one's DELETE FROM topic_entity_tag_validation with the other's
+            # rebuild. Transaction-scoped so it is released automatically on commit or
+            # rollback: a session-scoped advisory lock would survive db.close(), and since
+            # returning a connection to the pool only issues a ROLLBACK, an unreleased one
+            # would poison that pooled connection for good.
+            # Full sweeps are deliberately NOT excluded by this lock -- a sweep runs for
+            # hours and must not block curation.
+            db.execute(select(func.pg_advisory_xact_lock(
+                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
             all_tag_ids_for_reference = [res[0] for res in db.query(
-                TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
+                TopicEntityTagModel.topic_entity_tag_id).filter(
+                    TopicEntityTagModel.reference_id == reference_id).all()]
             if not all_tag_ids_for_reference:
-                return
+                return "no_tags"
             all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
             reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
                                       f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
-            query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
-        if delete_all_first:
-            db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
-            db.commit()
-        curr_ref_tags_in_db = None
-        curr_reference_id = None
-        curr_mod_id = None
-        for tag_counter, tag in enumerate(query_tags.all()):
-            if tag.reference_id != curr_reference_id or tag.topic_entity_tag_source.secondary_data_provider_id != curr_mod_id:
+            # SCRUM-6475: this filter used to sit inside `if not validation_values_only`,
+            # so a values-only request scoped to a single reference silently recomputed
+            # every tag in the database instead of that one paper's.
+            query_tags = query_tags.filter(
+                TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
+        else:
+            # SCRUM-6475: single-flight for the full sweep, held in the database so it
+            # covers every worker, host and container. The router's multiprocessing.Value
+            # does work across one master's forked workers (preload_app=True shares the
+            # mmap) but not across hosts, and it does not cover the direct callers at all.
+            sweep_lock_held = bool(db.execute(select(func.pg_try_advisory_lock(
+                TET_REVALIDATION_LOCK_NAMESPACE, TET_REVALIDATION_SWEEP_KEY))).scalar())
+            if not sweep_lock_held:
+                logger.warning("revalidate_all_tags: a full sweep is already running; skipping this one")
+                return "already_running"
+
+        if not validation_values_only:
+            if single_reference:
+                delete_all_first = True
+            if delete_all_first:
+                db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
+                if not single_reference:
+                    db.commit()
+                # For a single reference the DELETE deliberately stays in the same
+                # transaction as the rebuild below, so a concurrent reader never observes
+                # the window in which that paper's validation edges are missing.
+            rebuild_validation_edges(db, query_tags, delete_all_first, single_reference)
+
+        recompute_validation_values(db, query_tags, single_reference)
+        db.commit()
+        return "completed"
+    finally:
+        if sweep_lock_held:
+            # Session-scoped, so it survived the batch commits above and must be released
+            # explicitly. Best-effort: if we are unwinding from an error the transaction is
+            # already aborted and the unlock cannot run, but the sweep owns its engine and
+            # disposing it closes the connection, which makes PostgreSQL drop the lock
+            # anyway. Swallowing here keeps the original exception as the one that
+            # propagates.
+            try:
+                db.execute(select(func.pg_advisory_unlock(
+                    TET_REVALIDATION_LOCK_NAMESPACE, TET_REVALIDATION_SWEEP_KEY)))
+            except Exception as unlock_error:
+                logger.warning("Could not release the revalidation sweep lock: %s", unlock_error)
+
+
+def iter_sweep_tags(db: Session, query_tags, single_reference: bool, page_size: int = 500):
+    """Yield the sweep's tags in order, one page of references at a time.
+
+    SCRUM-6475: this used to be a flat ``query_tags.all()``. At 3.5M tags that materialises
+    roughly 15GB of ORM objects -- more than the API box has -- and the size of the
+    resulting heap is itself the problem: every garbage-collection pass has to traverse the
+    whole live object graph, so allocation-heavy work in the loop slows down by more than
+    an order of magnitude as the heap grows.
+
+    References are the natural page boundary because validation edges never cross a
+    reference, so a reference is never split and the per-(reference, MOD) related-tags cache
+    keeps working. The page is fully consumed before the caller commits and expunges, so no
+    tag is ever touched after being detached.
+    """
+    if single_reference:
+        # Already filtered to a single paper's tags, so it is bounded by construction.
+        yield query_tags.all(), True
+        return
+    last_reference_id = -1
+    while True:
+        reference_ids = [row[0] for row in
+                         db.query(TopicEntityTagModel.reference_id)
+                         .filter(TopicEntityTagModel.reference_id > last_reference_id)
+                         .distinct()
+                         .order_by(TopicEntityTagModel.reference_id)
+                         .limit(page_size).all()]
+        if not reference_ids:
+            return
+        yield query_tags.filter(
+            TopicEntityTagModel.reference_id.in_(reference_ids)).all(), False
+        last_reference_id = reference_ids[-1]
+
+
+def rebuild_validation_edges(db: Session, query_tags, delete_all_first: bool, single_reference: bool):
+    """Re-derive the validation edges for every tag in ``query_tags``."""
+    curr_ref_tags_in_db = None
+    curr_reference_id = None
+    curr_mod_id = None
+    tag_counter = 0
+    for page, is_single in iter_sweep_tags(db, query_tags, single_reference):
+        for tag in page:
+            if tag.reference_id != curr_reference_id or tag.tag_source.secondary_data_provider_id != curr_mod_id:
                 curr_reference_id = tag.reference_id
-                curr_mod_id = tag.topic_entity_tag_source.secondary_data_provider_id
+                curr_mod_id = tag.tag_source.secondary_data_provider_id
                 curr_ref_tags_in_db = None
-            logger.info(f"Processing tag # {str(tag_counter)}")
+            if tag_counter % 5000 == 0:
+                # Throttled: at one line per tag this printed millions of lines per sweep.
+                logger.info("Rebuilding validation edges, tag #%s", tag_counter)
             if not delete_all_first:
                 db.execute(text(f"DELETE FROM topic_entity_tag_validation "
                                 f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
-            curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
+            curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False,
+                                                commit_changes=False,
                                                 calculate_validation_values=False,
                                                 related_tags_in_db=curr_ref_tags_in_db)
-            if tag_counter > 0 and tag_counter % 200 == 0:
-                db.commit()
-        db.commit()
-    offset = 0
-    batch_size = 200
-    tag_counter = 0
-    while True:
-        batch_tags = query_tags.offset(offset).limit(batch_size).all()
-        if not batch_tags:
-            break  # All tags processed
-        for tag in batch_tags:
             tag_counter += 1
-            logger.info(f"Setting validation values for tag #{tag_counter}")
-            set_validation_values_to_tag(tag)
+        if not is_single:
+            # Commit and drop the page from the identity map before loading the next one,
+            # so neither the session nor the Python heap grows with the size of the table.
+            db.commit()
+            db.expunge_all()
+            curr_ref_tags_in_db = None
+            curr_reference_id = None
+            curr_mod_id = None
+    if not single_reference:
         db.commit()
-        offset += batch_size
-    db.commit()
-    db.close()
-
-    if email:
-        email_recipients = email
-        sender_email = environ.get('SENDER_EMAIL', None)
-        sender_password = environ.get('SENDER_PASSWORD', None)
-        reply_to = environ.get('REPLY_TO', sender_email)
-        email_body = "Finished re-validating all tags"
-        if curie_or_reference_id:
-            email_body += " for reference " + str(curie_or_reference_id)
-        send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
-                   sender_password, reply_to)
 
 
-def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
-    source_data = {key: value for key, value in jsonable_encoder(source).items() if value is not None}
-    source_obj = add_source_obj_to_db_session(db, source_data)
-    try:
-        db.commit()
-    except (IntegrityError, HTTPException) as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"invalid request: {e}")
-    return source_obj.topic_entity_tag_source_id
+def recompute_validation_values(db: Session, query_tags, single_reference: bool):
+    """Recompute both rollup columns for every tag in ``query_tags``.
 
+    SCRUM-6474/6475: uses the preloaded edge map rather than walking the ``validated_by``
+    relationship per tag, which lazy-loaded a collection at every node of every tag's
+    closure -- twice over, once per validation axis.
 
-def destroy_source(db: Session, topic_entity_tag_source_id: int):
-    source = get_source_from_db(db, topic_entity_tag_source_id)
-    db.delete(source)
-    db.commit()
-
-
-def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: TopicEntityTagSourceSchemaUpdate):
-    source = get_source_from_db(db, topic_entity_tag_source_id)
-    source_patch_data = source_patch.model_dump(exclude_unset=True)
-    add_audited_object_users_if_not_exist(db, source_patch_data)
-    for key, value in source_patch_data.items():
-        setattr(source, key, value)
-    db.commit()
-    return {"message": "updated"}
-
-
-def show_source(db: Session, topic_entity_tag_source_id: int):
-    source = get_source_from_db(db, topic_entity_tag_source_id)
-    source_data = jsonable_encoder(source)
-    del source_data["secondary_data_provider_id"]
-    source_data["secondary_data_provider_abbreviation"] = source.secondary_data_provider.abbreviation
-    return source_data
+    Pages by ``topic_entity_tag_id`` rather than OFFSET: OFFSET re-scans and discards every
+    preceding row, which over millions of tags is quadratic, and it is only stable if the
+    ordering is total. Keyset paging is linear and immune to rows shifting between pages.
+    """
+    batch_size = 200
+    values_query = query_tags.order_by(None).order_by(TopicEntityTagModel.topic_entity_tag_id)
+    last_tag_id = 0
+    processed = 0
+    while True:
+        batch_tags = values_query.filter(
+            TopicEntityTagModel.topic_entity_tag_id > last_tag_id).limit(batch_size).all()
+        if not batch_tags:
+            break
+        recompute_validation_values_for_tags(
+            db, {tag.topic_entity_tag_id for tag in batch_tags})
+        last_tag_id = batch_tags[-1].topic_entity_tag_id
+        processed += len(batch_tags)
+        if processed % 5000 < batch_size:
+            logger.info("Set validation values for %s tag(s)", processed)
+        if not single_reference:
+            db.commit()
+            # See iter_sweep_tags: without this the identity map -- and so the heap the GC
+            # must walk on every pass -- grows to the size of the whole table.
+            db.expunge_all()
 
 
 def filter_tet_data_by_column(query, column_name, values):
@@ -921,7 +1425,7 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
                              reference_id: int, force_insertion: bool = False):
     """
     Detect duplicate tags. Per SCRUM-5716 strict-REST design:
@@ -1084,22 +1588,22 @@ def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], 
             user_ids.add(tet.created_by)
         if tet.updated_by:
             user_ids.add(tet.updated_by)
-        if tet.topic_entity_tag_source:
-            if tet.topic_entity_tag_source.created_by:
-                user_ids.add(tet.topic_entity_tag_source.created_by)
-            if tet.topic_entity_tag_source.updated_by:
-                user_ids.add(tet.topic_entity_tag_source.updated_by)
+        if tet.tag_source:
+            if tet.tag_source.created_by:
+                user_ids.add(tet.tag_source.created_by)
+            if tet.tag_source.updated_by:
+                user_ids.add(tet.tag_source.updated_by)
     id_to_display_name = get_user_display_name_map(db, user_ids)
 
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
     tet_column_keys = _orm_column_keys(TopicEntityTagModel)
-    source_column_keys = _orm_column_keys(TopicEntityTagSourceModel)
+    source_column_keys = _orm_column_keys(TagSourceModel)
     all_tet = []
     for tet in rows:
         tet_data = _project_orm_columns(tet, tet_column_keys)
-        source = tet.topic_entity_tag_source
+        source = tet.tag_source
         source_data = _project_orm_columns(source, source_column_keys) if source else None
-        tet_data["topic_entity_tag_source"] = source_data
+        tet_data["tag_source"] = source_data
         # Replace top-level created_by/updated_by if we have a display name
         for k in ("created_by", "updated_by"):
             uid = tet_data.get(k)
@@ -1186,7 +1690,7 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
     # query for the whole result set) is limit-safe, unlike a collection
     # joinedload.
     query = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id == reference_id)
@@ -1216,23 +1720,23 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
                 # check if the column exists in TopicEntityTagModel
                 if hasattr(TopicEntityTagModel, sort_by):
                     column_property = getattr(TopicEntityTagModel, sort_by)
-                elif hasattr(TopicEntityTagSourceModel, sort_by):
-                    column_property = getattr(TopicEntityTagSourceModel, sort_by)
-                    # explicitly join the topic_entity_tag_source table for sorting
-                    query = query.join(TopicEntityTagSourceModel,
-                                       TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                elif hasattr(TagSourceModel, sort_by):
+                    column_property = getattr(TagSourceModel, sort_by)
+                    # explicitly join the tag_source table for sorting
+                    query = query.join(TagSourceModel,
+                                       TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id)
                 elif sort_by == 'secondary_data_provider':
                     column_property_name = "abbreviation"
                     column_property = getattr(ModModel, column_property_name)
                     query = query.join(
-                        TopicEntityTagSourceModel,
-                        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id)
+                        TagSourceModel,
+                        TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id)
                     query = query.join(
-                        ModModel, TopicEntityTagSourceModel.secondary_data_provider_id == ModModel.mod_id)
+                        ModModel, TagSourceModel.secondary_data_provider_id == ModModel.mod_id)
                 else:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"The column '{sort_by}' does not exist in either TopicEntityTagModel "
-                                               f"or TopicEntityTagSourceModel.")
+                                               f"or TagSourceModel.")
                 if column_property is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                         detail=f"Failed to get the column '{sort_by}' from the models.")
@@ -1320,13 +1824,13 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
 
     source_methods = filters.get("source_methods")
     if source_methods:
-        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_method, source_methods)))
+        positive_conditions.append(TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_method, source_methods)))
 
     source_evidence_assertions = filters.get("source_evidence_assertions")
     if source_evidence_assertions:
-        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, source_evidence_assertions)))
+        positive_conditions.append(TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_evidence_assertion, source_evidence_assertions)))
 
     if positive_conditions:
         if single_tag:
@@ -1344,8 +1848,8 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
     mods = filters.get("mods")
     if mods:
         upper_mods = [str(m).upper() for m in mods if m]
-        query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
-            TopicEntityTagSourceModel.secondary_data_provider.has(
+        query = query.filter(TopicEntityTagModel.tag_source.has(
+            TagSourceModel.secondary_data_provider.has(
                 func.upper(ModModel.abbreviation).in_(upper_mods))))
 
     entity_types = filters.get("entity_types")
@@ -1368,13 +1872,13 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
 
     negated_source_methods = filters.get("negated_source_methods")
     if negated_source_methods:
-        query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_method, negated_source_methods)))
+        query = query.filter(~TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_method, negated_source_methods)))
 
     negated_source_evidence_assertions = filters.get("negated_source_evidence_assertions")
     if negated_source_evidence_assertions:
-        query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, negated_source_evidence_assertions)))
+        query = query.filter(~TopicEntityTagModel.tag_source.has(
+            _ci_in(TagSourceModel.source_evidence_assertion, negated_source_evidence_assertions)))
 
     score_min = filters.get("confidence_score_min")
     score_max = filters.get("confidence_score_max")
@@ -1443,7 +1947,7 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
         topic_bucket[kind] += 1
         topic_bucket["total"] += 1
 
-        label = _source_label(tag.get("topic_entity_tag_source"))
+        label = _source_label(tag.get("tag_source"))
         src_bucket = topic_bucket["by_source"].setdefault(
             label, {"topic_only": 0, "entity_pos": 0, "entity_neg": 0}
         )
@@ -1452,8 +1956,12 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
 
 
 def _is_curator_source_tag(tag: Dict[str, Any]) -> bool:
-    source = tag.get("topic_entity_tag_source") or {}
-    return source.get("validation_type") in ("professional_biocurator", "professional_curator")
+    # 'professional_biocurator' is the only curator validation_type. The old
+    # 'professional_curator' spelling was wrong (validation edges key on
+    # ATP_ID_SOURCE_CURATOR) and is normalised away by the SCRUM-6518 migration,
+    # which runs before this code ships.
+    source = tag.get("tag_source") or {}
+    return source.get("validation_type") == ATP_ID_SOURCE_CURATOR
 
 
 def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -1463,6 +1971,7 @@ def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
         "source_label": label,
         "source_description": source_data.get("description"),
         "source_evidence_assertion": source_data.get("source_evidence_assertion"),
+        "source_evidence_assertion_name": source_data.get("source_evidence_assertion_name"),
     }
 
 
@@ -1524,7 +2033,7 @@ def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[
             continue
         ref_id = tag["reference_id"]
         topic = str(tag.get("topic") or "").upper()
-        source_data = tag.get("topic_entity_tag_source") or {}
+        source_data = tag.get("tag_source") or {}
         label = _source_label(source_data)
         grouped[ref_id][topic][label].append(tag)
         source_data_by_label[(ref_id, topic, label)] = source_data
@@ -1618,7 +2127,7 @@ def _build_validation_details(serialized_tags: List[Dict[str, Any]]) -> Dict[int
         if group is None:
             group = {"name": name, "negated": negated, "sources": {}, "species": []}
             bucket["by_curator"][(name, negated)] = group
-        source = tag.get("topic_entity_tag_source") or {}
+        source = tag.get("tag_source") or {}
         method = source.get("source_method")
         if method and method not in group["sources"]:
             sec = source.get("secondary_data_provider_abbreviation")
@@ -1739,7 +2248,7 @@ def _build_discovery(serialized_tags: List[Dict[str, Any]]) -> Dict[str, Any]:
             topics[topic] = {"curie": topic, "name": tag.get("topic_name") or topic}
         if _is_curator_source_tag(tag):
             continue
-        source_data = tag.get("topic_entity_tag_source") or {}
+        source_data = tag.get("tag_source") or {}
         label = _source_label(source_data)
         if label not in sources:
             sources[label] = {
@@ -1810,7 +2319,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
 
     query_start = perf_counter()
     query = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id.in_(ref_ids))
@@ -1907,62 +2416,6 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     }
 
 
-def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) -> TopicEntityTagSourceModel:
-    """Resolve the per-MOD ABC curator source used for grid validations, creating
-    it if absent. Server-side equivalent of the UI's getCuratorSourceId (GET the
-    source by name, POST to create on 404) so the validate write path no longer
-    needs the client to resolve a source id first.
-
-    validation_type is set to CURATOR_VALIDATION_TYPE ('professional_curator') to
-    match exactly what getCuratorSourceId POSTs. NOTE the source unique key
-    (source_evidence_assertion, source_method, data_provider,
-    secondary_data_provider) excludes validation_type, so when a source already
-    exists for the MOD it is reused verbatim -- the same row the UI write path
-    uses. That means the resolved source's validation_type is NOT guaranteed to be
-    'professional_curator': a pre-existing curator source may be
-    'professional_biocurator' for some MODs, and the opposite-negation guard in
-    check_for_duplicate_tags (Branch 3) fires only for that value. validate_topic
-    does not rely on the validation_type either way -- it deletes the curator's
-    prior validation before inserting the new one, so a flipped re-validation
-    never trips Branch 3 regardless of the source's validation_type."""
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
-    if mod is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Cannot find the MOD '{mod_abbreviation}'")
-
-    def _lookup():
-        return db.query(TopicEntityTagSourceModel).filter(
-            TopicEntityTagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-            TopicEntityTagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
-            TopicEntityTagSourceModel.data_provider == mod_abbreviation,
-            TopicEntityTagSourceModel.secondary_data_provider_id == mod.mod_id,
-        ).first()
-
-    source = _lookup()
-    if source is not None:
-        return source
-    try:
-        new_source_id = create_source(db, TopicEntityTagSourceSchemaCreate(
-            source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-            source_method=CURATOR_VALIDATION_SOURCE_METHOD,
-            validation_type=CURATOR_VALIDATION_TYPE,
-            description=CURATOR_VALIDATION_SOURCE_DESCRIPTION,
-            data_provider=mod_abbreviation,
-            secondary_data_provider_abbreviation=mod_abbreviation,
-        ))
-    except HTTPException:
-        # Lost a create race with a concurrent first-time validation for the same
-        # MOD: create_source rolls back and raises 422 on the unique-key
-        # violation. The row exists now -- re-fetch and use it rather than
-        # failing the request.
-        db.rollback()
-        source = _lookup()
-        if source is None:
-            raise
-        return source
-    return get_source_from_db(db, new_source_id)
-
-
 def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Dict[str, Any]:
     """Recompute the single (reference, topic) grid cell's validation + filter
     flags from the current DB state, in the SAME shape the batch endpoint returns.
@@ -1970,7 +2423,7 @@ def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Di
     it never has to re-fetch and re-aggregate the whole batch after one edit."""
     topic_upper = str(topic or "").upper()
     rows = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id == reference_id).all()
@@ -1996,12 +2449,11 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     (reference, topic). Any existing topic-level validation by this curator on the
     curator source is deleted before the new one is inserted, so re-validating
     REPLACES the prior assertion (flip Yes<->No, or update note/species) rather
-    than creating a second, contradictory tag. This is robust regardless of the
-    curator source's validation_type: the abc curator source is
-    'professional_curator' for some MODs and 'professional_biocurator' for others,
-    and the opposite-negation guard (check_for_duplicate_tags Branch 3) only fires
-    for the latter -- deleting the curator's prior tag first means the new insert
-    never trips that guard either way, so a flipped vote never 409s.
+    than creating a second, contradictory tag. The abc curator source is
+    'professional_biocurator', which is exactly what the opposite-negation guard
+    (check_for_duplicate_tags Branch 3) fires for -- deleting the curator's prior
+    tag first means the new insert never trips that guard, so a flipped vote
+    never 409s.
 
     The new tag is created through the normal create_tag path (force_insertion
     bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
@@ -2014,7 +2466,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     the whole reference's validation relationships/values once -- covering both the
     new tag and any tags affected by the delete -- exactly as patch_tag/destroy_tag
     do."""
-    source = get_or_create_curator_validation_source(db, mod_abbreviation)
+    source = get_or_create_abc_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     current_user = get_default_user_value()
     topic_upper = str(topic or "").upper()
@@ -2023,7 +2475,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         TopicEntityTagModel.reference_id == reference_id,
         func.upper(TopicEntityTagModel.topic) == topic_upper,
         TopicEntityTagModel.entity.is_(None),
-        TopicEntityTagModel.topic_entity_tag_source_id == source.topic_entity_tag_source_id,
+        TopicEntityTagModel.tag_source_id == source.tag_source_id,
         TopicEntityTagModel.created_by == current_user,
     ).all()
     replaced = bool(prior)
@@ -2045,13 +2497,14 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         entity_type=None,
         species=species,
         data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
+        data_context=CURATOR_VALIDATION_DATA_CONTEXT,
         negated=negated,
         note=note,
-        topic_entity_tag_source_id=source.topic_entity_tag_source_id,
+        tag_source_id=source.tag_source_id,
         force_insertion=True,
     )
     tag_id, _ = create_tag(db, tag, validate_on_insert=False)
-    revalidate_all_tags(curie_or_reference_id=str(reference_id))
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
     db.expire_all()
     cell = _recompute_validation_cell(db, reference_id, topic)
     return {
@@ -2062,6 +2515,14 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):
+    # This MOD-facing export deliberately ships ONLY tags curated in the ABC
+    # itself: an allowlist of source_method = 'abc_literature_system', not a
+    # denylist of specific sources. Tags from classifier / pipeline / bulk
+    # loader sources (abc_document_classifier, curation_status_form,
+    # string_matching_antibody, the PDB association pipeline, ACKnowledge/AFP,
+    # sgd_reference_curation, zfin_reference_curation, ...) are intentionally
+    # excluded (SCRUM-6404 review). The same filter is applied to the source
+    # metadata below and in get_curie_to_name_mapping_for_mod.
 
     current_date = datetime.now()
     past_date = current_date - timedelta(days=int(days_updated))
@@ -2071,10 +2532,11 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                            "get_most_current_email(u.person_id) AS email "
                            "FROM cross_reference cr "
                            "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
-                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id "
                            "JOIN users u ON tet.updated_by = u.id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
                       {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
 
@@ -2094,9 +2556,10 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
     src_rows = db.execute(text("SELECT tets.* "
-                               "FROM topic_entity_tag_source tets "
+                               "FROM tag_source tets "
                                "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                               "WHERE m.abbreviation = :mod_abbreviation"),
+                               "WHERE m.abbreviation = :mod_abbreviation "
+                               "AND tets.source_method = 'abc_literature_system'"),
                           {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
@@ -2109,9 +2572,10 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     rows = db.execute(text("SELECT DISTINCT tet.reference_id "
                            "FROM topic_entity_tag tet "
-                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
                       {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
     for x in rows:
@@ -2134,7 +2598,7 @@ def get_curie_to_name_from_references(db: Session, reference_ids: List[int]):
     if not reference_ids:
         return {}
     ref_related_tets = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+        joinedload(TopicEntityTagModel.tag_source)).filter(
         TopicEntityTagModel.reference_id.in_(reference_ids)).all()
     return build_curie_to_name_map(db, ref_related_tets)
 
@@ -2173,6 +2637,8 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
     source_eco_codes = set()
     for tet in ref_related_tets:
         all_atp_terms.add(tet.topic)
+        if tet.data_context is not None:
+            all_atp_terms.add(tet.data_context)
         if tet.display_tag is not None:
             all_atp_terms.add(tet.display_tag)
         if tet.entity_type is not None:
@@ -2183,11 +2649,11 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
                 all_entity_curies.add(tet.entity)
         if tet.species:
             tag_species.add(tet.species)
-        if tet.topic_entity_tag_source.source_evidence_assertion:
-            if tet.topic_entity_tag_source.source_evidence_assertion.startswith("ECO:"):
-                source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
-            elif tet.topic_entity_tag_source.source_evidence_assertion.startswith("ATP:"):
-                all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
+        if tet.tag_source.source_evidence_assertion:
+            if tet.tag_source.source_evidence_assertion.startswith("ECO:"):
+                source_eco_codes.add(tet.tag_source.source_evidence_assertion)
+            elif tet.tag_source.source_evidence_assertion.startswith("ATP:"):
+                all_atp_terms.add(tet.tag_source.source_evidence_assertion)
     entity_curie_to_name = _get_cached_curie_names(
         all_atp_terms,
         lambda missing: get_map_ateam_curies_to_names(category="atpterm", curies=missing)
@@ -2219,19 +2685,19 @@ def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, cur
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
     # Shallow-copy only the two levels we add keys to (the top-level tag dict and
-    # its nested topic_entity_tag_source dict) instead of copy.deepcopy(tet). The
+    # its nested tag_source dict) instead of copy.deepcopy(tet). The
     # previous deepcopy recursed into every nested value of every tag and
     # dominated batch serialization (~443ms for 1614 tags); since we only ever
     # add "<field>_name" keys at these two levels, a two-level shallow copy is
     # equivalent and far cheaper while still leaving the input dict untouched.
     new_tet = dict(tet)
     new_source = None
-    source = new_tet.get("topic_entity_tag_source")
+    source = new_tet.get("tag_source")
     if source:
         new_source = dict(source)
-        new_tet["topic_entity_tag_source"] = new_source
+        new_tet["tag_source"] = new_source
     for tet_field_name, tet_field_value in tet.items():
-        if tet_field_name == "topic_entity_tag_source":
+        if tet_field_name == "tag_source":
             if new_source is not None:
                 for source_field_name, source_field_value in tet_field_value.items():
                     if source_field_name in TET_SOURCE_CURIE_FIELDS:
@@ -2242,30 +2708,3 @@ def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, cur
                 new_field = f"{tet_field_name}_name"
                 new_tet[new_field] = curie_to_name_mapping.get(tet_field_value, tet_field_value)
     return new_tet
-
-
-def show_source_by_name(db: Session, source_evidence_assertion: str, source_method: str,
-                        data_provider: str, secondary_data_provider_abbreviation: str):
-    secondary_data_provider = db.query(ModModel.mod_id).filter(
-        ModModel.abbreviation == secondary_data_provider_abbreviation).one_or_none()
-    if secondary_data_provider is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Cannot find the specified secondary data provider")
-    source = db.query(TopicEntityTagSourceModel).filter(
-        and_(
-            TopicEntityTagSourceModel.source_evidence_assertion == source_evidence_assertion,
-            TopicEntityTagSourceModel.source_method == source_method,
-            TopicEntityTagSourceModel.data_provider == data_provider,
-            TopicEntityTagSourceModel.secondary_data_provider_id == secondary_data_provider.mod_id
-        )
-    ).one_or_none()
-    if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified Source")
-    source_data = jsonable_encoder(source)
-    del source_data["secondary_data_provider_id"]
-    source_data["secondary_data_provider_abbreviation"] = secondary_data_provider_abbreviation
-    return source_data
-
-
-def show_all_source(db: Session):
-    return [jsonable_encoder(source) for source in db.query(TopicEntityTagSourceModel).all()]

@@ -13,7 +13,8 @@ from agr_cognito_py import CognitoAuth, CognitoConfig, get_cognito_auth, get_cog
 
 from agr_literature_service.api.auth import (
     get_client_ip, is_skip_all_auth_ip, is_skip_read_auth_ip,
-    get_all_skip_ip_ranges, get_read_skip_ip_ranges
+    get_all_skip_ip_ranges, get_read_skip_ip_ranges,
+    reject_user_session_access_tokens
 )
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,13 @@ async def login(
     try:
         # Validate the token with Cognito
         user_info = get_cognito_user_swagger(credentials, get_cognito_auth())
+
+        # A user-session ACCESS token must not be laundered into a session
+        # cookie: it validates fine, but the session-cookie auth branch would
+        # then treat it as an ALL_ACCESS service account on every later request,
+        # sidestepping the observer read-only boundary for the cookie's whole
+        # lifetime (SCRUM-6431 review). Same gate the Bearer branch applies.
+        reject_user_session_access_tokens(user_info)
 
         # Create session
         session_id = secrets.token_urlsafe(32)
@@ -143,9 +151,14 @@ async def auth_status(
     if credentials is not None:
         try:
             user_info = get_cognito_user_swagger(credentials, get_cognito_auth())
+            # Same gate as login/the auth dependency: a user-session access
+            # token is not a valid way to authenticate (read-only info leak
+            # otherwise).
+            reject_user_session_access_tokens(user_info)
             auth_method = "token"
         except Exception as e:
             token_error = str(e)
+            user_info = None
             # Invalid token, continue checking other methods
 
     # Priority 2: Check session cookie

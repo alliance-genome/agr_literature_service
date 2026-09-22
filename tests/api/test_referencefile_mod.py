@@ -88,7 +88,9 @@ class TestReferencefileMod:
             ok = False
             for mod in response.json():
                 print(f"mod {mod}")
-                if mod["referencefile_mods"][1]["mod_abbreviation"] == "WB":
+                # referencefile_mods ordering is not deterministic, so look
+                # for the WB association at any position
+                if any(rfm["mod_abbreviation"] == "WB" for rfm in mod["referencefile_mods"]):
                     ok = True
             assert ok
 

@@ -21,7 +21,7 @@ import csv
 import hashlib
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from os import environ, path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -64,7 +64,20 @@ POSITIVE_PERMISSION_PATTERNS = (
     "permission to use images",
     "contract",
     "granted",
-    "oa",
+)
+
+# "oa" must match as a whole word so it does not match inside words
+# like "broad", "load" or "approach"
+OA_WORD_RE = re.compile(r"\boa\b")
+
+# Signals that a journal explicitly granted image display permission,
+# as opposed to merely offering open licenses on a subset of articles
+EXPLICIT_GRANT_PATTERNS = (
+    "blanket",
+    "contract",
+    "granted",
+    "publisher permission",
+    "permission to use images",
 )
 
 PERMISSION_URL_PATTERN = re.compile(
@@ -131,11 +144,7 @@ class LoadStats:
     links_updated: int = 0
     links_unchanged: int = 0
     errors: int = 0
-    failed_rows: List[FailedRow] = None
-
-    def __post_init__(self) -> None:
-        if self.failed_rows is None:
-            self.failed_rows = []
+    failed_rows: List[FailedRow] = field(default_factory=list)
 
 
 def clean(value: Optional[str]) -> str:
@@ -277,6 +286,23 @@ def has_positive_permission_signal(row: Dict[str, str], subset_can_display: bool
         if not strong_blanket_signal:
             return False
 
+    # Hybrid journals publish only a subset of articles under open licenses,
+    # so license-name signals ("creative commons", "cc by") alone do not
+    # justify blanket image display; require an explicit grant. Both the
+    # hybrid check and the grant check use the structured columns only, so a
+    # passing mention in free text (Comments, WB Acknowledgements) neither
+    # triggers nor satisfies the gate.
+    structured_values = [clean(row.get(column)) for column in MOD_PERMISSION_COLUMNS]
+    structured_values.append(clean(row.get("License type")))
+    structured_values.append(clean(row.get("Hybrid Journal")))
+    structured_text = " ".join(value.lower() for value in structured_values if value)
+    is_hybrid = "hybrid" in structured_text or clean(row.get("Hybrid Journal")).lower().startswith("yes")
+    if is_hybrid:
+        if not any(pattern in structured_text for pattern in EXPLICIT_GRANT_PATTERNS):
+            return False
+
+    if OA_WORD_RE.search(combined):
+        return True
     return any(pattern in combined for pattern in POSITIVE_PERMISSION_PATTERNS)
 
 
@@ -302,7 +328,7 @@ def detect_permission_type(row: Dict[str, str]) -> Optional[str]:
         return "Blanket Permission"
     if "contract" in combined:
         return "Contract"
-    if "oa" in combined or "open access" in combined:
+    if OA_WORD_RE.search(combined) or "open access" in combined:
         return "Open Access"
     if "granted" in combined:
         if "subset" in combined:
@@ -662,9 +688,9 @@ def update_permission_fields(permission: ImagePermissionModel, row: JournalPermi
         "permission_url": row.permission_url,
         "can_display_images": row.can_display_images,
     }
-    for field, value in desired.items():
-        if getattr(permission, field) != value:
-            setattr(permission, field, value)
+    for attr, value in desired.items():
+        if getattr(permission, attr) != value:
+            setattr(permission, attr, value)
             changed = True
     return changed
 
@@ -791,6 +817,35 @@ def upsert_permission(
     return permission
 
 
+def name_minted_by_this_loader(name: str, publisher: str) -> bool:
+    """Whether a stored permission name matches a shape this loader has ever
+    minted for this publisher: current '{publisher} - <types>', legacy
+    'Journal image permission: ...', or hashed
+    '{publisher} image permission (<sha1-8>)'. A link carrying such a name is
+    this loader's own earlier output, possibly under a since-edited license or
+    permission type, and updates must follow the rename instead of reporting
+    it as a conflict."""
+    if name.startswith("Journal image permission: "):
+        return True
+    publisher = publisher or "unknown publisher"
+    return name.startswith(f"{publisher} - ") or (
+        name.startswith(f"{publisher} image permission (") and name.endswith(")"))
+
+
+def link_is_foreign(link: ResourceImagePermissionModel, row: JournalPermissionRow) -> bool:
+    """True when the link's permission belongs neither to this row's names nor
+    to any name shape this loader mints, i.e. another loader owns the
+    (resource, range) slot. find_resource_link matches on the range only, so
+    without this check a rerun would silently repoint an alliance copyright
+    grant loaded by load_alliance_copyright_permissions.py (which refuses to
+    stack onto foreign slots from its side, SCRUM-6416)."""
+    name = link.image_permission.name if link.image_permission else None
+    if name is None or name in (
+            row.permission_name, row.legacy_permission_name, row.hashed_permission_name):
+        return False
+    return not name_minted_by_this_loader(name, row.publisher)
+
+
 def upsert_resource_link(
     db: Session,
     row: JournalPermissionRow,
@@ -800,14 +855,26 @@ def upsert_resource_link(
     apply: bool,
 ) -> None:
     image_permission_id = permission.image_permission_id if permission is not None else None
-    link = None
-    if image_permission_id is not None:
-        link = find_resource_link(
-            db,
-            resource.resource_id,
-            row.start_year,
-            row.end_year,
-        )
+    # Look the slot up even when the permission is a dry-run create (id None):
+    # otherwise a dry run reports "create link" for a slot --apply would refuse
+    # as a conflict, and the numbers curators review would not match.
+    link = find_resource_link(
+        db,
+        resource.resource_id,
+        row.start_year,
+        row.end_year,
+    )
+
+    if link is not None and link_is_foreign(link, row):
+        foreign_name = link.image_permission.name if link.image_permission else "?"
+        add_failed_row(
+            stats, row, "link conflict",
+            f"{resource.curie} ({range_label(row.start_year, row.end_year)}) already carries "
+            f"'{foreign_name}'; left untouched - resolve which grant owns the slot")
+        logger.warning(
+            f"Line {row.line_no}: link conflict, {resource.curie} "
+            f"({range_label(row.start_year, row.end_year)}) already carries '{foreign_name}'")
+        return
 
     if link is None:
         stats.links_created += 1

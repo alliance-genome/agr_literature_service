@@ -127,3 +127,58 @@ class TestPostReferenceToDb:
         mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=reference_id).first()
         assert mca.mod_id == mod_to_mod_id['ZFIN']
         assert mca.mod_corpus_sort_source == 'dqm_files'
+
+    def test_insert_authors_renumbers_duplicate_rank(self, db):  # noqa
+        """A payload with a duplicate authorRank must not violate uq_author_ref_order
+        and abort the batch commit: insert_authors renumbers author_order 1..N over the
+        authors sorted by their incoming rank."""
+        ref = ReferenceModel(curie="AGRKB:DUPRANK-1", category="research_article")
+        db.add(ref)
+        db.commit()
+        db.refresh(ref)
+
+        # two authors share authorRank 1, plus a gapped rank -- all bad data
+        author_list_from_json = [
+            {"name": "Alpha A", "firstname": "Alpha", "lastname": "A",
+             "firstinit": "A", "authorRank": 1},
+            {"name": "Beta B", "firstname": "Beta", "lastname": "B",
+             "firstinit": "B", "authorRank": 1},
+            {"name": "Gamma G", "firstname": "Gamma", "lastname": "G",
+             "firstinit": "G", "authorRank": 5},
+        ]
+
+        insert_authors(db, "PMID:DUPRANK", ref.reference_id, author_list_from_json)
+        db.commit()
+
+        rows = db.query(AuthorModel).filter_by(reference_id=ref.reference_id)\
+            .order_by(AuthorModel.author_order).all()
+        # batch not aborted: all three inserted with clean sequential 1..N ordering
+        assert [r.author_order for r in rows] == [1, 2, 3]
+        assert [r.name for r in rows] == ["Alpha A", "Beta B", "Gamma G"]
+
+    def test_insert_authors_string_rank_sorts_numerically(self, db):  # noqa
+        """DQM sometimes delivers authorRank as a string; the renumbering must sort by
+        numeric rank ("10" after "2"), not lexicographically, and store 1..N."""
+        ref = ReferenceModel(curie="AGRKB:STRRANK-1", category="research_article")
+        db.add(ref)
+        db.commit()
+        db.refresh(ref)
+
+        # string ranks out of order, including "10" which sorts before "2" lexically
+        author_list_from_json = [
+            {"name": "Ten T", "firstname": "Ten", "lastname": "T",
+             "firstinit": "T", "authorRank": "10"},
+            {"name": "Two Tw", "firstname": "Two", "lastname": "Tw",
+             "firstinit": "T", "authorRank": "2"},
+            {"name": "One O", "firstname": "One", "lastname": "O",
+             "firstinit": "O", "authorRank": "1"},
+        ]
+
+        insert_authors(db, "PMID:STRRANK", ref.reference_id, author_list_from_json)
+        db.commit()
+
+        rows = db.query(AuthorModel).filter_by(reference_id=ref.reference_id)\
+            .order_by(AuthorModel.author_order).all()
+        assert [r.author_order for r in rows] == [1, 2, 3]
+        # numeric-rank order: One(1), Two(2), Ten(10) -> stored 1,2,3
+        assert [r.name for r in rows] == ["One O", "Two Tw", "Ten T"]

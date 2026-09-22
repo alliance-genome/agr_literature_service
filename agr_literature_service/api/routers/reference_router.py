@@ -234,6 +234,9 @@ def get_reference_emails(
 ):
     """
     Get all emails associated with a given reference.
+
+    The reference can be identified by AGRKB curie, numeric reference_id,
+    PMID curie (PMID:39739753), or MOD curie (e.g. SGD:S000342424).
     """
     return reference_crud.get_reference_emails(db, curie_or_reference_id)
 

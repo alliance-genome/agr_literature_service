@@ -28,7 +28,11 @@ base_path = environ.get('XML_PATH', "")
 
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../../logging.conf')
-logging.config.fileConfig(log_file_path)
+# disable_existing_loggers=False: this module is imported (transitively) by
+# other scripts, and fileConfig's default of True silently disabled every
+# logger created before this import, e.g. file_processing_utils, which
+# swallowed the DQM download error messages in sort_dqm_json_reference_updates.
+logging.config.fileConfig(log_file_path, disable_existing_loggers=False)
 logger = logging.getLogger('literature logger')
 
 

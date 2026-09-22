@@ -16,7 +16,7 @@ from agr_literature_service.api.models import (
     ModModel,
     ReferenceModel,
     TopicEntityTagModel,
-    TopicEntityTagSourceModel,
+    TagSourceModel,
 )
 from agr_literature_service.api.schemas.cross_reference_schemas import (
     CrossReferenceSchemaPost,
@@ -40,6 +40,9 @@ PAGE_REFERENCE = "reference"
 # these papers via the TET system.
 PROTEIN_STRUCTURE_ATP = "ATP:0000091"
 DATA_NOVELTY_NOT_NEW = "ATP:0000335"
+# ATP:0000325 = "experimentally studied data" (SCRUM-5697). A PDB entry is an
+# experimentally determined structure, so the paper studied it directly.
+DATA_CONTEXT_EXPERIMENTALLY_STUDIED = "ATP:0000325"
 ECO_AUTOMATIC_ASSERTION = "ECO_0006156"
 SOURCE_METHOD = "PDB association pipeline"
 SOURCE_DATA_PROVIDER = "PDB"
@@ -175,17 +178,17 @@ def fetch_pdb_pubmed_pairs() -> Iterable[Tuple[str, str]]:
 
 
 def get_or_create_source(db: Session) -> int:
-    """Return the topic_entity_tag_source.id for the PDB pipeline, creating it if absent."""
+    """Return the tag_source.id for the PDB pipeline, creating it if absent."""
     mod = db.query(ModModel).filter_by(abbreviation=SECONDARY_DATA_PROVIDER_ABBR).one()
-    existing = db.query(TopicEntityTagSourceModel).filter_by(
+    existing = db.query(TagSourceModel).filter_by(
         source_evidence_assertion=ECO_AUTOMATIC_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
         secondary_data_provider_id=mod.mod_id,
     ).one_or_none()
     if existing:
-        return existing.topic_entity_tag_source_id
-    source = TopicEntityTagSourceModel(
+        return existing.tag_source_id
+    source = TagSourceModel(
         source_evidence_assertion=ECO_AUTOMATIC_ASSERTION,
         source_method=SOURCE_METHOD,
         data_provider=SOURCE_DATA_PROVIDER,
@@ -196,8 +199,8 @@ def get_or_create_source(db: Session) -> int:
     db.add(source)
     db.commit()
     db.refresh(source)
-    logger.info("Created PDB pipeline TET source id=%d", source.topic_entity_tag_source_id)
-    return source.topic_entity_tag_source_id
+    logger.info("Created PDB pipeline TET source id=%d", source.tag_source_id)
+    return source.tag_source_id
 
 
 def _delete_stale_xrefs(db: Session, current_curies: Set[str]) -> int:
@@ -236,7 +239,7 @@ def _delete_stale_topic_tets(
         TopicEntityTagModel.topic_entity_tag_id,
         TopicEntityTagModel.reference_id,
     ).filter(
-        TopicEntityTagModel.topic_entity_tag_source_id == source_id,
+        TopicEntityTagModel.tag_source_id == source_id,
     ).all()
     stale_ids = [
         row.topic_entity_tag_id
@@ -265,8 +268,9 @@ def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntit
     return TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
         topic=PROTEIN_STRUCTURE_ATP,
-        topic_entity_tag_source_id=source_id,
+        tag_source_id=source_id,
         data_novelty=DATA_NOVELTY_NOT_NEW,
+        data_context=DATA_CONTEXT_EXPERIMENTALLY_STUDIED,
         negated=False,
     )
 
