@@ -52,6 +52,21 @@ class TestXml2MdConvert:
             )
             assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_tei_content_rejected_under_auto(self, db):  # noqa: F811
+        """A TEI upload is rejected even with source_format=auto — the parser
+        library would still autodetect and convert it otherwise (SCRUM-5954)."""
+        tei_xml = (b'<?xml version="1.0" encoding="UTF-8"?>\n'
+                   b'<TEI xmlns="http://www.tei-c.org/ns/1.0">'
+                   b'<text><body><p>x</p></body></text></TEI>')
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/convert",
+                files={"file": ("test.xml", tei_xml, "text/xml")},
+            )
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "no longer supported" in resp.text.lower()
+
     def test_convert_explicit_jats_format(self, db):  # noqa: F811
         """Explicit source_format=jats works."""
         p1, p2 = _bypass_auth()

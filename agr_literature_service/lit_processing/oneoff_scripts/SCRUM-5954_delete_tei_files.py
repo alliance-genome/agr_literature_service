@@ -8,10 +8,18 @@ they are still the current full text for their references.
 
 !!! STOP DEBEZIUM BEFORE RUNNING WITH --execute !!!
 Deleting ~297k rows floods the CDC stream. Stop the debezium connector
-containers (agr.literature.build.dbz.*) first and restart them afterwards.
+containers (agr.literature.build.dbz.*) first. Mind the restart mode:
+restarting from the saved WAL offset REPLAYS all the deletes (the stop only
+postpones the flood), while re-creating the connector with a fresh snapshot
+never conveys deletes downstream — so if referencefile data lives in the
+search index, plan an index rebuild rather than relying on CDC either way.
+Confirm the intended restart procedure before running.
 
 Default is a dry run (prints counts, deletes nothing). Pass --execute to
-delete, optionally --limit N for a trial slice.
+delete, optionally --limit N for a trial slice. NOTE a --limit run deletes
+the shared S3 object of any out-of-slice TEI row that shares an md5sum with
+an in-slice row (the out-of-slice DB row survives, its object doesn't) —
+always finish with a full run so no such orphans are left behind.
 
 Safety rails:
 - An S3 object (keyed by md5sum) is deleted only when NO surviving row —
@@ -56,6 +64,22 @@ def fetch_embedding_source_ids(db):
     return {row[0] for row in rows}
 
 
+def fetch_embedding_source_md5sums(db):
+    """md5sums of ALL embedding-source TEI rows, not just the --limit slice.
+
+    Computed over the whole table so a trial run cannot delete the S3 object
+    of a protected row that sits outside the slice but shares an md5sum with
+    a deletable row inside it.
+    """
+    rows = db.execute(text("""
+        SELECT DISTINCT rf.md5sum
+        FROM referencefile rf
+        JOIN embedding_file ef ON ef.source_referencefile_id = rf.referencefile_id
+        WHERE rf.file_class = 'tei' AND rf.file_extension = 'tei'
+    """)).fetchall()
+    return {row[0] for row in rows}
+
+
 def fetch_md5sums_still_referenced(db):
     """md5sums shared with any non-TEI row: their S3 objects must survive."""
     rows = db.execute(text("""
@@ -85,10 +109,10 @@ def delete_tei_files(execute: bool, limit: int = 0):
 
     embedding_sources = fetch_embedding_source_ids(db)
     keep_md5sums = fetch_md5sums_still_referenced(db)
-    # md5sums of skipped TEI rows must survive too
-    keep_md5sums.update(
-        md5sum for rf_id, md5sum in tei_rows if rf_id in embedding_sources
-    )
+    # md5sums of skipped (embedding-source) TEI rows must survive too — over
+    # the WHOLE table, not the slice, or --limit could delete the object of a
+    # protected row outside the slice that shares an md5sum with one inside.
+    keep_md5sums.update(fetch_embedding_source_md5sums(db))
 
     delete_ids = [rf_id for rf_id, _ in tei_rows if rf_id not in embedding_sources]
     delete_keys = list({

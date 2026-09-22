@@ -95,6 +95,16 @@ async def convert_xml_to_md(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
         )
 
+    # TEI support is retired (SCRUM-5954). The 'tei' source_format option is
+    # gone, but agr_abc_document_parsers' autodetection would still convert a
+    # TEI upload under 'auto' — reject it here so the retirement is real.
+    head = xml_content[:4096]
+    if b"tei-c.org" in head or b"<TEI" in head:
+        return PlainTextResponse(
+            content="TEI input is no longer supported.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
     try:
         markdown = await asyncio.to_thread(
             convert_xml_to_markdown, xml_content, source_format
