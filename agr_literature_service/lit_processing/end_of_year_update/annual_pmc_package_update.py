@@ -740,26 +740,6 @@ def destroy_file(db, pmid, file_name, md5sum, file_class, pmids_for_retracted_pa
         else:
             logger.info(f"{pmid}: removing main PDF ({file_name}) for a non-retracted paper.")
 
-        # remove tei file if it exists
-        tei_display_name = file_name.replace(".pdf", "")
-        teiRefFile = (
-            db.query(ReferencefileModel)
-            .join(
-                CrossReferenceModel,
-                ReferencefileModel.reference_id == CrossReferenceModel.reference_id,
-            )
-            .filter(
-                CrossReferenceModel.curie == pmid,
-                CrossReferenceModel.curie_prefix == "PMID",
-                ReferencefileModel.display_name == tei_display_name,
-                ReferencefileModel.file_extension == "tei"
-            )
-            .one_or_none()
-        )
-        if teiRefFile:
-            logger.info(f"{pmid}: removing tei file ({tei_display_name}.tei)")
-            remove_from_s3_and_db(db, teiRefFile)
-
         try:
             cleanup_wft_tet_tags_for_deleted_main_pdf(db, referencefile.reference_id, [], 'all_access')
         except HTTPException as e:

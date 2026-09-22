@@ -2,17 +2,15 @@
 Extract author emails from Markdown reference files.
 
 The script reads the ABC-format Markdown produced by the conversion pipeline
-(``file_class='converted_merged_main'``, ``file_extension='md'``) and falls
-back to converting the TEI in-process via
-``agr_abc_document_parsers.convert_xml_to_markdown`` when no main MD file is
-available yet. Sub-articles are excluded from the extracted plain text.
+(``file_class='converted_merged_main'``, ``file_extension='md'``).
+Sub-articles are excluded from the extracted plain text.
 
 Two modes:
-  1) streaming (default): download file bytes -> convert if needed -> extract -> load
+  1) streaming (default): download file bytes -> extract -> load
   2) files: optionally download MD files to disk first, then read files -> extract -> load
 
-Selection: for papers with "email extraction needed" tag AND have either a
-converted_merged_main MD file or a TEI file we can convert.
+Selection: for papers with "email extraction needed" tag AND a
+converted_merged_main MD file.
 """
 
 import os
@@ -24,7 +22,6 @@ from typing import Dict, List, Optional, Set, Tuple
 from sqlalchemy import text
 
 from agr_abc_document_parsers import (
-    convert_xml_to_markdown,
     extract_plain_text,
     read_markdown,
 )
@@ -395,15 +392,13 @@ def _md_bytes_to_plain_text(md_bytes: bytes) -> str:
 
 
 # ----------------------------------------------------------------------
-# DB mapping (workflow-tag-based, MD preferred with TEI fallback)
+# DB mapping (workflow-tag-based)
 # ----------------------------------------------------------------------
-def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[Optional[int], Optional[int], int, str]]:
+def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[int, int, str]]:
     """
-    curie -> (md_referencefile_id, tei_referencefile_id, reference_id, mod_abbreviation)
+    curie -> (md_referencefile_id, reference_id, mod_abbreviation)
 
-    Returns one row per (reference, mod) carrying the lowest-id main MD file
-    and/or the lowest-id TEI file. Callers prefer MD and fall back to TEI on
-    a per-curie basis.
+    Returns one row per (reference, mod) carrying the lowest-id main MD file.
     """
     rows = db.execute(
         text(
@@ -412,25 +407,14 @@ def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[Optional[int], Optional[
               r.curie,
               r.reference_id,
               m.abbreviation,
-              MIN(CASE
-                    WHEN rf.file_class = 'converted_merged_main'
-                     AND rf.file_extension = 'md'
-                    THEN rf.referencefile_id
-                  END) AS md_referencefile_id,
-              MIN(CASE
-                    WHEN rf.file_class = 'tei'
-                     AND rf.file_extension = 'tei'
-                    THEN rf.referencefile_id
-                  END) AS tei_referencefile_id
+              MIN(rf.referencefile_id) AS md_referencefile_id
             FROM reference r
             JOIN workflow_tag wft ON wft.reference_id = r.reference_id
             JOIN mod m ON m.mod_id = wft.mod_id
             JOIN referencefile rf ON rf.reference_id = r.reference_id
             WHERE wft.workflow_tag_id = :email_extraction_needed
-              AND (
-                    (rf.file_class = 'converted_merged_main' AND rf.file_extension = 'md')
-                 OR (rf.file_class = 'tei' AND rf.file_extension = 'tei')
-                  )
+              AND rf.file_class = 'converted_merged_main'
+              AND rf.file_extension = 'md'
             GROUP BY r.curie, r.reference_id, m.abbreviation
             """
         ),
@@ -438,8 +422,8 @@ def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[Optional[int], Optional[
     ).fetchall()
 
     return {
-        curie: (md_id, tei_id, ref_id, mod)
-        for curie, ref_id, mod, md_id, tei_id in rows
+        curie: (md_id, ref_id, mod)
+        for curie, ref_id, mod, md_id in rows
     }
 
 
@@ -467,85 +451,56 @@ def _md_path(md_dir: str, curie: str) -> str:
 def _fetch_md_bytes_via_db(
     db,
     md_referencefile_id: Optional[int],
-    tei_referencefile_id: Optional[int],
     curie: str,
 ) -> Optional[bytes]:
-    """Return Markdown bytes for ``curie``: prefer the main MD file, otherwise
-    download the TEI and convert in-process. Returns None when neither yields
-    usable content.
+    """Return Markdown bytes for ``curie`` from the main MD file, or None when
+    it yields no usable content.
     """
-    if md_referencefile_id is not None:
-        try:
-            blob = download_file(
-                db=db,
-                referencefile_id=md_referencefile_id,
-                mod_access=ModAccess.ALL_ACCESS,
-                use_in_api=False,
-            )
-            if blob:
-                return blob
-            logger.warning(
-                "Main MD entry exists but download returned empty for %s "
-                "(referencefile_id=%s); will try TEI fallback",
-                curie,
-                md_referencefile_id,
-            )
-        except Exception:
-            logger.exception(
-                "Main MD download failed for %s (referencefile_id=%s); "
-                "will try TEI fallback",
-                curie,
-                md_referencefile_id,
-            )
-
-    if tei_referencefile_id is None:
+    if md_referencefile_id is None:
         return None
-
     try:
-        tei_blob = download_file(
+        blob = download_file(
             db=db,
-            referencefile_id=tei_referencefile_id,
+            referencefile_id=md_referencefile_id,
             mod_access=ModAccess.ALL_ACCESS,
             use_in_api=False,
         )
-        if not tei_blob:
-            logger.error(
-                "TEI download returned empty for %s (referencefile_id=%s)",
-                curie,
-                tei_referencefile_id,
-            )
-            return None
-        md_text = convert_xml_to_markdown(tei_blob, "tei")
-        return md_text.encode("utf-8")
+        if blob:
+            return blob
+        logger.warning(
+            "Main MD entry exists but download returned empty for %s "
+            "(referencefile_id=%s)",
+            curie,
+            md_referencefile_id,
+        )
     except Exception:
         logger.exception(
-            "TEI->MD conversion failed for %s (referencefile_id=%s)",
+            "Main MD download failed for %s (referencefile_id=%s)",
             curie,
-            tei_referencefile_id,
+            md_referencefile_id,
         )
-        return None
+    return None
 
 
 def download_md_files_first(
     md_dir: str,
-    mapping: Dict[str, Tuple[Optional[int], Optional[int], int, str]],
+    mapping: Dict[str, Tuple[int, int, str]],
     overwrite: bool = False,
 ) -> None:
     """
-    Downloads main MD files to disk for all curies in mapping. Falls back to
-    converting TEI to MD in-process when no main MD row is available.
+    Downloads main MD files to disk for all curies in mapping.
     """
     _safe_mkdir(md_dir)
 
     db = create_postgres_session(False)
     try:
-        for curie, (md_id, tei_id, _ref_id, _mod) in mapping.items():
+        for curie, (md_id, _ref_id, _mod) in mapping.items():
             out_path = _md_path(md_dir, curie)
 
             if (not overwrite) and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 continue
 
-            md_bytes = _fetch_md_bytes_via_db(db, md_id, tei_id, curie)
+            md_bytes = _fetch_md_bytes_via_db(db, md_id, curie)
             if md_bytes is None:
                 logger.error("Could not obtain MD bytes for %s", curie)
                 continue
@@ -572,7 +527,7 @@ def download_md_files_first(
 # Processing implementations
 # ----------------------------------------------------------------------
 def process_and_load_streaming(
-    mapping: Dict[str, Tuple[Optional[int], Optional[int], int, str]],
+    mapping: Dict[str, Tuple[int, int, str]],
     exclude_list: List[str],
     print_suspicious: bool,
     batch_size: int,
@@ -586,19 +541,18 @@ def process_and_load_streaming(
     count = 0
 
     try:
-        for curie, (md_id, tei_id, ref_id, mod) in mapping.items():
+        for curie, (md_id, ref_id, mod) in mapping.items():
             count += 1
 
             try:
-                md_bytes = _fetch_md_bytes_via_db(db, md_id, tei_id, curie)
+                md_bytes = _fetch_md_bytes_via_db(db, md_id, curie)
                 if md_bytes is None:
                     transition_workflow(db, ref_id, mod, failed_tag)
                     db.commit()
                     logger.error(
-                        "No usable MD/TEI content for %s (md_id=%s tei_id=%s)",
+                        "No usable MD content for %s (md_id=%s)",
                         curie,
                         md_id,
-                        tei_id,
                     )
                     continue
 
@@ -616,10 +570,9 @@ def process_and_load_streaming(
             except Exception as e:
                 db.rollback()
                 logger.exception(
-                    "Error processing/loading %s (md_id=%s tei_id=%s): %s",
+                    "Error processing/loading %s (md_id=%s): %s",
                     curie,
                     md_id,
-                    tei_id,
                     str(e),
                 )
                 # best effort: mark failed
@@ -652,7 +605,7 @@ def process_and_load_streaming(
 
 def process_and_load_from_files(
     md_dir: str,
-    mapping: Dict[str, Tuple[Optional[int], Optional[int], int, str]],
+    mapping: Dict[str, Tuple[int, int, str]],
     exclude_list: List[str],
     print_suspicious: bool,
     batch_size: int,
@@ -667,7 +620,7 @@ def process_and_load_from_files(
     count = 0
 
     try:
-        for curie, (_md_id, _tei_id, ref_id, mod) in mapping.items():
+        for curie, (_md_id, ref_id, mod) in mapping.items():
             count += 1
 
             path = _md_path(md_dir, curie)
@@ -799,7 +752,7 @@ def main() -> None:
     # Exclude list (FB handled by blocked sets)
     exclude_list: List[str] = []
 
-    # Build mapping once (workflow-tag + MD/TEI candidates)
+    # Build mapping once (workflow-tag + MD candidates)
     db = create_postgres_session(False)
     try:
         mapping = get_agrkb_md_reffile_mapping(db)

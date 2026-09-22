@@ -64,17 +64,17 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
     summary="Convert XML to Markdown",
     description=(
-        "Convert a GROBID TEI XML or PMC nXML/JATS file to docling-style Markdown. "
+        "Convert a PMC nXML/JATS file to docling-style Markdown. "
         "Set source_format to 'auto' (default) for autodetection, "
-        "or explicitly to 'tei' or 'jats'. "
+        "or explicitly to 'jats'. "
         "Set output_format to 'html' to get rendered Markdown (useful for Swagger preview)."
     ),
 )
 async def convert_xml_to_md(
-    file: UploadFile = File(..., description="XML file to convert (TEI or JATS/nXML)"),
-    source_format: Literal["auto", "tei", "jats"] = Query(
+    file: UploadFile = File(..., description="XML file to convert (JATS/nXML)"),
+    source_format: Literal["auto", "jats"] = Query(
         "auto",
-        description="Source format: 'auto' (autodetect), 'tei', or 'jats'",
+        description="Source format: 'auto' (autodetect) or 'jats'",
     ),
     output_format: Literal["md", "html"] = Query(
         "md",
