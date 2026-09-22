@@ -98,8 +98,14 @@ async def convert_xml_to_md(
     # TEI support is retired (SCRUM-5954). The 'tei' source_format option is
     # gone, but agr_abc_document_parsers' autodetection would still convert a
     # TEI upload under 'auto' — reject it here so the retirement is real.
-    head = xml_content[:4096]
-    if b"tei-c.org" in head or b"<TEI" in head:
+    # Sniff the root element name (first tag that is not the XML declaration,
+    # a comment, or a doctype): TEI documents root at <TEI> or <teiCorpus>.
+    # A JATS article that merely mentions TEI in its text is not affected.
+    root = re.search(
+        rb"<(?![?!])\s*(?:[A-Za-z_][\w.\-]*:)?([A-Za-z_][\w.\-]*)",
+        xml_content[:4096],
+    )
+    if root and root.group(1).lower() in (b"tei", b"teicorpus"):
         return PlainTextResponse(
             content="TEI input is no longer supported.",
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
