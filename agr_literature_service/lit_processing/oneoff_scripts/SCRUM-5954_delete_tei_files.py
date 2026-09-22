@@ -18,16 +18,22 @@ Safety rails:
   non-TEI, or a TEI row excluded below — still references that md5sum.
 - TEI rows that are the source of embeddings (embedding_file.
   source_referencefile_id) are skipped and reported instead of deleted.
-- Rows are deleted through the ORM in batches so referencefile_mod children
-  and version records are handled normally.
+
+Deletion is batched for throughput (a per-row ORM pass measured ~1.6s/row):
+S3 objects go through delete_objects (1000 keys per request, idempotent on
+already-missing keys) and rows through bulk DELETE ... = ANY(:ids). Every FK
+referencing referencefile (referencefile_mod, embedding_file) is ON DELETE
+CASCADE at the DB level, so children go with their rows. Version-table
+records are not written for these deletes — acceptable for a mass cleanup
+of dead artifacts.
 """
 import argparse
 import logging
 
-from fastapi import HTTPException
+import boto3
 from sqlalchemy import text
 
-from agr_literature_service.api.crud.referencefile_utils import remove_file_from_s3
+from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
 from agr_literature_service.api.models import ReferencefileModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -35,7 +41,8 @@ logging.basicConfig(format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-BATCH_SIZE = 500
+S3_BATCH_SIZE = 1000   # delete_objects hard limit
+DB_BATCH_SIZE = 5000
 
 
 def fetch_embedding_source_ids(db):
@@ -58,59 +65,75 @@ def fetch_md5sums_still_referenced(db):
     return {row[0] for row in rows}
 
 
+def s3_key_for_md5sum(md5sum: str) -> str:
+    return f"{get_s3_folder_from_md5sum(md5sum)}/{md5sum}.gz"
+
+
 def delete_tei_files(execute: bool, limit: int = 0):
     db = create_postgres_session(False)
 
-    tei_rows = db.query(ReferencefileModel).filter(
+    query = db.query(
+        ReferencefileModel.referencefile_id,
+        ReferencefileModel.md5sum,
+    ).filter(
         ReferencefileModel.file_class == "tei",
         ReferencefileModel.file_extension == "tei",
     ).order_by(ReferencefileModel.referencefile_id)
     if limit:
-        tei_rows = tei_rows.limit(limit)
-    tei_rows = tei_rows.all()
+        query = query.limit(limit)
+    tei_rows = query.all()
 
     embedding_sources = fetch_embedding_source_ids(db)
     keep_md5sums = fetch_md5sums_still_referenced(db)
     # md5sums of skipped TEI rows must survive too
     keep_md5sums.update(
-        row.md5sum for row in tei_rows if row.referencefile_id in embedding_sources
+        md5sum for rf_id, md5sum in tei_rows if rf_id in embedding_sources
     )
 
+    delete_ids = [rf_id for rf_id, _ in tei_rows if rf_id not in embedding_sources]
+    delete_keys = list({
+        s3_key_for_md5sum(str(md5sum))
+        for rf_id, md5sum in tei_rows
+        if rf_id not in embedding_sources and md5sum not in keep_md5sums
+    })
+
     logger.info(f"TEI rows selected: {len(tei_rows)}")
-    logger.info(f"  skipped (embedding source): {len(embedding_sources)}")
+    logger.info(f"  skipped (embedding source): {len(tei_rows) - len(delete_ids)}")
+    logger.info(f"  rows to delete: {len(delete_ids)}, S3 objects to delete: {len(delete_keys)}")
     if not execute:
-        s3_deletable = {
-            row.md5sum for row in tei_rows
-            if row.referencefile_id not in embedding_sources
-            and row.md5sum not in keep_md5sums
-        }
-        logger.info(f"  DRY RUN: would delete {len(tei_rows) - len(embedding_sources)} "
-                    f"rows and {len(s3_deletable)} S3 objects")
+        logger.info("  DRY RUN: nothing deleted")
         return
 
-    deleted_rows = 0
+    # S3 first: a re-run after a crash re-selects the surviving rows and
+    # re-issues the (idempotent) object deletes.
+    s3_client = boto3.client("s3")
     deleted_objects = 0
-    removed_md5sums = set()
-    for i, row in enumerate(tei_rows, start=1):
-        if row.referencefile_id in embedding_sources:
-            logger.info(f"SKIP embedding source: referencefile_id={row.referencefile_id} "
-                        f"({row.display_name}.tei)")
-            continue
-        if row.md5sum not in keep_md5sums and row.md5sum not in removed_md5sums:
-            try:
-                remove_file_from_s3(str(row.md5sum))
-                deleted_objects += 1
-            except HTTPException:
-                # Object already gone from S3 — still drop the DB row.
-                logger.warning(f"S3 object missing for md5sum={row.md5sum} "
-                               f"(referencefile_id={row.referencefile_id})")
-            removed_md5sums.add(row.md5sum)
-        db.delete(row)
-        deleted_rows += 1
-        if i % BATCH_SIZE == 0:
-            db.commit()
-            logger.info(f"  progress: {i}/{len(tei_rows)} rows processed")
-    db.commit()
+    for i in range(0, len(delete_keys), S3_BATCH_SIZE):
+        chunk = delete_keys[i:i + S3_BATCH_SIZE]
+        resp = s3_client.delete_objects(
+            Bucket="agr-literature",
+            Delete={"Objects": [{"Key": key} for key in chunk], "Quiet": True},
+        )
+        errors = resp.get("Errors", [])
+        deleted_objects += len(chunk) - len(errors)
+        for err in errors:
+            logger.warning(f"S3 delete failed: {err.get('Key')} — "
+                           f"{err.get('Code')}: {err.get('Message')}")
+        logger.info(f"  S3 progress: {min(i + S3_BATCH_SIZE, len(delete_keys))}"
+                    f"/{len(delete_keys)} objects")
+
+    deleted_rows = 0
+    for i in range(0, len(delete_ids), DB_BATCH_SIZE):
+        chunk = delete_ids[i:i + DB_BATCH_SIZE]
+        result = db.execute(
+            text("DELETE FROM referencefile WHERE referencefile_id = ANY(:ids)"),
+            {"ids": chunk},
+        )
+        db.commit()
+        deleted_rows += result.rowcount
+        logger.info(f"  DB progress: {min(i + DB_BATCH_SIZE, len(delete_ids))}"
+                    f"/{len(delete_ids)} rows")
+
     logger.info(f"Done. Deleted {deleted_rows} referencefile rows and "
                 f"{deleted_objects} S3 objects.")
 
