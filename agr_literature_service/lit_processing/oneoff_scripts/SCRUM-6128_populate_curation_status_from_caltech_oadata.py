@@ -33,6 +33,12 @@ Row mapping (per winning entry):
   date_created     <- curator_timestamp              (TSV column 10, parsed to UTC)
   date_updated     <- curator_timestamp
 
+SCRUM-6518: each inserted base row also gets one curation_status_source_association
+to the tag_source looked up (never created) by source_method='ontology_annotator',
+data_provider='WB', secondary_data_provider_id=<WB mod>, and
+validation_type='professional_biocurator'. The association carries the same
+status/tag/note and the same curator/timestamp as the base row.
+
 The audit fields are set explicitly so the original curator and timestamp are
 preserved: AuditedModel.before_insert only fills date/user fields when they are
 None, and it auto-creates the referenced created_by/updated_by users.
@@ -81,8 +87,10 @@ from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.models import (
     CrossReferenceModel,
     CurationStatusModel,
+    CurationStatusSourceAssociationModel,
     ModModel,
     ReferenceModel,
+    TagSourceModel,
 )
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -98,6 +106,13 @@ IN_PROGRESS = "ATP:0000237"       # 'curation in progress'
 CURATION_TAG = "ATP:0000227"      # 'curatable'
 MOD_ABBREVIATION = "WB"
 WB_CURIE_PREFIX = "WB"
+
+# SCRUM-6518: every inserted curation_status row gets one source association to
+# the tag_source identified by these parameters (looked up, never created).
+# secondary_data_provider_id is the WB mod_id, resolved at run time.
+SOURCE_METHOD = "ontology_annotator"
+SOURCE_DATA_PROVIDER = "WB"
+SOURCE_VALIDATION_TYPE = "professional_biocurator"
 
 STATUS_LABEL = {CURATED: "curated", IN_PROGRESS: "curation-in-progress"}
 
@@ -221,6 +236,35 @@ def resolve_references(db, curies):
     return result
 
 
+def resolve_tag_source_id(db, wb_mod_id):
+    """Look up (never create) the tag_source for this load's attribution.
+
+    Keyed by source_method / data_provider / secondary_data_provider_id /
+    validation_type; expects exactly one match. Raises if 0 or >1 so a missing
+    or ambiguous source fails loudly rather than silently mis-attributing.
+    """
+    matches = (
+        db.query(TagSourceModel.tag_source_id,
+                 TagSourceModel.source_evidence_assertion)
+        .filter(
+            TagSourceModel.source_method == SOURCE_METHOD,
+            TagSourceModel.data_provider == SOURCE_DATA_PROVIDER,
+            TagSourceModel.secondary_data_provider_id == wb_mod_id,
+            TagSourceModel.validation_type == SOURCE_VALIDATION_TYPE,
+        )
+        .all()
+    )
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected exactly 1 tag_source for source_method={SOURCE_METHOD}, "
+            f"data_provider={SOURCE_DATA_PROVIDER}, secondary={wb_mod_id}, "
+            f"validation_type={SOURCE_VALIDATION_TYPE}; found {len(matches)}"
+        )
+    tag_source_id, sea = matches[0]
+    logger.info(f"tag_source_id: {tag_source_id} (source_evidence_assertion={sea})")
+    return tag_source_id
+
+
 def classify(db, rows, topics):
     """Collapse + resolve + classify. Returns
     (wb_mod_id, records, not_found_rows, filtered_out).
@@ -276,13 +320,19 @@ def classify(db, rows, topics):
     return wb_mod_id, records, not_found_rows, filtered_out
 
 
-def run_populate(db, wb_mod_id, records, not_found_rows, filtered_out, commit):
-    """Insert curation_status rows for the 'new' records (only when commit)."""
+def run_populate(db, wb_mod_id, tag_source_id, records, not_found_rows,
+                 filtered_out, commit):
+    """Insert curation_status rows for the 'new' records (only when commit).
+
+    Each new base row also gets one source association to tag_source_id carrying
+    the same status/tag/note (SCRUM-6518), with the same curator/timestamp.
+    """
     inserted = 0
     for record in records:
         if record["classification"] != "new":
             continue
         if commit:
+            curator = record["curator"] or None
             db.add(CurationStatusModel(
                 topic=record["topic"],
                 reference_id=record["reference_id"],
@@ -290,10 +340,20 @@ def run_populate(db, wb_mod_id, records, not_found_rows, filtered_out, commit):
                 curation_status=record["status"],
                 curation_tag=CURATION_TAG,
                 note=None,
-                created_by=record["curator"] or None,
-                updated_by=record["curator"] or None,
+                created_by=curator,
+                updated_by=curator,
                 date_created=record["ts"],
                 date_updated=record["ts"],
+                source_associations=[CurationStatusSourceAssociationModel(
+                    tag_source_id=tag_source_id,
+                    curation_status=record["status"],
+                    curation_tag=CURATION_TAG,
+                    note=None,
+                    created_by=curator,
+                    updated_by=curator,
+                    date_created=record["ts"],
+                    date_updated=record["ts"],
+                )],
             ))
             if (inserted + 1) % BATCH_COMMIT_SIZE == 0:
                 db.commit()
@@ -319,7 +379,7 @@ def run_populate(db, wb_mod_id, records, not_found_rows, filtered_out, commit):
 
 
 def run_report(total_rows, records, not_found_rows, filtered_out, topics_display,
-               output_file):
+               tag_source_id, output_file):
     """Write a read-only detailed report grouped by ATP topic."""
     by_topic = defaultdict(list)
     for record in records:
@@ -335,6 +395,8 @@ def run_report(total_rows, records, not_found_rows, filtered_out, topics_display
         out.write(f"source TSV : {TSV_URL}\n")
         out.write("tag        : curation_tag=ATP:0000227 (curatable); status from the file\n")
         out.write("tie-break  : prefer curated (ATP:0000239); earliest timestamp of winner\n")
+        out.write(f"tag_source : {tag_source_id} (source_method={SOURCE_METHOD}, "
+                  f"validation_type={SOURCE_VALIDATION_TYPE}); attached to each new row\n")
         out.write("mode       : report (read-only; no database writes)\n")
         out.write(f"topics     : {topics_display}\n\n")
         out.write("=== SUMMARY ===\n")
@@ -378,11 +440,13 @@ def main(mode, commit, output_file, topics):
     db = create_postgres_session(False)
     try:
         wb_mod_id, records, not_found_rows, filtered_out = classify(db, rows, topics)
+        tag_source_id = resolve_tag_source_id(db, wb_mod_id)
         if mode == "report":
             run_report(len(rows), records, not_found_rows, filtered_out,
-                       topics_display, output_file)
+                       topics_display, tag_source_id, output_file)
         else:
-            run_populate(db, wb_mod_id, records, not_found_rows, filtered_out, commit)
+            run_populate(db, wb_mod_id, tag_source_id, records, not_found_rows,
+                         filtered_out, commit)
     except Exception as e:
         db.rollback()
         logger.error(f"error during {mode}, rolled back: {e}")
