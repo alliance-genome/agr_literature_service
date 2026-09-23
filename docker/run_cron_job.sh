@@ -46,10 +46,13 @@ emit() {
     fi
 }
 
-HOST="$(hostname)"
+# Not HOST: docker-compose.yaml:221 injects an exported HOST into this
+# container, and reassigning it would pass the mutated value down to every
+# wrapped job. HOSTNAME is set by bash itself.
+JOB_HOST="${HOSTNAME:-$(hostname)}"
 
 if [ "$#" -lt 2 ]; then
-    emit 2 "ABC-JOB-FAILED job=unknown exit=64 host=${HOST} reason=usage" \
+    emit 2 "ABC-JOB-FAILED job=unknown exit=64 host=${JOB_HOST} reason=usage" \
         "usage: $(basename "$0") <job-name> <command> [args...]"
     exit 0
 fi
@@ -60,7 +63,7 @@ shift
 # The job name becomes a filename and a line prefix; keep it to safe characters.
 SAFE_JOB_NAME="${JOB_NAME//[^A-Za-z0-9._-]/_}"
 if [ "$SAFE_JOB_NAME" != "$JOB_NAME" ]; then
-    emit 2 "ABC-JOB-FAILED job=${SAFE_JOB_NAME} exit=64 host=${HOST} reason=bad-job-name" \
+    emit 2 "ABC-JOB-FAILED job=${SAFE_JOB_NAME} exit=64 host=${JOB_HOST} reason=bad-job-name" \
         "job name '${JOB_NAME}' contains unsupported characters"
     exit 0
 fi
@@ -77,9 +80,9 @@ STATUS=$?
 DURATION=$SECONDS
 
 if [ "$STATUS" -eq 0 ]; then
-    emit 1 "ABC-JOB-OK job=${JOB_NAME} exit=0 duration=${DURATION}s host=${HOST}"
+    emit 1 "ABC-JOB-OK job=${JOB_NAME} exit=0 duration=${DURATION}s host=${JOB_HOST}"
 else
-    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=${STATUS} duration=${DURATION}s host=${HOST} log=${LOG_FILE}"
+    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=${STATUS} duration=${DURATION}s host=${JOB_HOST} log=${LOG_FILE}"
     if [ -s "$LOG_FILE" ]; then
         emit 2 "$(tail -n "$TAIL_LINES" "$LOG_FILE" | sed -e "s|^|${JOB_NAME}\| |")"
     fi

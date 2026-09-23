@@ -104,6 +104,25 @@ def test_log_file_is_truncated_each_run(run_wrapper):
     assert "first-run" not in log_text
 
 
+def test_wrapper_does_not_mutate_the_job_environment(run_wrapper, tmp_path):
+    """The wrapped job must see the environment the container configured.
+
+    docker-compose.yaml:221 injects an exported HOST into automated_scripts, so
+    a wrapper variable named HOST would be inherited by all 33 jobs with the
+    container id in place of the configured value.
+    """
+    probe = tmp_path / "probe.sh"
+    probe.write_text('env | grep -E "^HOST=" || echo "HOST unset"\n')
+
+    _proc, _out, _err, log_dir = run_wrapper(
+        ["envprobe", "bash", str(probe)],
+        env_extra={"HOST": "https://literature.alliancegenome.org"},
+    )
+
+    assert (log_dir / "envprobe.log").read_text().strip() == \
+        "HOST=https://literature.alliancegenome.org"
+
+
 def test_missing_command_is_reported_not_silently_skipped(run_wrapper):
     proc, _out, err, _log_dir = run_wrapper(["selftest_only_name"])
 
