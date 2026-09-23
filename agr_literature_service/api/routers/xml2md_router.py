@@ -64,17 +64,17 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
     summary="Convert XML to Markdown",
     description=(
-        "Convert a GROBID TEI XML or PMC nXML/JATS file to docling-style Markdown. "
+        "Convert a PMC nXML/JATS file to docling-style Markdown. "
         "Set source_format to 'auto' (default) for autodetection, "
-        "or explicitly to 'tei' or 'jats'. "
+        "or explicitly to 'jats'. "
         "Set output_format to 'html' to get rendered Markdown (useful for Swagger preview)."
     ),
 )
 async def convert_xml_to_md(
-    file: UploadFile = File(..., description="XML file to convert (TEI or JATS/nXML)"),
-    source_format: Literal["auto", "tei", "jats"] = Query(
+    file: UploadFile = File(..., description="XML file to convert (JATS/nXML)"),
+    source_format: Literal["auto", "jats"] = Query(
         "auto",
-        description="Source format: 'auto' (autodetect), 'tei', or 'jats'",
+        description="Source format: 'auto' (autodetect) or 'jats'",
     ),
     output_format: Literal["md", "html"] = Query(
         "md",
@@ -93,6 +93,22 @@ async def convert_xml_to_md(
         return PlainTextResponse(
             content="File too large (max 10 MB)",
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+
+    # TEI support is retired (SCRUM-5954). The 'tei' source_format option is
+    # gone, but agr_abc_document_parsers' autodetection would still convert a
+    # TEI upload under 'auto' — reject it here so the retirement is real.
+    # Sniff the root element name (first tag that is not the XML declaration,
+    # a comment, or a doctype): TEI documents root at <TEI> or <teiCorpus>.
+    # A JATS article that merely mentions TEI in its text is not affected.
+    root = re.search(
+        rb"<(?![?!])\s*(?:[A-Za-z_][\w.\-]*:)?([A-Za-z_][\w.\-]*)",
+        xml_content[:4096],
+    )
+    if root and root.group(1).lower() in (b"tei", b"teicorpus"):
+        return PlainTextResponse(
+            content="TEI input is no longer supported.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
     try:

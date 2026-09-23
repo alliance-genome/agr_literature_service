@@ -8,21 +8,6 @@ from agr_literature_service.api import auth as auth_module
 from agr_literature_service.api.main import app
 from ..fixtures import db  # noqa
 
-# Minimal valid TEI XML
-MINIMAL_TEI = b"""\
-<?xml version="1.0" encoding="UTF-8"?>
-<TEI xmlns="http://www.tei-c.org/ns/1.0">
-  <teiHeader><fileDesc>
-    <titleStmt><title level="a" type="main">Test Title</title></titleStmt>
-    <publicationStmt><publisher/></publicationStmt>
-    <sourceDesc><biblStruct><monogr>
-      <imprint><date/></imprint>
-    </monogr></biblStruct></sourceDesc>
-  </fileDesc><profileDesc/></teiHeader>
-  <text><body><div><head>Intro</head><p>Hello world.</p></div></body></text>
-</TEI>
-"""
-
 # Minimal valid JATS XML
 MINIMAL_JATS = b"""\
 <?xml version="1.0" encoding="UTF-8"?>
@@ -44,19 +29,6 @@ def _bypass_auth():
 class TestXml2MdConvert:
     """Tests for POST /xml2md/convert endpoint."""
 
-    def test_convert_tei_auto_detect(self, db):  # noqa: F811
-        """TEI XML auto-detected and converted to Markdown."""
-        p1, p2 = _bypass_auth()
-        with p1, p2, TestClient(app) as client:
-            resp = client.post(
-                "/xml2md/convert",
-                files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
-            )
-            assert resp.status_code == status.HTTP_200_OK
-            assert resp.headers["content-type"] == "text/markdown; charset=utf-8"
-            assert "# Test Title" in resp.text
-            assert "Hello world." in resp.text
-
     def test_convert_jats_auto_detect(self, db):  # noqa: F811
         """JATS XML auto-detected and converted to Markdown."""
         p1, p2 = _bypass_auth()
@@ -66,19 +38,54 @@ class TestXml2MdConvert:
                 files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
             assert resp.status_code == status.HTTP_200_OK
+            assert resp.headers["content-type"] == "text/markdown; charset=utf-8"
             assert "# JATS Title" in resp.text
             assert "Body text." in resp.text
 
-    def test_convert_explicit_tei_format(self, db):  # noqa: F811
-        """Explicit source_format=tei works."""
+    def test_tei_source_format_removed(self, db):  # noqa: F811
+        """source_format=tei is no longer accepted (SCRUM-5954)."""
         p1, p2 = _bypass_auth()
         with p1, p2, TestClient(app) as client:
             resp = client.post(
                 "/xml2md/convert?source_format=tei",
-                files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
+                files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
+            )
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_tei_content_rejected_under_auto(self, db):  # noqa: F811
+        """A TEI upload is rejected even with source_format=auto — the parser
+        library would still autodetect and convert it otherwise (SCRUM-5954)."""
+        tei_xml = (b'<?xml version="1.0" encoding="UTF-8"?>\n'
+                   b'<!-- exported -->\n'
+                   b'<TEI xmlns="http://www.tei-c.org/ns/1.0">'
+                   b'<text><body><p>x</p></body></text></TEI>')
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/convert",
+                files={"file": ("test.xml", tei_xml, "text/xml")},
+            )
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "no longer supported" in resp.text.lower()
+
+    def test_jats_mentioning_tei_is_not_rejected(self, db):  # noqa: F811
+        """The TEI rejection sniffs the root element, so a JATS article whose
+        text merely mentions TEI or tei-c.org still converts."""
+        jats_xml = (b'<?xml version="1.0" encoding="UTF-8"?>\n'
+                    b'<article><front><article-meta>'
+                    b'<title-group><article-title>About TEI</article-title></title-group>'
+                    b'</article-meta></front>'
+                    b'<body><sec><title>Intro</title>'
+                    b'<p>See http://www.tei-c.org/ns/1.0 for the TEI schema.</p>'
+                    b'</sec></body></article>')
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/convert",
+                files={"file": ("test.xml", jats_xml, "text/xml")},
             )
             assert resp.status_code == status.HTTP_200_OK
-            assert "# Test Title" in resp.text
+            assert "About TEI" in resp.text
 
     def test_convert_explicit_jats_format(self, db):  # noqa: F811
         """Explicit source_format=jats works."""
@@ -97,12 +104,12 @@ class TestXml2MdConvert:
         with p1, p2, TestClient(app) as client:
             resp = client.post(
                 "/xml2md/convert?output_format=html",
-                files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
+                files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
             assert resp.status_code == status.HTTP_200_OK
             assert "text/html" in resp.headers["content-type"]
             assert "<!DOCTYPE html>" in resp.text
-            assert "Test Title" in resp.text
+            assert "JATS Title" in resp.text
 
     def test_invalid_source_format(self, db):  # noqa: F811
         """Invalid source_format returns 422 (Literal validation)."""
@@ -110,7 +117,7 @@ class TestXml2MdConvert:
         with p1, p2, TestClient(app) as client:
             resp = client.post(
                 "/xml2md/convert?source_format=docx",
-                files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
+                files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
             assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -120,7 +127,7 @@ class TestXml2MdConvert:
         with p1, p2, TestClient(app) as client:
             resp = client.post(
                 "/xml2md/convert?output_format=pdf",
-                files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
+                files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
             assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -136,7 +143,7 @@ class TestXml2MdConvert:
             assert "empty" in resp.text.lower()
 
     def test_unrecognized_xml_format(self, db):  # noqa: F811
-        """XML that is neither TEI nor JATS returns 422."""
+        """XML that is not JATS returns 422."""
         p1, p2 = _bypass_auth()
         with p1, p2, TestClient(app) as client:
             resp = client.post(
@@ -150,7 +157,7 @@ class TestXml2MdConvert:
         """File exceeding 10MB returns 413."""
         p1, p2 = _bypass_auth()
         with p1, p2, TestClient(app) as client:
-            large_content = b"<TEI>" + b"x" * (10 * 1024 * 1024 + 1) + b"</TEI>"
+            large_content = b"<article>" + b"x" * (10 * 1024 * 1024 + 1) + b"</article>"
             resp = client.post(
                 "/xml2md/convert",
                 files={"file": ("big.xml", large_content, "text/xml")},
@@ -167,7 +174,7 @@ class TestXml2MdConvert:
             with TestClient(app) as client:
                 resp = client.post(
                     "/xml2md/convert",
-                    files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
+                    files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
                 )
                 assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
