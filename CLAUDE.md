@@ -164,6 +164,44 @@ make run-local-mypy      # Must pass with zero issues
 - `.env.test` - Testing configuration
 - Multiple environment file support via `ENV_FILE` variable
 - Docker-based development with mounted volumes for code changes
+- `ENV_STATE` is **not** set consistently per deployment: it is `prod` on the
+  production box but `build` on the dev box (the repo default). Container names
+  embed it (`agr.literature.${ENV_STATE}.<service>.${COMPOSE_PROJECT_NAME}`), so
+  the environment a container belongs to is really identified by
+  `COMPOSE_PROJECT_NAME`. Check `docker ps` rather than assuming.
+
+### Logging and Monitoring
+
+Container stdout/stderr ships to `logs.alliancegenome.org:12201` via the Docker
+GELF driver (`docker-compose.yaml`: `api`, `xml_processing`,
+`automated_scripts`, and the five `dbz.*` services). That endpoint is the
+`agr_logs` stack — Fluent Bit → S3 partitioned by `dt`/`hour` → Glue/Athena,
+plus a web viewer behind Cognito.
+
+Two things about it are counter-intuitive and worth knowing before debugging
+anything log-related:
+
+- **Severity in the log store reflects the stream, not the Python level.** The
+  GELF driver maps stdout to `INFO` and stderr to `ERROR` and never sees the
+  application's own level. `logging.conf` sends every record to `sys.stdout`, so
+  an application `logger.error(...)` arrives in Athena labelled `INFO`. Anything
+  that filters on `level_name` alone will miss it.
+- **Cron output does not reach the log stream by default.** A `> file 2>&1`
+  redirect replaces the process's fds, so the output only ever goes to the file.
+
+`crontab` therefore runs every job through `docker/run_cron_job.sh`, which keeps
+the per-job log file at exactly the same path and additionally writes an
+`ABC-JOB-OK` / `ABC-JOB-FAILED` record to PID 1's fds so the GELF driver picks it
+up (failures on fd 2, so they arrive as `level_name='ERROR'`). **Do not revert a
+crontab line to a bare redirect** — it silently drops that job out of alerting.
+`tests/test_run_cron_job.py` guards this.
+
+Log files live under `${LOG_PATH}` (bind-mounted, web-served at `${LOG_URL}`)
+and are truncated per run. Separately, some scripts write their own report files
+into subdirectories — `QC/`, `dqm_load/`, `pubmed_search/`, `pubmed_update/`,
+`data_check/` — and four QC reports also write dated copies
+(`<stem>_YYYYMMDD.log`) that the API exposes via `QC_REPORTS` in
+`api/crud/check_crud.py`. Those are unrelated to the crontab redirect.
 
 ### Bioinformatics Context
 When working with this codebase, understand that:
