@@ -167,13 +167,13 @@ CREATE TABLE reference_mod_referencetype(
     KEY_FORMAT='json'
 );
 
-CREATE TABLE topic_entity_tag_source(
-    topic_entity_tag_source_id string PRIMARY KEY,
+CREATE TABLE tag_source(
+    tag_source_id string PRIMARY KEY,
     source_method string,
     data_provider string,
     source_evidence_assertion string
   ) WITH (
-    KAFKA_TOPIC='abc.public.topic_entity_tag_source',
+    KAFKA_TOPIC='abc.public.tag_source',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
@@ -195,7 +195,7 @@ CREATE TABLE topic_entity_tag(
     confidence_score double,
     negated boolean,
     note string,
-    topic_entity_tag_source_id string,
+    tag_source_id string,
     data_novelty string,
     data_context string,
     validation_by_professional_biocurator string,
@@ -260,24 +260,24 @@ CREATE TABLE topic_entity_tag_with_source AS
     topic_entity_tag.confidence_score,
     topic_entity_tag.negated,
     topic_entity_tag.note,
-    topic_entity_tag.topic_entity_tag_source_id,
+    topic_entity_tag.tag_source_id,
     topic_entity_tag.data_novelty,
     topic_entity_tag.data_context,
     topic_entity_tag.validation_by_professional_biocurator,
     topic_entity_tag.entity_id_validation,
-    topic_entity_tag_source.source_method,
-    topic_entity_tag_source.data_provider,
-    topic_entity_tag_source.source_evidence_assertion,
+    tag_source.source_method,
+    tag_source.data_provider,
+    tag_source.source_evidence_assertion,
 
     CASE
-      WHEN topic_entity_tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035')
+      WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035')
         THEN 'ECO:0006155'
       ELSE 'ECO:0007669'
     END AS source_evidence_assertion_group
 
     FROM topic_entity_tag topic_entity_tag
-    JOIN topic_entity_tag_source topic_entity_tag_source ON
-    topic_entity_tag.topic_entity_tag_source_id = topic_entity_tag_source.topic_entity_tag_source_id
+    JOIN tag_source tag_source ON
+    topic_entity_tag.tag_source_id = tag_source.tag_source_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tags AS

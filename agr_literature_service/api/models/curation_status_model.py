@@ -1,11 +1,19 @@
+from typing import Dict, List
+
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+
+enable_versioning()
 
 
 class CurationStatusModel(Base, AuditedModel):
     __tablename__ = 'curation_status'
+    # SCRUM-6518: curation_status had no history at all; the spike asked for it
+    # on the base row as well as on the source associations.
+    __versioned__: Dict = {}
 
     curation_status_id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -55,6 +63,13 @@ class CurationStatusModel(Base, AuditedModel):
     note = Column(
         String,
         nullable=True
+    )
+
+    # Optional per-source reports against this row. Independent of the values
+    # above: adding, updating or deleting one never modifies this row.
+    source_associations: Mapped[List["CurationStatusSourceAssociationModel"]] = relationship(  # type: ignore  # noqa
+        back_populates="curation_status_row",
+        cascade="all, delete-orphan"
     )
 
     __table_args__ = (

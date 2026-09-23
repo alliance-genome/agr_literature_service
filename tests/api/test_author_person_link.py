@@ -560,3 +560,202 @@ class TestReachable500Hardening:
         a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
         assert a.reference_id != test_reference.related_ref_id
         assert a.author_order == 9
+
+    def test_patch_null_person_curie_unlinks_ordered_author(self, db, auth_headers, test_reference):  # noqa
+        # An ordered author satisfies ck_author_person_or_order through author_order, so
+        # dropping its person is always valid. The router builds the patch with
+        # model_dump(exclude_unset=True), so an explicit null arrives distinguishable from
+        # an absent key -- which is what makes this expressible without a new endpoint.
+        person = PersonModel(display_name="Unlink Me", curie="AGR:AP-UNLINK-1")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"author_order": 3, "name": "Unlink Target",
+                                        "person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            author_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{author_id}",
+                             json={"person_curie": None},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()
+        assert a.person_id is None
+        # The author itself survives, order and metadata intact -- unlinking is not deletion.
+        assert a.author_order == 3
+        assert a.name == "Unlink Target"
+
+    def test_patch_without_person_curie_leaves_the_link_alone(self, db, auth_headers, test_reference):  # noqa
+        # The counterpart that makes the null meaningful: every metadata-only PATCH omits
+        # person_curie, and none of them may quietly unlink the author.
+        person = PersonModel(display_name="Keep Me", curie="AGR:AP-UNLINK-2")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"author_order": 4, "name": "Keep Linked",
+                                        "person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            author_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{author_id}",
+                             json={"first_name": "Renamed"},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()
+        assert a.person_id == person.person_id
+        assert a.first_name == "Renamed"
+
+    def test_patch_null_person_curie_on_person_only_row_is_rejected(self, db, auth_headers, test_reference):  # noqa
+        # A person-only row has author_order IS NULL, so clearing person_id leaves
+        # ck_author_person_or_order unsatisfiable; it would surface as a raw 500 at commit.
+        person = PersonModel(display_name="Stub Person", curie="AGR:AP-UNLINK-3")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            stub_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{stub_id}",
+                             json={"person_curie": None},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "person-only" in r.json()["detail"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one()
+        assert a.person_id == person.person_id
+
+    def test_patch_reparent_and_unlink_together_is_allowed(self, db, auth_headers, test_reference):  # noqa
+        # The reparent guard is computed from the person the row carries NOW, but a
+        # PATCH that also unlinks leaves person_id NULL, so uq_author_ref_person cannot
+        # fire. Without skipping the guard when unlink is requested, moving an author to
+        # a reference that already links its about-to-be-dropped person was refused for
+        # a collision that never happens.
+        person = PersonModel(display_name="Shared Person", curie="AGR:AP-UNLINK-4")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Reparent unlink dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+
+            # The destination already links this person to one of its own authors.
+            blocker = client.post(url="/author/",
+                                  json={"author_order": 1, "name": "Blocker",
+                                        "person_curie": person.curie,
+                                        "reference_curie": dest_curie},
+                                  headers=auth_headers)
+            assert blocker.status_code == status.HTTP_201_CREATED
+
+            mover = client.post(url="/author/",
+                                json={"author_order": 7, "name": "Mover",
+                                      "person_curie": person.curie,
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert mover.status_code == status.HTTP_201_CREATED
+            mover_id = mover.json()["author_id"]
+
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie, "person_curie": None},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
+        assert a.person_id is None
+        assert a.author_order == 7
+
+    def test_patch_reparent_without_unlink_still_rejects_the_collision(self, db, auth_headers, test_reference):  # noqa
+        # The counterpart: skipping the guard must depend on the unlink, not on the
+        # reparent. A move that keeps the person still has to be refused.
+        person = PersonModel(display_name="Kept Person", curie="AGR:AP-UNLINK-5")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Reparent keep dest", "category": "thesis"},
+                               headers=auth_headers)
+            dest_curie = dest.json()["curie"]
+            client.post(url="/author/",
+                        json={"author_order": 1, "name": "Blocker",
+                              "person_curie": person.curie, "reference_curie": dest_curie},
+                        headers=auth_headers)
+            mover = client.post(url="/author/",
+                                json={"author_order": 8, "name": "Mover",
+                                      "person_curie": person.curie,
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            mover_id = mover.json()["author_id"]
+
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "already links this person" in r.json()["detail"]
+
+    def test_patch_empty_person_curie_is_rejected(self, db, auth_headers, test_reference):  # noqa
+        # "" is ambiguous on this path -- the key's presence is the signal, so it sits
+        # between "unlink" (null) and "leave alone" (omit). Refusing it is what stops
+        # _resolve_person_curie's `if not curie` returning a 200 that changed nothing.
+        person = PersonModel(display_name="Empty Curie Person", curie="AGR:AP-UNLINK-6")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        with TestClient(app) as client:
+            created = client.post(url="/author/",
+                                  json={"author_order": 5, "name": "Empty Curie Target",
+                                        "person_curie": person.curie,
+                                        "reference_curie": test_reference.new_ref_curie},
+                                  headers=auth_headers)
+            assert created.status_code == status.HTTP_201_CREATED
+            author_id = created.json()["author_id"]
+
+            r = client.patch(url=f"/author/{author_id}",
+                             json={"person_curie": ""},
+                             headers=auth_headers)
+
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "neither a way to unlink" in r.json()["detail"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()
+        assert a.person_id == person.person_id
+
+    def test_create_still_accepts_an_empty_person_curie(self, db, auth_headers, test_reference):  # noqa
+        # The asymmetry the guard's comment describes, pinned: on create there is no
+        # existing link, so "" is an unambiguous "no person" and must keep working --
+        # which is also why the guard cannot live on the shared schema.
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"author_order": 6, "name": "No Person",
+                                  "person_curie": "",
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+
+        assert r.status_code == status.HTTP_201_CREATED
+        db.expire_all()
+        a = db.query(AuthorModel).filter(
+            AuthorModel.author_id == r.json()["author_id"]).one()
+        assert a.person_id is None
+        assert a.author_order == 6

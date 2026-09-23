@@ -300,8 +300,8 @@ def get_unique_entity_list(db, mod_abbreviation):
         FROM
             topic_entity_tag tet
         JOIN
-            topic_entity_tag_source tet_src
-            ON tet.topic_entity_tag_source_id = tet_src.topic_entity_tag_source_id
+            tag_source tet_src
+            ON tet.tag_source_id = tet_src.tag_source_id
         JOIN
             reference ref
             ON tet.reference_id = ref.reference_id

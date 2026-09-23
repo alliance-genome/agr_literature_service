@@ -8,7 +8,7 @@ the correct taxon ID from the curation database instead of the generic one.
 Filters:
 - topic = 'ATP:0000027' (strain)
 - entity_type = 'ATP:0000027' (strain)
-- topic_entity_tag_source_id = 174 (ML extractor source)
+- tag_source_id = 174 (ML extractor source)
 
 Usage:
     # Dry run (no changes made):
@@ -112,7 +112,7 @@ def update_strain_species(dry_run: bool = True, mod_filter: Optional[str] = None
         query = db_session.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.topic == STRAIN_TOPIC,
             TopicEntityTagModel.entity_type == STRAIN_ENTITY_TYPE,
-            TopicEntityTagModel.topic_entity_tag_source_id == SOURCE_ID,
+            TopicEntityTagModel.tag_source_id == SOURCE_ID,
             TopicEntityTagModel.entity.isnot(None)
         )
 

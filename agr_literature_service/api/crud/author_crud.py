@@ -249,6 +249,31 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     # can carry both. A same-reference PATCH is untouched: metadata-only patches routinely
     # resend the author's own reference_curie. Checked before add() so
     # author_db_obj.reference_id is still the original and no relationship has been mutated.
+    # An explicit "person_curie": null means unlink; the key simply being absent means
+    # leave the link alone. The router builds the patch with model_dump(exclude_unset=True),
+    # so the two are distinguishable here -- but only before _resolve_person_curie pops the
+    # key and collapses both to None. Hence reading it first.
+    #
+    # Read before the reparent guards rather than after, because the person guard below
+    # has to know: a reparent that also unlinks cannot collide on a person it is about
+    # to drop.
+    unlink_person = "person_curie" in author_data and author_data["person_curie"] is None
+
+    # "" is refused rather than guessed. On this path the key's PRESENCE is the signal,
+    # so an empty string sits between two opposite intents -- unlink (send null) and
+    # leave alone (omit the key) -- and _resolve_person_curie's `if not curie` would
+    # quietly pick neither, returning 200 with the link untouched.
+    #
+    # Deliberately asymmetric with create(), where "" is an unambiguous "no person" for
+    # a row being built from nothing and stays allowed. The guard lives here rather than
+    # on the schema for exactly that reason: POST and PATCH both bind AuthorSchemaCreate,
+    # so a field_validator would reject "" on create too.
+    if author_data.get("person_curie") == "":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='person_curie must be a person curie or null; "" is neither a way to '
+                   'unlink (send null) nor a way to leave the link alone (omit the key)')
+
     dest_ref = res_ref.get("reference")
     if dest_ref is not None and dest_ref.reference_id != author_db_obj.reference_id:
         # no_autoflush: an autoflush here would push the very write these guards prevent.
@@ -268,7 +293,12 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
 
         # A NULL person_id never collides: Postgres treats NULLs as distinct in a unique
         # index, which is why the many unlinked authors on one reference do not conflict.
-        if author_db_obj.person_id is not None:
+        #
+        # Skipped when this same PATCH unlinks. The guard is computed from the person the
+        # row carries NOW, but after the patch that column is NULL, so uq_author_ref_person
+        # cannot fire -- without this, moving an author to a reference that already links
+        # its (about to be dropped) person was refused for a collision that never happens.
+        if author_db_obj.person_id is not None and not unlink_person:
             with db.no_autoflush:
                 person_taken = db.query(AuthorModel.author_id).filter(
                     AuthorModel.reference_id == dest_ref.reference_id,
@@ -306,6 +336,17 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         setattr(author_db_obj, field, value)
     if person_id is not None:
         link_person(db, author_db_obj, person_id)
+    elif unlink_person:
+        # ck_author_person_or_order needs person_id OR author_order, so an ordered author
+        # can always drop its person. A person-only row has nothing left to satisfy the
+        # check and would fail at commit as a raw 500, so refuse it here: removing one of
+        # those means deleting the row, not clearing a column.
+        if author_db_obj.author_order is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Cannot unlink the person from a person-only row (no author_order); "
+                       "delete the author row instead")
+        author_db_obj.person_id = None
 
     author_db_obj.dateUpdated = datetime.utcnow()
     db.add(author_db_obj)
