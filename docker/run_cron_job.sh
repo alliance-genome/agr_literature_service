@@ -24,6 +24,11 @@
 set -u
 
 TAIL_LINES="${CRON_LOG_TAIL_LINES:-40}"
+# "+2" makes tail print from line 2 onward, i.e. the whole log; anything
+# non-numeric makes it fail outright. Fall back rather than trust it.
+case "$TAIL_LINES" in
+    '' | *[!0-9]*) TAIL_LINES=40 ;;
+esac
 
 # Directory holding PID 1's file descriptors.  Overridable so the tests can
 # point it at a temporary directory instead of the real container's streams.
@@ -61,18 +66,31 @@ JOB_NAME="$1"
 shift
 
 # The job name becomes a filename and a line prefix; keep it to safe characters.
+# The emptiness check is separate: "" survives the substitution unchanged and
+# would otherwise yield a log file called ".log" and a record reading "job= ".
 SAFE_JOB_NAME="${JOB_NAME//[^A-Za-z0-9._-]/_}"
-if [ "$SAFE_JOB_NAME" != "$JOB_NAME" ]; then
+if [ -z "$JOB_NAME" ] || [ "$SAFE_JOB_NAME" != "$JOB_NAME" ]; then
     emit 2 "ABC-JOB-FAILED job=${SAFE_JOB_NAME} exit=64 host=${JOB_HOST} reason=bad-job-name" \
         "job name '${JOB_NAME}' contains unsupported characters"
     exit 0
 fi
 
+# LOG_PATH carries a trailing slash in docker-compose.yaml; stripping it is what
+# makes the produced path byte-identical to the one the crontab used to hardcode.
 LOG_DIR="${LOG_PATH:-/var/log/automated_scripts}"
 LOG_DIR="${LOG_DIR%/}"
 LOG_FILE="${LOG_DIR}/${JOB_NAME}.log"
 
-mkdir -p "$LOG_DIR" 2>/dev/null || true
+# Establish the log file up front rather than letting the redirect below fail.
+# If it cannot be written -- a bind mount gone read-only is the realistic case --
+# bash would never exec the command and would return 1, which is indistinguishable
+# from the job running and failing. Report the real reason and run anyway with the
+# output discarded: a job silently not running is the worse outcome.
+if ! mkdir -p "$LOG_DIR" 2>/dev/null || ! : >"$LOG_FILE" 2>/dev/null; then
+    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=64 host=${JOB_HOST} reason=log-unwritable log=${LOG_FILE}" \
+        "cannot write the job log; running with output discarded"
+    LOG_FILE=/dev/null
+fi
 
 SECONDS=0
 "$@" >"$LOG_FILE" 2>&1
@@ -82,9 +100,22 @@ DURATION=$SECONDS
 if [ "$STATUS" -eq 0 ]; then
     emit 1 "ABC-JOB-OK job=${JOB_NAME} exit=0 duration=${DURATION}s host=${JOB_HOST}"
 else
-    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=${STATUS} duration=${DURATION}s host=${JOB_HOST} log=${LOG_FILE}"
+    # 128+N means killed by signal N -- an OOM kill (137) is a plausible failure
+    # mode for the heavier ingest jobs, and the log file is usually empty in that
+    # case, so name the signal rather than leaving a bare exit code.
+    SIGNAL=""
+    if [ "$STATUS" -gt 128 ] && [ "$STATUS" -lt 192 ]; then
+        SIGNAL=" signal=$((STATUS - 128))"
+    fi
+    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=${STATUS}${SIGNAL} duration=${DURATION}s host=${JOB_HOST} log=${LOG_FILE}"
     if [ -s "$LOG_FILE" ]; then
-        emit 2 "$(tail -n "$TAIL_LINES" "$LOG_FILE" | sed -e "s|^|${JOB_NAME}\| |")"
+        # Guard on the result, not on the file: a tail that fails or prints
+        # nothing would otherwise put a blank line on fd 2, i.e. a content-free
+        # ERROR row in Athena.
+        TAIL_TEXT="$(tail -n "$TAIL_LINES" "$LOG_FILE" 2>/dev/null | sed -e "s|^|${JOB_NAME}\| |")"
+        if [ -n "$TAIL_TEXT" ]; then
+            emit 2 "$TAIL_TEXT"
+        fi
     fi
 fi
 
