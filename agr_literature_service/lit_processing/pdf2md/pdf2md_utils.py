@@ -1439,14 +1439,13 @@ def get_pdfs_missing_xml(  # pragma: no cover
     limit: Optional[int] = None
 ) -> List[Dict]:
     """
-    Find papers that have a main PDF but are missing nXML/TEI files.
+    Find papers that have a main PDF but are missing nXML files.
 
     This function finds references that:
     1. Have a main PDF file (file_class='main', file_extension='pdf',
        file_publication_status='final')
     2. Do NOT have nXML files (file_class='nXML')
-    3. Do NOT have TEI files (file_class='tei')
-    4. Do NOT already have converted markdown files
+    3. Do NOT already have converted markdown files
 
     Filtered by MOD:
     - If mod_abbreviation is provided, includes PDFs where:
@@ -1485,7 +1484,7 @@ def get_pdfs_missing_xml(  # pragma: no cover
     )
 
     # File classes that indicate XML is present
-    xml_file_classes = ['nXML', 'tei']
+    xml_file_classes = ['nXML']
 
     # File classes for markdown outputs (to exclude already processed)
     md_file_classes = list(EXTRACTION_METHODS.values())
