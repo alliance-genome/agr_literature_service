@@ -196,6 +196,15 @@ up (failures on fd 2, so they arrive as `level_name='ERROR'`). **Do not revert a
 crontab line to a bare redirect** — it silently drops that job out of alerting.
 `tests/test_run_cron_job.py` guards this.
 
+The API's gunicorn has the opposite problem: its error log, which also carries
+every routine INFO line ("Booting worker", "Worker exiting" from `max_requests`
+recycling), went entirely to stderr and so arrived as `ERROR`.
+`gunicorn_logging.SplitStreamLogger`, set as `logger_class` in
+`gunicorn.conf.py`, sends DEBUG..WARNING to stdout and only ERROR/CRITICAL to
+stderr. A gunicorn `[WARNING]` line arriving as `INFO` is therefore intended —
+**do not remove `logger_class`** to "fix" it. `tests/test_gunicorn_logging.py`
+guards this.
+
 Log files live under `${LOG_PATH}` (bind-mounted, web-served at `${LOG_URL}`)
 and are truncated per run. Separately, some scripts write their own report files
 into subdirectories — `QC/`, `dqm_load/`, `pubmed_search/`, `pubmed_update/`,

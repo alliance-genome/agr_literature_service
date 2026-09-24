@@ -73,7 +73,11 @@ def test_reload_does_not_duplicate_lines(capsys):
     out, err = capsys.readouterr()
     assert out.count("once") == 1
     assert err.count("once too") == 1
-    assert len(log.error_log.handlers) == 2
+    # gunicorn.error is process-wide and pytest may attach its own capture
+    # handlers to it, so count only the ones this class owns.
+    ours = [h for h in log.error_log.handlers if getattr(h, "_split_stream", False)]
+    assert len(ours) == 2
+    assert sorted(h.stream is sys.stdout for h in ours) == [False, True]
 
 
 def test_log_file_is_left_alone(capsys, tmp_path):
