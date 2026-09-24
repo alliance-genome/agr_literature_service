@@ -47,6 +47,26 @@ community_curation_classification_root_ids = ["ATP:0000235"]
 first_pass_curation_root_ids = ["ATP:0000329"]
 email_extraction_root_ids = ["ATP:0000354"]
 
+# Per-MOD size of the nested workflow_tag_ids terms aggregation. The Workflow
+# facet categories are built from these buckets, so a MOD's tags that fall
+# outside its top N silently vanish from every category (SCRUM-6583).
+MIN_WORKFLOW_TAG_IDS_AGG_SIZE = 100
+
+
+def get_workflow_tag_ids_agg_size(facets_limits: Dict[str, Any]) -> int:
+    """
+    Size of the per-MOD workflow_tag_ids terms aggregation.
+
+    facets_limits["workflow_tags.workflow_tag_id.keyword"] may RAISE the size
+    (the advanced-query vocab fetch asks for the full per-MOD vocabulary,
+    SCRUM-6398) but never lower it below MIN_WORKFLOW_TAG_IDS_AGG_SIZE: the UI
+    sends its generic initial facet limit (10) for this key on every search,
+    which kept only each MOD's 10 most frequent tags and emptied categories
+    such as reference classification (SCRUM-6583).
+    """
+    requested = facets_limits.get("workflow_tags.workflow_tag_id.keyword") or 0
+    return max(int(requested), MIN_WORKFLOW_TAG_IDS_AGG_SIZE)
+
 WORKFLOW_FACETS = [
     "file_workflow",
     "manual_indexing",
@@ -287,12 +307,9 @@ def search_references(
                                 "terms": {
                                     "field": "workflow_tags.workflow_tag_id.keyword",
                                     "min_doc_count": 0,
-                                    # Overridable so the advanced-query vocab fetch
-                                    # can request the full per-MOD workflow
-                                    # vocabulary instead of the top-100 (SCRUM-6398).
-                                    "size": facets_limits.get(
-                                        "workflow_tags.workflow_tag_id.keyword", 100
-                                    )
+                                    # Can be raised (SCRUM-6398), never lowered
+                                    # below 100 (SCRUM-6583).
+                                    "size": get_workflow_tag_ids_agg_size(facets_limits)
                                 },
                                 "aggs": {"reverse_docs": {"reverse_nested": {}}}
                             }
