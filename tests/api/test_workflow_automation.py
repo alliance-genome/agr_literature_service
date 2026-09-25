@@ -49,7 +49,9 @@ from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 from agr_literature_service.api.crud.workflow_transition_actions.first_pass_curation import (
     set_first_pass_curation_tbd)
 from agr_literature_service.api.crud.workflow_transition_actions.subtask_process import sub_task_complete
+from agr_literature_service.api.crud import ateam_db_helpers
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
+from agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value import proceed_on_value
 
 test_reference2 = test_reference
 
@@ -622,3 +624,104 @@ class TestWorkflowTagAutomation:
             WorkflowTagModel.mod_id == fb.mod_id,
             WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
         ).count() == 1
+
+
+# SCRUM-6597: a tag named explicitly in an action ("...::ATP:0000366") that is a child of a process
+# another action of the same transition seeds ("reference classification"), but is left out of that
+# process's MOD subset, like WB antibody string matching.
+UNLISTED_NEEDED = "ATP:task4_needed"
+
+
+def load_mock_ontology_with_unlisted_needed_tag():
+    mock_load_name_to_atp_and_relationships()
+    children = {atp: list(kids) for atp, kids in ateam_db_helpers.atp_to_children.items()}
+    parents = dict(ateam_db_helpers.atp_to_parent)
+    atp_to_name = dict(ateam_db_helpers.atp_to_name)
+    name_to_atp = dict(ateam_db_helpers.name_to_atp)
+    children["ATP:0000166"].append(UNLISTED_NEEDED)
+    children[UNLISTED_NEEDED] = []
+    parents[UNLISTED_NEEDED] = "ATP:0000166"
+    atp_to_name[UNLISTED_NEEDED] = UNLISTED_NEEDED
+    name_to_atp[UNLISTED_NEEDED] = UNLISTED_NEEDED
+    set_globals(atp_to_name, name_to_atp, children, parents)
+
+
+def mock_get_workflow_tags_without_unlisted(name: str, mod_abbreviation: str):  # noqa
+    # the MOD subset filter leaves UNLISTED_NEEDED out of the "reference classification" expansion
+    results = {"reference classification": ["ATP:0000166", "ATP:task1_needed", "ATP:task2_needed"],
+               UNLISTED_NEEDED: [UNLISTED_NEEDED]}
+    return results[name]
+
+
+class TestProceedOnValueSameTransition:
+
+    def _setup(self, db, auth_headers, test_mod, test_reference):  # noqa
+        load_mock_ontology_with_unlisted_needed_tag()
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        ref_type = ReferencetypeModel(label="Experimental")
+        db.add(ref_type)
+        db.commit()
+        db.add(ModReferencetypeAssociationModel(referencetype_id=ref_type.referencetype_id, mod_id=mod.mod_id,
+                                                display_order=1))
+        db.commit()
+        with TestClient(app) as client:
+            response = client.post(url="/reference/mod_reference_type/",
+                                   json={"reference_curie": reference.curie, "reference_type": "Experimental",
+                                         "mod_abbreviation": mod.abbreviation},
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+        trigger = WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id="ATP:0000163")
+        db.add(trigger)
+        db.commit()
+        return mod, reference, trigger
+
+    @staticmethod
+    def _tags(session, reference, mod):
+        return sorted(tag.workflow_tag_id for tag in session.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id, WorkflowTagModel.mod_id == mod.mod_id).all())
+
+    @staticmethod
+    def _run_transition_actions(session, trigger):
+        # the actions of one transition run back to back in one session, committed once at the end
+        proceed_on_value(session, trigger, ["reference_type", "Experimental", "reference classification"])
+        proceed_on_value(session, trigger, ["reference_type", "Experimental", UNLISTED_NEEDED])
+        session.commit()
+
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod",
+           mock_get_workflow_tags_without_unlisted)
+    def test_explicit_tag_is_seeded_next_to_its_parent_process(self, db, auth_headers, test_mod, test_reference):  # noqa
+        mod, reference, trigger = self._setup(db, auth_headers, test_mod, test_reference)
+        self._run_transition_actions(db, trigger)
+        tags = self._tags(db, reference, mod)
+        assert {"ATP:0000166", "ATP:task1_needed", "ATP:task2_needed", UNLISTED_NEEDED} <= set(tags)
+        assert tags.count("ATP:0000166") == 1
+
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod",
+           mock_get_workflow_tags_without_unlisted)
+    def test_rerun_does_not_seed_a_process_the_reference_already_has(self, db, auth_headers, test_mod,  # noqa
+                                                                     test_reference):  # noqa
+        mod, reference, trigger = self._setup(db, auth_headers, test_mod, test_reference)
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id="ATP:0000166"))
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id="ATP:task1_needed"))
+        db.commit()
+        self._run_transition_actions(db, trigger)
+        tags = self._tags(db, reference, mod)
+        assert tags.count("ATP:0000166") == 1
+        assert "ATP:task2_needed" not in tags
+        assert UNLISTED_NEEDED not in tags
+
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod",
+           mock_get_jobs_to_run)
+    def test_tag_named_by_two_actions_is_added_once(self, db, auth_headers, test_mod, test_reference):  # noqa
+        # a process and one of the children it expands to, named by two actions of the same transition, must
+        # not insert the child twice (uq_workflow_tag_mod_ref_tag would fail the whole transition)
+        mod, reference, trigger = self._setup(db, auth_headers, test_mod, test_reference)
+        proceed_on_value(db, trigger, ["reference_type", "Experimental", "reference classification"])
+        proceed_on_value(db, trigger, ["reference_type", "Experimental", "ATP:task3_needed"])
+        proceed_on_value(db, trigger, ["reference_type", "Experimental", "reference classification"])
+        db.commit()
+        tags = self._tags(db, reference, mod)
+        assert tags.count("ATP:0000166") == 1
+        assert tags.count("ATP:task1_needed") == 1
+        assert tags.count("ATP:task3_needed") == 1
