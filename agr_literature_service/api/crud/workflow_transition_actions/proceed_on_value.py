@@ -98,8 +98,16 @@ def _proceed_on_value(db, current_workflow_tag_db_obj, args):
                 if already_present:
                     preexisting_processes.add(process_atp_id)
 
+        # Tags an earlier action of the same transition added are still pending (see proceed_on_value).
+        # They do not count as pre-existing state, but the same tag must not be added twice.
+        pending_tags = {
+            obj.workflow_tag_id for obj in db.new
+            if isinstance(obj, WorkflowTagModel)
+            and obj.reference is current_workflow_tag_db_obj.reference
+            and obj.mod is current_workflow_tag_db_obj.mod
+        }
         for atp in atps_to_add:
-            if atp_get_parent(atp) in preexisting_processes:
+            if atp_get_parent(atp) in preexisting_processes or atp in pending_tags:
                 continue
             wtm = WorkflowTagModel(
                 reference=current_workflow_tag_db_obj.reference,

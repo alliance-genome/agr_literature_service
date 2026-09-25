@@ -710,3 +710,18 @@ class TestProceedOnValueSameTransition:
         assert tags.count("ATP:0000166") == 1
         assert "ATP:task2_needed" not in tags
         assert UNLISTED_NEEDED not in tags
+
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod",
+           mock_get_jobs_to_run)
+    def test_tag_named_by_two_actions_is_added_once(self, db, auth_headers, test_mod, test_reference):  # noqa
+        # a process and one of the children it expands to, named by two actions of the same transition, must
+        # not insert the child twice (uq_workflow_tag_mod_ref_tag would fail the whole transition)
+        mod, reference, trigger = self._setup(db, auth_headers, test_mod, test_reference)
+        proceed_on_value(db, trigger, ["reference_type", "Experimental", "reference classification"])
+        proceed_on_value(db, trigger, ["reference_type", "Experimental", "ATP:task3_needed"])
+        proceed_on_value(db, trigger, ["reference_type", "Experimental", "reference classification"])
+        db.commit()
+        tags = self._tags(db, reference, mod)
+        assert tags.count("ATP:0000166") == 1
+        assert tags.count("ATP:task1_needed") == 1
+        assert tags.count("ATP:task3_needed") == 1
