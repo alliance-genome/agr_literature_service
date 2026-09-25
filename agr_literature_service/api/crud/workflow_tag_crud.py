@@ -1113,7 +1113,7 @@ def get_reference_workflow_tags_by_mod(
     workflow_tag_id: str,
     startDate: str = None,
     endDate: str = None
-):  # pragma: no cover
+):
 
     curie_prefix = "Xenbase" if mod_abbreviation == 'XB' else mod_abbreviation
 
@@ -1142,7 +1142,7 @@ def get_reference_workflow_tags_by_mod(
         'workflow_tag_id': workflow_tag_id,
         'startDate': startDate,
         'endDate': endDate
-    }).fetchall()
+    }).mappings().fetchall()
 
     tags = [dict(row) for row in rows]
     return tags

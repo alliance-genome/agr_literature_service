@@ -245,7 +245,8 @@ def get_reference_workflow_tags(
     db: Session = db_session,
 ):
     return workflow_tag_crud.get_reference_workflow_tags_by_mod(
-        db, workflow_tag_id, mod_abbreviation, startDate, endDate
+        db, mod_abbreviation=mod_abbreviation, workflow_tag_id=workflow_tag_id,
+        startDate=startDate, endDate=endDate
     )
 
 
