@@ -5,6 +5,14 @@ Two loaders populate journal image-display permissions
 (`load_doaj_licenses.py`, monthly cron) maintains OA copyright licenses and is
 not covered here.
 
+> **Only the alliance copyright sheet is a valid permission source
+> (SCRUM-6587).** The image working group decided the older per-journal
+> curator sheet was wrong to use — the Alliance only has permission from the
+> publishers in the new sheet (and none from Elsevier). Its loader
+> (`load_journal_image_permissions.py`) is RETIRED: do not run it; its data
+> was removed by `oneoff_scripts/delete_old_image_spreadsheet_permissions.py`.
+> The file stays only because the alliance loader imports helpers from it.
+
 Both permission loaders share the same safety model:
 
 - **Dry-run by default.** Without `--apply` nothing is committed; the run
@@ -75,10 +83,16 @@ Semantics to know:
 
 ---
 
-## load_journal_image_permissions.py (SCRUM-6420)
+## load_journal_image_permissions.py (SCRUM-6420) — RETIRED (SCRUM-6587)
 
-Loads the older **per-journal curator sheet export** (`journal_permission.tsv`,
-NLM-abbreviation keyed, with per-MOD permission columns). Derives each
+**Do not run this loader.** The image working group withdrew the old
+spreadsheet as a permission source and its loaded data was deleted
+(SCRUM-6587). This section is kept for the historical record and because
+`load_alliance_copyright_permissions.py` imports helper functions from the
+module.
+
+Loaded the older **per-journal curator sheet export** (`journal_permission.tsv`,
+NLM-abbreviation keyed, with per-MOD permission columns). Derived each
 journal's permission name/text and `can_display_images` from the sheet's
 License type, MOD columns and comments.
 
