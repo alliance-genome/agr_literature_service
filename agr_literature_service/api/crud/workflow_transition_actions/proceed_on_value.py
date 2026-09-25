@@ -21,6 +21,17 @@ def proceed_on_value(db, current_workflow_tag_db_obj, args):
     for other organisms it would be
     proceed_on_value::category::Research_Article::ATP:0000162
     """
+    # SCRUM-6597: the actions of a transition run back to back in one session and are committed
+    # together. With autoflush on, the queries below would flush and see the tags an earlier action
+    # of the same transition just added, so the duplicate guard would take them for pre-existing
+    # state and skip a tag named explicitly by a later action (e.g. WB antibody string matching
+    # needed, a child of "reference classification needed" that is not in the WB subset). Only
+    # tags the reference had before the transition must count.
+    with db.no_autoflush:
+        _proceed_on_value(db, current_workflow_tag_db_obj, args)
+
+
+def _proceed_on_value(db, current_workflow_tag_db_obj, args):
     from sqlalchemy import text
 
     checktype = args[0]
