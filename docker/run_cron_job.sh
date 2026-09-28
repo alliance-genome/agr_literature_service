@@ -51,6 +51,25 @@ emit() {
     fi
 }
 
+# Print the line of a failed job's log that best explains the failure, cut to
+# LAST_ERROR_CHARS so the record fits the alerter's Slack sample: the last Python
+# exception line if there is one, else the last line logged at ERROR/CRITICAL,
+# else nothing. Not simply the last line -- SQLAlchemy, for one, prints DETAIL,
+# SQL and "(Background on this error ...)" lines after the exception.
+# Double quotes become single ones so the value stays a single quoted field.
+LAST_ERROR_CHARS=200
+EXCEPTION_LINE='^[[:space:]]*[A-Za-z_][A-Za-z0-9_.]*(Error|Exception|Exit|Interrupt)(:|$)'
+# Same forms the alerter treats as text-labelled errors.
+LOGGED_ERROR_LINE=' - (ERROR|CRITICAL) - |\[(ERROR|CRITICAL)\]|(^|[[:space:]])(ERROR|CRITICAL):'
+last_error() {
+    local line
+    line="$(grep -E "$EXCEPTION_LINE" "$1" 2>/dev/null | tail -n 1)"
+    if [ -z "$line" ]; then
+        line="$(grep -E "$LOGGED_ERROR_LINE" "$1" 2>/dev/null | tail -n 1)"
+    fi
+    printf '%s' "$line" | tr -d '\r' | tr '"' "'" | sed -e 's/^[[:space:]]*//' | cut -c "1-${LAST_ERROR_CHARS}"
+}
+
 # Not HOST: docker-compose.yaml:221 injects an exported HOST into this
 # container, and reassigning it would pass the mutated value down to every
 # wrapped job. HOSTNAME is set by bash itself.
@@ -107,14 +126,22 @@ else
     if [ "$STATUS" -gt 128 ] && [ "$STATUS" -lt 192 ]; then
         SIGNAL=" signal=$((STATUS - 128))"
     fi
-    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=${STATUS}${SIGNAL} duration=${DURATION}s host=${JOB_HOST} log=${LOG_FILE}"
+    # The failure record is the only line written to fd 2. Every stderr line is
+    # its own ERROR row in Athena, and the alerter groups rows by message, so a
+    # 40-line tail there turned one failure into ~37 alert groups and pushed this
+    # record past the group cap. Instead the record carries the error itself, and
+    # the tail goes to fd 1 (INFO), where it still sits next to it in the viewer.
+    LAST_ERROR=""
+    if [ -s "$LOG_FILE" ]; then
+        LAST_ERROR="$(last_error "$LOG_FILE")"
+    fi
+    emit 2 "ABC-JOB-FAILED job=${JOB_NAME} exit=${STATUS}${SIGNAL} duration=${DURATION}s host=${JOB_HOST} log=${LOG_FILE}${LAST_ERROR:+ last_error=\"${LAST_ERROR}\"}"
     if [ -s "$LOG_FILE" ]; then
         # Guard on the result, not on the file: a tail that fails or prints
-        # nothing would otherwise put a blank line on fd 2, i.e. a content-free
-        # ERROR row in Athena.
+        # nothing would otherwise put a blank line on the stream.
         TAIL_TEXT="$(tail -n "$TAIL_LINES" "$LOG_FILE" 2>/dev/null | sed -e "s|^|${JOB_NAME}\| |")"
         if [ -n "$TAIL_TEXT" ]; then
-            emit 2 "$TAIL_TEXT"
+            emit 1 "$TAIL_TEXT"
         fi
     fi
 fi
