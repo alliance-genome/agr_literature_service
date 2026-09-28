@@ -68,7 +68,8 @@ def _report_unparsable_date_published(bad_date_published, is_pubmed):
     return email_message
 
 
-def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published, fatal_error=None):
+def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published,
+                              fatal_error=None, failed_mods=None):
 
     all_pmids = pmids4mod.get('all')
     if all_pmids is None:
@@ -88,14 +89,21 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
         send_report(email_subject, email_message)
         return
 
+    if failed_mods:
+        email_message = (
+            "<h3 style='color:red;'>PubMed search failed for: " + ", ".join(failed_mods) + "</h3>"
+            "<p>No papers were retrieved for these MOD(s) in this run; see the log for the errors.</p>"
+        )
+
     if len(all_pmids) == 0:
-        email_message = "No new papers from PubMed Search"
+        if not failed_mods:
+            email_message = "No new papers from PubMed Search"
     else:
         log_file = log_path + "new_papers.log"
         fw = open(log_file, "w")
         message = "Total " + str(len(all_pmids)) + " new PubMed paper(s) have been added into database"
         fw.write(message + "\n\n")
-        email_message = "<h3>" + message + "</h3>"
+        email_message = email_message + "<h3>" + message + "</h3>"
 
         rows = ""
         for mod in mods:
