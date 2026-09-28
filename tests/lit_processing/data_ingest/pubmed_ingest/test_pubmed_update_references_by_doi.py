@@ -1,7 +1,18 @@
+from unittest.mock import MagicMock, patch
+
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_by_doi \
-    import build_doi_search_term, classify_doi_matches, add_pmid_to_existing_papers
+    import build_doi_search_term, classify_doi_matches, add_pmid_to_existing_papers, get_dois_for_pmids, \
+    send_report_for_merging_paper
 from ....fixtures import db  # noqa
+
+MODULE = 'agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_by_doi'
+
+
+def _response(status_code, json_body=None):
+    response = MagicMock(status_code=status_code)
+    response.json.return_value = json_body
+    return response
 
 
 class TestBuildDoiSearchTerm:
@@ -23,7 +34,7 @@ class TestClassifyDoiMatches:
         candidates = [(983878, "DOI:10.17912/micropub.biology.001013", "38152060")]
         pmid_to_dois = {"38152060": {"10.17912/micropub.biology.001013"}}
 
-        to_add, to_merge, duplicates, rejected = classify_doi_matches(candidates, pmid_to_dois, {})
+        to_add, to_merge, duplicates, rejected, _ = classify_doi_matches(candidates, pmid_to_dois, {})
 
         assert to_add == [(983878, "PMID:38152060")]
         assert to_merge == [] and duplicates == [] and rejected == []
@@ -32,7 +43,7 @@ class TestClassifyDoiMatches:
         candidates = [(1, "DOI:10.1093/G3JOURNAL/JKAG266", "40000001")]
         pmid_to_dois = {"40000001": {"10.1093/g3journal/jkag266"}}
 
-        to_add, _, _, rejected = classify_doi_matches(candidates, pmid_to_dois, {})
+        to_add, _, _, rejected, _ = classify_doi_matches(candidates, pmid_to_dois, {})
 
         assert to_add == [(1, "PMID:40000001")]
         assert rejected == []
@@ -42,24 +53,26 @@ class TestClassifyDoiMatches:
         candidates = [(1036507, "DOI:10.7488/era/1802", "33807664")]
         pmid_to_dois = {"33807664": {"10.3390/s21051802"}}
 
-        to_add, to_merge, duplicates, rejected = classify_doi_matches(candidates, pmid_to_dois, {})
+        to_add, to_merge, duplicates, rejected, _ = classify_doi_matches(candidates, pmid_to_dois, {})
 
         assert to_add == [] and to_merge == [] and duplicates == []
         assert rejected == [(1036507, "DOI:10.7488/era/1802", "PMID:33807664")]
 
-    def test_rejects_pmid_missing_from_summary(self):
+    def test_pmid_without_summary_is_unverified_not_rejected(self):
+        # The esummary fetch failed, so nothing is known about the DOI: it must
+        # not be added, and not be logged as a false match either.
         candidates = [(1, "DOI:10.1/x", "123")]
 
-        to_add, _, _, rejected = classify_doi_matches(candidates, {}, {})
+        to_add, _, _, rejected, unverified = classify_doi_matches(candidates, {}, {})
 
-        assert to_add == []
-        assert rejected == [(1, "DOI:10.1/x", "PMID:123")]
+        assert to_add == [] and rejected == []
+        assert unverified == [(1, "DOI:10.1/x", "PMID:123")]
 
     def test_pmid_already_in_database_goes_to_merge_report(self):
         candidates = [(5, "DOI:10.1/x", "123")]
         pmid_to_dois = {"123": {"10.1/x"}}
 
-        to_add, to_merge, _, _ = classify_doi_matches(candidates, pmid_to_dois, {"PMID:123": 9})
+        to_add, to_merge, _, _, _ = classify_doi_matches(candidates, pmid_to_dois, {"PMID:123": 9})
 
         assert to_add == []
         assert to_merge == [("DOI:10.1/x", "PMID:123")]
@@ -71,7 +84,7 @@ class TestClassifyDoiMatches:
         candidates = [(10, "DOI:10.1/a", "123"), (11, "DOI:10.1/b", "123"), (12, "DOI:10.1/c", "456")]
         pmid_to_dois = {"123": {"10.1/a", "10.1/b"}, "456": {"10.1/c"}}
 
-        to_add, to_merge, duplicates, rejected = classify_doi_matches(candidates, pmid_to_dois, {})
+        to_add, to_merge, duplicates, rejected, _ = classify_doi_matches(candidates, pmid_to_dois, {})
 
         assert to_add == [(12, "PMID:456")]
         assert duplicates == [("DOI:10.1/a", "PMID:123"), ("DOI:10.1/b", "PMID:123")]
@@ -98,3 +111,45 @@ class TestAddPmidToExistingPapers:
             CrossReferenceModel.curie.in_(["PMID:99990001", "PMID:99990002"])).all()
         assert sorted(rows) == sorted([(refs[0].reference_id, "PMID:99990001"),
                                        (refs[2].reference_id, "PMID:99990002")])
+
+
+class TestGetDoisForPmids:
+
+    @patch(f'{MODULE}.time.sleep')
+    @patch(f'{MODULE}.requests.post')
+    def test_retries_once_when_rate_limited(self, mock_post, _sleep, monkeypatch):
+        monkeypatch.setenv('NCBI_API_KEY', 'test')
+        summary = {"result": {"123": {"articleids": [{"idtype": "doi", "value": "10.1/X"}]}}}
+        mock_post.side_effect = [_response(429), _response(200, summary)]
+
+        assert get_dois_for_pmids(["123"]) == {"123": {"10.1/x"}}
+        assert mock_post.call_count == 2
+
+    @patch(f'{MODULE}.time.sleep')
+    @patch(f'{MODULE}.requests.post')
+    def test_failed_fetch_leaves_pmids_out(self, mock_post, _sleep, monkeypatch):
+        monkeypatch.setenv('NCBI_API_KEY', 'test')
+        mock_post.return_value = _response(500, {"error": "internal"})
+
+        assert get_dois_for_pmids(["123"]) == {}
+
+
+class TestSendReportForMergingPaper:
+
+    @patch(f'{MODULE}.send_report')
+    def test_duplicates_only_report_does_not_describe_doi_pmid_pairs(self, mock_send_report):
+        send_report_for_merging_paper([], [("DOI:10.1/a", "PMID:123"), ("DOI:10.1/b", "PMID:123")])
+
+        subject, message = mock_send_report.call_args.args
+        assert "the other has a PMID" not in message
+        assert "Paper with PMID" not in message
+        assert "DOI:10.1/a" in message and "DOI:10.1/b" in message
+        assert subject != "Duplicate Paper Pairs Detected: Merge Required"
+
+    @patch(f'{MODULE}.send_report')
+    def test_merge_pairs_report_is_unchanged(self, mock_send_report):
+        send_report_for_merging_paper([("DOI:10.1/a", "PMID:123")])
+
+        subject, message = mock_send_report.call_args.args
+        assert subject == "Duplicate Paper Pairs Detected: Merge Required"
+        assert "the other has a PMID" in message and "DOI:10.1/a" in message

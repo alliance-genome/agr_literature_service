@@ -54,11 +54,14 @@ def update_database(): # noqa
     # PubMed's [DOI] search is not an exact match, so only keep a PMID whose
     # own record lists the DOI we searched for
     pmid_to_dois = get_dois_for_pmids([pmid for (_, _, pmid) in candidates])
-    (papers_to_add_pmid, papers_to_merge, duplicate_papers, rejected) = \
+    (papers_to_add_pmid, papers_to_merge, duplicate_papers, rejected, unverified) = \
         classify_doi_matches(candidates, pmid_to_dois, pmid_to_reference_id)
     for (reference_id, doi, pmid) in rejected:
         logger.info(f"REJECTED {pmid} for {doi} (reference_id = {reference_id}): "
                     f"the PubMed record does not list this DOI")
+    for (reference_id, doi, pmid) in unverified:
+        logger.info(f"SKIPPED {pmid} for {doi} (reference_id = {reference_id}): "
+                    f"PubMed summary unavailable, will retry on the next run")
     for (doi, pmid) in papers_to_merge:
         logger.info(f"FOUND {pmid} for {doi}, but it is already in the database")
     for (doi, pmid) in duplicate_papers:
@@ -125,7 +128,7 @@ def get_pmid_for_doi(doi): # noqa
 def get_dois_for_pmids(pmids):
     """
     Return {pmid: set of lower-cased DOIs} from the PubMed esummary records.
-    A PMID whose summary could not be fetched is left out, so it gets rejected.
+    A PMID whose summary could not be fetched is left out, so it stays unverified.
     """
     pmid_to_dois = {}
     for i in range(0, len(pmids), esummary_batch_size):
@@ -138,6 +141,10 @@ def get_dois_for_pmids(pmids):
         }
         try:
             response = requests.post(esummary_url, data=data)
+            if response.status_code == 429:  # Too Many Requests
+                time.sleep(10)  # Wait for 10 seconds before retrying
+                response = requests.post(esummary_url, data=data)
+            response.raise_for_status()
             result = response.json()["result"]
         except Exception as e:
             logger.info(f"Error(s) occurred when fetching PubMed summaries: {e}")
@@ -157,12 +164,16 @@ def classify_doi_matches(candidates, pmid_to_dois, pmid_to_reference_id):
     - duplicate_papers: [(doi, "PMID:n")], more than one DOI-only reference
       resolved to the same new PMID, so none of them gets it
     - rejected: [(reference_id, doi, "PMID:n")], the PubMed record does not list the DOI
+    - unverified: [(reference_id, doi, "PMID:n")], no PubMed summary to check against
     """
     verified = []
     rejected = []
+    unverified = []
     for (reference_id, doi, pmid) in candidates:
         bare_doi = doi[4:] if doi.upper().startswith("DOI:") else doi
-        if bare_doi.lower() in pmid_to_dois.get(pmid, set()):
+        if pmid not in pmid_to_dois:
+            unverified.append((reference_id, doi, "PMID:" + pmid))
+        elif bare_doi.lower() in pmid_to_dois[pmid]:
             verified.append((reference_id, doi, "PMID:" + pmid))
         else:
             rejected.append((reference_id, doi, "PMID:" + pmid))
@@ -178,7 +189,7 @@ def classify_doi_matches(candidates, pmid_to_dois, pmid_to_reference_id):
             duplicate_papers.append((doi, pmid))
         else:
             papers_to_add_pmid.append((reference_id, pmid))
-    return (papers_to_add_pmid, papers_to_merge, duplicate_papers, rejected)
+    return (papers_to_add_pmid, papers_to_merge, duplicate_papers, rejected, unverified)
 
 
 def add_pmid_to_existing_papers(db: Session, papers_to_add_pmid): # noqa
@@ -214,18 +225,24 @@ def update_papers(db: Session, pmids_to_update): # noqa
 
 def send_report_for_merging_paper(papers_to_merge, duplicate_papers=None): # noqa
 
-    email_subject = "Duplicate Paper Pairs Detected: Merge Required"
+    if papers_to_merge:
+        email_subject = "Duplicate Paper Pairs Detected: Merge Required"
+    else:
+        email_subject = "Papers with DOI Resolving to the Same PMID: Review Required"
 
-    email_message = "During our routine checks, we've identified pairs of papers in our database that appear to be duplicates. One paper in each pair has a DOI ID, while the other has a PMID. We believe these pairs correspond to the same paper and need to be merged.<p>Below is the list of detected duplicate pairs:<p>"
+    email_message = ""
 
-    rows = "<tr><th style='text-align:left' width='300'>Paper with DOI</th><th style='text-align:left' width='200'>Paper with PMID</th></tr>"
+    if papers_to_merge:
+        email_message = "During our routine checks, we've identified pairs of papers in our database that appear to be duplicates. One paper in each pair has a DOI ID, while the other has a PMID. We believe these pairs correspond to the same paper and need to be merged.<p>Below is the list of detected duplicate pairs:<p>"
 
-    for (doi, pmid) in papers_to_merge:
-        rows = rows + f"<tr><td style='text-align:left' width='300'>{doi}</th><td style='text-align:left' width='200'>{pmid}</td></tr>"
-    email_message = email_message + "<table></tbody>" + rows + "</tbody></table><p>"
+        rows = "<tr><th style='text-align:left' width='300'>Paper with DOI</th><th style='text-align:left' width='200'>Paper with PMID</th></tr>"
+
+        for (doi, pmid) in papers_to_merge:
+            rows = rows + f"<tr><td style='text-align:left' width='300'>{doi}</th><td style='text-align:left' width='200'>{pmid}</td></tr>"
+        email_message = email_message + "<table></tbody>" + rows + "</tbody></table><p>"
 
     if duplicate_papers:
-        email_message = email_message + "The following papers with DOI resolved to the same PubMed record, which is not yet in our database, so no PMID was added to them:<p>"
+        email_message = email_message + "The following papers with DOI resolved to the same PubMed record, which is not yet in our database, so no PMID was added to them. They are probably duplicates of each other:<p>"
         rows = "<tr><th style='text-align:left' width='300'>Paper with DOI</th><th style='text-align:left' width='200'>PMID</th></tr>"
         for (doi, pmid) in duplicate_papers:
             rows = rows + f"<tr><td style='text-align:left' width='300'>{doi}</th><td style='text-align:left' width='200'>{pmid}</td></tr>"

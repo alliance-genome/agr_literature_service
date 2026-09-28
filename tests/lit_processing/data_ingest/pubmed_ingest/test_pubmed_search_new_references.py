@@ -43,3 +43,12 @@ class TestSendPubmedSearchReport:
         send_pubmed_search_report({'all': set()}, ['SGD'], None, None, {}, [])
 
         assert mock_send_report.call_args.args[1] == "No new papers from PubMed Search"
+
+    @patch('agr_literature_service.lit_processing.utils.report_utils.send_report')
+    def test_partial_failure_still_reports_other_mods_found_nothing(self, mock_send_report):
+        send_pubmed_search_report({'all': set(), 'SGD': set(), 'XB': set()}, ['SGD', 'XB'], None, None, {}, [],
+                                  failed_mods=['XB'])
+
+        message = mock_send_report.call_args.args[1]
+        assert 'XB' in message
+        assert 'No new papers from the other MOD(s)' in message

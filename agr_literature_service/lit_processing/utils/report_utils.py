@@ -98,6 +98,8 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
     if len(all_pmids) == 0:
         if not failed_mods:
             email_message = "No new papers from PubMed Search"
+        elif any(mod in pmids4mod and mod not in failed_mods for mod in mods):
+            email_message = email_message + "<p>No new papers from the other MOD(s).</p>"
     else:
         log_file = log_path + "new_papers.log"
         fw = open(log_file, "w")
