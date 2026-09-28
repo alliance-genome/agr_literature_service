@@ -134,6 +134,50 @@ def test_last_error_is_truncated(run_wrapper):
     assert last_error.startswith("ValueError: xxx")
 
 
+def test_last_error_ignores_exceptions_before_the_tail(run_wrapper):
+    # An exception the job logged and recovered from long before it failed for
+    # another reason must not be reported as the cause.
+    script = (
+        "echo 'ValueError: recovered from this one'; seq 1 60; "
+        "echo '2026-09-27 06:01:10,144 - __main__ - ERROR - the real problem'; exit 1"
+    )
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_stale", "bash", "-c", script])
+
+    assert err.strip().endswith('last_error="2026-09-27 06:01:10,144 - __main__ - ERROR - the real problem"')
+
+
+def test_signal_kill_has_no_last_error(run_wrapper):
+    # A killed process never prints its own exception, so any exception line in
+    # its log is from before the kill and would name the wrong cause.
+    script = "echo 'ValueError: handled earlier'; kill -9 $$"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_oom", "bash", "-c", script])
+
+    assert "exit=137 signal=9" in err
+    assert " last_error=" not in err
+
+
+def test_last_error_found_in_log_with_binary_bytes(run_wrapper):
+    # GNU grep treats a file containing NUL as binary and prints no matching lines.
+    script = r"printf 'stray\000bytes\nValueError: boom\n'; exit 1"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_nul", "bash", "-c", script])
+
+    assert err.strip().endswith('last_error="ValueError: boom"')
+    # bash >= 4.4 warns "ignored null byte in input" when a captured command
+    # substitution contains one; the wrapper must strip them in the pipe instead.
+    assert "null byte" not in _proc.stderr
+
+
+def test_last_error_does_not_end_in_backslash(run_wrapper):
+    # A value ending in a backslash reads as an escaped closing quote to a parser
+    # that honours escapes. Here the 200-character cut lands on the backslash.
+    script = "python3 -c 'print(\"ValueError: \" + \"x\" * 187 + \"\\\\tail\")'; exit 1"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_bs", "bash", "-c", script])
+
+    record = err.strip()
+    assert record.endswith('x"')
+    assert not record.endswith('\\"')
+
+
 def test_no_last_error_when_nothing_looks_like_one(run_wrapper):
     _proc, _out, err, _log_dir = run_wrapper(["selftest_plain", "bash", "-c", "seq 1 3; exit 2"])
 
@@ -190,15 +234,20 @@ def test_missing_command_is_reported_not_silently_skipped(run_wrapper):
     assert proc.returncode == 0
     assert "ABC-JOB-FAILED job=unknown exit=64" in err
     assert "reason=usage" in err
+    # One ERROR row per failure; the explanation goes to fd 1.
+    assert len(err.splitlines()) == 1
+    assert "usage:" in _out
 
 
 def test_unsafe_job_name_is_rejected(run_wrapper):
-    proc, _out, err, log_dir = run_wrapper(
+    proc, out, err, log_dir = run_wrapper(
         ["../escape", "bash", "-c", "echo should-not-run"]
     )
 
     assert proc.returncode == 0
     assert "reason=bad-job-name" in err
+    assert len(err.splitlines()) == 1
+    assert "unsupported characters" in out
     assert list(log_dir.iterdir()) == []
 
 
@@ -267,6 +316,8 @@ def test_unwritable_log_directory_runs_the_job_anyway(run_wrapper, tmp_path):
     assert proc.returncode == 0
     assert marker.exists(), "the job must still run when its log cannot be written"
     assert "reason=log-unwritable" in err
+    assert len(err.splitlines()) == 1
+    assert "cannot write the job log" in _out
 
 
 def test_empty_job_name_is_rejected(run_wrapper):
@@ -274,6 +325,7 @@ def test_empty_job_name_is_rejected(run_wrapper):
 
     assert proc.returncode == 0
     assert "reason=bad-job-name" in err
+    assert len(err.splitlines()) == 1
     assert list(log_dir.iterdir()) == []
 
 
