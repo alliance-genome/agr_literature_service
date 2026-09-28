@@ -196,6 +196,14 @@ up (failures on fd 2, so they arrive as `level_name='ERROR'`). **Do not revert a
 crontab line to a bare redirect** — it silently drops that job out of alerting.
 `tests/test_run_cron_job.py` guards this.
 
+On failure the `ABC-JOB-FAILED` record is the **only** line on fd 2, and it
+carries a `last_error="..."` field: the last exception line in the job's final
+40 log lines, or else the last ERROR/CRITICAL line there (left out for a signal
+kill, whose log predates it). The 40-line log tail follows on fd 1. Every stderr
+line is a separate ERROR row that the alerter groups by message, so a tail on
+fd 2 turned one failure into ~37 alert groups and pushed the record itself past
+the 10-group cap. **Do not move the tail back to fd 2.**
+
 The API's gunicorn has the opposite problem: its error log, which also carries
 every routine INFO line ("Booting worker", "Worker exiting" from `max_requests`
 recycling), went entirely to stderr and so arrived as `ERROR`.

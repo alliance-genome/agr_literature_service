@@ -67,7 +67,7 @@ def test_success_writes_log_file_and_ok_record(run_wrapper):
     assert err == ""
 
 
-def test_failure_record_and_tail_go_to_stderr(run_wrapper):
+def test_failure_record_goes_to_stderr_and_tail_to_stdout(run_wrapper):
     proc, out, err, log_dir = run_wrapper(
         ["selftest_fail", "bash", "-c", "echo boom >&2; exit 3"]
     )
@@ -77,18 +77,122 @@ def test_failure_record_and_tail_go_to_stderr(run_wrapper):
     # fd 2 -> GELF level 3 -> level_name='ERROR' in Athena.
     assert "ABC-JOB-FAILED job=selftest_fail exit=3" in err
     assert f"log={log_dir}/selftest_fail.log" in err
-    assert "selftest_fail| boom" in err
-    assert out == ""
+    # The record is the ONLY line on fd 2. Every stderr line is an ERROR row, and
+    # a 40-line tail there became ~37 alert groups per failure, pushing the record
+    # itself past the alerter's group cap. The tail goes to fd 1 (INFO) instead,
+    # where it still sits next to the record in the viewer.
+    assert len(err.splitlines()) == 1
+    assert "selftest_fail| boom" in out
+
+
+def test_failure_record_names_the_last_exception(run_wrapper):
+    # Shape of the real 2026-09-27 pubmed_update_references_by_doi failure:
+    # SQLAlchemy prints DETAIL / SQL / Background lines AFTER the exception line,
+    # so "the last line" would be the useless "(Background on this error ...)".
+    script = r"""
+cat <<'LOG'
+2026-09-27 17:14:50,100 - root - INFO - Adding PMID to papers (20) with_DOI:
+Traceback (most recent call last):
+  File "/usr/src/app/script.py", line 10, in <module>
+    update_database()
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "idx_curie"
+DETAIL:  Key (curie)=(PMID:28118817) already exists.
+
+[SQL: INSERT INTO cross_reference (curie) VALUES (%(curie__0)s)]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+LOG
+exit 1
+"""
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_exc", "bash", "-c", script])
+
+    record = err.strip()
+    assert record.startswith("ABC-JOB-FAILED job=selftest_exc exit=1")
+    # Double quotes are swapped for single ones so the value stays one field.
+    assert record.endswith(
+        ' last_error="sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) '
+        "duplicate key value violates unique constraint 'idx_curie'\""
+    )
+
+
+def test_failure_record_falls_back_to_last_logged_error(run_wrapper):
+    # A job that logs an error and exits non-zero without a traceback.
+    script = "echo '2026-09-27 06:01:10,144 - __main__ - ERROR - Failed to query PubMed for XB'; echo done; exit 1"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_logged", "bash", "-c", script])
+
+    assert err.strip().endswith(
+        'last_error="2026-09-27 06:01:10,144 - __main__ - ERROR - Failed to query PubMed for XB"'
+    )
+
+
+def test_last_error_is_truncated(run_wrapper):
+    script = "python3 -c 'print(\"ValueError: \" + \"x\" * 1000)'; exit 1"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_long", "bash", "-c", script])
+
+    last_error = err.strip().split(' last_error="', 1)[1].removesuffix('"')
+    # Keeps the record inside the alerter's 400-character Slack sample.
+    assert len(last_error) == 200
+    assert last_error.startswith("ValueError: xxx")
+
+
+def test_last_error_ignores_exceptions_before_the_tail(run_wrapper):
+    # An exception the job logged and recovered from long before it failed for
+    # another reason must not be reported as the cause.
+    script = (
+        "echo 'ValueError: recovered from this one'; seq 1 60; "
+        "echo '2026-09-27 06:01:10,144 - __main__ - ERROR - the real problem'; exit 1"
+    )
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_stale", "bash", "-c", script])
+
+    assert err.strip().endswith('last_error="2026-09-27 06:01:10,144 - __main__ - ERROR - the real problem"')
+
+
+def test_signal_kill_has_no_last_error(run_wrapper):
+    # A killed process never prints its own exception, so any exception line in
+    # its log is from before the kill and would name the wrong cause.
+    script = "echo 'ValueError: handled earlier'; kill -9 $$"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_oom", "bash", "-c", script])
+
+    assert "exit=137 signal=9" in err
+    assert " last_error=" not in err
+
+
+def test_last_error_found_in_log_with_binary_bytes(run_wrapper):
+    # GNU grep treats a file containing NUL as binary and prints no matching lines.
+    script = r"printf 'stray\000bytes\nValueError: boom\n'; exit 1"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_nul", "bash", "-c", script])
+
+    assert err.strip().endswith('last_error="ValueError: boom"')
+    # bash >= 4.4 warns "ignored null byte in input" when a captured command
+    # substitution contains one; the wrapper must strip them in the pipe instead.
+    assert "null byte" not in _proc.stderr
+
+
+def test_last_error_does_not_end_in_backslash(run_wrapper):
+    # A value ending in a backslash reads as an escaped closing quote to a parser
+    # that honours escapes. Here the 200-character cut lands on the backslash.
+    script = "python3 -c 'print(\"ValueError: \" + \"x\" * 187 + \"\\\\tail\")'; exit 1"
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_bs", "bash", "-c", script])
+
+    record = err.strip()
+    assert record.endswith('x"')
+    assert not record.endswith('\\"')
+
+
+def test_no_last_error_when_nothing_looks_like_one(run_wrapper):
+    _proc, _out, err, _log_dir = run_wrapper(["selftest_plain", "bash", "-c", "seq 1 3; exit 2"])
+
+    assert "ABC-JOB-FAILED job=selftest_plain exit=2" in err
+    assert " last_error=" not in err
 
 
 def test_failure_tail_is_bounded(run_wrapper):
-    proc, _out, err, _log_dir = run_wrapper(
+    proc, out, _err, _log_dir = run_wrapper(
         ["selftest_tail", "bash", "-c", "seq 1 100; exit 1"],
         env_extra={"CRON_LOG_TAIL_LINES": "5"},
     )
 
     assert proc.returncode == 0
-    tail_lines = [line for line in err.splitlines() if line.startswith("selftest_tail| ")]
+    tail_lines = [line for line in out.splitlines() if line.startswith("selftest_tail| ")]
     assert len(tail_lines) == 5
     assert tail_lines[-1] == "selftest_tail| 100"
     assert tail_lines[0] == "selftest_tail| 96"
@@ -130,15 +234,20 @@ def test_missing_command_is_reported_not_silently_skipped(run_wrapper):
     assert proc.returncode == 0
     assert "ABC-JOB-FAILED job=unknown exit=64" in err
     assert "reason=usage" in err
+    # One ERROR row per failure; the explanation goes to fd 1.
+    assert len(err.splitlines()) == 1
+    assert "usage:" in _out
 
 
 def test_unsafe_job_name_is_rejected(run_wrapper):
-    proc, _out, err, log_dir = run_wrapper(
+    proc, out, err, log_dir = run_wrapper(
         ["../escape", "bash", "-c", "echo should-not-run"]
     )
 
     assert proc.returncode == 0
     assert "reason=bad-job-name" in err
+    assert len(err.splitlines()) == 1
+    assert "unsupported characters" in out
     assert list(log_dir.iterdir()) == []
 
 
@@ -207,6 +316,8 @@ def test_unwritable_log_directory_runs_the_job_anyway(run_wrapper, tmp_path):
     assert proc.returncode == 0
     assert marker.exists(), "the job must still run when its log cannot be written"
     assert "reason=log-unwritable" in err
+    assert len(err.splitlines()) == 1
+    assert "cannot write the job log" in _out
 
 
 def test_empty_job_name_is_rejected(run_wrapper):
@@ -214,6 +325,7 @@ def test_empty_job_name_is_rejected(run_wrapper):
 
     assert proc.returncode == 0
     assert "reason=bad-job-name" in err
+    assert len(err.splitlines()) == 1
     assert list(log_dir.iterdir()) == []
 
 
