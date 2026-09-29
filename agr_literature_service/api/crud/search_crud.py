@@ -747,25 +747,31 @@ def sort_authors_by_order(authors):
     return sorted(authors or [], key=order_key)
 
 
-def extract_large_scale_tags(source):  # pragma: no cover
+def extract_large_scale_tags(source):
     """The synthetic summary tags the indexer mints for over-threshold
-    (reference, entity_type, topic) groups (SCRUM-6614): entity is null,
-    large_scale_tag is 'true' and entity_count carries the collapsed group
-    size. Normal tags omit the field entirely."""
+    per-source (reference, entity_type, topic) groups (SCRUM-6614): entity is
+    null, large_scale_tag is 'true' and entity_count carries the collapsed
+    group size. Normal tags omit the field entirely.
+
+    _source normally holds a flat tag list (the sort_authors_by_order default
+    pipeline flattens it at index time), but the ksql pipeline emits the field
+    as an array of per-group arrays, so descend one level in case a document
+    was indexed without the pipeline."""
     summaries = []
-    for tag in source.get("topic_entity_tags") or []:
-        if not isinstance(tag, dict) or tag.get("large_scale_tag") != "true":
-            continue
-        count = tag.get("entity_count")
-        summaries.append({
-            "topic": tag.get("topic"),
-            "entity_type": tag.get("entity_type"),
-            "entity_count": int(count) if str(count or "").isdigit() else None,
-        })
+    for entry in source.get("topic_entity_tags") or []:
+        for tag in (entry if isinstance(entry, list) else [entry]):
+            if not isinstance(tag, dict) or tag.get("large_scale_tag") != "true":
+                continue
+            count = tag.get("entity_count")
+            summaries.append({
+                "topic": tag.get("topic"),
+                "entity_type": tag.get("entity_type"),
+                "entity_count": int(count) if str(count or "").isdigit() else None,
+            })
     return summaries
 
 
-def add_names_to_large_scale_tags(hits):  # pragma: no cover
+def add_names_to_large_scale_tags(hits):
     """Resolve the ATP names for topic/entity_type on the hits'
     large_scale_tags with one batched A-team lookup across all hits."""
     curies = {value.upper()

@@ -293,8 +293,12 @@ CREATE TABLE topic_entity_tag_with_source AS
 -- filters, stops one MOD's bulk load from collapsing another source's tags
 -- on a shared paper, and matches how the loaders count. GROUP_TAGS is capped
 -- by the collect_list limit, which only truncates groups already far over
--- the threshold, where the summary is used instead. Elasticsearch flattens
--- the resulting array-of-arrays on indexing.
+-- the threshold, where the summary is used instead. GROUP_SEA (and the other
+-- collect_set(x)[1] fields) is an arbitrary member of the group when values
+-- vary -- e.g. the manual SEA group spans ATP:0000035/36 -- so filters must
+-- rely on GROUP_SEA_GROUP and GROUP_DATA_PROVIDER, which the group key makes
+-- exact. Elasticsearch flattens the resulting array-of-arrays on indexing;
+-- the sort_authors_by_order default pipeline flattens _source to match.
 CREATE TABLE topic_entity_tag_groups AS
     SELECT tag_group_key,
     count(*) AS TAG_COUNT,
