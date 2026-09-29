@@ -98,6 +98,42 @@ class TestClassifyPmcFile:
                                  sibling_sizes={'gif': 73784}) == 'figure'
 
 
+class TestWebpClassification:
+    # The PMC Cloud Service article datasets (post-FTP, August 2026) ship
+    # figures as .webp, one per figure with no thumbnail sibling (SCRUM-6606).
+
+    def test_webp_is_a_figure(self):
+        # Real names from AGRKB:101000001310396 / AGRKB:101000001311921.
+        assert classify_pmc_file('gr1', 'webp', 123456) == 'figure'
+        assert classify_pmc_file('LSA-2026-03795_Fig1', 'webp', 98765) == 'figure'
+
+    def test_webp_without_size_is_a_figure(self):
+        # Backfill path: referencefile stores no size, webp is name-classified.
+        assert classify_pmc_file('gr1', 'webp') == 'figure'
+
+    def test_webp_is_not_size_classified(self):
+        # No THUMBNAIL_MAX_SIZE_BYTES entry: even a tiny webp is a figure.
+        assert is_thumbnail_by_size('webp', 1000) is False
+        assert classify_pmc_file('gr1', 'webp', 1000) == 'figure'
+
+    def test_webp_name_rules_still_apply(self):
+        assert classify_pmc_file('rsob220308.thumb', 'webp', 999999) == 'thumbnail'
+        assert classify_pmc_file('KRNB_A_2685379_ILM0001', 'webp', 2577) == 'inline_image'
+
+    def test_webp_pb_with_oc_twin_is_bw_duplicate(self):
+        # Real names from AGRKB:101000001310270: T&F now ships the _OC/_PB
+        # renditions as webp too.
+        names = {'KFLY_A_2719251_F0001_OC', 'KFLY_A_2719251_F0001_PB'}
+        assert classify_pmc_file('KFLY_A_2719251_F0001_PB', 'webp',
+                                 sibling_display_names=names) == 'bw_duplicate'
+        assert classify_pmc_file('KFLY_A_2719251_F0001_OC', 'webp',
+                                 sibling_display_names=names) == 'figure'
+
+    def test_webp_is_never_a_paired_thumbnail(self):
+        # The gif-vs-jpg pairing rule does not extend to webp.
+        assert is_paired_thumbnail('webp', 10000, {'jpg': 340500}) is False
+
+
 class TestInlineImage:
 
     def test_ilm_suffix_is_inline_image(self):

@@ -56,7 +56,7 @@ def build_sibling_image_sizes(input_file):
     thumbnails, so a large gif preview shipped alongside an even larger jpg
     master is still recognized as a thumbnail (SCRUM-6095).
     """
-    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp')
     sibling_sizes: Dict = {}
     with open(input_file) as f:
         for line in f:

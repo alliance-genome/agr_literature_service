@@ -293,14 +293,11 @@ def is_paired_thumbnail(file_extension, file_size, sibling_sizes):
 
 def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=None,
                       sibling_display_names=None):
-
-    """
-    image_related_file_extensions = [
-        'jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png',
-        'eps', 'ai', 'bmp', 'svg', 'webp', 'emf'
-    ]
-    """
-    image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
+    # webp: the PMC Cloud Service article datasets (which replaced the FTP/OA
+    # packages in August 2026) ship figures as .webp, one per figure with no
+    # thumbnail sibling, so webp is name-classified only - it has no entry in
+    # THUMBNAIL_MAX_SIZE_BYTES and no paired-thumbnail rule (SCRUM-6606).
+    image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp']
     ext = file_extension.lower()
     if ext == "nxml":
         return "nXML"
