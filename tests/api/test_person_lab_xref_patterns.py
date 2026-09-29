@@ -57,7 +57,9 @@ def test_person_and_lab_bodies_are_distinct():
 
 
 def test_check_routes_present_on_entity_routers():
-    paths = {r.path for r in app.routes}
+    # The OpenAPI schema, not app.routes: since FastAPI 0.14x, include_router()
+    # adds one wrapper per router to app.routes instead of copying its routes.
+    paths = set(app.openapi()["paths"])
     for base in ("/person_cross_reference", "/laboratory_cross_reference"):
         assert base + "/check/patterns" in paths
         assert any(p.startswith(base + "/check/curie/") for p in paths)
