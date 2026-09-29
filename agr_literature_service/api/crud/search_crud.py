@@ -747,6 +747,42 @@ def sort_authors_by_order(authors):
     return sorted(authors or [], key=order_key)
 
 
+def extract_large_scale_tags(source):  # pragma: no cover
+    """The synthetic summary tags the indexer mints for over-threshold
+    (reference, entity_type, topic) groups (SCRUM-6614): entity is null,
+    large_scale_tag is 'true' and entity_count carries the collapsed group
+    size. Normal tags omit the field entirely."""
+    summaries = []
+    for tag in source.get("topic_entity_tags") or []:
+        if not isinstance(tag, dict) or tag.get("large_scale_tag") != "true":
+            continue
+        count = tag.get("entity_count")
+        summaries.append({
+            "topic": tag.get("topic"),
+            "entity_type": tag.get("entity_type"),
+            "entity_count": int(count) if str(count or "").isdigit() else None,
+        })
+    return summaries
+
+
+def add_names_to_large_scale_tags(hits):  # pragma: no cover
+    """Resolve the ATP names for topic/entity_type on the hits'
+    large_scale_tags with one batched A-team lookup across all hits."""
+    curies = {value.upper()
+              for hit in hits for tag in hit.get("large_scale_tags", [])
+              for value in (tag.get("topic"), tag.get("entity_type"))
+              if value and value.upper().startswith("ATP:")}
+    if not curies:
+        return
+    name_map = get_map_ateam_curies_to_names(category="atpterm", curies=sorted(curies))
+    for hit in hits:
+        for tag in hit.get("large_scale_tags", []):
+            for key in ("topic", "entity_type"):
+                value = tag.get(key)
+                if value:
+                    tag[f"{key}_name"] = name_map.get(value.upper(), value)
+
+
 def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     hits = [{
         "curie": ref["_source"]["curie"],
@@ -767,8 +803,10 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
+        "large_scale_tags": extract_large_scale_tags(ref["_source"]),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
+    add_names_to_large_scale_tags(hits)
 
     # extract topic entity tag aggregations.
     topic_aggs = process_topic_entity_tags_aggregations(res)
