@@ -343,18 +343,18 @@ class TestCreateEntityTags:
         assert counts["errors"] == util.ABORT_AFTER_CONSECUTIVE_ERRORS
 
 
-class TestSelectOverCapPapers:
+class TestSelectLargeScalePapers:
 
-    def test_returns_only_groups_strictly_over_the_cap(self):
+    def test_returns_only_groups_strictly_over_the_threshold(self):
         entities_by_paper = {
             ("SGD:S1", "gene"): {f"SGD:G{i}" for i in range(
-                util.MAX_ASSOCIATIONS_PER_PAPER + 1)},
+                util.LARGE_SCALE_THRESHOLD + 1)},
             ("SGD:S1", "allele"): {f"SGD:A{i}" for i in range(
-                util.MAX_ASSOCIATIONS_PER_PAPER)},
+                util.LARGE_SCALE_THRESHOLD)},
             ("SGD:S2", "gene"): {"SGD:G1"},
         }
-        assert util.select_over_cap_papers(entities_by_paper) == {
-            ("SGD:S1", "gene"): util.MAX_ASSOCIATIONS_PER_PAPER + 1,
+        assert util.select_large_scale_papers(entities_by_paper) == {
+            ("SGD:S1", "gene"): util.LARGE_SCALE_THRESHOLD + 1,
         }
 
 

@@ -133,12 +133,14 @@ SOURCE_DESCRIPTION = (
 # Emit a progress line every this many rows so a long run shows a heartbeat.
 PROGRESS_LOG_INTERVAL = 1000
 
-# Skip a paper's associations of a given entity type when it has more than
-# this many in the input. Elasticsearch caps the reference document's
-# `topic_entity_tags` nested field at 10000 sub-documents; bulk omics papers
-# can carry thousands of gene associations and would halt the search reindex
-# (same rationale and cap as the ZFIN loaders, SCRUM-6363).
-MAX_ASSOCIATIONS_PER_PAPER = 250
+# A paper's associations of a given entity type are "large scale" above this
+# threshold. Everything is loaded regardless (SCRUM-6614) - the threshold only
+# drives reporting, so curators can see which papers got genome-scale tag
+# sets. It matches the search indexer's cutoff, above which a group is
+# collapsed into a single large_scale_tag summary in the reference document
+# (the ES nested-object limit that used to force a load-time skip, SCRUM-6363,
+# is now handled there).
+LARGE_SCALE_THRESHOLD = 250
 
 # Abort a run if this many create_tag calls fail in a row (a sign the DB
 # connection or session is wedged, rather than a few bad rows). Each
@@ -421,14 +423,14 @@ def load_abc_entity_tags(db: Session,
             else (row[0], ROOT_TOPIC_ATP, row[3]) for row in rows}
 
 
-def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -> Dict[Tuple[str, str], int]:
+def select_large_scale_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -> Dict[Tuple[str, str], int]:
     """Given a mapping of (paper token, entity type) -> set of associated entity
     curies, return the (paper, type) pairs whose association count exceeds
-    MAX_ASSOCIATIONS_PER_PAPER, mapped to that count. These associations are
-    skipped so they never overflow the Elasticsearch nested-object limit on the
-    reference document."""
+    LARGE_SCALE_THRESHOLD, mapped to that count. Reporting only: these
+    associations are loaded in full, and the search indexer collapses each
+    such group into one large_scale_tag summary (SCRUM-6614)."""
     return {key: len(entities) for key, entities in entities_by_paper.items()
-            if len(entities) > MAX_ASSOCIATIONS_PER_PAPER}
+            if len(entities) > LARGE_SCALE_THRESHOLD}
 
 
 def build_tag_payload(reference_curie: str, topic_atp: str, entity_curie: Optional[str],
@@ -657,8 +659,8 @@ def new_counts() -> Dict:
         "missing_entity_id": 0,
         "missing_reference": 0,
         "not_in_corpus": 0,
-        "skipped_over_cap": 0,
-        "papers_over_cap": 0,
+        "large_scale_associations": 0,
+        "large_scale_papers": 0,
         "errors": 0,
     }
 
@@ -687,8 +689,9 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
     message += f"<li>Associations without an entity sgdid skipped: {counts['missing_entity_id']}"
     message += f"<li>References not found in ABC: {counts['missing_reference']}"
     message += f"<li>Associations skipped (paper not in SGD corpus): {counts['not_in_corpus']}"
-    message += (f"<li>Associations skipped (&gt; {MAX_ASSOCIATIONS_PER_PAPER} per entity type per paper): "
-                f"{counts['skipped_over_cap']} associations on {counts['papers_over_cap']} papers")
+    message += (f"<li>Large-scale associations (&gt; {LARGE_SCALE_THRESHOLD} per entity type per paper, "
+                f"loaded in full; search shows a summary tag per group): "
+                f"{counts['large_scale_associations']} associations on {counts['large_scale_papers']} papers")
     message += f"<li>Errors: {counts['errors']}"
     not_in_corpus_refs = counts.get("not_in_corpus_refs", {})
     if not_in_corpus_refs:
@@ -708,7 +711,7 @@ def log_run_summary(counts: Dict, label: str) -> None:
         "skipped_duplicate=%d skipped_in_abc=%d duplicate_in_input=%d "
         "unknown_entity_type=%d unknown_topic=%d entity_unknown_topic=%d "
         "missing_entity_id=%d missing_reference=%d not_in_corpus=%d "
-        "skipped_over_cap=%d papers_over_cap=%d errors=%d",
+        "large_scale_associations=%d large_scale_papers=%d errors=%d",
         label, counts["total_associations"], counts["created"],
         counts["updated_existing"],
         counts["skipped_duplicate"], counts["skipped_in_abc"],
@@ -717,7 +720,7 @@ def log_run_summary(counts: Dict, label: str) -> None:
         counts["entity_unknown_topic"],
         counts["missing_entity_id"],
         counts["missing_reference"], counts["not_in_corpus"],
-        counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],
+        counts["large_scale_associations"], counts["large_scale_papers"], counts["errors"],
     )
 
 

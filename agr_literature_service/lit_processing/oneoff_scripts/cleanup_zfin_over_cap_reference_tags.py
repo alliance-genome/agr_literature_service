@@ -2,6 +2,12 @@
 cleanup_zfin_over_cap_reference_tags.py
 =======================================
 
+**OBSOLETE - DO NOT RUN (SCRUM-6614).** The working group reversed the
+SCRUM-6363 decision: over-threshold associations are now loaded on purpose
+(the search indexer collapses each large group into one large_scale_tag
+summary), so running this cleanup would delete wanted data. The module is
+kept for the historical record; its __main__ entry refuses to start.
+
 Remove ZFIN gene/allele entity topic entity tags (TETs) for papers that carry
 more than MAX_ASSOCIATIONS_PER_PAPER associations from the shared ZFIN
 reference-curation source (SCRUM-6363).
@@ -51,7 +57,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.load_zfin_g
     GENE_ATP,
 )
 from agr_literature_service.lit_processing.data_ingest.for_migration.zfin_reference_tag_utils import (
-    MAX_ASSOCIATIONS_PER_PAPER,
+    LARGE_SCALE_THRESHOLD,
     deliver_report,
     find_zfin_source_id,
 )
@@ -72,7 +78,7 @@ ENTITY_TYPES: List[Tuple[str, str]] = [("gene", GENE_ATP), ("allele", ALLELE_ATP
 def find_over_cap_references(db, source_id: int, entity_atp: str) -> List[Tuple[int, int]]:
     """Return [(reference_id, tag_count)] for references whose pure entity tag
     count (topic == entity_type == entity_atp) for this source exceeds
-    MAX_ASSOCIATIONS_PER_PAPER, largest first."""
+    LARGE_SCALE_THRESHOLD, largest first."""
     rows = (
         db.query(TopicEntityTagModel.reference_id, func.count().label("n"))
         .filter(
@@ -81,7 +87,7 @@ def find_over_cap_references(db, source_id: int, entity_atp: str) -> List[Tuple[
             TopicEntityTagModel.entity_type == entity_atp,
         )
         .group_by(TopicEntityTagModel.reference_id)
-        .having(func.count() > MAX_ASSOCIATIONS_PER_PAPER)
+        .having(func.count() > LARGE_SCALE_THRESHOLD)
         .order_by(func.count().desc())
         .all()
     )
@@ -168,7 +174,7 @@ def cleanup_zfin_over_cap_reference_tags(delete: bool = False,
                 work_by_reference.setdefault(reference_id, []).append((label, entity_atp))
             logger.info(
                 "%s: %d papers over the %d cap (%d tags)%s",
-                label, len(over_cap), MAX_ASSOCIATIONS_PER_PAPER,
+                label, len(over_cap), LARGE_SCALE_THRESHOLD,
                 counts[f"{label}_tags"], "" if delete else " [dry-run]",
             )
 
@@ -218,7 +224,7 @@ def compose_report_message(counts: Dict) -> str:
     mode = "DELETED" if counts.get("deleted") else "DRY-RUN (no changes made)"
     message += "<ul>"
     message += f"<li>Mode: {mode}"
-    message += f"<li>Cap: {MAX_ASSOCIATIONS_PER_PAPER} associations per paper"
+    message += f"<li>Cap: {LARGE_SCALE_THRESHOLD} associations per paper"
     for label in ("gene", "allele"):
         message += (f"<li>{label.capitalize()}: {counts.get(f'{label}_papers', 0)} papers over cap, "
                     f"{counts.get(f'{label}_tags', 0)} tags")
@@ -232,6 +238,11 @@ def compose_report_message(counts: Dict) -> str:
 
 
 if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(
+        "OBSOLETE (SCRUM-6614): over-threshold associations are now loaded on "
+        "purpose and summarized by the search indexer. Running this cleanup "
+        "would delete wanted data."
+    )
     parser = argparse.ArgumentParser(
         description="Remove ZFIN gene/allele entity tags for papers exceeding the "
                     "per-paper association cap"
