@@ -136,7 +136,8 @@ PROGRESS_LOG_INTERVAL = 1000
 # A paper's associations of a given entity type are "large scale" above this
 # threshold. Everything is loaded regardless (SCRUM-6614) - the threshold only
 # drives reporting, so curators can see which papers got genome-scale tag
-# sets. It matches the search indexer's cutoff, above which a group is
+# sets. It must match the search indexer's cutoff (the 250 in the CASE in
+# debezium/ksql_queries.ksql), above which a per-source group is
 # collapsed into a single large_scale_tag summary in the reference document
 # (the ES nested-object limit that used to force a load-time skip, SCRUM-6363,
 # is now handled there).

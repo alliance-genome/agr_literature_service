@@ -275,17 +275,31 @@ CREATE TABLE topic_entity_tag_with_source AS
       ELSE 'ECO:0007669'
     END AS source_evidence_assertion_group,
 
-    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", '')) AS tag_group_key
+    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END) AS tag_group_key
 
     FROM topic_entity_tag topic_entity_tag
     JOIN tag_source tag_source ON
     topic_entity_tag.tag_source_id = tag_source.tag_source_id
     EMIT CHANGES;
 
-CREATE TABLE topic_entity_tag_group_summaries AS
+-- Large-scale collapse (SCRUM-6614): tags aggregate once per
+-- (reference, entity_type, topic, data_provider, SEA group), then groups
+-- aggregate per reference, so one tag change costs one group update plus one
+-- reference update -- no join fans a count change back onto every tag row.
+-- Groups over the threshold contribute one synthetic summary tag instead of
+-- their collected maps; 250 must match LARGE_SCALE_THRESHOLD in
+-- sgd_reference_tag_utils.py / zfin_reference_tag_utils.py. The per-source
+-- group key keeps a summary's data_provider/SEA truthful for the facet
+-- filters, stops one MOD's bulk load from collapsing another source's tags
+-- on a shared paper, and matches how the loaders count. GROUP_TAGS is capped
+-- by the collect_list limit, which only truncates groups already far over
+-- the threshold, where the summary is used instead. Elasticsearch flattens
+-- the resulting array-of-arrays on indexing.
+CREATE TABLE topic_entity_tag_groups AS
     SELECT tag_group_key,
     count(*) AS TAG_COUNT,
     collect_set(reference_id)[1] AS REFERENCE_ID,
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS,
     collect_set(\"TOPIC\")[1] AS GROUP_TOPIC,
     collect_set(entity_type)[1] AS GROUP_ENTITY_TYPE,
     collect_set(species)[1] AS GROUP_SPECIES,
@@ -303,59 +317,15 @@ CREATE TABLE topic_entity_tag_group_summaries AS
     GROUP BY tag_group_key
     EMIT CHANGES;
 
-CREATE TABLE topic_entity_tag_with_group_count AS
-    SELECT
-    t.TOPIC_ENTITY_TAG_ID TOPIC_ENTITY_TAG_ID,
-    t.reference_id reference_id,
-    t.\"TOPIC\" \"TOPIC\",
-    t.entity_type entity_type,
-    t.entity entity,
-    t.entity_published_as entity_published_as,
-    t.species species,
-    t.display_tag display_tag,
-    t.confidence_level confidence_level,
-    t.confidence_score confidence_score,
-    t.negated negated,
-    t.data_novelty data_novelty,
-    t.data_context data_context,
-    t.validation_by_professional_biocurator validation_by_professional_biocurator,
-    t.source_method source_method,
-    t.data_provider data_provider,
-    t.source_evidence_assertion source_evidence_assertion,
-    t.source_evidence_assertion_group source_evidence_assertion_group,
-    g.TAG_COUNT TAG_COUNT
-    FROM topic_entity_tag_with_source t
-    JOIN topic_entity_tag_group_summaries g ON
-    t.tag_group_key = g.tag_group_key
-    EMIT CHANGES;
-
-CREATE TABLE topic_entity_tags_normal AS
-    SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) \"TOPIC_ENTITY_TAGS_NORMAL\"
-    FROM topic_entity_tag_with_group_count
-    WHERE TAG_COUNT <= 250
-    GROUP BY reference_id
-    EMIT CHANGES;
-
-CREATE TABLE topic_entity_tags_summary AS
-    SELECT REFERENCE_ID \"REFERENCE_ID\",
-    collect_list(map('topic':=GROUP_TOPIC, 'entity_type':=GROUP_ENTITY_TYPE, 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_SPECIES, 'display_tag':=GROUP_DISPLAY_TAG, 'confidence_level':=GROUP_CONFIDENCE_LEVEL, 'confidence_score':=cast(null as string), 'negated':=GROUP_NEGATED, 'data_novelty':=GROUP_DATA_NOVELTY, 'data_context':=GROUP_DATA_CONTEXT, 'validation_by_professional_biocurator':=GROUP_VALIDATION, 'source_method':=GROUP_SOURCE_METHOD, 'data_provider':=GROUP_DATA_PROVIDER, 'source_evidence_assertion':=GROUP_SEA, 'source_evidence_assertion_group':=GROUP_SEA_GROUP, 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string))) \"TOPIC_ENTITY_TAGS_SUMMARY\"
-    FROM topic_entity_tag_group_summaries
-    WHERE TAG_COUNT > 250
-    GROUP BY REFERENCE_ID
-    EMIT CHANGES;
-
 CREATE TABLE topic_entity_tags AS
-    SELECT
-    COALESCE(n.REFERENCE_ID, s.REFERENCE_ID) \"REFERENCE_ID\",
-    CASE
-      WHEN n.TOPIC_ENTITY_TAGS_NORMAL IS NULL THEN s.TOPIC_ENTITY_TAGS_SUMMARY
-      WHEN s.TOPIC_ENTITY_TAGS_SUMMARY IS NULL THEN n.TOPIC_ENTITY_TAGS_NORMAL
-      ELSE array_concat(n.TOPIC_ENTITY_TAGS_NORMAL, s.TOPIC_ENTITY_TAGS_SUMMARY)
-    END \"TOPIC_ENTITY_TAGS\"
-    FROM topic_entity_tags_normal n
-    FULL OUTER JOIN topic_entity_tags_summary s ON
-    n.REFERENCE_ID = s.REFERENCE_ID
+    SELECT REFERENCE_ID \"REFERENCE_ID\",
+    collect_list(
+      CASE WHEN TAG_COUNT <= 250 THEN GROUP_TAGS
+      ELSE ARRAY[map('topic':=GROUP_TOPIC, 'entity_type':=GROUP_ENTITY_TYPE, 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_SPECIES, 'display_tag':=GROUP_DISPLAY_TAG, 'confidence_level':=GROUP_CONFIDENCE_LEVEL, 'confidence_score':=cast(null as string), 'negated':=GROUP_NEGATED, 'data_novelty':=GROUP_DATA_NOVELTY, 'data_context':=GROUP_DATA_CONTEXT, 'validation_by_professional_biocurator':=GROUP_VALIDATION, 'source_method':=GROUP_SOURCE_METHOD, 'data_provider':=GROUP_DATA_PROVIDER, 'source_evidence_assertion':=GROUP_SEA, 'source_evidence_assertion_group':=GROUP_SEA_GROUP, 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string))]
+      END
+    ) \"TOPIC_ENTITY_TAGS\"
+    FROM topic_entity_tag_groups
+    GROUP BY REFERENCE_ID
     EMIT CHANGES;
 
 CREATE TABLE cross_references AS
