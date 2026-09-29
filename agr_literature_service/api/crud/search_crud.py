@@ -837,8 +837,10 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
     data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
+    data_context = extract_filtered_agg(res, "data_context_aggregation", "data_context")
     validation_by_professional_biocurator = extract_filtered_agg(
         res, "validation_by_professional_biocurator_aggregation", "validation_by_professional_biocurator")
+    large_scale_tag = extract_filtered_agg(res, "large_scale_tag_aggregation", "large_scale_tag")
 
     raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
     group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
@@ -864,7 +866,9 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
         'data_novelty_aggregation',
-        'validation_by_professional_biocurator_aggregation'
+        'data_context_aggregation',
+        'validation_by_professional_biocurator_aggregation',
+        'large_scale_tag_aggregation'
     ]:
         res['aggregations'].pop(k, None)
 
@@ -872,6 +876,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
     add_curie_to_name_values(data_novelty)
+    add_curie_to_name_values(data_context)
 
     # reorder SEA buckets to desired sequence
     desired_order = [
@@ -893,7 +898,9 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
         "data_novelty": data_novelty,
+        "data_context": data_context,
         "validation_by_professional_biocurator": validation_by_professional_biocurator,
+        "large_scale_tag": large_scale_tag,
     }
 
 
@@ -1429,6 +1436,15 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         size=facets_limits.get("data_novelty", 10)
     )
 
+    es_body["aggregations"]["data_context_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.data_context.keyword",
+        term_key="data_context",
+        allowed_dp=allowed_dp,
+        size=facets_limits.get("data_context", 10)
+    )
+
     es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
@@ -1447,6 +1463,18 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
             allowed_dp=allowed_dp,
             size=facets_limits.get("validation_by_professional_biocurator", 10)
         )
+
+    # Genome-scale studies (SCRUM-6614): synthetic summary tags minted by the
+    # search indexer for over-cap (reference, entity_type, topic) groups carry
+    # large_scale_tag='true'; normal tags omit the field entirely.
+    es_body["aggregations"]["large_scale_tag_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.large_scale_tag.keyword",
+        term_key="large_scale_tag",
+        allowed_dp=allowed_dp,
+        size=facets_limits.get("large_scale_tag", 10)
+    )
 
     # SEA facets: count over filtered hits but not restricted by SEA value itself
     sea_tet_facets = {k: v for k, v in tet_facets.items() if k != "source_evidence_assertion"}
