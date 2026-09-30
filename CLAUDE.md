@@ -111,7 +111,9 @@ make stop-debezium            # Stop Debezium services
 
 ### Technology Stack
 
-- **FastAPI 0.95.x** - Async Python web framework
+- **FastAPI 0.141.x / Starlette 1.x** - Async Python web framework. `include_router()` no longer
+  copies routes into `app.routes` (it adds one wrapper per router), so inspect routes via
+  `app.openapi()["paths"]` instead
 - **SQLAlchemy 2.0.x** - Modern ORM with type hints
 - **PostgreSQL 17.x** - Primary database
 - **Elasticsearch 7.x** - Search indexing
