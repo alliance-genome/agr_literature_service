@@ -282,53 +282,51 @@ CREATE TABLE topic_entity_tag_with_source AS
     topic_entity_tag.tag_source_id = tag_source.tag_source_id
     EMIT CHANGES;
 
--- Large-scale collapse (SCRUM-6614): tags aggregate once per
--- (reference, entity_type, topic, data_provider, SEA group), then groups
+-- Large-scale collapse (SCRUM-6614). Tags aggregate once per
+-- (reference, entity_type, topic, data_provider, SEA group) and groups then
 -- aggregate per reference, so one tag change costs one group update plus one
 -- reference update -- no join fans a count change back onto every tag row.
--- Groups over the threshold contribute one synthetic summary tag instead of
--- their collected maps; 250 must match LARGE_SCALE_THRESHOLD in
--- sgd_reference_tag_utils.py / zfin_reference_tag_utils.py. The per-source
--- group key keeps a summary's data_provider/SEA truthful for the facet
--- filters, stops one MOD's bulk load from collapsing another source's tags
--- on a shared paper, and matches how the loaders count. GROUP_TAGS is capped
--- by the collect_list limit, which only truncates groups already far over
--- the threshold, where the summary is used instead. GROUP_SEA (and the other
--- collect_set(x)[1] fields) is an arbitrary member of the group when values
--- vary -- e.g. the manual SEA group spans ATP:0000035/36 -- so filters must
--- rely on GROUP_SEA_GROUP and GROUP_DATA_PROVIDER, which the group key makes
--- exact. Elasticsearch flattens the resulting array-of-arrays on indexing;
--- the sort_authors_by_order default pipeline flattens _source to match.
+-- Only table-safe aggregates are used (count and collect_list support
+-- retraction -- collect_set, min, max and latest_by_offset are stream-only
+-- and ksqlDB rejects them on a table source). The 250 threshold below must
+-- match LARGE_SCALE_THRESHOLD in sgd_reference_tag_utils.py and
+-- zfin_reference_tag_utils.py. FORMAT WARNING: setup.sh splits this file on
+-- every semicolon, including inside comments, so never put one in a comment.
 CREATE TABLE topic_entity_tag_groups AS
     SELECT tag_group_key,
     count(*) AS TAG_COUNT,
-    collect_set(reference_id)[1] AS REFERENCE_ID,
-    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS,
-    collect_set(\"TOPIC\")[1] AS GROUP_TOPIC,
-    collect_set(entity_type)[1] AS GROUP_ENTITY_TYPE,
-    collect_set(species)[1] AS GROUP_SPECIES,
-    collect_set(display_tag)[1] AS GROUP_DISPLAY_TAG,
-    collect_set(confidence_level)[1] AS GROUP_CONFIDENCE_LEVEL,
-    collect_set(cast(negated as string))[1] AS GROUP_NEGATED,
-    collect_set(data_novelty)[1] AS GROUP_DATA_NOVELTY,
-    collect_set(data_context)[1] AS GROUP_DATA_CONTEXT,
-    collect_set(validation_by_professional_biocurator)[1] AS GROUP_VALIDATION,
-    collect_set(source_method)[1] AS GROUP_SOURCE_METHOD,
-    collect_set(data_provider)[1] AS GROUP_DATA_PROVIDER,
-    collect_set(source_evidence_assertion)[1] AS GROUP_SEA,
-    collect_set(source_evidence_assertion_group)[1] AS GROUP_SEA_GROUP
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS
     FROM topic_entity_tag_with_source
     GROUP BY tag_group_key
+    EMIT CHANGES;
+
+-- The group key encodes reference_id, entity_type, topic, data_provider and
+-- the SEA group, so the summary's identity and filter fields are exact by
+-- construction. The remaining descriptive fields come from the group's first
+-- collected tag (an arbitrary member when values vary within a group, so
+-- filters must rely on the key-derived fields). GROUP_TAGS is capped by the
+-- collect_list limit, which only truncates groups already far over the
+-- threshold, where the summary replaces them anyway. large_scale_tag and
+-- entity_count exist only on these synthetic summary tags. Elasticsearch
+-- flattens the downstream array-of-arrays on indexing and the
+-- sort_authors_by_order default pipeline flattens _source to match.
+CREATE TABLE topic_entity_tag_group_summary AS
+    SELECT tag_group_key,
+    TAG_COUNT,
+    GROUP_TAGS,
+    split(tag_group_key, '|')[1] AS REFERENCE_ID,
+    map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string)) AS SUMMARY_TAG
+    FROM topic_entity_tag_groups
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tags AS
     SELECT REFERENCE_ID \"REFERENCE_ID\",
     collect_list(
       CASE WHEN TAG_COUNT <= 250 THEN GROUP_TAGS
-      ELSE ARRAY[map('topic':=GROUP_TOPIC, 'entity_type':=GROUP_ENTITY_TYPE, 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_SPECIES, 'display_tag':=GROUP_DISPLAY_TAG, 'confidence_level':=GROUP_CONFIDENCE_LEVEL, 'confidence_score':=cast(null as string), 'negated':=GROUP_NEGATED, 'data_novelty':=GROUP_DATA_NOVELTY, 'data_context':=GROUP_DATA_CONTEXT, 'validation_by_professional_biocurator':=GROUP_VALIDATION, 'source_method':=GROUP_SOURCE_METHOD, 'data_provider':=GROUP_DATA_PROVIDER, 'source_evidence_assertion':=GROUP_SEA, 'source_evidence_assertion_group':=GROUP_SEA_GROUP, 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string))]
+      ELSE ARRAY[SUMMARY_TAG]
       END
     ) \"TOPIC_ENTITY_TAGS\"
-    FROM topic_entity_tag_groups
+    FROM topic_entity_tag_group_summary
     GROUP BY REFERENCE_ID
     EMIT CHANGES;
 
