@@ -560,7 +560,7 @@ def get_sibling_image_sizes(file_with_path, file_name):
     same-named gif/jpg pair (SCRUM-6095). Raw file sizes are preferred over
     the gzipped copies when both are present.
     """
-    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp')
     base = file_name.rsplit(".", 1)[0].lower() if "." in file_name else file_name.lower()
     directory = path.dirname(file_with_path)
     sibling_sizes: Dict = {}
@@ -591,7 +591,7 @@ def get_sibling_display_names(file_with_path):
     the package directory, for detecting color/B&W rendition twins (_OC/_PB,
     SCRUM-6095).
     """
-    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp')
     directory = path.dirname(file_with_path)
     names: set = set()
     try:
