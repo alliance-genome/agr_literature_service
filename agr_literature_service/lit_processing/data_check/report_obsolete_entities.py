@@ -303,11 +303,15 @@ def get_unique_entity_list(db, mod_abbreviation):
             tag_source tet_src
             ON tet.tag_source_id = tet_src.tag_source_id
         JOIN
+            mod m
+            ON tet_src.secondary_data_provider_id = m.mod_id
+        JOIN
             reference ref
             ON tet.reference_id = ref.reference_id
         WHERE
             tet.entity IS NOT NULL
-            AND tet_src.data_provider = :mod_abbreviation
+            -- the owning MOD; data_provider can be a third party such as GEO
+            AND m.abbreviation = :mod_abbreviation
         GROUP BY
             tet.entity_type, tet.entity;
     """)

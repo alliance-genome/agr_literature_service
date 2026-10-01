@@ -6,7 +6,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-# from agr_literature_service.api.models import CurationStatusModel
+from agr_literature_service.api.models import ReferenceModel, TagSourceModel, TopicEntityTagModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
@@ -75,6 +75,53 @@ class TestCurationStatus:
             for res_obj in res:
                 if res_obj["topic_curie"] == "ATP:0000002":
                     assert res_obj["curst_curation_status"] == "ATP:0000237"
+
+    @patch("agr_literature_service.api.crud.curation_status_crud.search_topic_list", patch_subset)
+    @patch("agr_literature_service.api.crud.curation_status_crud.map_curies_to_names", patch_map_curies_to_names)
+    def test_aggregated_info_scopes_tags_by_secondary_data_provider(self, db, test_curation_status,  # noqa
+                                                                    test_mod, auth_headers):  # noqa
+        # A third-party pipeline source (SCRUM-6338): data_provider records where the
+        # data came from (GEO), secondary_data_provider the MOD that owns it. The
+        # curation status / quick topic addition view must show it to that MOD and
+        # only that MOD, even though data_provider is not a MOD abbreviation.
+        with TestClient(app) as client:
+            other_mod = "0016_BtDB"
+            client.post(url="/mod/", json={"abbreviation": other_mod, "short_name": "BtDB",
+                                           "full_name": "Second test db"}, headers=auth_headers)
+            reference_id = db.query(ReferenceModel.reference_id).filter_by(
+                curie=test_curation_status.new_reference_curie).scalar()
+            geo_source = TagSourceModel(source_evidence_assertion="ECO:0006156",
+                                        source_method="GEO dataset association pipeline",
+                                        description="GEO datasets", data_provider="GEO",
+                                        secondary_data_provider_id=test_mod.new_mod_id)
+            db.add(geo_source)
+            db.flush()
+            db.add(TopicEntityTagModel(reference_id=reference_id, topic="ATP:topic1",
+                                       tag_source_id=geo_source.tag_source_id, negated=False,
+                                       data_novelty="ATP:0000335", data_context="ATP:0000325"))
+            db.commit()
+
+            def topic1_info(mod_abbreviation):
+                url = (f"/curation_status/aggregated_curation_status_and_tet_info/"
+                       f"{test_curation_status.new_reference_curie}/{mod_abbreviation}")
+                response = client.get(url=url, headers=auth_headers)
+                assert response.status_code == status.HTTP_200_OK
+                return next(obj for obj in response.json() if obj["topic_curie"] == "ATP:topic1")
+
+            owner = topic1_info(test_mod.new_mod_abbreviation)
+            assert owner["tet_info_date_created"] is not None
+            assert owner["tet_info_topic_source"] != []
+
+            other = topic1_info(other_mod)
+            assert other["tet_info_date_created"] is None
+            assert other["tet_info_topic_source"] == []
+
+    def test_aggregated_info_unknown_mod_is_422(self, test_curation_status, auth_headers):  # noqa
+        with TestClient(app) as client:
+            url = (f"/curation_status/aggregated_curation_status_and_tet_info/"
+                   f"{test_curation_status.new_reference_curie}/NO_SUCH_MOD")
+            response = client.get(url=url, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_show(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:
