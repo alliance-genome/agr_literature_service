@@ -171,6 +171,7 @@ CREATE TABLE tag_source(
     tag_source_id string PRIMARY KEY,
     source_method string,
     data_provider string,
+    secondary_data_provider_id string,
     source_evidence_assertion string
   ) WITH (
     KAFKA_TOPIC='abc.public.tag_source',
@@ -242,6 +243,17 @@ CREATE TABLE curation_tags AS
     GROUP BY reference_id
     EMIT CHANGES;
 
+CREATE TABLE tag_source_with_mod AS
+    SELECT
+    tag_source.tag_source_id AS TAG_SOURCE_ID,
+    tag_source.source_method,
+    tag_source.data_provider,
+    tag_source.source_evidence_assertion,
+    mod.abbreviation AS secondary_data_provider
+    FROM tag_source
+    JOIN mod ON tag_source.secondary_data_provider_id = mod.mod_id
+    EMIT CHANGES;
+
 CREATE TABLE topic_entity_tag_with_source AS
     SELECT
     topic_entity_tag.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
@@ -267,6 +279,7 @@ CREATE TABLE topic_entity_tag_with_source AS
     topic_entity_tag.entity_id_validation,
     tag_source.source_method,
     tag_source.data_provider,
+    tag_source.secondary_data_provider,
     tag_source.source_evidence_assertion,
 
     CASE
@@ -278,7 +291,7 @@ CREATE TABLE topic_entity_tag_with_source AS
     concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END) AS tag_group_key
 
     FROM topic_entity_tag topic_entity_tag
-    JOIN tag_source tag_source ON
+    JOIN tag_source_with_mod tag_source ON
     topic_entity_tag.tag_source_id = tag_source.tag_source_id
     EMIT CHANGES;
 
@@ -290,12 +303,15 @@ CREATE TABLE topic_entity_tag_with_source AS
 -- retraction -- collect_set, min, max and latest_by_offset are stream-only
 -- and ksqlDB rejects them on a table source). The 250 threshold below must
 -- match LARGE_SCALE_THRESHOLD in sgd_reference_tag_utils.py and
--- zfin_reference_tag_utils.py. FORMAT WARNING: setup.sh splits this file on
+-- zfin_reference_tag_utils.py. The per-tag map carries
+-- secondary_data_provider, the tag's owning MOD (SCRUM-6338, merged from
+-- main -- the map construction lives here now, not in topic_entity_tags).
+-- FORMAT WARNING: setup.sh splits this file on
 -- every semicolon, including inside comments, so never put one in a comment.
 CREATE TABLE topic_entity_tag_groups AS
     SELECT tag_group_key,
     count(*) AS TAG_COUNT,
-    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'secondary_data_provider':=secondary_data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS
     FROM topic_entity_tag_with_source
     GROUP BY tag_group_key
     EMIT CHANGES;
@@ -315,7 +331,7 @@ CREATE TABLE topic_entity_tag_group_summary AS
     TAG_COUNT,
     GROUP_TAGS,
     split(tag_group_key, '|')[1] AS REFERENCE_ID,
-    map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string)) AS SUMMARY_TAG
+    map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'secondary_data_provider':=GROUP_TAGS[1]['secondary_data_provider'], 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string)) AS SUMMARY_TAG
     FROM topic_entity_tag_groups
     EMIT CHANGES;
 

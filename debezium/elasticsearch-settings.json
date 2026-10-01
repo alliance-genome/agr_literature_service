@@ -525,6 +525,10 @@
             "type": "keyword",
             "normalizer": "sortNormalizer"
           },
+          "secondary_data_provider": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
+          },
           "source_method": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
