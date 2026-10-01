@@ -224,7 +224,8 @@ class TestIsPairedThumbnail:
 
 class TestHtpSupplementBySize:
     """High-throughput supplement classification (SCRUM-6612): text-family
-    files > 0.5 MB and xlsx files > 1 MB are htp_supplement."""
+    files > 0.5 MB and Excel files (xls and xlsx, per the curators) > 1 MB
+    are htp_supplement."""
 
     def test_thresholds_are_the_expected_values(self):
         assert HTP_SUPPLEMENT_MIN_BYTES == {
@@ -232,6 +233,7 @@ class TestHtpSupplementBySize:
             'text': 500_000,
             'tsv': 500_000,
             'csv': 500_000,
+            'xls': 1_000_000,
             'xlsx': 1_000_000,
         }
 
@@ -246,14 +248,16 @@ class TestHtpSupplementBySize:
             assert classify_pmc_file('tableS1', ext, 500_000) == 'supplement'
             assert classify_pmc_file('tableS1', ext, 12_345) == 'supplement'
 
-    def test_xlsx_over_one_mb_is_htp(self):
-        assert is_htp_supplement_by_size('xlsx', 1_000_001) is True
-        assert classify_pmc_file('screen_results', 'xlsx', 1_000_001) == 'htp_supplement'
+    def test_excel_over_one_mb_is_htp(self):
+        for ext in ('xlsx', 'xls'):
+            assert is_htp_supplement_by_size(ext, 1_000_001) is True
+            assert classify_pmc_file('screen_results', ext, 1_000_001) == 'htp_supplement'
 
-    def test_xlsx_at_or_under_one_mb_stays_supplement(self):
-        assert classify_pmc_file('tableS2', 'xlsx', 1_000_000) == 'supplement'
-        # the text-family threshold does not apply to xlsx
-        assert classify_pmc_file('tableS2', 'xlsx', 600_000) == 'supplement'
+    def test_excel_at_or_under_one_mb_stays_supplement(self):
+        for ext in ('xlsx', 'xls'):
+            assert classify_pmc_file('tableS2', ext, 1_000_000) == 'supplement'
+            # the text-family threshold does not apply to Excel files
+            assert classify_pmc_file('tableS2', ext, 600_000) == 'supplement'
 
     def test_unknown_size_stays_supplement(self):
         assert is_htp_supplement_by_size('csv', None) is False
@@ -266,7 +270,6 @@ class TestHtpSupplementBySize:
     def test_other_extensions_never_htp(self):
         assert classify_pmc_file('data', 'pdf', 5_000_000) == 'supplement'
         assert classify_pmc_file('data', 'docx', 5_000_000) == 'supplement'
-        assert classify_pmc_file('data', 'xls', 5_000_000) == 'supplement'
 
     def test_nxml_and_images_unaffected(self):
         assert classify_pmc_file('main', 'nxml', 9_999_999) == 'nXML'

@@ -108,5 +108,5 @@ class TestCandidateRows:
         assert "md5sum IS NOT NULL" in sql
         assert "LIMIT 5" in sql
         # extensions come from the shared threshold map
-        for ext in ("'txt'", "'tsv'", "'csv'", "'xlsx'"):
+        for ext in ("'txt'", "'tsv'", "'csv'", "'xls'", "'xlsx'"):
             assert ext in sql
