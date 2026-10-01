@@ -14,7 +14,8 @@ from time import perf_counter
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, or_, func, create_engine, select, text, inspect as sa_inspect
+from sqlalchemy import case, and_, or_, func, create_engine, select, text, cast, String, \
+    inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
@@ -1425,6 +1426,87 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
+def _column_filter_condition(column, spec, column_name):
+    """One column's filter condition for apply_column_filters (SCRUM-6618).
+
+    ``spec`` is one of:
+      {"values": [...]}       -- exact-match set; a null in the list matches
+                                 rows where the column IS NULL (the grid's
+                                 "None" choice)
+      {"contains": "text"}    -- case-insensitive substring (grid text filter)
+      {"range": [min, max]}   -- inclusive bounds, either end nullable
+                                 (confidence_score)
+    A bare list is accepted as shorthand for {"values": [...]}.
+    """
+    if isinstance(spec, list):
+        spec = {"values": spec}
+    if not isinstance(spec, dict):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Unsupported filter spec for column '{column_name}'")
+    if "values" in spec:
+        values = spec["values"] or []
+        non_null = [v for v in values if v is not None]
+        conditions = []
+        if non_null:
+            conditions.append(column.in_(non_null))
+        if len(non_null) != len(values):
+            conditions.append(column.is_(None))
+        if not conditions:
+            return None
+        return or_(*conditions)
+    if "contains" in spec:
+        return cast(column, String).ilike(f"%{spec['contains']}%")
+    if "range" in spec:
+        low, high = (spec["range"] + [None, None])[:2]
+        conditions = []
+        if low is not None:
+            conditions.append(column >= low)
+        if high is not None:
+            conditions.append(column <= high)
+        return and_(*conditions) if conditions else None
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Unsupported filter spec for column '{column_name}'")
+
+
+def apply_column_filters(query, column_filters: Dict[str, Any]):
+    """Multi-column filtering for the TET table's server-side (infinite) row
+    model (SCRUM-6618). ``column_filters`` maps a column to a filter spec (see
+    _column_filter_condition); specs are ANDed across columns.
+
+    Addressable columns: any TopicEntityTagModel column by name;
+    ``tag_source.<col>`` for TagSourceModel columns; ``secondary_data_provider``
+    for the source's Mod abbreviation. The source-table conditions use
+    relationship EXISTS (.has()) rather than joins, so they compose with the
+    sort path in show_all_reference_tags, which joins TagSourceModel itself for
+    source-column sorts.
+    """
+    for column_name, spec in (column_filters or {}).items():
+        if column_name == "secondary_data_provider":
+            condition = _column_filter_condition(ModModel.abbreviation, spec, column_name)
+            if condition is not None:
+                query = query.filter(TopicEntityTagModel.tag_source.has(
+                    TagSourceModel.secondary_data_provider.has(condition)))
+            continue
+        if column_name.startswith("tag_source."):
+            attr = column_name.split(".", 1)[1]
+            column = getattr(TagSourceModel, attr, None)
+            if column is None:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"Unknown tag_source column '{attr}'")
+            condition = _column_filter_condition(column, spec, column_name)
+            if condition is not None:
+                query = query.filter(TopicEntityTagModel.tag_source.has(condition))
+            continue
+        column = getattr(TopicEntityTagModel, column_name, None)
+        if column is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Unknown topic_entity_tag column '{column_name}'")
+        condition = _column_filter_condition(column, spec, column_name)
+        if condition is not None:
+            query = query.filter(condition)
+    return query
+
+
 def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
                              reference_id: int, force_insertion: bool = False):
     """
@@ -1661,7 +1743,7 @@ def _resolve_reference_ids_for_batch(db: Session, curies_or_reference_ids: List[
     return ident_to_ref_id
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None, column_filters: dict = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -1698,6 +1780,11 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
     if column_filter and column_values:
         column_value_list = column_values.split(',')
         query = filter_tet_data_by_column(query, column_filter, column_value_list)
+
+    # Multi-column grid filters (SCRUM-6618) -- applied before count_only so the
+    # infinite row model's lastRow reflects the filtered set.
+    if column_filters:
+        query = apply_column_filters(query, column_filters)
 
     if count_only:
         return query.count()

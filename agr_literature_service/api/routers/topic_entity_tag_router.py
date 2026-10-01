@@ -1,3 +1,4 @@
+import json
 from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional
 
@@ -122,15 +123,31 @@ def show_all_reference_tags(
     count_only: bool = False,
     sort_by: str = None,
     desc_sort: bool = False,
+    column_filters: str = None,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> Union[List[TopicEntityTagSchemaRelated], int]:
+    # Multi-column grid filters (SCRUM-6618): a JSON object mapping a column to
+    # {"values": [...]} | {"contains": "text"} | {"range": [min, max]}, ANDed
+    # across columns. Generalizes the single column_filter/column_values pair
+    # for the TET table's server-side (infinite) row model.
+    parsed_column_filters = None
+    if column_filters:
+        try:
+            parsed_column_filters = json.loads(column_filters)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="column_filters must be a JSON object")
+        if not isinstance(parsed_column_filters, dict):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="column_filters must be a JSON object")
     result = topic_entity_tag_crud.show_all_reference_tags(
         db, curie_or_reference_id,
         page, page_size,
         count_only, sort_by, desc_sort,
         column_only, column_filter,
-        column_values
+        column_values,
+        column_filters=parsed_column_filters
     )
     return result
 
