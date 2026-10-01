@@ -1426,6 +1426,11 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
+def _column_filter_422(column_name, why):
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Invalid filter for column '{column_name}': {why}")
+
+
 def _column_filter_condition(column, spec, column_name):
     """One column's filter condition for apply_column_filters (SCRUM-6618).
 
@@ -1437,14 +1442,18 @@ def _column_filter_condition(column, spec, column_name):
       {"range": [min, max]}   -- inclusive bounds, either end nullable
                                  (confidence_score)
     A bare list is accepted as shorthand for {"values": [...]}.
+    Malformed specs are 422s, never 500s (review hardening).
     """
     if isinstance(spec, list):
         spec = {"values": spec}
     if not isinstance(spec, dict):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Unsupported filter spec for column '{column_name}'")
+        _column_filter_422(column_name, "spec must be an object or a list of values")
     if "values" in spec:
         values = spec["values"] or []
+        if not isinstance(values, list):
+            # a bare string would otherwise be iterated char-by-char into
+            # IN ('a','b','c') and silently match nothing
+            _column_filter_422(column_name, "values must be a list")
         non_null = [v for v in values if v is not None]
         conditions = []
         if non_null:
@@ -1455,17 +1464,30 @@ def _column_filter_condition(column, spec, column_name):
             return None
         return or_(*conditions)
     if "contains" in spec:
-        return cast(column, String).ilike(f"%{spec['contains']}%")
+        text_value = spec["contains"]
+        if not isinstance(text_value, str):
+            _column_filter_422(column_name, "contains must be a string")
+        # Escape LIKE wildcards so a literal % or _ in the search text matches
+        # itself instead of acting as a pattern.
+        escaped = (text_value.replace("\\", "\\\\")
+                   .replace("%", "\\%")
+                   .replace("_", "\\_"))
+        return cast(column, String).ilike(f"%{escaped}%", escape="\\")
     if "range" in spec:
-        low, high = (spec["range"] + [None, None])[:2]
+        bounds = spec["range"]
+        if not isinstance(bounds, (list, tuple)) or len(bounds) > 2:
+            _column_filter_422(column_name, "range must be a [min, max] list")
+        low, high = (list(bounds) + [None, None])[:2]
+        for bound in (low, high):
+            if bound is not None and not isinstance(bound, (int, float)):
+                _column_filter_422(column_name, "range bounds must be numbers or null")
         conditions = []
         if low is not None:
             conditions.append(column >= low)
         if high is not None:
             conditions.append(column <= high)
         return and_(*conditions) if conditions else None
-    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=f"Unsupported filter spec for column '{column_name}'")
+    _column_filter_422(column_name, "expected one of: values, contains, range")
 
 
 def apply_column_filters(query, column_filters: Dict[str, Any]):
@@ -1489,19 +1511,20 @@ def apply_column_filters(query, column_filters: Dict[str, Any]):
             continue
         if column_name.startswith("tag_source."):
             attr = column_name.split(".", 1)[1]
-            column = getattr(TagSourceModel, attr, None)
-            if column is None:
+            # Only real table columns are addressable: a bare getattr would
+            # also resolve relationships/methods (e.g. reference, metadata)
+            # and 500 downstream instead of 422ing here (review hardening).
+            if attr not in TagSourceModel.__table__.columns:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Unknown tag_source column '{attr}'")
-            condition = _column_filter_condition(column, spec, column_name)
+            condition = _column_filter_condition(getattr(TagSourceModel, attr), spec, column_name)
             if condition is not None:
                 query = query.filter(TopicEntityTagModel.tag_source.has(condition))
             continue
-        column = getattr(TopicEntityTagModel, column_name, None)
-        if column is None:
+        if column_name not in TopicEntityTagModel.__table__.columns:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Unknown topic_entity_tag column '{column_name}'")
-        condition = _column_filter_condition(column, spec, column_name)
+        condition = _column_filter_condition(getattr(TopicEntityTagModel, column_name), spec, column_name)
         if condition is not None:
             query = query.filter(condition)
     return query

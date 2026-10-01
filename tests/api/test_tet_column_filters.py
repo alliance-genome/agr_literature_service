@@ -95,3 +95,58 @@ class TestApplyColumnFilters:
     def test_none_filters_is_a_noop(self):
         query = Query(TopicEntityTagModel)
         assert apply_column_filters(query, None) is query
+
+    # ---- review hardening: malformed input 422s instead of 500ing ----
+
+    def test_relationship_and_non_column_attrs_are_422(self):
+        for bad in ("tag_source", "metadata", "reference", "validated_by"):
+            with pytest.raises(HTTPException) as exc:
+                compiled({bad: {"values": ["x"]}})
+            assert exc.value.status_code == 422
+
+    def test_tag_source_relationship_attr_is_422(self):
+        with pytest.raises(HTTPException) as exc:
+            compiled({"tag_source.secondary_data_provider": {"values": ["SGD"]}})
+        assert exc.value.status_code == 422
+
+    def test_values_must_be_a_list(self):
+        # a bare string must not be iterated char-by-char into IN ('a','b','c')
+        with pytest.raises(HTTPException) as exc:
+            compiled({"topic": {"values": "abc"}})
+        assert exc.value.status_code == 422
+
+    def test_range_must_be_a_two_element_list_of_numbers(self):
+        for bad in (0.5, "0.5", [0.1, 0.2, 0.3], ["a", "b"], {"min": 0}):
+            with pytest.raises(HTTPException) as exc:
+                compiled({"confidence_score": {"range": bad}})
+            assert exc.value.status_code == 422
+
+    def test_contains_must_be_a_string(self):
+        with pytest.raises(HTTPException) as exc:
+            compiled({"note": {"contains": 42}})
+        assert exc.value.status_code == 422
+
+    def test_contains_escapes_like_wildcards(self):
+        sql = compiled({"note": {"contains": "50%_done"}})
+        assert "50\\%\\_done" in sql
+        assert "ESCAPE" in sql.upper()
+
+
+class TestByReferenceResponseModel:
+    """Regression for the column_only 500 (SCRUM-6618): the endpoint returns a
+    list of distinct strings on that path, and FastAPI rejected its own
+    response when the return annotation lacked List[str]."""
+
+    def test_return_annotation_accepts_all_three_shapes(self):
+        from typing import get_type_hints
+        from pydantic import TypeAdapter
+        from agr_literature_service.api.routers import topic_entity_tag_router
+        hints = get_type_hints(topic_entity_tag_router.show_all_reference_tags)
+        adapter = TypeAdapter(hints["return"])
+        # column_only path: distinct values as strings
+        assert adapter.validate_python(["ATP:0000005", "NCBITaxon:559292"]) \
+            == ["ATP:0000005", "NCBITaxon:559292"]
+        # count_only path
+        assert adapter.validate_python(522) == 522
+        # empty result
+        assert adapter.validate_python([]) == []
