@@ -97,14 +97,21 @@ def reclassify(update=False, limit=None):
     for referencefile_id, md5sum, display_name, file_extension in rows:
         threshold = HTP_SUPPLEMENT_MIN_BYTES[file_extension.lower()]
         key = f"{get_s3_folder_from_md5sum(md5sum)}/{md5sum}.gz"
+        body = None
         try:
             s3_object = s3_client.get_object(Bucket=BUCKET, Key=key)
-            exceeds, measured = uncompressed_size_exceeds(s3_object['Body'], threshold)
+            body = s3_object['Body']
+            exceeds, measured = uncompressed_size_exceeds(body, threshold)
         except Exception as e:  # noqa: BLE001 - one bad object must not stop the run
             errors += 1
-            logger.info("ERROR referencefile_id=%s %s.%s s3=%s: %s",
-                        referencefile_id, display_name, file_extension, key, e)
+            logger.error("referencefile_id=%s %s.%s s3=%s: %s",
+                         referencefile_id, display_name, file_extension, key, e)
             continue
+        finally:
+            # The early-exit measurement leaves the StreamingBody partly read;
+            # close it so the HTTP connection returns to the pool.
+            if body is not None:
+                body.close()
 
         if not exceeds:
             under_threshold += 1
