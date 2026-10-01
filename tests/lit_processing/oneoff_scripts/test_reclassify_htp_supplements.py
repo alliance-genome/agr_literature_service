@@ -1,0 +1,73 @@
+"""The SCRUM-6612 backfill's size measurement: the stored S3 objects are
+gzipped, so the script must apply the HTP thresholds to the UNCOMPRESSED
+size (like path.getsize at download-time classification), and it should stop
+reading as soon as the threshold is passed."""
+import gzip
+import importlib.util
+import io
+from pathlib import Path
+
+# The script file is ticket-prefixed ("SCRUM-6612_..."), which is not an
+# importable module name — load it by path.
+_SCRIPT = (
+    Path(__file__).resolve().parents[3]
+    / "agr_literature_service" / "lit_processing" / "oneoff_scripts"
+    / "SCRUM-6612_reclassify_htp_supplements.py"
+)
+_spec = importlib.util.spec_from_file_location("reclassify_htp_supplements", _SCRIPT)
+reclassify_htp_supplements = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(reclassify_htp_supplements)
+
+uncompressed_size_exceeds = reclassify_htp_supplements.uncompressed_size_exceeds
+
+
+def gz_body(payload: bytes):
+    """An S3-body-like object (read(n)) holding the gzipped payload."""
+    return io.BytesIO(gzip.compress(payload))
+
+
+class TestUncompressedSizeExceeds:
+
+    def test_measures_the_uncompressed_size_not_the_stored_size(self):
+        # Highly compressible: 600,000 uncompressed bytes gzip to a few KB.
+        # The decision must be about the 600,000.
+        payload = b"a" * 600_000
+        body = gz_body(payload)
+        assert body.getbuffer().nbytes < 500_000  # stored object is tiny
+        exceeds, measured = uncompressed_size_exceeds(gz_body(payload), 500_000)
+        assert exceeds is True
+        assert measured > 500_000
+
+    def test_at_the_threshold_is_not_htp(self):
+        # strictly greater, matching is_htp_supplement_by_size
+        exceeds, measured = uncompressed_size_exceeds(gz_body(b"a" * 500_000), 500_000)
+        assert exceeds is False
+        assert measured == 500_000
+
+    def test_one_byte_over_is_htp(self):
+        exceeds, _ = uncompressed_size_exceeds(gz_body(b"a" * 500_001), 500_000)
+        assert exceeds is True
+
+    def test_stops_early_once_over_threshold(self):
+        # A body that records how much was read: with a tiny threshold the
+        # reader must not consume the whole (large) stream. Incompressible
+        # (random) data keeps the gzipped stream large, so there is actually
+        # something left to skip.
+        import os
+        payload = gzip.compress(os.urandom(5_000_000))
+        reads = []
+
+        class CountingBody(io.BytesIO):
+            def read(self, n=-1):
+                chunk = super().read(n)
+                reads.append(len(chunk))
+                return chunk
+
+        exceeds, _ = uncompressed_size_exceeds(CountingBody(payload), 1_000)
+        assert exceeds is True
+        assert sum(reads) < len(payload)
+
+    def test_empty_file(self):
+        exceeds, measured = uncompressed_size_exceeds(gz_body(b""), 500_000)
+        assert exceeds is False
+        assert measured == 0
