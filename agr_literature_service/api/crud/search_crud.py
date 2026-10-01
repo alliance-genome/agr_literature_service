@@ -1510,13 +1510,17 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
 
     # Genome-scale studies (SCRUM-6614): synthetic summary tags minted by the
     # search indexer for over-cap (reference, entity_type, topic) groups carry
-    # large_scale_tag='true'; normal tags omit the field entirely.
-    es_body["aggregations"]["large_scale_tag_aggregation"] = create_filtered_aggregation_with_dp(
+    # large_scale_tag='true'; normal tags omit the field entirely. Unlike the
+    # other TET facets this count is deliberately NOT data-provider-scoped:
+    # the card badge and the facet filter both treat a reference as
+    # large-scale when ANY provider's tag group collapsed, so the count must
+    # match them — with dp scoping, a multi-MOD paper whose over-cap group
+    # belongs to another MOD was counted 1 but filtered 3 (curator finding).
+    es_body["aggregations"]["large_scale_tag_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.large_scale_tag.keyword",
         term_key="large_scale_tag",
-        allowed_dp=allowed_dp,
         size=facets_limits.get("large_scale_tag", 10)
     )
 
