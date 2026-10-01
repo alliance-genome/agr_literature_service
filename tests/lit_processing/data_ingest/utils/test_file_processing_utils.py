@@ -5,7 +5,9 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     is_inline_image,
     is_print_bw,
     has_color_twin,
+    is_htp_supplement_by_size,
     THUMBNAIL_MAX_SIZE_BYTES,
+    HTP_SUPPLEMENT_MIN_BYTES,
 )
 
 
@@ -218,3 +220,54 @@ class TestIsPairedThumbnail:
     def test_non_gif_is_never_paired_thumbnail(self):
         assert is_paired_thumbnail('jpg', 73784, {'jpg': 340500}) is False
         assert is_paired_thumbnail('png', 10, {'jpg': 340500}) is False
+
+
+class TestHtpSupplementBySize:
+    """High-throughput supplement classification (SCRUM-6612): text-family
+    files > 0.5 MB and xlsx files > 1 MB are htp_supplement."""
+
+    def test_thresholds_are_the_expected_values(self):
+        assert HTP_SUPPLEMENT_MIN_BYTES == {
+            'txt': 500_000,
+            'text': 500_000,
+            'tsv': 500_000,
+            'csv': 500_000,
+            'xlsx': 1_000_000,
+        }
+
+    def test_text_family_over_half_mb_is_htp(self):
+        for ext in ('txt', 'text', 'tsv', 'csv'):
+            assert is_htp_supplement_by_size(ext, 500_001) is True
+            assert classify_pmc_file('tableS1', ext, 500_001) == 'htp_supplement'
+
+    def test_text_family_at_or_under_half_mb_stays_supplement(self):
+        for ext in ('txt', 'tsv', 'csv'):
+            assert is_htp_supplement_by_size(ext, 500_000) is False
+            assert classify_pmc_file('tableS1', ext, 500_000) == 'supplement'
+            assert classify_pmc_file('tableS1', ext, 12_345) == 'supplement'
+
+    def test_xlsx_over_one_mb_is_htp(self):
+        assert is_htp_supplement_by_size('xlsx', 1_000_001) is True
+        assert classify_pmc_file('screen_results', 'xlsx', 1_000_001) == 'htp_supplement'
+
+    def test_xlsx_at_or_under_one_mb_stays_supplement(self):
+        assert classify_pmc_file('tableS2', 'xlsx', 1_000_000) == 'supplement'
+        # the text-family threshold does not apply to xlsx
+        assert classify_pmc_file('tableS2', 'xlsx', 600_000) == 'supplement'
+
+    def test_unknown_size_stays_supplement(self):
+        assert is_htp_supplement_by_size('csv', None) is False
+        assert classify_pmc_file('tableS1', 'csv', None) == 'supplement'
+
+    def test_extension_is_case_insensitive(self):
+        assert classify_pmc_file('TableS1', 'CSV', 600_000) == 'htp_supplement'
+        assert classify_pmc_file('TableS1', 'XLSX', 2_000_000) == 'htp_supplement'
+
+    def test_other_extensions_never_htp(self):
+        assert classify_pmc_file('data', 'pdf', 5_000_000) == 'supplement'
+        assert classify_pmc_file('data', 'docx', 5_000_000) == 'supplement'
+        assert classify_pmc_file('data', 'xls', 5_000_000) == 'supplement'
+
+    def test_nxml_and_images_unaffected(self):
+        assert classify_pmc_file('main', 'nxml', 9_999_999) == 'nXML'
+        assert classify_pmc_file('fig1', 'jpg', 9_999_999) == 'figure'
