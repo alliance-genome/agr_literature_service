@@ -303,8 +303,9 @@ CREATE TABLE topic_entity_tag_with_source AS
 -- Only table-safe aggregates are used (count and collect_list support
 -- retraction -- collect_set, min, max and latest_by_offset are stream-only
 -- and ksqlDB rejects them on a table source). The 250 threshold below must
--- match LARGE_SCALE_THRESHOLD in sgd_reference_tag_utils.py and
--- zfin_reference_tag_utils.py. The per-tag map carries
+-- equal LARGE_SCALE_THRESHOLD in lit_processing/data_ingest/utils/
+-- large_scale.py -- tests/test_debezium_large_scale_threshold.py fails CI
+-- on drift. The per-tag map carries
 -- secondary_data_provider, the tag's owning MOD (SCRUM-6338, merged from
 -- main -- the map construction lives here now, not in topic_entity_tags).
 -- FORMAT WARNING: setup.sh splits this file on
@@ -324,7 +325,12 @@ CREATE TABLE topic_entity_tag_groups AS
 -- an arbitrary one), so the summary's identity and filter fields are exact
 -- by construction. The remaining descriptive fields come from the group's
 -- first collected tag (an arbitrary member when values vary within a
--- group, so filters must rely on the key-derived fields). GROUP_TAGS is capped by the
+-- group, so filters must rely on the key-derived fields). The over-threshold
+-- CASE is resolved HERE, not at the reference level, so only the chosen
+-- array flows downstream: an over-cap group's full GROUP_TAGS payload (up
+-- to the collect_list cap of maps) stays out of this topic, the final
+-- GROUP BY REFERENCE_ID repartition and the reference-level RocksDB store
+-- -- reindex write volume, review finding. GROUP_TAGS is capped by the
 -- collect_list limit, which only truncates groups already far over the
 -- threshold, where the summary replaces them anyway. large_scale_tag and
 -- entity_count exist only on these synthetic summary tags. Elasticsearch
@@ -332,20 +338,16 @@ CREATE TABLE topic_entity_tag_groups AS
 -- sort_authors_by_order default pipeline flattens _source to match.
 CREATE TABLE topic_entity_tag_group_summary AS
     SELECT tag_group_key,
-    TAG_COUNT,
-    GROUP_TAGS,
     split(tag_group_key, '|')[1] AS REFERENCE_ID,
-    map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'secondary_data_provider':=NULLIF(split(tag_group_key, '|')[6], ''), 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string)) AS SUMMARY_TAG
+    CASE WHEN TAG_COUNT <= 250 THEN GROUP_TAGS
+    ELSE ARRAY[map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'secondary_data_provider':=NULLIF(split(tag_group_key, '|')[6], ''), 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string))]
+    END AS TAGS
     FROM topic_entity_tag_groups
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tags AS
     SELECT REFERENCE_ID \"REFERENCE_ID\",
-    collect_list(
-      CASE WHEN TAG_COUNT <= 250 THEN GROUP_TAGS
-      ELSE ARRAY[SUMMARY_TAG]
-      END
-    ) \"TOPIC_ENTITY_TAGS\"
+    collect_list(TAGS) \"TOPIC_ENTITY_TAGS\"
     FROM topic_entity_tag_group_summary
     GROUP BY REFERENCE_ID
     EMIT CHANGES;

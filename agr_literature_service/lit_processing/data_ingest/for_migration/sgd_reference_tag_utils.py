@@ -136,12 +136,12 @@ PROGRESS_LOG_INTERVAL = 1000
 # A paper's associations of a given entity type are "large scale" above this
 # threshold. Everything is loaded regardless (SCRUM-6614) - the threshold only
 # drives reporting, so curators can see which papers got genome-scale tag
-# sets. It must match the search indexer's cutoff (the 250 in the CASE in
-# debezium/ksql_queries.ksql), above which a per-source group is
-# collapsed into a single large_scale_tag summary in the reference document
-# (the ES nested-object limit that used to force a load-time skip, SCRUM-6363,
-# is now handled there).
-LARGE_SCALE_THRESHOLD = 250
+# sets. Defined once in data_ingest/utils/large_scale.py (re-exported here
+# for the loaders), where it is kept equal to the search indexer's cutoff in
+# debezium/ksql_queries.ksql by a CI test.
+from agr_literature_service.lit_processing.data_ingest.utils.large_scale import (  # noqa: F401,E402
+    LARGE_SCALE_THRESHOLD,
+)
 
 # Abort a run if this many create_tag calls fail in a row (a sign the DB
 # connection or session is wedged, rather than a few bad rows). Each
