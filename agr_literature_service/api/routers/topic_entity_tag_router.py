@@ -264,6 +264,19 @@ def show_all_reference_tags_batch(
     )
 
 
+@router.get('/entity_counts_by_mod/{curie_or_reference_id}',
+            response_model=List[Dict[str, Any]],
+            status_code=200)
+def get_entity_counts_by_mod(curie_or_reference_id: str,
+                             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                             db: Session = db_session):
+    """Distinct-entity counts per (owning MOD, entity type) for one reference
+    (SCRUM-6620): one row per MOD x entity type with the resolved entity-type
+    name. Server-side replacement for the Biblio EntityCountsByMod panel's
+    client-side aggregation over the capped tag fetch."""
+    return topic_entity_tag_crud.get_entity_counts_by_mod(db, curie_or_reference_id)
+
+
 @router.get('/by_mod/{mod_abbreviation}',
             status_code=200)
 def get_reference_tags(mod_abbreviation: str,
