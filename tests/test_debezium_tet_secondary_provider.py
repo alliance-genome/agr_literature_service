@@ -42,12 +42,15 @@ def test_tags_are_joined_to_their_owning_mod():
 
 def test_nested_tag_documents_include_the_secondary_provider():
     # The large-scale collapse (SCRUM-6614) moved the per-tag map construction
-    # from topic_entity_tags into topic_entity_tag_groups; the synthetic
-    # summary tags carry the field too (from the group's first member, like
-    # the other descriptive fields).
+    # from topic_entity_tags into topic_entity_tag_groups. The synthetic
+    # summary tags read the owning MOD back out of the group key (6th
+    # segment) so it is exact — a third-party data_provider like GEO can
+    # carry tags owned by several MODs, and the groups split per owner.
     statements = _ksql_statements()
     assert "'secondary_data_provider':=secondary_data_provider" in statements["topic_entity_tag_groups"]
-    assert "'secondary_data_provider':=GROUP_TAGS[1]['secondary_data_provider']" \
+    assert "coalesce(tag_source.secondary_data_provider, '')" \
+        in statements["topic_entity_tag_with_source"]
+    assert "'secondary_data_provider':=NULLIF(split(tag_group_key, '|')[6], '')" \
         in statements["topic_entity_tag_group_summary"]
 
 

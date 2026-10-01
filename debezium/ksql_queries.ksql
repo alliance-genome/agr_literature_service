@@ -288,7 +288,7 @@ CREATE TABLE topic_entity_tag_with_source AS
       ELSE 'ECO:0007669'
     END AS source_evidence_assertion_group,
 
-    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END) AS tag_group_key
+    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END, '|', coalesce(tag_source.secondary_data_provider, '')) AS tag_group_key
 
     FROM topic_entity_tag topic_entity_tag
     JOIN tag_source_with_mod tag_source ON
@@ -316,11 +316,14 @@ CREATE TABLE topic_entity_tag_groups AS
     GROUP BY tag_group_key
     EMIT CHANGES;
 
--- The group key encodes reference_id, entity_type, topic, data_provider and
--- the SEA group, so the summary's identity and filter fields are exact by
--- construction. The remaining descriptive fields come from the group's first
--- collected tag (an arbitrary member when values vary within a group, so
--- filters must rely on the key-derived fields). GROUP_TAGS is capped by the
+-- The group key encodes reference_id, entity_type, topic, data_provider,
+-- the SEA group and the owning MOD (secondary_data_provider, SCRUM-6338 --
+-- a third-party data_provider like GEO can carry tags owned by several
+-- MODs, and first-member sampling would credit a summary's whole count to
+-- an arbitrary one), so the summary's identity and filter fields are exact
+-- by construction. The remaining descriptive fields come from the group's
+-- first collected tag (an arbitrary member when values vary within a
+-- group, so filters must rely on the key-derived fields). GROUP_TAGS is capped by the
 -- collect_list limit, which only truncates groups already far over the
 -- threshold, where the summary replaces them anyway. large_scale_tag and
 -- entity_count exist only on these synthetic summary tags. Elasticsearch
@@ -331,7 +334,7 @@ CREATE TABLE topic_entity_tag_group_summary AS
     TAG_COUNT,
     GROUP_TAGS,
     split(tag_group_key, '|')[1] AS REFERENCE_ID,
-    map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'secondary_data_provider':=GROUP_TAGS[1]['secondary_data_provider'], 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string)) AS SUMMARY_TAG
+    map('topic':=NULLIF(split(tag_group_key, '|')[3], ''), 'entity_type':=NULLIF(split(tag_group_key, '|')[2], ''), 'entity':=cast(null as string), 'entity_published_as':=cast(null as string), 'species':=GROUP_TAGS[1]['species'], 'display_tag':=GROUP_TAGS[1]['display_tag'], 'confidence_level':=GROUP_TAGS[1]['confidence_level'], 'confidence_score':=cast(null as string), 'negated':=GROUP_TAGS[1]['negated'], 'data_novelty':=GROUP_TAGS[1]['data_novelty'], 'data_context':=GROUP_TAGS[1]['data_context'], 'validation_by_professional_biocurator':=GROUP_TAGS[1]['validation_by_professional_biocurator'], 'source_method':=GROUP_TAGS[1]['source_method'], 'data_provider':=NULLIF(split(tag_group_key, '|')[4], ''), 'secondary_data_provider':=NULLIF(split(tag_group_key, '|')[6], ''), 'source_evidence_assertion':=GROUP_TAGS[1]['source_evidence_assertion'], 'source_evidence_assertion_group':=split(tag_group_key, '|')[5], 'large_scale_tag':='true', 'entity_count':=cast(TAG_COUNT as string)) AS SUMMARY_TAG
     FROM topic_entity_tag_groups
     EMIT CHANGES;
 
