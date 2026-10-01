@@ -71,3 +71,33 @@ class TestHasCuratorValidatingTag:
         add_list_of_validating_tag_ids(_tag([]), data)
         assert data["has_curator_validating_tag"] is False
         assert data["validating_tags"] == []
+
+    def test_flag_survives_the_response_schema(self):
+        # TopicEntityTagSchemaRelated uses extra='ignore', which silently
+        # dropped the serializer's new key until it was declared on the schema
+        # (review finding) — so FastAPI's response validation stripped it and
+        # the UI never saw it. Round-trip a row through the schema like the
+        # response model does and assert the flag survives.
+        from typing import List
+        from pydantic import TypeAdapter
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
+            TopicEntityTagSchemaRelated,
+        )
+        row = {
+            "topic_entity_tag_id": 1,
+            "topic": "ATP:0000005",
+            "tag_source_id": 2,
+            "date_created": "2026-10-01T00:00:00",
+            "date_updated": "2026-10-01T00:00:00",
+            "created_by": "u", "updated_by": "u",
+            "validating_tags": [7],
+            "has_curator_validating_tag": True,
+        }
+        dumped = TypeAdapter(List[TopicEntityTagSchemaRelated]).dump_python(
+            TypeAdapter(List[TopicEntityTagSchemaRelated]).validate_python([row]))
+        assert dumped[0]["has_curator_validating_tag"] is True
+        # and the default when the serializer did not set it (no validating tags)
+        row.pop("has_curator_validating_tag")
+        dumped = TypeAdapter(List[TopicEntityTagSchemaRelated]).dump_python(
+            TypeAdapter(List[TopicEntityTagSchemaRelated]).validate_python([row]))
+        assert dumped[0]["has_curator_validating_tag"] is False

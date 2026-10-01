@@ -47,7 +47,8 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
-from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source
+from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source, \
+    CURATOR_VALIDATION_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -575,7 +576,7 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
     # the validating tags are at hand.
     tag_data_dict["has_curator_validating_tag"] = any(
         validating_tag.tag_source is not None
-        and validating_tag.tag_source.validation_type == "professional_biocurator"
+        and validating_tag.tag_source.validation_type == CURATOR_VALIDATION_TYPE
         for validating_tag in topic_entity_tag_db_obj.validated_by)
 
 
