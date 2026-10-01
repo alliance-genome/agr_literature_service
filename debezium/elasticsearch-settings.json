@@ -567,6 +567,21 @@
           },
           "confidence_score": {
             "type": "double"
+          },
+          "large_scale_tag": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "entity_count": {
+            "type": "integer"
           }
         }
       },

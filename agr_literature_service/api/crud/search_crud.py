@@ -747,6 +747,48 @@ def sort_authors_by_order(authors):
     return sorted(authors or [], key=order_key)
 
 
+def extract_large_scale_tags(source):
+    """The synthetic summary tags the indexer mints for over-threshold
+    per-source (reference, entity_type, topic) groups (SCRUM-6614): entity is
+    null, large_scale_tag is 'true' and entity_count carries the collapsed
+    group size. Normal tags omit the field entirely.
+
+    _source normally holds a flat tag list (the sort_authors_by_order default
+    pipeline flattens it at index time), but the ksql pipeline emits the field
+    as an array of per-group arrays, so descend one level in case a document
+    was indexed without the pipeline."""
+    summaries = []
+    for entry in source.get("topic_entity_tags") or []:
+        for tag in (entry if isinstance(entry, list) else [entry]):
+            if not isinstance(tag, dict) or tag.get("large_scale_tag") != "true":
+                continue
+            count = tag.get("entity_count")
+            summaries.append({
+                "topic": tag.get("topic"),
+                "entity_type": tag.get("entity_type"),
+                "entity_count": int(count) if str(count or "").isdigit() else None,
+            })
+    return summaries
+
+
+def add_names_to_large_scale_tags(hits):
+    """Resolve the ATP names for topic/entity_type on the hits'
+    large_scale_tags with one batched A-team lookup across all hits."""
+    curies = {value.upper()
+              for hit in hits for tag in hit.get("large_scale_tags", [])
+              for value in (tag.get("topic"), tag.get("entity_type"))
+              if value and value.upper().startswith("ATP:")}
+    if not curies:
+        return
+    name_map = get_map_ateam_curies_to_names(category="atpterm", curies=sorted(curies))
+    for hit in hits:
+        for tag in hit.get("large_scale_tags", []):
+            for key in ("topic", "entity_type"):
+                value = tag.get(key)
+                if value:
+                    tag[f"{key}_name"] = name_map.get(value.upper(), value)
+
+
 def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     hits = [{
         "curie": ref["_source"]["curie"],
@@ -767,8 +809,10 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
+        "large_scale_tags": extract_large_scale_tags(ref["_source"]),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
+    add_names_to_large_scale_tags(hits)
 
     # extract topic entity tag aggregations.
     topic_aggs = process_topic_entity_tags_aggregations(res)
@@ -837,8 +881,10 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
     data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
+    data_context = extract_filtered_agg(res, "data_context_aggregation", "data_context")
     validation_by_professional_biocurator = extract_filtered_agg(
         res, "validation_by_professional_biocurator_aggregation", "validation_by_professional_biocurator")
+    large_scale_tag = extract_filtered_agg(res, "large_scale_tag_aggregation", "large_scale_tag")
 
     raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
     group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
@@ -864,7 +910,9 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
         'data_novelty_aggregation',
-        'validation_by_professional_biocurator_aggregation'
+        'data_context_aggregation',
+        'validation_by_professional_biocurator_aggregation',
+        'large_scale_tag_aggregation'
     ]:
         res['aggregations'].pop(k, None)
 
@@ -872,6 +920,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
     add_curie_to_name_values(data_novelty)
+    add_curie_to_name_values(data_context)
 
     # reorder SEA buckets to desired sequence
     desired_order = [
@@ -893,7 +942,9 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
         "data_novelty": data_novelty,
+        "data_context": data_context,
         "validation_by_professional_biocurator": validation_by_professional_biocurator,
+        "large_scale_tag": large_scale_tag,
     }
 
 
@@ -1429,6 +1480,15 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         size=facets_limits.get("data_novelty", 10)
     )
 
+    es_body["aggregations"]["data_context_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.data_context.keyword",
+        term_key="data_context",
+        allowed_dp=allowed_dp,
+        size=facets_limits.get("data_context", 10)
+    )
+
     es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
@@ -1447,6 +1507,22 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
             allowed_dp=allowed_dp,
             size=facets_limits.get("validation_by_professional_biocurator", 10)
         )
+
+    # Genome-scale studies (SCRUM-6614): synthetic summary tags minted by the
+    # search indexer for over-cap (reference, entity_type, topic) groups carry
+    # large_scale_tag='true'; normal tags omit the field entirely. Unlike the
+    # other TET facets this count is deliberately NOT data-provider-scoped:
+    # the card badge and the facet filter both treat a reference as
+    # large-scale when ANY provider's tag group collapsed, so the count must
+    # match them — with dp scoping, a multi-MOD paper whose over-cap group
+    # belongs to another MOD was counted 1 but filtered 3 (curator finding).
+    es_body["aggregations"]["large_scale_tag_aggregation"] = create_filtered_aggregation(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.large_scale_tag.keyword",
+        term_key="large_scale_tag",
+        size=facets_limits.get("large_scale_tag", 10)
+    )
 
     # SEA facets: count over filtered hits but not restricted by SEA value itself
     sea_tet_facets = {k: v for k, v in tet_facets.items() if k != "source_evidence_assertion"}
