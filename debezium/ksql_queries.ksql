@@ -296,9 +296,10 @@ CREATE TABLE topic_entity_tag_with_source AS
     EMIT CHANGES;
 
 -- Large-scale collapse (SCRUM-6614). Tags aggregate once per
--- (reference, entity_type, topic, data_provider, SEA group) and groups then
--- aggregate per reference, so one tag change costs one group update plus one
--- reference update -- no join fans a count change back onto every tag row.
+-- (reference, entity_type, topic, data_provider, SEA group, owning MOD) and
+-- groups then aggregate per reference, so one tag change costs one group
+-- update plus one reference update -- no join fans a count change back onto
+-- every tag row.
 -- Only table-safe aggregates are used (count and collect_list support
 -- retraction -- collect_set, min, max and latest_by_offset are stream-only
 -- and ksqlDB rejects them on a table source). The 250 threshold below must
