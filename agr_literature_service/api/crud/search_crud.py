@@ -1320,13 +1320,16 @@ def add_tet_advanced_query(es_body, tet_advanced_query, wft_mod_abbreviations=No
     return True
 
 
-def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_dp, size=10):  # pragma: no cover
+def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_mods, size=10):
+    # Scope to the MOD that owns each tag: its source's secondary_data_provider.
+    # data_provider is where the data came from and can be a third party (GEO,
+    # PDB), so filtering on it hid MOD-owned third-party tags (SCRUM-6338).
     base_agg = create_filtered_aggregation(path, tet_facets, term_field, term_key, size)
     return {
         "nested": {"path": path},
         "aggs": {
             "filtered": {
-                "filter": {"terms": {f"{path}.data_provider": allowed_dp}},
+                "filter": {"terms": {f"{path}.secondary_data_provider": allowed_mods}},
                 "aggs": base_agg["aggs"]
             }
         }
@@ -1391,14 +1394,14 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
 
 
 def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_providers):  # pragma: no cover
-    allowed_dp = [dp.upper() for dp in tet_data_providers]
+    allowed_mods = [dp.upper() for dp in tet_data_providers]
 
     es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.topic.keyword",
         term_key="topics",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("topics", 10)
     )
 
@@ -1407,7 +1410,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=tet_facets,
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("confidence_levels", 10)
     )
 
@@ -1416,7 +1419,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=tet_facets,
         term_field="topic_entity_tags.confidence_score",
         term_key="confidence_scores",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("confidence_scores", 10)
     )
 
@@ -1425,7 +1428,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=tet_facets,
         term_field="topic_entity_tags.data_novelty.keyword",
         term_key="data_novelty",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("data_novelty", 10)
     )
 
@@ -1434,7 +1437,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=tet_facets,
         term_field="topic_entity_tags.source_method.keyword",
         term_key="source_methods",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("source_methods", 10)
     )
 
@@ -1444,7 +1447,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
             tet_facets=tet_facets,
             term_field="topic_entity_tags.validation_by_professional_biocurator.keyword",
             term_key="validation_by_professional_biocurator",
-            allowed_dp=allowed_dp,
+            allowed_mods=allowed_mods,
             size=facets_limits.get("validation_by_professional_biocurator", 10)
         )
 
@@ -1456,7 +1459,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=sea_tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion.keyword",
         term_key="source_evidence_assertions",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("source_evidence_assertions", 10)
     )
     es_body["aggregations"]["source_evidence_assertion_group_aggregation"] = create_filtered_aggregation_with_dp(
@@ -1464,7 +1467,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=sea_tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion_group.keyword",
         term_key="source_evidence_assertions",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("source_evidence_assertions", 10)
     )
 
