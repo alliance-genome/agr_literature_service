@@ -126,7 +126,12 @@ def show_all_reference_tags(
     column_filters: str = None,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
-) -> Union[List[TopicEntityTagSchemaRelated], int]:
+) -> Union[List[TopicEntityTagSchemaRelated], List[str], int]:
+    # List[str] is the column_only path (distinct values of one column, for
+    # the TET table's filter dropdowns): without it in the response union,
+    # FastAPI rejected its own response as a 500 ResponseValidationError —
+    # latent until the table's server-side filters started calling it
+    # (SCRUM-6618).
     # Multi-column grid filters (SCRUM-6618): a JSON object mapping a column to
     # {"values": [...]} | {"contains": "text"} | {"range": [min, max]}, ANDed
     # across columns. Generalizes the single column_filter/column_values pair
