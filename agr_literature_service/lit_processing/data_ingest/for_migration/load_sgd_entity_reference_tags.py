@@ -77,7 +77,7 @@ from dotenv import load_dotenv
 # hits a circular import through the versioning plugins.
 from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_reference_tag_utils import (
     ENTITY_TYPE_TO_ATP,
-    MAX_ASSOCIATIONS_PER_PAPER,
+    LARGE_SCALE_THRESHOLD,
     PROGRESS_LOG_INTERVAL,
     ROOT_TOPIC_ATP,
     SGD_CURIE_PREFIX,
@@ -96,7 +96,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     new_entities_by_paper,
     note_unmapped_entity_topic,
     resolve_sgd_created_by,
-    select_over_cap_papers,
+    select_large_scale_papers,
     write_id_log,
 )
 from agr_literature_service.api.user import set_global_user_id
@@ -114,7 +114,7 @@ DEFAULT_INPUT_FILE = "data/references_with_entities.tsv"
 
 MISSING_LOG = "sgd_entity_reference_missing_ref_ids.log"
 NOT_IN_CORPUS_LOG = "sgd_entity_reference_not_in_corpus.log"
-OVER_CAP_LOG = "sgd_entity_reference_over_cap.log"
+LARGE_SCALE_LOG = "sgd_entity_reference_large_scale.log"
 
 
 def parse_references_with_entities(file_with_path: str) -> Iterator[Tuple[str, str, str, str, str, str]]:
@@ -144,8 +144,10 @@ def _sgd_curie(sgdid: str) -> str:
 
 def count_associations_per_paper(file_with_path: str) -> Dict[Tuple[str, str], Set[str]]:
     """First pass over the file: map (reference SGD curie, entity type) to the
-    set of distinct entity sgdids associated with it, to identify papers whose
-    association count for a type exceeds MAX_ASSOCIATIONS_PER_PAPER."""
+    set of distinct entity sgdids associated with it, to report papers whose
+    association count for a type exceeds LARGE_SCALE_THRESHOLD (loaded in
+    full; the search indexer collapses each such group into one
+    large_scale_tag summary, SCRUM-6614)."""
     entities_by_paper = new_entities_by_paper()
     for reference_sgdid, entity_type, entity_sgdid, _date_created, _created_by, _sgd_topic \
             in parse_references_with_entities(file_with_path):
@@ -186,12 +188,13 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
         abc_tags = load_abc_entity_tags(db)
         logger.info(f"Loaded {len(abc_tags)} SGD entity tags curated in the ABC interface")
 
-        over_cap_papers = select_over_cap_papers(count_associations_per_paper(input_file))
-        counts["papers_over_cap"] = len({token for token, _type in over_cap_papers})
-        counts["skipped_over_cap"] = sum(over_cap_papers.values())
+        large_scale_papers = select_large_scale_papers(count_associations_per_paper(input_file))
+        counts["large_scale_papers"] = len({token for token, _type in large_scale_papers})
+        counts["large_scale_associations"] = sum(large_scale_papers.values())
         logger.info(
-            "%d paper/type groups exceed %d associations and will be skipped",
-            len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
+            "%d paper/type groups exceed %d associations and will be loaded in "
+            "full (the search index shows a summary tag per group)",
+            len(large_scale_papers), LARGE_SCALE_THRESHOLD,
         )
 
         def associations() -> Iterator[Tuple[str, str, Optional[str], Optional[str], Optional[str], Optional[datetime]]]:
@@ -230,8 +233,6 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                         note_unmapped_entity_topic(counts, sgd_topic,
                                                    unmapped_topics_warned)
                 ref_token = _sgd_curie(reference_sgdid)
-                if not topic_only and (ref_token, entity_type) in over_cap_papers:
-                    continue
                 reference_curie = sgd_to_ref_curie.get(ref_token)
                 if reference_curie is None:
                     counts["missing_reference"] += 1
@@ -258,11 +259,11 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
         write_id_log(NOT_IN_CORPUS_LOG,
                      f"References not in the SGD corpus ({len(not_in_corpus_refs)})",
                      [f"{tok}\t{ref}" for ref, tok in sorted(not_in_corpus_refs.items())])
-        write_id_log(OVER_CAP_LOG,
-                     f"Paper/type groups skipped for exceeding {MAX_ASSOCIATIONS_PER_PAPER} "
-                     f"associations ({len(over_cap_papers)})",
+        write_id_log(LARGE_SCALE_LOG,
+                     f"Large-scale paper/type groups exceeding {LARGE_SCALE_THRESHOLD} "
+                     f"associations, loaded in full ({len(large_scale_papers)})",
                      [f"{tok}\t{entity_type}\t{count}"
-                      for (tok, entity_type), count in sorted(over_cap_papers.items())])
+                      for (tok, entity_type), count in sorted(large_scale_papers.items())])
         return counts
     finally:
         db.close()

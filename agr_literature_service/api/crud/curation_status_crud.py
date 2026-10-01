@@ -354,7 +354,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
     if reference_id is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"The reference curie {reference_curie} is not in the database.")
-    mod_id = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one().mod_id
+    mod_id = db.query(ModModel.mod_id).filter_by(abbreviation=mod_abbreviation).scalar()
     if mod_id is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database.")
@@ -363,7 +363,9 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
     agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic["curie"]: {} for topic in
                                                         search_topic_list(topic=None, mod_abbr=mod_abbreviation)}
 
-    # add tet info to the objects
+    # add tet info to the objects. A tag belongs to the MOD that is its source's
+    # secondary_data_provider; data_provider records where the data came from and
+    # can be a third party (e.g. GEO), so it must not be used to scope by MOD.
     query = (
         db.query(TopicEntityTagModel, TagSourceModel)
         .join(
@@ -372,7 +374,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
         )
         .filter(
             TopicEntityTagModel.reference_id == reference_id,
-            TagSourceModel.data_provider == mod_abbreviation
+            TagSourceModel.secondary_data_provider_id == mod_id
         )
     )
     rows = query.all()

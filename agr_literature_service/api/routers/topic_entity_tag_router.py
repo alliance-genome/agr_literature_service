@@ -1,3 +1,4 @@
+import json
 from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional
 
@@ -122,15 +123,36 @@ def show_all_reference_tags(
     count_only: bool = False,
     sort_by: str = None,
     desc_sort: bool = False,
+    column_filters: str = None,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
-) -> Union[List[TopicEntityTagSchemaRelated], int]:
+) -> Union[List[TopicEntityTagSchemaRelated], List[str], int]:
+    # List[str] is the column_only path (distinct values of one column, for
+    # the TET table's filter dropdowns): without it in the response union,
+    # FastAPI rejected its own response as a 500 ResponseValidationError —
+    # latent until the table's server-side filters started calling it
+    # (SCRUM-6618).
+    # Multi-column grid filters (SCRUM-6618): a JSON object mapping a column to
+    # {"values": [...]} | {"contains": "text"} | {"range": [min, max]}, ANDed
+    # across columns. Generalizes the single column_filter/column_values pair
+    # for the TET table's server-side (infinite) row model.
+    parsed_column_filters = None
+    if column_filters:
+        try:
+            parsed_column_filters = json.loads(column_filters)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="column_filters must be a JSON object")
+        if not isinstance(parsed_column_filters, dict):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="column_filters must be a JSON object")
     result = topic_entity_tag_crud.show_all_reference_tags(
         db, curie_or_reference_id,
         page, page_size,
         count_only, sort_by, desc_sort,
         column_only, column_filter,
-        column_values
+        column_values,
+        column_filters=parsed_column_filters
     )
     return result
 
@@ -240,6 +262,19 @@ def show_all_reference_tags_batch(
     return topic_entity_tag_crud.show_all_reference_tags_for_references(
         db, request.curies_or_reference_ids, filters
     )
+
+
+@router.get('/entity_counts_by_mod/{curie_or_reference_id}',
+            response_model=List[Dict[str, Any]],
+            status_code=200)
+def get_entity_counts_by_mod(curie_or_reference_id: str,
+                             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                             db: Session = db_session):
+    """Distinct-entity counts per (owning MOD, entity type) for one reference
+    (SCRUM-6620): one row per MOD x entity type with the resolved entity-type
+    name. Server-side replacement for the Biblio EntityCountsByMod panel's
+    client-side aggregation over the capped tag fetch."""
+    return topic_entity_tag_crud.get_entity_counts_by_mod(db, curie_or_reference_id)
 
 
 @router.get('/by_mod/{mod_abbreviation}',

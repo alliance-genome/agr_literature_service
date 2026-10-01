@@ -14,10 +14,11 @@ from time import perf_counter
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, or_, func, create_engine, select, text, inspect as sa_inspect
+from sqlalchemy import case, and_, or_, func, create_engine, select, text, cast, String, \
+    inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
+from sqlalchemy.orm import Session, Query as OrmQuery, joinedload, selectinload, sessionmaker, noload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_sorted_column_values, \
@@ -46,7 +47,8 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
-from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source
+from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source, \
+    CURATOR_VALIDATION_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -567,6 +569,15 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
     validating_tag: TopicEntityTagModel
     tag_data_dict["validating_tags"] = list({validating_tag.topic_entity_tag_id for validating_tag in
                                             topic_entity_tag_db_obj.validated_by})
+    # Whether any validating tag is curator-sourced (SCRUM-6620): the UI's
+    # Actions cell gates its validating-tags button on this, and used to
+    # answer it by scanning the full client-side tag list — capped at 8,000
+    # rows, so wrong on exactly the large-scale papers. Computed here where
+    # the validating tags are at hand.
+    tag_data_dict["has_curator_validating_tag"] = any(
+        validating_tag.tag_source is not None
+        and validating_tag.tag_source.validation_type == CURATOR_VALIDATION_TYPE
+        for validating_tag in topic_entity_tag_db_obj.validated_by)
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
@@ -1425,6 +1436,146 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
+def _column_filter_422(column_name, why):
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Invalid filter for column '{column_name}': {why}")
+
+
+def _column_filter_condition(column, spec, column_name):
+    """One column's filter condition for apply_column_filters (SCRUM-6618).
+
+    ``spec`` is one of:
+      {"values": [...]}       -- exact-match set; a null in the list matches
+                                 rows where the column IS NULL (the grid's
+                                 "None" choice)
+      {"contains": "text"}    -- case-insensitive substring (grid text filter)
+      {"range": [min, max]}   -- inclusive bounds, either end nullable
+                                 (confidence_score)
+    A bare list is accepted as shorthand for {"values": [...]}.
+    Malformed specs are 422s, never 500s (review hardening).
+    """
+    if isinstance(spec, list):
+        spec = {"values": spec}
+    if not isinstance(spec, dict):
+        _column_filter_422(column_name, "spec must be an object or a list of values")
+    if "values" in spec:
+        values = spec["values"] or []
+        if not isinstance(values, list):
+            # a bare string would otherwise be iterated char-by-char into
+            # IN ('a','b','c') and silently match nothing
+            _column_filter_422(column_name, "values must be a list")
+        non_null = [v for v in values if v is not None]
+        conditions = []
+        if non_null:
+            conditions.append(column.in_(non_null))
+        if len(non_null) != len(values):
+            conditions.append(column.is_(None))
+        if not conditions:
+            return None
+        return or_(*conditions)
+    if "contains" in spec:
+        text_value = spec["contains"]
+        if not isinstance(text_value, str):
+            _column_filter_422(column_name, "contains must be a string")
+        # Escape LIKE wildcards so a literal % or _ in the search text matches
+        # itself instead of acting as a pattern.
+        escaped = (text_value.replace("\\", "\\\\")
+                   .replace("%", "\\%")
+                   .replace("_", "\\_"))
+        return cast(column, String).ilike(f"%{escaped}%", escape="\\")
+    if "range" in spec:
+        bounds = spec["range"]
+        if not isinstance(bounds, (list, tuple)) or len(bounds) > 2:
+            _column_filter_422(column_name, "range must be a [min, max] list")
+        low, high = (list(bounds) + [None, None])[:2]
+        for bound in (low, high):
+            if bound is not None and not isinstance(bound, (int, float)):
+                _column_filter_422(column_name, "range bounds must be numbers or null")
+        conditions = []
+        if low is not None:
+            conditions.append(column >= low)
+        if high is not None:
+            conditions.append(column <= high)
+        return and_(*conditions) if conditions else None
+    _column_filter_422(column_name, "expected one of: values, contains, range")
+
+
+def build_entity_counts_by_mod_query(reference_id):
+    """Distinct-entity counts per (owning MOD, entity type) for one reference
+    (SCRUM-6620). Standalone Query (no session) so tests can compile it;
+    callers attach a session with .with_session(db). Topic-only tags (no
+    entity) and tags without an entity type are skipped, matching the Biblio
+    EntityCountsByMod panel this replaces, which used to aggregate client-side
+    over the 8,000-row capped fetch and undercounted large-scale papers.
+    """
+    return OrmQuery([
+        ModModel.abbreviation.label("mod_abbreviation"),
+        TopicEntityTagModel.entity_type.label("entity_type"),
+        func.count(func.distinct(TopicEntityTagModel.entity)).label("entity_count"),
+    ]).select_from(TopicEntityTagModel).join(
+        TagSourceModel, TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id
+    ).join(
+        ModModel, TagSourceModel.secondary_data_provider_id == ModModel.mod_id
+    ).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        TopicEntityTagModel.entity.isnot(None),
+        TopicEntityTagModel.entity_type.isnot(None),
+    ).group_by(ModModel.abbreviation, TopicEntityTagModel.entity_type)
+
+
+def get_entity_counts_by_mod(db: Session, curie_or_reference_id):
+    reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
+    rows = build_entity_counts_by_mod_query(reference_id).with_session(db).all()
+    entity_type_curies = list({row.entity_type for row in rows})
+    curie_to_name = get_map_ateam_curies_to_names("atpterm", entity_type_curies) if rows else {}
+    return [{
+        "mod_abbreviation": row.mod_abbreviation,
+        "entity_type": row.entity_type,
+        "entity_type_name": curie_to_name.get(row.entity_type, row.entity_type),
+        "entity_count": row.entity_count,
+    } for row in rows]
+
+
+def apply_column_filters(query, column_filters: Dict[str, Any]):
+    """Multi-column filtering for the TET table's server-side (infinite) row
+    model (SCRUM-6618). ``column_filters`` maps a column to a filter spec (see
+    _column_filter_condition); specs are ANDed across columns.
+
+    Addressable columns: any TopicEntityTagModel column by name;
+    ``tag_source.<col>`` for TagSourceModel columns; ``secondary_data_provider``
+    for the source's Mod abbreviation. The source-table conditions use
+    relationship EXISTS (.has()) rather than joins, so they compose with the
+    sort path in show_all_reference_tags, which joins TagSourceModel itself for
+    source-column sorts.
+    """
+    for column_name, spec in (column_filters or {}).items():
+        if column_name == "secondary_data_provider":
+            condition = _column_filter_condition(ModModel.abbreviation, spec, column_name)
+            if condition is not None:
+                query = query.filter(TopicEntityTagModel.tag_source.has(
+                    TagSourceModel.secondary_data_provider.has(condition)))
+            continue
+        if column_name.startswith("tag_source."):
+            attr = column_name.split(".", 1)[1]
+            # Only real table columns are addressable: a bare getattr would
+            # also resolve relationships/methods (e.g. reference, metadata)
+            # and 500 downstream instead of 422ing here (review hardening).
+            if attr not in TagSourceModel.__table__.columns:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"Unknown tag_source column '{attr}'")
+            condition = _column_filter_condition(getattr(TagSourceModel, attr), spec, column_name)
+            if condition is not None:
+                query = query.filter(TopicEntityTagModel.tag_source.has(condition))
+            continue
+        if column_name not in TopicEntityTagModel.__table__.columns:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Unknown topic_entity_tag column '{column_name}'")
+        condition = _column_filter_condition(getattr(TopicEntityTagModel, column_name), spec, column_name)
+        if condition is not None:
+            query = query.filter(condition)
+    return query
+
+
 def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
                              reference_id: int, force_insertion: bool = False):
     """
@@ -1661,7 +1812,7 @@ def _resolve_reference_ids_for_batch(db: Session, curies_or_reference_ids: List[
     return ident_to_ref_id
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None, column_filters: dict = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -1692,12 +1843,17 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
-        selectinload(TopicEntityTagModel.validated_by)).filter(
+        selectinload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.tag_source)).filter(
         TopicEntityTagModel.reference_id == reference_id)
 
     if column_filter and column_values:
         column_value_list = column_values.split(',')
         query = filter_tet_data_by_column(query, column_filter, column_value_list)
+
+    # Multi-column grid filters (SCRUM-6618) -- applied before count_only so the
+    # infinite row model's lastRow reflects the filtered set.
+    if column_filters:
+        query = apply_column_filters(query, column_filters)
 
     if count_only:
         return query.count()
@@ -2321,7 +2477,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
-        selectinload(TopicEntityTagModel.validated_by)).filter(
+        selectinload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.tag_source)).filter(
         TopicEntityTagModel.reference_id.in_(ref_ids))
     # Restrict to the tags the initial search asked for (topic/confidence/source/
     # data-novelty/score). This is what keeps the grid load small and fast.
@@ -2425,7 +2581,7 @@ def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Di
     rows = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.tag_source),
         joinedload(TopicEntityTagModel.ml_model),
-        selectinload(TopicEntityTagModel.validated_by)).filter(
+        selectinload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.tag_source)).filter(
         TopicEntityTagModel.reference_id == reference_id).all()
     curie_to_name = build_curie_to_name_map(db, rows)
     serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)

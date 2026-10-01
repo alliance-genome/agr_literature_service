@@ -1,10 +1,16 @@
 {
-  "description": "Sort the authors array by author_order so the indexed _source matches the database author order (ksqlDB collect_list emits authors in CDC event-arrival order, which drifts whenever an author row is updated). Applied as default_pipeline on both the reference index and the public reference index.",
+  "description": "Default pipeline for the reference index and the public reference index. (1) Sort the authors array by author_order so the indexed _source matches the database author order (ksqlDB collect_list emits authors in CDC event-arrival order, which drifts whenever an author row is updated). (2) Flatten topic_entity_tags one level: the ksql pipeline aggregates tags per group and then groups per reference (SCRUM-6614), so the field arrives as an array of arrays; ES flattens it for indexing but keeps _source exactly as sent, and _source consumers (the search hits' large_scale_tags) need the flat list. The processor accepts both shapes, so it is safe across a re-snapshot; on the public index it is a no-op (no topic_entity_tags).",
   "processors": [
     {
       "script": {
         "lang": "painless",
         "source": "if (ctx.authors != null) { ctx.authors.sort((a, b) -> { int ai = Integer.MAX_VALUE; int bi = Integer.MAX_VALUE; try { if (a != null && a.author_order != null) { ai = Integer.parseInt(a.author_order.toString()); } } catch (Exception e) {} try { if (b != null && b.author_order != null) { bi = Integer.parseInt(b.author_order.toString()); } } catch (Exception e) {} return Integer.compare(ai, bi); }); }"
+      }
+    },
+    {
+      "script": {
+        "lang": "painless",
+        "source": "if (ctx.topic_entity_tags != null) { def f = []; for (def g : ctx.topic_entity_tags) { if (g instanceof List) { f.addAll(g); } else { f.add(g); } } ctx.topic_entity_tags = f; }"
       }
     }
   ]
