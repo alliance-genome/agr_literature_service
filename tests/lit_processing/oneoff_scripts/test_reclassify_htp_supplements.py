@@ -6,19 +6,23 @@ import gzip
 import importlib.util
 import io
 from pathlib import Path
+from typing import Any, cast
 
 # The script file is ticket-prefixed ("SCRUM-6612_..."), which is not an
-# importable module name — load it by path.
+# importable module name — load it by path. spec_from_file_location is typed
+# Optional and its loader protocol lacks exec_module, hence the narrowing
+# assert and the cast for mypy.
 _SCRIPT = (
     Path(__file__).resolve().parents[3]
     / "agr_literature_service" / "lit_processing" / "oneoff_scripts"
     / "SCRUM-6612_reclassify_htp_supplements.py"
 )
 _spec = importlib.util.spec_from_file_location("reclassify_htp_supplements", _SCRIPT)
+assert _spec is not None and _spec.loader is not None
 reclassify_htp_supplements = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(reclassify_htp_supplements)
+cast(Any, _spec.loader).exec_module(reclassify_htp_supplements)
 
-uncompressed_size_exceeds = reclassify_htp_supplements.uncompressed_size_exceeds
+uncompressed_size_exceeds = cast(Any, reclassify_htp_supplements).uncompressed_size_exceeds
 
 
 def gz_body(payload: bytes):
@@ -71,3 +75,38 @@ class TestUncompressedSizeExceeds:
         exceeds, measured = uncompressed_size_exceeds(gz_body(b""), 500_000)
         assert exceeds is False
         assert measured == 0
+
+
+class TestCandidateRows:
+    """SQLAlchemy 2.0 rejects plain SQL strings in Session.execute with an
+    ArgumentError before anything reaches the database (review finding) —
+    the query must be a text() clause. A recording stub session verifies the
+    statement type and shape without needing a database."""
+
+    class RecordingSession:
+        def __init__(self):
+            self.statements = []
+
+        def execute(self, statement, params=None):
+            self.statements.append(statement)
+
+            class EmptyResult:
+                @staticmethod
+                def fetchall():
+                    return []
+            return EmptyResult()
+
+    def test_query_is_a_text_clause_with_the_expected_shape(self):
+        from sqlalchemy.sql.elements import TextClause
+        session = self.RecordingSession()
+        rows = reclassify_htp_supplements.candidate_rows(session, limit=5)
+        assert rows == []
+        (statement,) = session.statements
+        assert isinstance(statement, TextClause)
+        sql = str(statement)
+        assert "file_class = 'supplement'" in sql
+        assert "md5sum IS NOT NULL" in sql
+        assert "LIMIT 5" in sql
+        # extensions come from the shared threshold map
+        for ext in ("'txt'", "'tsv'", "'csv'", "'xlsx'"):
+            assert ext in sql

@@ -28,6 +28,7 @@ import zlib
 from os import path
 
 import boto3
+from sqlalchemy import text
 
 from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
 from agr_literature_service.api.user import set_global_user_id
@@ -76,7 +77,9 @@ def candidate_rows(db_session, limit=None):
            "ORDER BY referencefile_id")
     if limit:
         sql += f" LIMIT {int(limit)}"
-    return db_session.execute(sql).fetchall()
+    # SQLAlchemy 2.0 rejects plain SQL strings in Session.execute — raw SQL
+    # must be declared with text() (review finding).
+    return db_session.execute(text(sql)).fetchall()
 
 
 def reclassify(update=False, limit=None):
@@ -115,8 +118,8 @@ def reclassify(update=False, limit=None):
                     threshold, measured)
         if update:
             db_session.execute(
-                "UPDATE referencefile SET file_class = 'htp_supplement' "
-                "WHERE referencefile_id = :rid AND file_class = 'supplement'",
+                text("UPDATE referencefile SET file_class = 'htp_supplement' "
+                     "WHERE referencefile_id = :rid AND file_class = 'supplement'"),
                 {"rid": referencefile_id})
             pending_commit += 1
             if pending_commit >= BATCH_COMMIT_SIZE:
