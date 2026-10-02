@@ -1488,7 +1488,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         tet_facets=tet_facets,
         term_field="topic_entity_tags.data_context.keyword",
         term_key="data_context",
-        allowed_dp=allowed_dp,
+        allowed_mods=allowed_mods,
         size=facets_limits.get("data_context", 10)
     )
 
