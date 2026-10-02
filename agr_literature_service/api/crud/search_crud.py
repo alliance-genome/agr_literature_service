@@ -1444,7 +1444,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
     return tet_agg
 
 
-def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_providers):  # pragma: no cover
+def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_providers):
     allowed_mods = [dp.upper() for dp in tet_data_providers]
 
     es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation_with_dp(
