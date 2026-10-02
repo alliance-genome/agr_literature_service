@@ -32,6 +32,7 @@ from agr_cognito_py import ModAccess, get_admin_token
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    recover_session,
     EXTRACTION_METHODS,
     submit_pdf_to_pdfx,
     poll_pdfx_status,
@@ -253,6 +254,7 @@ def _process_reference_list(  # pragma: no cover
         try:
             token = get_admin_token()
         except Exception as e:
+            recover_session(db, e)
             logger.error(f"Failed to refresh token: {e}")
             failure_count += 1
             objects_with_errors.append({
@@ -481,6 +483,7 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                 logger.info(f"Uploaded {method} markdown for {reference_curie}")
 
             except Exception as e:
+                recover_session(db, e)
                 logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
 
         # Always attempt image extraction after the Markdown outputs. Failures
@@ -497,6 +500,7 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                 mod_abbreviation=mod_abbreviation,
             )
         except Exception as e:
+            recover_session(db, e)
             logger.error(
                 f"Unexpected error during image extraction for {reference_curie} "
                 f"(main '{display_name}'): {e}"
@@ -511,6 +515,7 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
         return False, "No methods successfully extracted"
 
     except Exception as e:
+        recover_session(db, e)
         error_msg = str(e)
         logger.error(f"Failed to process main PDF for {reference_curie}: {error_msg}")
         return False, error_msg
@@ -649,6 +654,7 @@ def process_single_reference(  # pragma: no cover
             for err in sup_errors:
                 logger.error(f"Supplemental PDF error for {reference_curie}: {err}")
         except Exception as e:
+            recover_session(db, e)
             logger.error(
                 f"Unexpected error while processing supplemental PDFs for "
                 f"{reference_curie}: {e}"
@@ -814,6 +820,26 @@ def _build_workflow_error_record(  # pragma: no cover
     }
 
 
+def _record_unexpected_job_failure(db: Session, job: Dict, mod_abbreviation: Optional[str],
+                                   error: Exception) -> Dict:
+    """Recover the shared session after an unexpected error on one job, mark the job
+    failed, and return its entry for the error report. Never raises: one job's
+    failure must not end the run (the 2026-10-01 stage crash)."""
+    recover_session(db, error)
+    reference_curie = job['reference_curie']
+    logger.error(f"Unexpected error processing {reference_curie}: {error}")
+    try:
+        job_change_atp_code(db, job['reference_workflow_tag_id'], "on_failed")
+        return _build_workflow_error_record(db, reference_curie, "N/A", "N/A", mod_abbreviation or "N/A",
+                                            str(error))
+    except Exception as status_error:
+        recover_session(db, status_error)
+        logger.error(f"Could not record the failure of {reference_curie}: {status_error}")
+        return {"mod_abbreviation": mod_abbreviation or "N/A", "mod_cross_ref": "N/A",
+                "reference_curie": reference_curie, "display_name": "N/A", "file_extension": "N/A",
+                "error": str(error)}
+
+
 def main(  # pragma: no cover
     prefer_nxml: bool = True,
     process_supplements: bool = True,
@@ -886,68 +912,75 @@ def main(  # pragma: no cover
 
         for idx, job in enumerate(all_jobs, 1):
             ref_start_time = time.time()
-            error_msg: Optional[str] = None
+            mod_abbreviation = None
+            # One job's failure must not end the run: the session is shared, so
+            # recover it and record this job as failed (2026-10-01 stage crash).
+            try:
+                error_msg: Optional[str] = None
 
-            ref_id = job['reference_id']
-            reference_workflow_tag_id = job['reference_workflow_tag_id']
-            mod_id = job['mod_id']
-            reference_curie = job['reference_curie']
+                ref_id = job['reference_id']
+                reference_workflow_tag_id = job['reference_workflow_tag_id']
+                mod_id = job['mod_id']
+                reference_curie = job['reference_curie']
 
-            logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
+                logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
 
-            if mod_id not in mod_abbreviation_from_mod_id:
-                mod_abbreviation = db.query(ModModel.abbreviation).filter(
-                    ModModel.mod_id == mod_id
-                ).one().abbreviation
-                mod_abbreviation_from_mod_id[mod_id] = mod_abbreviation
-            else:
-                mod_abbreviation = mod_abbreviation_from_mod_id[mod_id]
+                if mod_id not in mod_abbreviation_from_mod_id:
+                    mod_abbreviation = db.query(ModModel.abbreviation).filter(
+                        ModModel.mod_id == mod_id
+                    ).one().abbreviation
+                    mod_abbreviation_from_mod_id[mod_id] = mod_abbreviation
+                else:
+                    mod_abbreviation = mod_abbreviation_from_mod_id[mod_id]
 
-            ref_file_info, resolve_error = _resolve_workflow_ref_file_info(
-                db=db,
-                ref_id=ref_id,
-                reference_curie=reference_curie,
-                mod_abbreviation=mod_abbreviation,
-                prefer_nxml=prefer_nxml
-            )
+                ref_file_info, resolve_error = _resolve_workflow_ref_file_info(
+                    db=db,
+                    ref_id=ref_id,
+                    reference_curie=reference_curie,
+                    mod_abbreviation=mod_abbreviation,
+                    prefer_nxml=prefer_nxml
+                )
 
-            if ref_file_info is None:
-                skipped_count += 1
-                error_msg = resolve_error or "Could not resolve reference source file"
-                logger.warning(f"{error_msg} for {reference_curie}; marking job as failed")
-                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-                objects_with_errors.append(_build_workflow_error_record(
-                    db, reference_curie, "N/A", "N/A", mod_abbreviation, error_msg
-                ))
-                continue
+                if ref_file_info is None:
+                    skipped_count += 1
+                    error_msg = resolve_error or "Could not resolve reference source file"
+                    logger.warning(f"{error_msg} for {reference_curie}; marking job as failed")
+                    job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
+                    objects_with_errors.append(_build_workflow_error_record(
+                        db, reference_curie, "N/A", "N/A", mod_abbreviation, error_msg
+                    ))
+                    continue
 
-            display_name = ref_file_info["display_name"]
-            file_extension = ref_file_info["file_extension"]
+                display_name = ref_file_info["display_name"]
+                file_extension = ref_file_info["file_extension"]
 
-            # Refresh token if needed
-            token = get_admin_token()
+                # Refresh token if needed
+                token = get_admin_token()
 
-            success, error_msg = process_single_reference(
-                db, ref_file_info, token,
-                prefer_nxml=prefer_nxml,
-                process_supplements=process_supplements
-            )
+                success, error_msg = process_single_reference(
+                    db, ref_file_info, token,
+                    prefer_nxml=prefer_nxml,
+                    process_supplements=process_supplements
+                )
 
-            ref_elapsed = time.time() - ref_start_time
-            ref_times.append(ref_elapsed)
+                ref_elapsed = time.time() - ref_start_time
+                ref_times.append(ref_elapsed)
 
-            if success:
-                success_count += 1
-                job_change_atp_code(db, reference_workflow_tag_id, "on_success")
-                logger.info(f"Completed {reference_curie} in {ref_elapsed:.2f}s")
-            else:
+                if success:
+                    success_count += 1
+                    job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+                    logger.info(f"Completed {reference_curie} in {ref_elapsed:.2f}s")
+                else:
+                    failure_count += 1
+                    job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
+                    logger.error(f"Failed {reference_curie} after {ref_elapsed:.2f}s")
+                    objects_with_errors.append(_build_workflow_error_record(
+                        db, reference_curie, display_name, file_extension,
+                        mod_abbreviation, error_msg or "Unknown"
+                    ))
+            except Exception as e:
                 failure_count += 1
-                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-                logger.error(f"Failed {reference_curie} after {ref_elapsed:.2f}s")
-                objects_with_errors.append(_build_workflow_error_record(
-                    db, reference_curie, display_name, file_extension,
-                    mod_abbreviation, error_msg or "Unknown"
-                ))
+                objects_with_errors.append(_record_unexpected_job_failure(db, job, mod_abbreviation, e))
 
         # Calculate timing statistics
         total_elapsed = time.time() - start_time
