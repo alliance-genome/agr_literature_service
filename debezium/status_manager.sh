@@ -479,6 +479,13 @@ wait_for_pipeline_drained() {
 # topic_entity_tags docs actually indexed against what the pipeline must produce from the DB.
 # ---------------------------------------------------------------------------
 
+# The large-scale threshold (SCRUM-6614): a TET group with MORE tags than this collapses into one
+# summary tag. Used by Gate 3 below and by setup.sh as the per-query collect_list cap on
+# topic_entity_tag_groups. Must equal LARGE_SCALE_THRESHOLD in
+# lit_processing/data_ingest/utils/large_scale.py and the ksql CASE -- enforced by
+# tests/test_debezium_large_scale_threshold.py.
+LARGE_SCALE_THRESHOLD=250
+
 # Nested topic_entity_tags docs in an index (echo 0 on any error).
 indexed_tet_count() {
     local es_host=$1 es_port=$2 index=$3
@@ -491,9 +498,9 @@ indexed_tet_count() {
 # (reference, entity_type, topic, data_provider, SEA group, owning MOD) group above the
 # large-scale threshold collapses into ONE summary tag (SCRUM-6614). The grouping and the
 # threshold mirror topic_entity_tag_groups / topic_entity_tag_group_summary in
-# ksql_queries.ksql; LARGE_SCALE_THRESHOLD must stay equal to the ksql CASE's 250.
+# ksql_queries.ksql (LARGE_SCALE_THRESHOLD is defined above).
 expected_tet_count() {
-    local threshold="${LARGE_SCALE_THRESHOLD:-250}"
+    local threshold="${LARGE_SCALE_THRESHOLD}"
     PGPASSWORD="${PSQL_PASSWORD}" psql -h "${PSQL_HOST}" -U "${PSQL_USERNAME}" -p "${PSQL_PORT}" -d "${PSQL_DATABASE}" -tAq -c "
         WITH g AS (
             SELECT count(*) AS n
@@ -512,11 +519,17 @@ expected_tet_count() {
 tet_complete_enough() {
     local es_host=$1 es_port=$2 index=$3 min_fraction=$4
     local expected indexed need
-    expected=$(expected_tet_count); expected=${expected:-0}
-    indexed=$(indexed_tet_count "${es_host}" "${es_port}" "${index}"); indexed=${indexed:-0}
-    if ! [[ "$expected" =~ ^[0-9]+$ ]] || [[ "$expected" -eq 0 ]]; then
-        echo "Gate 3: could not compute the expected tag count from the DB (got '${expected}'); not enforcing."
+    if awk -v f="$min_fraction" 'BEGIN { exit !(f + 0 == 0) }'; then
+        echo "Gate 3: disabled (min_fraction=${min_fraction})."
         return 0
+    fi
+    expected=$(expected_tet_count)
+    indexed=$(indexed_tet_count "${es_host}" "${es_port}" "${index}"); indexed=${indexed:-0}
+    # Fail closed: a guard that cannot measure must not wave the flip through. An unreachable DB
+    # refuses the promotion (the previous slot keeps serving); a DB with no tags at all passes.
+    if ! [[ "$expected" =~ ^[0-9]+$ ]]; then
+        echo "Gate 3: could not compute the expected tag count from the DB (got '${expected}'); refusing to promote."
+        return 1
     fi
     need=$(awk -v e="$expected" -v f="$min_fraction" 'BEGIN { printf "%d", e * f }')
     echo "Gate 3: topic_entity_tags indexed=${indexed} expected~${expected} need>=${need} (min_fraction=${min_fraction})"

@@ -330,9 +330,15 @@ CREATE TABLE topic_entity_tag_groups AS
 -- array flows downstream: an over-cap group's full GROUP_TAGS payload (up
 -- to the collect_list cap of maps) stays out of this topic, the final
 -- GROUP BY REFERENCE_ID repartition and the reference-level RocksDB store
--- -- reindex write volume, review finding. GROUP_TAGS is capped by the
--- collect_list limit, which only truncates groups already far over the
--- threshold, where the summary replaces them anyway. large_scale_tag and
+-- -- reindex write volume, review finding. GROUP_TAGS is capped at the
+-- threshold by a per-query ksql.functions.collect_list.limit that setup.sh
+-- sends with topic_entity_tag_groups (ksqlDB's own default is unlimited, and
+-- the uncapped list made every tag re-serialise its whole group -- O(n^2),
+-- ~1 tag/s on the 2026-10-03 prod rebuild). A group at or under the
+-- threshold never reaches the cap, so its list is complete, and count(*)
+-- stays exact. Caveat: a group that shrinks from over to under the
+-- threshold by deletions can miss tags collected after the cap was hit,
+-- until the next rebuild. large_scale_tag and
 -- entity_count exist only on these synthetic summary tags. Elasticsearch
 -- flattens the downstream array-of-arrays on indexing and the
 -- sort_authors_by_order default pipeline flattens _source to match.

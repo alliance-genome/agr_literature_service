@@ -139,6 +139,18 @@ submit_ksql_statements() {
         n=$((n+1))
         label=$(head -c 60 "$f" | tr '\n' ' ')
         body=$(jq -Rs '{ksql: ., streamsProperties: {"ksql.streams.auto.offset.reset":"earliest"}}' "$f")
+        # Bound the TET group aggregate (2026-10-03 prod incident). ksqlDB's collect_list has NO
+        # size limit by default (Integer.MAX_VALUE), and a table aggregate re-serialises the whole
+        # list on every tag, so a 36k-tag group cost O(n^2) -- ~1 tag/s on prod. Capping the list
+        # at the large-scale threshold keeps every group <= the threshold complete (it never
+        # reaches the cap) while count(*) stays exact, so the summary tag is still right. The
+        # limit is a per-query override: a server-wide one would truncate the other collect_lists
+        # (authors, cross_references, ...). Verified on ksqlDB 0.26: the override applies only to
+        # this query and survives a server restart (it is stored in the command topic).
+        if grep -qiE 'CREATE[[:space:]]+TABLE[[:space:]]+topic_entity_tag_groups[[:space:]]' "$f"; then
+            body=$(echo "$body" | jq --argjson n "${LARGE_SCALE_THRESHOLD}" \
+                '.streamsProperties["ksql.functions.collect_list.limit"] = $n')
+        fi
         ok=0
         for attempt in 1 2 3 4 5; do
             resp=$(curl -s -X POST "$url" -H "Accept: application/vnd.ksql.v1+json" \
