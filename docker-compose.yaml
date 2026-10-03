@@ -482,6 +482,8 @@ services:
       - KSQL_HOST_NAME=dbz_ksql_server
       - KSQL_APPLICATION_ID="cp-all-in-one"
       - KSQL_LISTENERS=http://0.0.0.0:8088
+      # SCRUM-6630: load the TET_GROUP_COLLECT UDAF baked into the image (docker/ksqldb.dockerfile).
+      - KSQL_KSQL_EXTENSION_DIR=/etc/ksqldb/ext
       # --- SCRUM-6231: reindex was disk-write-bound (ksqlDB RocksDB ~405 MB/s saturating EBS) ---
       # cache.max.bytes.buffering=0 forced ksqlDB to flush every record straight to RocksDB.
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.

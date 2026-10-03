@@ -37,22 +37,41 @@ DEBEZIUM = KSQL.parent
 
 
 def test_shell_threshold_equals_the_shared_constant():
-    # status_manager.sh (sourced by setup.sh) carries the shell copy: Gate 3's
-    # expected-tag count and the collect_list cap below both read it.
+    # status_manager.sh carries the shell copy that Gate 3's expected-tag
+    # count reads.
     shell = re.findall(r"^LARGE_SCALE_THRESHOLD=(\d+)\s*$",
                        (DEBEZIUM / "status_manager.sh").read_text(), re.MULTILINE)
     assert shell == [str(LARGE_SCALE_THRESHOLD)]
 
 
-def test_tet_group_collect_list_is_capped_per_query():
-    # ksqlDB's collect_list is unlimited by default, and the uncapped group
-    # list made each tag re-serialise its whole group (O(n^2), the 2026-10-03
-    # prod reindex crawled at ~1 tag/s). setup.sh must send the cap with the
-    # topic_entity_tag_groups statement only -- a server-wide limit would
-    # truncate authors and the other per-reference lists.
-    setup = (DEBEZIUM / "setup.sh").read_text()
-    assert re.search(r"CREATE\[\[:space:\]\]\+TABLE\[\[:space:\]\]\+topic_entity_tag_groups", setup)
-    assert '"ksql.functions.collect_list.limit"' in setup
-    assert '"${LARGE_SCALE_THRESHOLD}"' in setup
+UDAF = DEBEZIUM.parent / "docker" / "ksqldb" / "TetGroupCollectUdaf.java"
+
+
+def test_udaf_threshold_equals_the_shared_constant():
+    # TET_GROUP_COLLECT drops a group's list once it passes THRESHOLD; a
+    # different number than the CASE would summarize groups whose list was
+    # already dropped (or keep huge lists).
+    java = re.findall(r"static final int THRESHOLD = (\d+);", UDAF.read_text())
+    assert java == [str(LARGE_SCALE_THRESHOLD)]
+
+
+def test_tet_groups_use_the_bounded_udaf():
+    # collect_list kept every tag of a group, so each tag re-serialised the
+    # whole group: O(n^2), ~1 tag/s on the 2026-10-03 prod reindex and still
+    # a 130 KB state per big-group tag even with the list capped at 250. The group aggregate must
+    # use TET_GROUP_COLLECT, which keeps only the first tag past the threshold.
+    stmt = re.search(r"CREATE TABLE topic_entity_tag_groups AS(.*?)EMIT CHANGES",
+                     KSQL.read_text(), re.DOTALL).group(1)
+    assert "tet_group_collect(map(" in stmt
+    assert "collect_list(" not in stmt
+
+
+def test_ksqldb_image_ships_and_loads_the_udaf():
+    # ksqlDB loads UDFs only from ksql.extension.dir: the image must put the
+    # jar there and the server must be pointed at it, or every
+    # topic_entity_tag_groups statement fails with an unknown function.
+    dockerfile = (DEBEZIUM.parent / "docker" / "ksqldb.dockerfile").read_text()
+    assert "TetGroupCollectUdaf.java" in dockerfile
+    assert "/etc/ksqldb/ext/" in dockerfile
     compose = (DEBEZIUM.parent / "docker-compose.yaml").read_text()
-    assert "collect_list.limit" not in compose  # never server-wide
+    assert "KSQL_KSQL_EXTENSION_DIR=/etc/ksqldb/ext" in compose

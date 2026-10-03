@@ -15,6 +15,11 @@ COPY --from=confluentinc/ksqldb-server:0.26.0 /usr/share/java/ksqldb-rest-app/ /
 COPY docker/ksqldb/KsqlRocksDBConfigSetter.java /src/KsqlRocksDBConfigSetter.java
 RUN javac --release 11 -cp "/libs/*" -d /out /src/KsqlRocksDBConfigSetter.java \
  && jar cf /ksql-rocksdb-config-setter.jar -C /out .
+# SCRUM-6630: the TET_GROUP_COLLECT UDAF for the topic_entity_tag_groups collapse. Its own jar,
+# because ksqlDB loads UDFs only from ksql.extension.dir (KSQL_KSQL_EXTENSION_DIR in compose).
+COPY docker/ksqldb/TetGroupCollectUdaf.java /udf-src/TetGroupCollectUdaf.java
+RUN javac --release 11 -cp "/libs/*" -d /udf-out /udf-src/TetGroupCollectUdaf.java \
+ && jar cf /ksql-tet-group-collect-udaf.jar -C /udf-out .
 
 # --- final stage: the stock ksqlDB server + our jar on its classpath ---
 FROM confluentinc/ksqldb-server:0.26.0
@@ -22,3 +27,5 @@ FROM confluentinc/ksqldb-server:0.26.0
 # org.alliancegenome.ksql.KsqlRocksDBConfigSetter on the classpath.
 COPY --from=build /ksql-rocksdb-config-setter.jar \
      /usr/share/java/ksqldb-rest-app/ksql-rocksdb-config-setter.jar
+# The UDAF jar goes in the extension dir, which docker-compose points ksqlDB at.
+COPY --from=build /ksql-tet-group-collect-udaf.jar /etc/ksqldb/ext/ksql-tet-group-collect-udaf.jar
