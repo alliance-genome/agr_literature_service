@@ -18,6 +18,7 @@ import boto3
 import requests
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import desc
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from agr_abc_document_parsers import convert_xml_to_markdown
@@ -37,6 +38,24 @@ from agr_literature_service.api.models import (
 from agr_cognito_py import ModAccess, get_admin_token
 
 logger = logging.getLogger(__name__)
+
+
+def recover_session(db: Session, error: BaseException) -> None:
+    """Make ``db`` usable again after ``error`` was caught.
+
+    pdf2md shares one session across a whole run and swallows per-file errors so a
+    bad file costs only that file. A database error, however, leaves the Postgres
+    transaction aborted: every later statement fails with InFailedSqlTransaction
+    until the session is rolled back (the 2026-10-01 stage run deadlocked once and
+    then failed on everything until it crashed). Roll back only for database
+    errors, so other failures (a PDFX timeout, say) keep uncommitted work.
+    """
+    if isinstance(error, SQLAlchemyError):
+        try:
+            db.rollback()
+        except Exception as rollback_error:  # pragma: no cover - connection is gone
+            logger.error(f"Rollback after database error failed: {rollback_error}")
+
 
 # Extraction methods and their corresponding file classes
 EXTRACTION_METHODS: Dict[str, str] = {
@@ -904,6 +923,7 @@ def process_extracted_images(  # pragma: no cover
     try:
         manifest = download_pdfx_image_manifest(process_id, token)
     except Exception as e:
+        recover_session(db, e)
         msg = f"Failed to fetch PDFX image manifest: {e}"
         logger.warning(f"{msg} (process_id={process_id}, ref={reference_curie})")
         return 0, 0, [msg]
@@ -938,6 +958,7 @@ def process_extracted_images(  # pragma: no cover
         try:
             image_bytes = download_pdfx_image(image_url)
         except Exception as e:
+            recover_session(db, e)
             failed += 1
             errors.append(f"image {idx} ({output_display_name}): download failed: {e}")
             logger.error(
@@ -978,6 +999,7 @@ def process_extracted_images(  # pragma: no cover
                 f"{figure_file_class} '{output_display_name}'"
             )
         except Exception as e:
+            recover_session(db, e)
             failed += 1
             errors.append(f"image {idx} ({output_display_name}): upload failed: {e}")
             logger.error(
@@ -1016,6 +1038,7 @@ def process_extracted_images(  # pragma: no cover
                 f"{figure_metadata_file_class} '{figure_display_name}'"
             )
         except Exception as e:
+            recover_session(db, e)
             metadata_failed += 1
             errors.append(
                 f"image {idx} ({figure_display_name}): "
@@ -1220,6 +1243,7 @@ def process_pdf_for_reference(  # pragma: no cover
         try:
             token = get_admin_token()
         except Exception as e:
+            recover_session(db, e)
             error_msg = f"Failed to obtain PDFX token: {e}"
             logger.error(error_msg)
             return ProcessingResult(
@@ -1264,6 +1288,7 @@ def process_pdf_for_reference(  # pragma: no cover
                 pdfs_failed += 1
 
         except Exception as e:
+            recover_session(db, e)
             pdf_detail["error"] = str(e)
             pdfs_failed += 1
             logger.error(f"Error processing PDF {pdf_file.display_name}: {e}")
@@ -1401,6 +1426,7 @@ def _process_single_pdf_file(  # pragma: no cover
             logger.info(f"Uploaded {method} markdown for {reference_curie} ({file_class})")
 
         except Exception as e:
+            recover_session(db, e)
             logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
 
     # Always attempt image extraction after the Markdown outputs. Failures here
@@ -1417,6 +1443,7 @@ def _process_single_pdf_file(  # pragma: no cover
             mod_abbreviation=mod_abbreviation,
         )
     except Exception as e:
+        recover_session(db, e)
         logger.error(
             f"Unexpected error during image extraction for {reference_curie} "
             f"({file_class} '{display_name}'): {e}"
@@ -1700,6 +1727,7 @@ def process_nxml_to_markdown(  # pragma: no cover
         return True, None
 
     except Exception as e:
+        recover_session(db, e)
         error_msg = f"nXML->markdown failed: {e}"
         logger.error(f"{error_msg} (reference_curie={reference_curie})")
         return False, error_msg
@@ -1791,6 +1819,7 @@ def process_supplemental_pdfs(  # pragma: no cover
                 failed += 1
                 errors.append(f"{pdf_file.display_name}: {error or 'unknown error'}")
         except Exception as e:
+            recover_session(db, e)
             failed += 1
             errors.append(f"{pdf_file.display_name}: {e}")
             logger.error(
