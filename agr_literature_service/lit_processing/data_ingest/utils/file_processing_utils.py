@@ -220,12 +220,13 @@ THUMBNAIL_MAX_SIZE_BYTES = {
 # classed htp_supplement instead of supplement, so the conversion /
 # entity-extraction pipeline — which selects its sources by file_class —
 # leaves them alone. Thresholds per the ticket: 0.5 MB for text-family files,
-# 1 MB for xlsx.
+# 1 MB for Excel (xls added at the curators' request, same rule as xlsx).
 HTP_SUPPLEMENT_MIN_BYTES = {
     'txt': 500_000,
     'text': 500_000,
     'tsv': 500_000,
     'csv': 500_000,
+    'xls': 1_000_000,
     'xlsx': 1_000_000,
 }
 
