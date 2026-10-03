@@ -471,6 +471,59 @@ wait_for_pipeline_drained() {
 }
 
 # ---------------------------------------------------------------------------
+# Gate 3 (2026-10-03 prod incident): refuse to promote a slot whose topic_entity_tags are not
+# there yet. Gate 2 can end two ways that both look "done" but are not: the cap (the pipeline
+# never went quiet, e.g. the TET collapse crawling at 1 tag/s) and a dead/stuck ksql query (no
+# changes for 10 min IS "stable"). Either way the slot has every reference but almost none of
+# their tags, and flipping to it silently empties topic search. So compare the nested
+# topic_entity_tags docs actually indexed against what the pipeline must produce from the DB.
+# ---------------------------------------------------------------------------
+
+# Nested topic_entity_tags docs in an index (echo 0 on any error).
+indexed_tet_count() {
+    local es_host=$1 es_port=$2 index=$3
+    curl -s -m 60 -H 'Content-Type: application/json' "http://${es_host}:${es_port}/${index}/_search?size=0" \
+        -d '{"aggs":{"t":{"nested":{"path":"topic_entity_tags"}}}}' \
+        | jq -r '.aggregations.t.doc_count // 0' 2>/dev/null || echo 0
+}
+
+# Tag docs the ksql pipeline produces for the current DB: one per tag, except that a
+# (reference, entity_type, topic, data_provider, SEA group, owning MOD) group above the
+# large-scale threshold collapses into ONE summary tag (SCRUM-6614). The grouping and the
+# threshold mirror topic_entity_tag_groups / topic_entity_tag_group_summary in
+# ksql_queries.ksql; LARGE_SCALE_THRESHOLD must stay equal to the ksql CASE's 250.
+expected_tet_count() {
+    local threshold="${LARGE_SCALE_THRESHOLD:-250}"
+    PGPASSWORD="${PSQL_PASSWORD}" psql -h "${PSQL_HOST}" -U "${PSQL_USERNAME}" -p "${PSQL_PORT}" -d "${PSQL_DATABASE}" -tAq -c "
+        WITH g AS (
+            SELECT count(*) AS n
+              FROM topic_entity_tag t
+              JOIN tag_source s ON s.tag_source_id = t.tag_source_id
+             GROUP BY t.reference_id, coalesce(t.entity_type, ''), coalesce(t.topic, ''),
+                      coalesce(s.data_provider, ''),
+                      CASE WHEN s.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035')
+                           THEN 'ECO:0006155' ELSE 'ECO:0007669' END,
+                      coalesce(s.secondary_data_provider_id, 0))
+        SELECT coalesce(sum(CASE WHEN n > ${threshold} THEN 1 ELSE n END), 0) FROM g;" 2>/dev/null | tr -d '[:space:]'
+}
+
+# Gate 3: 0 (pass) when indexed >= min_fraction * expected, 1 otherwise. min_fraction 0
+# disables the gate. Prints both numbers so the decision is visible in the setup log.
+tet_complete_enough() {
+    local es_host=$1 es_port=$2 index=$3 min_fraction=$4
+    local expected indexed need
+    expected=$(expected_tet_count); expected=${expected:-0}
+    indexed=$(indexed_tet_count "${es_host}" "${es_port}" "${index}"); indexed=${indexed:-0}
+    if ! [[ "$expected" =~ ^[0-9]+$ ]] || [[ "$expected" -eq 0 ]]; then
+        echo "Gate 3: could not compute the expected tag count from the DB (got '${expected}'); not enforcing."
+        return 0
+    fi
+    need=$(awk -v e="$expected" -v f="$min_fraction" 'BEGIN { printf "%d", e * f }')
+    echo "Gate 3: topic_entity_tags indexed=${indexed} expected~${expected} need>=${need} (min_fraction=${min_fraction})"
+    [[ "$indexed" -ge "$need" ]]
+}
+
+# ---------------------------------------------------------------------------
 # SCRUM-6240: alias-based blue/green index swap helpers.
 # The app queries an ALIAS; physical data lives in two fixed slots <name>_1 / <name>_2.
 # Each rebuild targets the inactive slot, optimizes it, then atomically flips the alias.
