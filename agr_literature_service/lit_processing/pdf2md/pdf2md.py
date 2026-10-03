@@ -824,8 +824,17 @@ def _record_unexpected_job_failure(db: Session, job: Dict, mod_abbreviation: Opt
                                    error: Exception) -> Dict:
     """Recover the shared session after an unexpected error on one job, mark the job
     failed, and return its entry for the error report. Never raises: one job's
-    failure must not end the run (the 2026-10-01 stage crash)."""
-    recover_session(db, error)
+    failure must not end the run (the 2026-10-01 stage crash).
+
+    Rolls back whatever the error type, unlike recover_session. Everything worth
+    keeping (uploads, earlier status changes) has already been committed, so what is
+    left is this job's half-applied state: e.g. job_change_atp_code sets the new tag
+    in memory and then a transition action raises HTTPException. Left in place, the
+    on_failed call below would autoflush and commit that success state."""
+    try:
+        db.rollback()
+    except Exception as rollback_error:  # pragma: no cover - connection is gone
+        logger.error(f"Rollback after an unexpected job error failed: {rollback_error}")
     reference_curie = job['reference_curie']
     logger.error(f"Unexpected error processing {reference_curie}: {error}")
     try:
@@ -942,13 +951,15 @@ def main(  # pragma: no cover
                 )
 
                 if ref_file_info is None:
-                    skipped_count += 1
                     error_msg = resolve_error or "Could not resolve reference source file"
                     logger.warning(f"{error_msg} for {reference_curie}; marking job as failed")
                     job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                     objects_with_errors.append(_build_workflow_error_record(
                         db, reference_curie, "N/A", "N/A", mod_abbreviation, error_msg
                     ))
+                    # counted only once its status is recorded, so a failure above
+                    # is counted once, by the handler below
+                    skipped_count += 1
                     continue
 
                 display_name = ref_file_info["display_name"]
@@ -967,17 +978,17 @@ def main(  # pragma: no cover
                 ref_times.append(ref_elapsed)
 
                 if success:
-                    success_count += 1
                     job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+                    success_count += 1
                     logger.info(f"Completed {reference_curie} in {ref_elapsed:.2f}s")
                 else:
-                    failure_count += 1
                     job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                     logger.error(f"Failed {reference_curie} after {ref_elapsed:.2f}s")
                     objects_with_errors.append(_build_workflow_error_record(
                         db, reference_curie, display_name, file_extension,
                         mod_abbreviation, error_msg or "Unknown"
                     ))
+                    failure_count += 1
             except Exception as e:
                 failure_count += 1
                 objects_with_errors.append(_record_unexpected_job_failure(db, job, mod_abbreviation, e))

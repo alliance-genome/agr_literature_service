@@ -13,9 +13,11 @@ only can if the failure was rolled back.
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from agr_literature_service.api.models import ModModel
 from agr_literature_service.lit_processing.pdf2md import pdf2md, pdf2md_utils
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import recover_session
 from ...fixtures import db  # noqa
@@ -124,15 +126,36 @@ class TestSupplements:
         assert (succeeded, failed) == (1, 1)
 
 
+def _run_main(db, jobs, convert, change_status):  # noqa
+    """Run pdf2md.main() over ``jobs`` on the test session; return the report text."""
+    ref_file_info = {"display_name": "main", "file_extension": "pdf"}
+    mod_query = MagicMock()
+    mod_query.filter.return_value.one.return_value.abbreviation = "FB"
+    with patch(f"{MAIN}.sessionmaker", return_value=lambda: db), \
+            patch.object(db, "query", side_effect=lambda *a, **k: mod_query), \
+            patch(f"{MAIN}.get_jobs", side_effect=[jobs, []]), \
+            patch(f"{MAIN}._resolve_workflow_ref_file_info", return_value=(ref_file_info, None)), \
+            patch(f"{MAIN}.get_admin_token", return_value="token"), \
+            patch(f"{MAIN}.process_single_reference", side_effect=convert), \
+            patch(f"{MAIN}.job_change_atp_code", side_effect=change_status), \
+            patch(f"{MAIN}._build_workflow_error_record", side_effect=_error_record), \
+            patch(f"{MAIN}.send_report") as report:
+        pdf2md.main()
+    report.assert_called_once()
+    return report.call_args.args[1]
+
+
+def _jobs(*numbers):
+    return [{"reference_id": n, "reference_workflow_tag_id": 1000 + n, "mod_id": 1,
+             "reference_curie": f"AGRKB:10{n}"} for n in numbers]
+
+
 class TestMainLoop:
 
     def test_a_database_error_on_one_job_does_not_stop_the_run(self, db):  # noqa
         # The stage crash: the error escaped into main's loop, the next statement
         # (the job-status update) failed, and the run ended. Each job must now
         # fail on its own, the run must reach the end, and the report must go out.
-        jobs = [{"reference_id": n, "reference_workflow_tag_id": 1000 + n, "mod_id": 1,
-                 "reference_curie": f"AGRKB:10{n}"} for n in (1, 2)]
-        ref_file_info = {"display_name": "main", "file_extension": "pdf"}
         status_updates = []
 
         def convert(db, info, token, **kwargs):  # noqa
@@ -144,19 +167,33 @@ class TestMainLoop:
             assert _session_is_usable(db)
             status_updates.append((workflow_tag_id, condition))
 
-        mod_query = MagicMock()
-        mod_query.filter.return_value.one.return_value.abbreviation = "FB"
-        with patch(f"{MAIN}.sessionmaker", return_value=lambda: db), \
-                patch.object(db, "query", side_effect=lambda *a, **k: mod_query), \
-                patch(f"{MAIN}.get_jobs", side_effect=[jobs, []]), \
-                patch(f"{MAIN}._resolve_workflow_ref_file_info", return_value=(ref_file_info, None)), \
-                patch(f"{MAIN}.get_admin_token", return_value="token"), \
-                patch(f"{MAIN}.process_single_reference", side_effect=convert), \
-                patch(f"{MAIN}.job_change_atp_code", side_effect=change_status), \
-                patch(f"{MAIN}._build_workflow_error_record", side_effect=_error_record), \
-                patch(f"{MAIN}.send_report") as report:
-            pdf2md.main()
+        report = _run_main(db, _jobs(1, 2), convert, change_status)
 
         assert status_updates == [(1001, "on_failed"), (1002, "on_success")]
-        report.assert_called_once()
-        assert "AGRKB:101" in report.call_args.args[1]
+        assert "AGRKB:101" in report
+
+    def test_a_failed_success_transition_is_not_committed(self, db):  # noqa
+        # job_change_atp_code sets the new tag in memory, then runs the
+        # transition's actions, which raise HTTPException (not a database error).
+        # The half-applied success state must be discarded before the job is
+        # marked failed; otherwise the on_failed call's commit saves it.
+        row = ModModel(abbreviation="0099_PdfDb", short_name="PdfDb", full_name="before")
+        db.add(row)
+        db.commit()
+        row_id = row.mod_id
+        status_updates = []
+
+        def change_status(db, workflow_tag_id, condition):  # noqa
+            status_updates.append((workflow_tag_id, condition))
+            if condition == "on_success":
+                db.get(ModModel, row_id).full_name = "half-applied success"
+                raise HTTPException(status_code=422, detail="transition action failed")
+            db.commit()
+
+        report = _run_main(db, _jobs(1), lambda db, info, token, **kwargs: (True, None), change_status)
+
+        committed = db.execute(text("SELECT full_name FROM mod WHERE mod_id = :i"), {"i": row_id}).scalar()
+        assert committed == "before"
+        assert status_updates == [(1001, "on_success"), (1001, "on_failed")]
+        # counted once, as a failure: not also as a success
+        assert "Total: 1, Success: 0, Failed: 1, Skipped: 0" in report
