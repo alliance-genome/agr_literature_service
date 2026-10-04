@@ -1869,9 +1869,16 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
                 # order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
                 sorted_column_values = get_sorted_column_values(reference_id, db,
                                                                 sort_by, desc_sort)
-                curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
-                                      value=getattr(TopicEntityTagModel, sort_by))
-                query = query.order_by(order_expression, curie_ordering, TopicEntityTagModel.topic_entity_tag_id)
+                if sorted_column_values:
+                    curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
+                                          value=getattr(TopicEntityTagModel, sort_by))
+                    query = query.order_by(order_expression, curie_ordering,
+                                           TopicEntityTagModel.topic_entity_tag_id)
+                else:
+                    # No values to order by (e.g. topic-only tags sorted by entity type,
+                    # or no names came back): an empty mapping renders "CASE <col> END"
+                    # with no WHEN branch, which is invalid SQL (SCRUM-6631).
+                    query = query.order_by(order_expression, TopicEntityTagModel.topic_entity_tag_id)
             else:
                 # check if the column exists in TopicEntityTagModel
                 if hasattr(TopicEntityTagModel, sort_by):
