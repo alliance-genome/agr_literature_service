@@ -330,9 +330,15 @@ CREATE TABLE topic_entity_tag_groups AS
 -- array flows downstream: an over-cap group's full GROUP_TAGS payload (up
 -- to the collect_list cap of maps) stays out of this topic, the final
 -- GROUP BY REFERENCE_ID repartition and the reference-level RocksDB store
--- -- reindex write volume, review finding. GROUP_TAGS is capped by the
--- collect_list limit, which only truncates groups already far over the
--- threshold, where the summary replaces them anyway. large_scale_tag and
+-- -- reindex write volume, review finding. GROUP_TAGS is capped at the
+-- threshold by a per-query ksql.functions.collect_list.limit that setup.sh
+-- sends with topic_entity_tag_groups (ksqlDB's own default is unlimited, and
+-- the uncapped list made every tag re-serialise its whole group -- O(n^2),
+-- ~1 tag/s on the 2026-10-03 prod rebuild). A group at or under the
+-- threshold never reaches the cap, so its list is complete, and count(*)
+-- stays exact. Caveat: a group that shrinks from over to under the
+-- threshold by deletions can miss tags collected after the cap was hit,
+-- until the next rebuild. large_scale_tag and
 -- entity_count exist only on these synthetic summary tags. Elasticsearch
 -- flattens the downstream array-of-arrays on indexing and the
 -- sort_authors_by_order default pipeline flattens _source to match.
@@ -710,7 +716,9 @@ CREATE TABLE reference_with_resource AS
 -- through the whole chain. Source rows, smallest first: obsolete_reference_curie 42,
 -- manual_indexing_tag 6,959, curation_status 23,616, reference_email 40,916, indexing_priority
 -- 67,495, reference_mod_referencetype 1.30M, mod_corpus_association 1.44M (x3), workflow_tag 2.14M,
--- topic_entity_tag 3.50M, cross_reference 4.09M, author 7.78M.
+-- cross_reference 4.09M, author 7.78M, then topic_entity_tag LAST: by row count it sat between
+-- workflow_tag and cross_reference, but since SCRUM-6614 its per-reference arrays are the largest
+-- payload (see the note above spine_tet).
 --
 -- reference_with_citation is deliberately KEPT above: the PUBLIC chain
 -- (reference_with_resource -> reference_with_copyright -> public_reference_joined) still sources its
@@ -882,7 +890,7 @@ CREATE TABLE spine_wf AS
     spine_mcr.REFERENCE_ID = reference_workflow_tags.REFERENCE_ID
     EMIT CHANGES;
 
-CREATE TABLE spine_tet AS
+CREATE TABLE spine_xref AS
     SELECT
     spine_wf.REFERENCE_ID \"REFERENCE_ID\",
     spine_wf.CITATION \"CITATION\",
@@ -897,32 +905,10 @@ CREATE TABLE spine_tet AS
     spine_wf.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
     spine_wf.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
     spine_wf.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
-    topic_entity_tags.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\"
-    FROM spine_wf spine_wf
-    LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
-    spine_wf.REFERENCE_ID = topic_entity_tags.REFERENCE_ID
-    EMIT CHANGES;
-
-CREATE TABLE spine_xref AS
-    SELECT
-    spine_tet.REFERENCE_ID \"REFERENCE_ID\",
-    spine_tet.CITATION \"CITATION\",
-    spine_tet.SHORT_CITATION \"SHORT_CITATION\",
-    spine_tet.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
-    spine_tet.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
-    spine_tet.CURATION_TAGS \"CURATION_TAGS\",
-    spine_tet.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
-    spine_tet.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
-    spine_tet.LABEL \"LABEL\",
-    spine_tet.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
-    spine_tet.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
-    spine_tet.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
-    spine_tet.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
-    spine_tet.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\",
     cross_references.CROSS_REFERENCES \"CROSS_REFERENCES\"
-    FROM spine_tet spine_tet
+    FROM spine_wf spine_wf
     LEFT OUTER JOIN cross_references cross_references ON
-    spine_tet.REFERENCE_ID = cross_references.REFERENCE_ID
+    spine_wf.REFERENCE_ID = cross_references.REFERENCE_ID
     EMIT CHANGES;
 
 CREATE TABLE spine_auth AS
@@ -940,12 +926,38 @@ CREATE TABLE spine_auth AS
     spine_xref.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
     spine_xref.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
     spine_xref.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
-    spine_xref.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\",
     spine_xref.CROSS_REFERENCES \"CROSS_REFERENCES\",
     authors.AUTHORS \"AUTHORS\"
     FROM spine_xref spine_xref
     LEFT OUTER JOIN authors authors ON
     spine_xref.REFERENCE_ID = authors.REFERENCE_ID
+    EMIT CHANGES;
+
+-- topic_entity_tags joins LAST (SCRUM-6630): since SCRUM-6614 loads every association it is the
+-- largest aggregate (TOPIC_ENTITY_TAGS topic 697 MB vs AUTHORS 132 MB and CROSS_REFERENCES 44 MB
+-- on dev, 2026-10-03) and the most frequently updated, so a tag change now re-emits through this
+-- link and reference_joined only, instead of also through spine_xref and spine_auth.
+CREATE TABLE spine_tet AS
+    SELECT
+    spine_auth.REFERENCE_ID \"REFERENCE_ID\",
+    spine_auth.CITATION \"CITATION\",
+    spine_auth.SHORT_CITATION \"SHORT_CITATION\",
+    spine_auth.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_auth.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_auth.CURATION_TAGS \"CURATION_TAGS\",
+    spine_auth.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_auth.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_auth.LABEL \"LABEL\",
+    spine_auth.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_auth.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
+    spine_auth.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
+    spine_auth.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
+    spine_auth.CROSS_REFERENCES \"CROSS_REFERENCES\",
+    spine_auth.AUTHORS \"AUTHORS\",
+    topic_entity_tags.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\"
+    FROM spine_auth spine_auth
+    LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
+    spine_auth.REFERENCE_ID = topic_entity_tags.REFERENCE_ID
     EMIT CHANGES;
 
 -- Wide reference columns attached ONCE here instead of being dragged through 13 links.
@@ -955,7 +967,7 @@ CREATE TABLE reference_joined WITH (
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    spine_auth.REFERENCE_ID \"reference_id\",
+    spine_tet.REFERENCE_ID \"reference_id\",
     normalized_copyright_reference.curie \"curie\",
     normalized_copyright_reference.abstract \"abstract\",
     normalized_copyright_reference.category \"category\",
@@ -987,24 +999,24 @@ CREATE TABLE reference_joined WITH (
       WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
       ELSE NULL
     END AS \"retraction_status_name\",
-    spine_auth.CITATION \"citation\",
-    spine_auth.SHORT_CITATION \"short_citation\",
-    spine_auth.OBSOLETE_CURIES \"obsolete_curies\",
-    spine_auth.MANUAL_INDEXING_TAGS \"manual_indexing_tags\",
-    spine_auth.CURATION_TAGS \"curation_tags\",
-    spine_auth.REFERENCE_EMAILS \"reference_emails\",
-    spine_auth.INDEXING_PRIORITIES \"indexing_priorities\",
-    spine_auth.LABEL \"mod_reference_types\",
-    spine_auth.MODS_IN_CORPUS \"mods_in_corpus\",
-    spine_auth.MODS_NEEDS_REVIEW \"mods_needs_review\",
-    spine_auth.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"mods_in_corpus_or_needs_review\",
-    spine_auth.WORKFLOW_TAGS \"workflow_tags\",
-    spine_auth.TOPIC_ENTITY_TAGS \"topic_entity_tags\",
-    spine_auth.CROSS_REFERENCES \"cross_references\",
-    spine_auth.AUTHORS \"authors\"
-    FROM spine_auth spine_auth
+    spine_tet.CITATION \"citation\",
+    spine_tet.SHORT_CITATION \"short_citation\",
+    spine_tet.OBSOLETE_CURIES \"obsolete_curies\",
+    spine_tet.MANUAL_INDEXING_TAGS \"manual_indexing_tags\",
+    spine_tet.CURATION_TAGS \"curation_tags\",
+    spine_tet.REFERENCE_EMAILS \"reference_emails\",
+    spine_tet.INDEXING_PRIORITIES \"indexing_priorities\",
+    spine_tet.LABEL \"mod_reference_types\",
+    spine_tet.MODS_IN_CORPUS \"mods_in_corpus\",
+    spine_tet.MODS_NEEDS_REVIEW \"mods_needs_review\",
+    spine_tet.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"mods_in_corpus_or_needs_review\",
+    spine_tet.WORKFLOW_TAGS \"workflow_tags\",
+    spine_tet.TOPIC_ENTITY_TAGS \"topic_entity_tags\",
+    spine_tet.CROSS_REFERENCES \"cross_references\",
+    spine_tet.AUTHORS \"authors\"
+    FROM spine_tet spine_tet
     JOIN normalized_copyright_reference normalized_copyright_reference ON
-    spine_auth.REFERENCE_ID = normalized_copyright_reference.reference_id
+    spine_tet.REFERENCE_ID = normalized_copyright_reference.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_with_copyright AS

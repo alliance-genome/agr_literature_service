@@ -31,3 +31,28 @@ def test_loaders_reexport_the_shared_constant():
     )
     assert sgd_reference_tag_utils.LARGE_SCALE_THRESHOLD is LARGE_SCALE_THRESHOLD
     assert zfin_reference_tag_utils.LARGE_SCALE_THRESHOLD is LARGE_SCALE_THRESHOLD
+
+
+DEBEZIUM = KSQL.parent
+
+
+def test_shell_threshold_equals_the_shared_constant():
+    # status_manager.sh (sourced by setup.sh) carries the shell copy: Gate 3's
+    # expected-tag count and the collect_list cap below both read it.
+    shell = re.findall(r"^LARGE_SCALE_THRESHOLD=(\d+)\s*$",
+                       (DEBEZIUM / "status_manager.sh").read_text(), re.MULTILINE)
+    assert shell == [str(LARGE_SCALE_THRESHOLD)]
+
+
+def test_tet_group_collect_list_is_capped_per_query():
+    # ksqlDB's collect_list is unlimited by default, and the uncapped group
+    # list made each tag re-serialise its whole group (O(n^2), the 2026-10-03
+    # prod reindex crawled at ~1 tag/s). setup.sh must send the cap with the
+    # topic_entity_tag_groups statement only -- a server-wide limit would
+    # truncate authors and the other per-reference lists.
+    setup = (DEBEZIUM / "setup.sh").read_text()
+    assert re.search(r"CREATE\[\[:space:\]\]\+TABLE\[\[:space:\]\]\+topic_entity_tag_groups", setup)
+    assert '"ksql.functions.collect_list.limit"' in setup
+    assert '"${LARGE_SCALE_THRESHOLD}"' in setup
+    compose = (DEBEZIUM.parent / "docker-compose.yaml").read_text()
+    assert "collect_list.limit" not in compose  # never server-wide

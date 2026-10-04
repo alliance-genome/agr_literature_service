@@ -1371,16 +1371,43 @@ def add_tet_advanced_query(es_body, tet_advanced_query, wft_mod_abbreviations=No
     return True
 
 
+def tet_mod_scope_filter(path, allowed_mods):
+    """The ES filter that keeps the tags owned by one of allowed_mods.
+
+    A tag belongs to the MOD that is its source's secondary_data_provider.
+    data_provider is where the data came from and can be a third party (GEO,
+    PDB), so filtering on it hid MOD-owned third-party tags (SCRUM-6338).
+
+    Tags indexed before secondary_data_provider existed carry no such field at
+    all. An index slot built by an older pipeline (or served as the rollback
+    slot after a failed rebuild) would then match nothing and every TET facet
+    would come back empty, so those tags fall back to data_provider, which is
+    what the facets were scoped by before SCRUM-6338.
+    """
+    return {
+        "bool": {
+            "should": [
+                {"terms": {f"{path}.secondary_data_provider": allowed_mods}},
+                {
+                    "bool": {
+                        "must_not": {"exists": {"field": f"{path}.secondary_data_provider"}},
+                        "filter": {"terms": {f"{path}.data_provider": allowed_mods}}
+                    }
+                }
+            ],
+            "minimum_should_match": 1
+        }
+    }
+
+
 def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_mods, size=10):
-    # Scope to the MOD that owns each tag: its source's secondary_data_provider.
-    # data_provider is where the data came from and can be a third party (GEO,
-    # PDB), so filtering on it hid MOD-owned third-party tags (SCRUM-6338).
+    # Scope to the MOD that owns each tag (see tet_mod_scope_filter).
     base_agg = create_filtered_aggregation(path, tet_facets, term_field, term_key, size)
     return {
         "nested": {"path": path},
         "aggs": {
             "filtered": {
-                "filter": {"terms": {f"{path}.secondary_data_provider": allowed_mods}},
+                "filter": tet_mod_scope_filter(path, allowed_mods),
                 "aggs": base_agg["aggs"]
             }
         }

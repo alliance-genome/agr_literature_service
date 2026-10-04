@@ -448,6 +448,10 @@ services:
       # Defaults preserve current prod behavior; TEST mode ignores these (setup.sh keeps fixed test values).
       DBZ_KSQL_SETUP_SLEEP: "${DBZ_KSQL_SETUP_SLEEP:-1200}"
       DBZ_DATA_PROCESSING_SLEEP: "${DBZ_DATA_PROCESSING_SLEEP:-20000}"
+      # Gate 3: refuse to promote a slot holding fewer than this share of the expected
+      # topic_entity_tags docs (0 disables). Guards against flipping to a slot whose TET
+      # pipeline is still crawling or died (2026-10-03 prod incident).
+      DBZ_TET_MIN_FRACTION: "${DBZ_TET_MIN_FRACTION:-0.97}"
     networks:
       - agr-literature
     volumes:
