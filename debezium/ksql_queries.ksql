@@ -300,15 +300,9 @@ CREATE TABLE topic_entity_tag_with_source AS
 -- groups then aggregate per reference, so one tag change costs one group
 -- update plus one reference update -- no join fans a count change back onto
 -- every tag row.
--- Only table-safe aggregates are used (count and tet_group_collect support
+-- Only table-safe aggregates are used (count and collect_list support
 -- retraction -- collect_set, min, max and latest_by_offset are stream-only
--- and ksqlDB rejects them on a table source). tet_group_collect is our own
--- UDAF (docker/ksqldb/TetGroupCollectUdaf.java, SCRUM-6630): collect_list
--- until the group passes the threshold, then only the group's first tag.
--- collect_list kept the whole group, so every tag re-serialised it -- O(n^2),
--- ~1 tag/s on the 2026-10-03 prod rebuild. Capping the list at 250 still
--- re-wrote a 130 KB state per big-group tag (group thread pegged, ~74 min
--- for the tag chain on dev), the UDAF keeps that state at one tag. The 250 threshold below must
+-- and ksqlDB rejects them on a table source). The 250 threshold below must
 -- equal LARGE_SCALE_THRESHOLD in lit_processing/data_ingest/utils/
 -- large_scale.py -- tests/test_debezium_large_scale_threshold.py fails CI
 -- on drift. The per-tag map carries
@@ -319,7 +313,7 @@ CREATE TABLE topic_entity_tag_with_source AS
 CREATE TABLE topic_entity_tag_groups AS
     SELECT tag_group_key,
     count(*) AS TAG_COUNT,
-    tet_group_collect(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'secondary_data_provider':=secondary_data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'data_context':=data_context, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'secondary_data_provider':=secondary_data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) AS GROUP_TAGS
     FROM topic_entity_tag_with_source
     GROUP BY tag_group_key
     EMIT CHANGES;
@@ -336,10 +330,14 @@ CREATE TABLE topic_entity_tag_groups AS
 -- array flows downstream: an over-cap group's full GROUP_TAGS payload (up
 -- to the collect_list cap of maps) stays out of this topic, the final
 -- GROUP BY REFERENCE_ID repartition and the reference-level RocksDB store
--- -- reindex write volume, review finding. GROUP_TAGS is complete for a group
--- at or under the threshold and holds only the first tag above it (see
--- tet_group_collect), while count(*) stays exact. Caveat: a group that shrinks
--- from over to under the threshold by deletions shows only that first tag
+-- -- reindex write volume, review finding. GROUP_TAGS is capped at the
+-- threshold by a per-query ksql.functions.collect_list.limit that setup.sh
+-- sends with topic_entity_tag_groups (ksqlDB's own default is unlimited, and
+-- the uncapped list made every tag re-serialise its whole group -- O(n^2),
+-- ~1 tag/s on the 2026-10-03 prod rebuild). A group at or under the
+-- threshold never reaches the cap, so its list is complete, and count(*)
+-- stays exact. Caveat: a group that shrinks from over to under the
+-- threshold by deletions can miss tags collected after the cap was hit,
 -- until the next rebuild. large_scale_tag and
 -- entity_count exist only on these synthetic summary tags. Elasticsearch
 -- flattens the downstream array-of-arrays on indexing and the

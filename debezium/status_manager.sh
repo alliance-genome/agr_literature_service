@@ -480,9 +480,9 @@ wait_for_pipeline_drained() {
 # ---------------------------------------------------------------------------
 
 # The large-scale threshold (SCRUM-6614): a TET group with MORE tags than this collapses into one
-# summary tag. Used by Gate 3 below. Must equal LARGE_SCALE_THRESHOLD in
-# lit_processing/data_ingest/utils/large_scale.py, the ksql CASE and THRESHOLD in
-# docker/ksqldb/TetGroupCollectUdaf.java -- enforced by
+# summary tag. Used by Gate 3 below and by setup.sh as the per-query collect_list cap on
+# topic_entity_tag_groups. Must equal LARGE_SCALE_THRESHOLD in
+# lit_processing/data_ingest/utils/large_scale.py and the ksql CASE -- enforced by
 # tests/test_debezium_large_scale_threshold.py.
 LARGE_SCALE_THRESHOLD=250
 
