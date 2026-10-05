@@ -22,9 +22,16 @@ pipeline). The WB/ZFIN/FB supplement-conversion rule applies unless
 ``--all-mods``. ``htp_supplement`` rows are never selected. tsv / csv / txt
 supplements are NOT covered: the parser has no reader for them yet.
 
+Like the cron, the background job and the inline endpoint, the script
+generates classifier embeddings once per reference after its Office
+supplements converted (idempotent; dormant without OPENAI_API_KEY and
+skipped outside classifier MODs), so the backfilled rows are not left
+invisible to the classifiers.
+
 Safe by default: without ``--commit`` the script only reports what it would
-convert. ``--limit N`` for a trial slice, ``--mod ABBR`` to restrict to
-references in that MOD's corpus.
+convert. ``--limit N`` stops after N conversion attempts (rows that are
+eligible and not yet converted, so a trial slice always exercises real
+conversions); ``--mod ABBR`` restricts to references in that MOD's corpus.
 """
 import argparse
 import logging
@@ -94,10 +101,23 @@ def source_mod_abbreviation(ref_file: ReferencefileModel) -> Optional[str]:
     return None
 
 
+def embed_reference(db: Session, reference_id: int, reference_curie: str) -> None:
+    """Classifier embeddings for a reference's merged Markdown (main and
+    supplements), as the cron and the endpoint do after converting. Imported
+    lazily: the embedding stack is optional. Isolated: never raises."""
+    try:
+        from agr_literature_service.lit_processing.embedding.embedding_generation import (
+            maybe_generate_classifier_embeddings,
+        )
+        maybe_generate_classifier_embeddings(db, reference_id, reference_curie)
+    except Exception as e:  # noqa: BLE001 - embeddings must never fail the backfill
+        logger.error("embeddings failed for %s: %s", reference_curie, e)
+
+
 def candidate_office_supplements(db: Session, years: Iterable[int],
-                                 mod_abbreviation: Optional[str] = None,
-                                 limit: Optional[int] = None) -> List[ReferencefileModel]:
-    """Final Office supplement rows of references published in ``years``."""
+                                 mod_abbreviation: Optional[str] = None) -> List[ReferencefileModel]:
+    """Final Office supplement rows of references published in ``years``,
+    ordered by reference so the caller can act once per reference."""
     year_strings = [str(y) for y in years]
     best_date = func.coalesce(
         func.nullif(ReferenceModel.date_published, ""),
@@ -123,8 +143,6 @@ def candidate_office_supplements(db: Session, years: Iterable[int],
                     ModModel.abbreviation == mod_abbreviation)
         )
     query = query.order_by(ReferencefileModel.reference_id, ReferencefileModel.referencefile_id)
-    if limit:
-        query = query.limit(int(limit))
     return query.all()
 
 
@@ -136,16 +154,33 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
 
-    rows = candidate_office_supplements(db, years, mod_abbreviation, limit)
+    rows = candidate_office_supplements(db, years, mod_abbreviation)
     logger.info("%s Office supplement row(s) (%s) on papers published in %s%s",
                 len(rows), ", ".join(sorted(OFFICE_SUPPLEMENT_FORMATS)),
                 ", ".join(str(y) for y in years),
                 f" in the {mod_abbreviation} corpus" if mod_abbreviation else "")
 
-    counts = {"converted": 0, "already_converted": 0, "ineligible": 0, "errors": 0}
+    counts = {"converted": 0, "already_converted": 0, "ineligible": 0, "errors": 0,
+              "embedded_references": 0}
     eligible_cache: Dict[int, bool] = {}
+    attempted = 0
+    # Rows are ordered by reference: embed a reference once, after its last
+    # successful conversion, when the loop moves on to the next reference.
+    pending_embed: Optional[tuple] = None
+
+    def flush_embed() -> None:
+        nonlocal pending_embed
+        if pending_embed is not None:
+            embed_reference(db, *pending_embed)
+            counts["embedded_references"] += 1
+            pending_embed = None
+
     for ref_file in rows:
+        if limit and attempted >= limit:
+            break
         reference_id = ref_file.reference_id
+        if pending_embed is not None and pending_embed[0] != reference_id:
+            flush_embed()
         if not all_mods:
             if reference_id not in eligible_cache:
                 eligible_cache[reference_id] = is_eligible_for_supplement_conversion(db, reference_id)
@@ -162,6 +197,7 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
                     "CONVERT" if commit else "WOULD CONVERT", reference_curie,
                     ref_file.referencefile_id, ref_file.display_name,
                     ref_file.file_extension, target)
+        attempted += 1
         if not commit:
             counts["converted"] += 1
             continue
@@ -177,15 +213,19 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
             success, error = False, str(e)
         if success:
             counts["converted"] += 1
+            pending_embed = (reference_id, reference_curie)
         else:
             counts["errors"] += 1
             logger.error("FAILED %s referencefile_id=%s %s.%s: %s", reference_curie,
                          ref_file.referencefile_id, ref_file.display_name,
                          ref_file.file_extension, error)
+    flush_embed()
 
-    logger.info("done: %s converted%s, %s already converted, %s on ineligible references, %s errors",
+    logger.info("done: %s converted%s, %s already converted, %s on ineligible references, "
+                "%s errors, %s reference(s) embedded",
                 counts["converted"], "" if commit else " (dry run)",
-                counts["already_converted"], counts["ineligible"], counts["errors"])
+                counts["already_converted"], counts["ineligible"], counts["errors"],
+                counts["embedded_references"])
     return counts
 
 
@@ -199,7 +239,8 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument("--commit", action="store_true",
                         help="convert and store the Markdown (default: report only)")
     parser.add_argument("--limit", type=int, default=None,
-                        help="only consider the first N candidate rows (trial slice)")
+                        help="stop after N conversion attempts (eligible, not-yet-converted files), "
+                             "so a trial slice always exercises real conversions")
     parser.add_argument("--mod", default=None,
                         help="only references in this MOD's corpus (e.g. SGD)")
     parser.add_argument("--all-mods", action="store_true",
