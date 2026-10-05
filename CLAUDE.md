@@ -215,6 +215,13 @@ stderr. A gunicorn `[WARNING]` line arriving as `INFO` is therefore intended —
 **do not remove `logger_class`** to "fix" it. `tests/test_gunicorn_logging.py`
 guards this.
 
+Each ERROR record is also exactly **one** stderr line. An exception (uvicorn's
+"Exception in ASGI application") is rendered as its message plus
+`| module.Type: first line (file.py:N in func)`, the innermost frame in our own
+code. The full traceback goes to stdout without the `[ERROR]` header, because the
+alerter matches that text on stdout too. Before this, every traceback line was a
+separate ERROR record, so one failed request made ~150 alert groups.
+
 Log files live under `${LOG_PATH}` (bind-mounted, web-served at `${LOG_URL}`)
 and are truncated per run. Separately, some scripts write their own report files
 into subdirectories — `QC/`, `dqm_load/`, `pubmed_search/`, `pubmed_update/`,
