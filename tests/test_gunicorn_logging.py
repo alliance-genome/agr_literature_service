@@ -103,6 +103,22 @@ def test_an_exception_is_one_stderr_line_with_the_traceback_on_stdout(capsys):
     assert "[ERROR]" not in out
 
 
+def test_exc_info_with_no_active_exception_is_still_one_line(capsys):
+    """logger.exception() / exc_info=True outside an except block gives the record
+    exc_info=(None, None, None), which is truthy. Summarising it must not raise:
+    a formatter error makes logging print a ~15-line "--- Logging error ---" block
+    to stderr and drops the record (review of #1332)."""
+    log, _ = _make_logger()
+    log.error("nothing is being handled", exc_info=True)
+    out, err = capsys.readouterr()
+
+    lines = err.strip().splitlines()
+    assert len(lines) == 1, err
+    assert "nothing is being handled" in lines[0]
+    assert "Logging error" not in err
+    assert "NoneType" not in out and "NoneType" not in err
+
+
 def test_a_multi_line_error_message_is_one_stderr_line(capsys):
     log, _ = _make_logger()
     log.error("first line\nsecond line")

@@ -45,12 +45,19 @@ class _BelowLevelFilter(logging.Filter):
         return record.levelno < self.level
 
 
+def _has_exception(record: logging.LogRecord) -> bool:
+    """True if the record carries an actual exception. logger.exception() or
+    exc_info=True outside an except block gives (None, None, None), which is
+    truthy but has nothing to show."""
+    return record.exc_info is not None and record.exc_info[0] is not None
+
+
 class _TracebackFilter(logging.Filter):
     """Pass ERROR-and-above records that carry an exception: their full traceback
     goes to stdout, alongside the one-line version on stderr."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        return record.levelno >= STDERR_LEVEL and bool(record.exc_info)
+        return record.levelno >= STDERR_LEVEL and _has_exception(record)
 
 
 def _exception_summary(exc_info) -> str:
@@ -90,7 +97,7 @@ class _OneLineFormatter(logging.Formatter):
         plain = logging.makeLogRecord(record.__dict__)
         plain.exc_info, plain.exc_text, plain.stack_info = None, None, None
         line = " ".join(self.base.format(plain).split())
-        if record.exc_info:
+        if _has_exception(record):
             line = f"{line} | {_exception_summary(record.exc_info)}"
         return line
 
