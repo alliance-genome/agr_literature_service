@@ -9,7 +9,7 @@ from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags
-from agr_literature_service.api.models import TopicEntityTagModel
+from agr_literature_service.api.models import ReferenceModel, TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
@@ -296,6 +296,27 @@ class TestTopicEntityTag:
                      for t in d2["tags"][ref_curie]}
             assert secs2 == {mod2}
             assert all(s["secondary_data_provider"] == mod2 for s in d2["discovery"]["sources"])
+
+    def test_sort_by_a_column_no_tag_has_a_value_in(self, db, test_reference, test_tag_source, auth_headers):  # noqa
+        # SCRUM-6631: the value ordering is a CASE built from the paper's distinct
+        # values in the sort column. With none (topic-only tags sorted by entity
+        # type, as on AGRKB:101000000947527), it rendered "CASE <column> END" with no
+        # WHEN branch and the grid got an HTTP 500 instead of its rows.
+        reference_id = db.query(ReferenceModel.reference_id).filter_by(curie=test_reference.new_ref_curie).scalar()
+        for topic in ("ATP:0000122", "ATP:0000150"):
+            db.add(TopicEntityTagModel(reference_id=reference_id, topic=topic, species="NCBITaxon:7227",
+                                       tag_source_id=test_tag_source.new_source_id, negated=False,
+                                       data_novelty="ATP:0000335", data_context="ATP:0000325"))
+        db.commit()
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}):
+            for sort_by in ("entity_type", "entity", "display_tag"):
+                response = client.get(f"/topic_entity_tag/by_reference/{test_reference.new_ref_curie}"
+                                      f"?sort_by={sort_by}&page=1&page_size=500", headers=auth_headers)
+                assert response.status_code == status.HTTP_200_OK, (sort_by, response.text[:300])
+                assert len(response.json()) == 2, sort_by
 
     def test_show_all_reference_tags_batch_single_vs_multi_tag(self, test_topic_entity_tag, auth_headers):  # noqa
         # The fixture reference carries ONE tag: topic ATP:0000122 with source
