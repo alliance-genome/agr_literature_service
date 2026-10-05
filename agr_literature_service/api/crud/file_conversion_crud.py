@@ -737,7 +737,8 @@ def _execute_sync_conversions(db: Session, reference: ReferenceModel,
     """Run everything that converts in-process: the pending nXML main (if
     any) and the pending Office supplements. Returns (success, error)."""
     errors: List[str] = []
-    if any(p["kind"] == "nxml" for p in assessment.get("pending_main") or []):
+    nxml_pending = any(p["kind"] == "nxml" for p in assessment.get("pending_main") or [])
+    if nxml_pending:
         success, error = _execute_sync_nxml(db, reference, assessment)
         if not success:
             errors.append(error or "nXML conversion failed")
@@ -745,6 +746,17 @@ def _execute_sync_conversions(db: Session, reference: ReferenceModel,
         success, error = _execute_sync_office(db, reference, assessment)
         if not success:
             errors.append(error or "Office conversion failed")
+        elif not nxml_pending:
+            # Office-only inline conversion (the main was already converted
+            # or absent): embed the new converted_merged_supplement rows the
+            # same way the background job does. _execute_sync_nxml already
+            # embeds everything when the nXML ran. Isolated + idempotent.
+            from agr_literature_service.lit_processing.embedding.embedding_generation import (
+                maybe_generate_classifier_embeddings,
+            )
+            maybe_generate_classifier_embeddings(
+                db, reference.reference_id, reference.curie
+            )
     return (not errors), ("; ".join(errors) if errors else None)
 
 

@@ -17,7 +17,7 @@ from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 import boto3
 import requests
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -1214,7 +1214,8 @@ def get_office_files_for_reference(  # pragma: no cover
         .filter(
             ReferencefileModel.reference_id == reference_id,
             ReferencefileModel.file_class == "supplement",
-            ReferencefileModel.file_extension.in_(list(OFFICE_SUPPLEMENT_FORMATS)),
+            # file_upload keeps the extension's case (Table_S1.XLSX), so match case-insensitively
+            func.lower(ReferencefileModel.file_extension).in_(list(OFFICE_SUPPLEMENT_FORMATS)),
             ReferencefileModel.file_publication_status == "final",
         )
         .order_by(ReferencefileModel.referencefile_id.asc())
