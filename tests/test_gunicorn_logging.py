@@ -29,6 +29,17 @@ async def app(scope, receive, send):
     await send({"type": "http.response.body", "body": b"ok"})
 '''
 
+FAILING_APP_SOURCE = '''
+def handler():
+    return 1 / 0
+
+
+async def app(scope, receive, send):
+    if scope["type"] != "http":
+        return
+    handler()
+'''
+
 
 def _make_logger(errorlog="-"):
     """Build the logger inside the test, so it binds capsys's streams."""
@@ -63,6 +74,60 @@ def test_gunicorn_format_is_kept(capsys):
     assert "[ERROR] Exception in worker process" in err
 
 
+def _raise_value_error():
+    raise ValueError("bad value\nsecond line of the message")
+
+
+def test_an_exception_is_one_stderr_line_with_the_traceback_on_stdout(capsys):
+    """SCRUM-6632: every stderr line becomes its own ERROR record, so a traceback
+    there turned one failed request into ~150 alert groups. The record must be a
+    single stderr line naming the exception and where it was raised; the full
+    traceback still goes to stdout (INFO), next to it in the viewer."""
+    log, _ = _make_logger()
+    try:
+        _raise_value_error()
+    except ValueError:
+        log.exception("Exception in ASGI application")
+    out, err = capsys.readouterr()
+
+    lines = err.strip().splitlines()
+    assert len(lines) == 1, err
+    assert "[ERROR] Exception in ASGI application" in lines[0]
+    assert "ValueError: bad value" in lines[0]
+    assert "second line" not in lines[0]
+    assert "test_gunicorn_logging.py:" in lines[0] and "in _raise_value_error" in lines[0]
+    assert "Traceback (most recent call last)" in out
+    assert "second line of the message" in out
+    # The alerter also matches text-labelled errors on stdout, so the traceback
+    # copy must not repeat the "[ERROR]" header, or every failure is two groups.
+    assert "[ERROR]" not in out
+
+
+def test_exc_info_with_no_active_exception_is_still_one_line(capsys):
+    """logger.exception() / exc_info=True outside an except block gives the record
+    exc_info=(None, None, None), which is truthy. Summarising it must not raise:
+    a formatter error makes logging print a ~15-line "--- Logging error ---" block
+    to stderr and drops the record (review of #1332)."""
+    log, _ = _make_logger()
+    log.error("nothing is being handled", exc_info=True)
+    out, err = capsys.readouterr()
+
+    lines = err.strip().splitlines()
+    assert len(lines) == 1, err
+    assert "nothing is being handled" in lines[0]
+    assert "Logging error" not in err
+    assert "NoneType" not in out and "NoneType" not in err
+
+
+def test_a_multi_line_error_message_is_one_stderr_line(capsys):
+    log, _ = _make_logger()
+    log.error("first line\nsecond line")
+    _out, err = capsys.readouterr()
+
+    assert len(err.strip().splitlines()) == 1, err
+    assert "first line" in err and "second line" in err
+
+
 def test_reload_does_not_duplicate_lines(capsys):
     """setup() runs again on SIGHUP; handlers must be replaced, not stacked."""
     log, cfg = _make_logger()
@@ -70,14 +135,21 @@ def test_reload_does_not_duplicate_lines(capsys):
     log.setup(cfg)
     log.info("once")
     log.error("once too")
+    try:
+        _raise_value_error()
+    except ValueError:
+        log.exception("once with a traceback")
     out, err = capsys.readouterr()
-    assert out.count("once") == 1
+    assert out.count("once") == 1  # the traceback block on stdout has no header line
     assert err.count("once too") == 1
+    assert err.count("once with a traceback") == 1
+    assert out.count("Traceback (most recent call last)") == 1
     # gunicorn.error is process-wide and pytest may attach its own capture
-    # handlers to it, so count only the ones this class owns.
+    # handlers to it, so count only the ones this class owns: routine lines and
+    # tracebacks on stdout, one-line errors on stderr.
     ours = [h for h in log.error_log.handlers if getattr(h, "_split_stream", False)]
-    assert len(ours) == 2
-    assert sorted(h.stream is sys.stdout for h in ours) == [False, True]
+    assert len(ours) == 3
+    assert sorted(h.stream is sys.stdout for h in ours) == [False, True, True]
 
 
 def test_log_file_is_left_alone(capsys, tmp_path):
@@ -161,3 +233,52 @@ def test_real_gunicorn_worker_lifecycle_goes_to_stdout(tmp_path):
     # Two workers booted means the max_requests recycle really happened.
     assert stdout.count("Booting worker with pid") >= 2, stdout
     assert "[INFO]" not in stderr, f"INFO lines still on stderr:\n{stderr}"
+
+
+def test_real_gunicorn_request_exception_is_one_stderr_line(tmp_path):
+    """End to end: an exception in a request, as uvicorn logs it under gunicorn
+    ("Exception in ASGI application" with exc_info), is one stderr line naming the
+    exception and the raising frame; the traceback is on stdout (SCRUM-6632)."""
+    (tmp_path / "failing_app.py").write_text(FAILING_APP_SOURCE)
+    # An empty *.py config: "-c /dev/null" makes gunicorn print its own warning to
+    # stderr, which is test noise, not anything the API does.
+    (tmp_path / "empty_gunicorn_conf.py").write_text("")
+    port = _free_port()
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(tmp_path), str(REPO_ROOT)]))
+    stdout_file = tmp_path / "stdout"
+    stderr_file = tmp_path / "stderr"
+    with open(stdout_file, "w") as out, open(stderr_file, "w") as err:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "gunicorn", "failing_app:app",
+             "-c", str(tmp_path / "empty_gunicorn_conf.py"),
+             "--bind", f"127.0.0.1:{port}",
+             "--workers", "1",
+             "--worker-class", "uvicorn_worker.UvicornWorker",
+             "--error-logfile", "-",
+             "--logger-class", "gunicorn_logging.SplitStreamLogger"],
+            cwd=tmp_path, env=env, stdout=out, stderr=err,
+        )
+        try:
+            deadline = time.monotonic() + 30
+            status = None
+            while status is None and time.monotonic() < deadline:
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=2) as conn:
+                        conn.sendall(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+                        status = conn.recv(64)
+                except OSError:
+                    time.sleep(0.2)
+            assert status and status.startswith(b"HTTP/1.1 500"), status
+            time.sleep(1)
+        finally:
+            proc.send_signal(signal.SIGTERM)
+            proc.wait(timeout=30)
+
+    stdout = stdout_file.read_text()
+    stderr_lines = [line for line in stderr_file.read_text().splitlines() if line.strip()]
+    assert len(stderr_lines) == 1, "\n".join(stderr_lines)
+    assert "Exception in ASGI application" in stderr_lines[0]
+    assert "ZeroDivisionError: division by zero" in stderr_lines[0]
+    assert "failing_app.py:" in stderr_lines[0] and "in handler" in stderr_lines[0]
+    assert "Traceback (most recent call last)" in stdout
+    assert "[ERROR]" not in stdout
