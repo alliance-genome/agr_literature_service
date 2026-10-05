@@ -2,9 +2,10 @@
 Orchestrator for the on-demand file-conversion endpoint.
 
 Decides, for a given reference, whether a converted Markdown file already
-exists and, if not, triggers a conversion. NXML sources convert
-synchronously (fast). PDFs go to PDFX in a background task unless the caller
-sets ``wait=true``.
+exists and, if not, triggers a conversion. NXML sources and Office
+supplements (xlsx / docx, SCRUM-6589) convert synchronously in-process
+(fast). PDFs go to PDFX in a background task unless the caller sets
+``wait=true``.
 
 The endpoint reports ONLY conversion status (plus per-file progress from the
 most recent job). Callers that want the resulting file listing should call the
@@ -28,14 +29,19 @@ from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
 from agr_literature_service.api.utils.conversion_job_manager import ConversionJob, conversion_manager
 from agr_literature_service.api.utils.conversion_processor import run_conversion_job
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    OFFICE_SUPPLEMENT_FORMATS,
     PendingMainSource,
     get_nxml_referencefile,
+    get_office_files_for_reference,
     get_pdf_files_for_reference,
     is_eligible_for_supplement_conversion,
     mod_has_converted_main,
+    office_converted_display_name,
     pending_main_sources,
+    pending_office_supplement_sources,
     pending_supplement_sources,
     process_nxml_to_markdown,
+    process_office_to_markdown,
     sync_converted_file_mods_to_sources,
 )
 
@@ -93,14 +99,20 @@ def _assess_reference(db: Session, reference: ReferenceModel,
         - nxml_source: ReferencefileModel | None
         - main_pdfs: list[ReferencefileModel] of all main PDFs
         - supp_pdfs: list[ReferencefileModel] of all supplement PDFs
+        - supp_office_files: list[ReferencefileModel] of all Office
+            (xlsx / docx) supplements (SCRUM-6589)
         - main_pdf_available: bool
         - supp_pdf_available: bool
+        - supp_office_available: bool
         - pending_main: list[PendingMainSource] — main-side sources still
             needing conversion (per-source dedup; nXML preferred over PDF)
         - pending_supplements: list[ReferencefileModel] — supplement PDFs
             still needing conversion (per-source dedup)
+        - pending_office_supplements: list[ReferencefileModel] — Office
+            supplements still needing conversion (converted in-process)
         - main_missing: bool — pending_main is non-empty
-        - supp_missing: bool — pending_supplements is non-empty
+        - supp_missing: bool — pending_supplements or
+            pending_office_supplements is non-empty
         - needs_async: bool — at least one pending source needs PDFX
         - mod_abbreviation: str | None — first available mod abbrev for metadata
 
@@ -145,6 +157,7 @@ def _assess_reference(db: Session, reference: ReferenceModel,
     nxml_source = get_nxml_referencefile(db, reference.reference_id)
     main_pdfs = get_pdf_files_for_reference(db, reference.reference_id, "main")
     supp_pdfs = get_pdf_files_for_reference(db, reference.reference_id, "supplement")
+    supp_office_files = get_office_files_for_reference(db, reference.reference_id)
 
     pending_main: List[PendingMainSource] = pending_main_sources(
         db, reference.reference_id,
@@ -160,18 +173,24 @@ def _assess_reference(db: Session, reference: ReferenceModel,
         pending_supplements: List[Any] = pending_supplement_sources(
             db, reference.reference_id, ignore_tei_derived=overwrite_tei_md,
         )
+        pending_office_supplements: List[Any] = pending_office_supplement_sources(
+            db, reference.reference_id,
+        )
     else:
         pending_supplements = []
+        pending_office_supplements = []
 
     main_pdf_available = bool(main_pdfs)
     supp_pdf_available = bool(supp_pdfs)
+    supp_office_available = bool(supp_office_files)
 
     main_missing = bool(pending_main)
-    supp_missing = bool(pending_supplements)
+    supp_missing = bool(pending_supplements) or bool(pending_office_supplements)
 
-    # PDF-only pending sources need the async PDFX path; nXML can be done sync.
+    # PDF pending sources need the async PDFX path; nXML and Office
+    # supplements convert in-process, so they never force a background job.
     main_needs_pdf = any(p["kind"] == "pdf" for p in pending_main)
-    needs_async = main_needs_pdf or supp_missing
+    needs_async = main_needs_pdf or bool(pending_supplements)
 
     return {
         "main_cached": main_cached,
@@ -179,10 +198,13 @@ def _assess_reference(db: Session, reference: ReferenceModel,
         "nxml_source": nxml_source,
         "main_pdfs": main_pdfs,
         "supp_pdfs": supp_pdfs,
+        "supp_office_files": supp_office_files,
         "main_pdf_available": main_pdf_available,
         "supp_pdf_available": supp_pdf_available,
+        "supp_office_available": supp_office_available,
         "pending_main": pending_main,
         "pending_supplements": pending_supplements,
+        "pending_office_supplements": pending_office_supplements,
         "main_missing": main_missing,
         "supp_missing": supp_missing,
         "needs_async": needs_async,
@@ -340,6 +362,15 @@ def _expected_source_files_from_assessment(
             "expected_converted_file_class": "converted_merged_supplement",
         })
 
+    for ref_file in assessment.get("pending_office_supplements") or []:
+        expected.append({
+            "source_display_name": ref_file.display_name,
+            "source_file_class": "supplement",
+            "source_referencefile_id": ref_file.referencefile_id,
+            "expected_converted_display_name": office_converted_display_name(ref_file),
+            "expected_converted_file_class": "converted_merged_supplement",
+        })
+
     return expected
 
 
@@ -375,6 +406,13 @@ _SUFFIX_TO_SOURCE_CLASS: Dict[str, str] = {
     "_tei": "tei",
 }
 
+# Office-derived supplement Markdown carries the source extension as its
+# suffix (``Table_S1_xlsx``, see pdf2md_utils.office_converted_display_name),
+# so the source is the ``supplement`` row with that display_name AND extension.
+_OFFICE_SUFFIX_TO_EXTENSION: Dict[str, str] = {
+    f"_{ext}": ext for ext in OFFICE_SUPPLEMENT_FORMATS
+}
+
 # PDFX method suffixes — the source file_class depends on whether the
 # converted row is main or supplement (resolved at lookup time).
 _PDFX_METHOD_SUFFIXES = ("_merged", "_grobid", "_docling", "_marker")
@@ -389,11 +427,19 @@ def _infer_source_info(reference: ReferenceModel,
     dict or None if the source can't be identified."""
     base_name: Optional[str] = None
     source_class: Optional[str] = None
+    source_extension: Optional[str] = None
     for suffix, src_class in _SUFFIX_TO_SOURCE_CLASS.items():
         if converted_display_name.endswith(suffix):
             base_name = converted_display_name[: -len(suffix)]
             source_class = src_class
             break
+    if source_class is None and converted_file_class == "converted_merged_supplement":
+        for suffix, ext in _OFFICE_SUFFIX_TO_EXTENSION.items():
+            if converted_display_name.endswith(suffix):
+                base_name = converted_display_name[: -len(suffix)]
+                source_class = "supplement"
+                source_extension = ext
+                break
     if source_class is None:
         for method_suffix in _PDFX_METHOD_SUFFIXES:
             if converted_display_name.endswith(method_suffix):
@@ -406,12 +452,15 @@ def _infer_source_info(reference: ReferenceModel,
     if base_name is None or source_class is None:
         return None
     for rf in reference.referencefiles or []:
-        if rf.file_class == source_class and rf.display_name == base_name:
-            return {
-                "display_name": rf.display_name,
-                "file_class": rf.file_class,
-                "referencefile_id": int(rf.referencefile_id),
-            }
+        if rf.file_class != source_class or rf.display_name != base_name:
+            continue
+        if source_extension is not None and (rf.file_extension or "").lower() != source_extension:
+            continue
+        return {
+            "display_name": rf.display_name,
+            "file_class": rf.file_class,
+            "referencefile_id": int(rf.referencefile_id),
+        }
     return None
 
 
@@ -662,6 +711,43 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
     return payload
 
 
+def _execute_sync_office(db: Session, reference: ReferenceModel,
+                         assessment: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    """Convert every pending Office supplement inline (SCRUM-6589). Returns
+    (success, error_message); success is False if any file failed, with the
+    per-file errors joined into the message."""
+    errors: List[str] = []
+    for office_file in assessment.get("pending_office_supplements") or []:
+        success, error = process_office_to_markdown(
+            db=db,
+            office_ref_file=office_file,
+            reference_curie=reference.curie,
+            mod_abbreviation=assessment["mod_abbreviation"],
+        )
+        if not success:
+            errors.append(
+                f"Office supplement '{office_file.display_name}': "
+                f"{error or 'unknown error'}"
+            )
+    return (not errors), ("; ".join(errors) if errors else None)
+
+
+def _execute_sync_conversions(db: Session, reference: ReferenceModel,
+                              assessment: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    """Run everything that converts in-process: the pending nXML main (if
+    any) and the pending Office supplements. Returns (success, error)."""
+    errors: List[str] = []
+    if any(p["kind"] == "nxml" for p in assessment.get("pending_main") or []):
+        success, error = _execute_sync_nxml(db, reference, assessment)
+        if not success:
+            errors.append(error or "nXML conversion failed")
+    if assessment.get("pending_office_supplements"):
+        success, error = _execute_sync_office(db, reference, assessment)
+        if not success:
+            errors.append(error or "Office conversion failed")
+    return (not errors), ("; ".join(errors) if errors else None)
+
+
 def _execute_sync_nxml(db: Session, reference: ReferenceModel,
                        assessment: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """Run the NXML-only conversion inline. Returns (success, error_message)."""
@@ -784,6 +870,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
         not assessment["nxml_source"]
         and not assessment["main_pdf_available"]
         and not assessment["supp_pdf_available"]
+        and not assessment["supp_office_available"]
     )
 
     if nothing_missing:
@@ -816,22 +903,22 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             completed_at=now_iso, job=recent_job,
         )
 
-    # Sync-nxml shortcut applies when the only pending main source is the
-    # nXML and there are no pending supplements — the nXML conversion is
-    # fast enough to run inline.
+    # Sync shortcut: when nothing pending needs PDFX — the pending main is
+    # at most the nXML and the pending supplements are Office files only —
+    # the conversions are fast enough to run inline (nXML and xlsx / docx
+    # both convert in-process).
     pending_main = assessment.get("pending_main") or []
-    nxml_only = (
-        bool(pending_main)
-        and all(p["kind"] == "nxml" for p in pending_main)
-        and not assessment["supp_missing"]
+    sync_only = (
+        not assessment["needs_async"]
+        and (bool(pending_main) or bool(assessment.get("pending_office_supplements")))
     )
-    if nxml_only:
-        success, error = _execute_sync_nxml(db, reference, assessment)
+    if sync_only:
+        success, error = _execute_sync_conversions(db, reference, assessment)
         if not success:
             return status.HTTP_200_OK, _status_payload(
                 db, reference, status_str=STATUS_FAILED,
                 converted_classes=_converted_classes_from_assessment(assessment),
-                error_message=error or "nXML conversion failed",
+                error_message=error or "Conversion failed",
                 completed_at=now_iso, job=recent_job,
             )
         if overwrite_tei_md:
