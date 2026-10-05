@@ -21,7 +21,10 @@ else
     KSQL_SETUP_SLEEP="${DBZ_KSQL_SETUP_SLEEP:-1200}"
     KSQL_POST_SLEEP=10
     DATA_PROCESSING_SLEEP="${DBZ_DATA_PROCESSING_SLEEP:-20000}"
-    echo "Running in PRODUCTION mode (KSQL_SETUP_SLEEP=${KSQL_SETUP_SLEEP}s, DATA_PROCESSING_SLEEP=${DATA_PROCESSING_SLEEP}s)"
+    # Gate 3: share of the expected topic_entity_tags docs that must be indexed before the slot
+    # may be promoted (0 disables). See tet_complete_enough in status_manager.sh.
+    TET_MIN_FRACTION="${DBZ_TET_MIN_FRACTION:-0.97}"
+    echo "Running in PRODUCTION mode (KSQL_SETUP_SLEEP=${KSQL_SETUP_SLEEP}s, DATA_PROCESSING_SLEEP=${DATA_PROCESSING_SLEEP}s, TET_MIN_FRACTION=${TET_MIN_FRACTION})"
 fi
 
 # Track timing for metrics
@@ -136,6 +139,18 @@ submit_ksql_statements() {
         n=$((n+1))
         label=$(head -c 60 "$f" | tr '\n' ' ')
         body=$(jq -Rs '{ksql: ., streamsProperties: {"ksql.streams.auto.offset.reset":"earliest"}}' "$f")
+        # Bound the TET group aggregate (2026-10-03 prod incident). ksqlDB's collect_list has NO
+        # size limit by default (Integer.MAX_VALUE), and a table aggregate re-serialises the whole
+        # list on every tag, so a 36k-tag group cost O(n^2) -- ~1 tag/s on prod. Capping the list
+        # at the large-scale threshold keeps every group <= the threshold complete (it never
+        # reaches the cap) while count(*) stays exact, so the summary tag is still right. The
+        # limit is a per-query override: a server-wide one would truncate the other collect_lists
+        # (authors, cross_references, ...). Verified on ksqlDB 0.26: the override applies only to
+        # this query and survives a server restart (it is stored in the command topic).
+        if grep -qiE 'CREATE[[:space:]]+TABLE[[:space:]]+topic_entity_tag_groups[[:space:]]' "$f"; then
+            body=$(echo "$body" | jq --argjson n "${LARGE_SCALE_THRESHOLD}" \
+                '.streamsProperties["ksql.functions.collect_list.limit"] = $n')
+        fi
         ok=0
         for attempt in 1 2 3 4 5; do
             resp=$(curl -s -X POST "$url" -H "Accept: application/vnd.ksql.v1+json" \
@@ -216,6 +231,7 @@ if [[ "${ENV_STATE}" == "test" ]]; then
         
         attempt=$((attempt + 1))
     done
+    DRAIN_OK=1; TET_OK=1   # the integration test seeds a handful of tags; Gate 3 is a production guard
 else
     # Gate 2 (SCRUM-6231): instead of a blind ${DATA_PROCESSING_SLEEP}s wait, poll until the pipeline
     # DRAINS -- both temp indexes' docs.count + store.size_in_bytes + index_total strictly unchanged
@@ -223,10 +239,20 @@ else
     # while joined objects are still re-indexed) AND both ES sink connectors RUNNING with no failed
     # tasks. DATA_PROCESSING_SLEEP is the hard max-wait cap (fallback if live CDC keeps it moving).
     echo "Production mode: waiting for the data pipeline to drain (max ${DATA_PROCESSING_SLEEP}s)..."
+    DRAIN_OK=1
     wait_for_pipeline_drained "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" \
         "${INDEX_NAME_CURRENT}" "${PUBLIC_INDEX_NAME_CURRENT}" \
         "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" \
-        "${SINK_NAME}" "${PUBLIC_SINK_NAME}" "${DATA_PROCESSING_SLEEP}" || true
+        "${SINK_NAME}" "${PUBLIC_SINK_NAME}" "${DATA_PROCESSING_SLEEP}" || DRAIN_OK=0
+
+    # Gate 3: the slot must actually contain the tags. Gate 2's cap AND a dead ksql query both
+    # end the wait with a slot that has every reference and almost no topic_entity_tags
+    # (2026-10-03 prod: 21k of 4.16M tags indexed, alias flipped, topic search went empty).
+    # DBZ_TET_MIN_FRACTION (default 0.97) is the share of the expected tag docs that must be
+    # indexed before this slot may be promoted; 0 disables the gate.
+    TET_OK=1
+    tet_complete_enough "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}" \
+        "${TET_MIN_FRACTION}" || TET_OK=0
 
     # Check both indexes have data and promote them
     new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}/_count | jq '.count')
@@ -243,7 +269,7 @@ DATA_PROCESSING_DURATION=$((DATA_PROCESSING_END - SETUP_END))
 # it. The old slot stays as the instant-rollback backup (overwritten on the next rebuild). Same
 # path for test and prod. Guard: never flip to an empty slot, so a failed/empty build can never
 # replace a healthy live index.
-if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]] && [[ $OFFSETS_RESET_OK -eq 1 ]]; then
+if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]] && [[ $OFFSETS_RESET_OK -eq 1 ]] && [[ $TET_OK -eq 1 ]]; then
     set_reindex_status "reindexing" "{\"phase\": \"optimize_and_flip\", \"slot\": \"${SLOT}\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 
     # Optimize + warm OFF the serving path (the alias still points at the old slot here). These are
@@ -267,6 +293,16 @@ if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]] && [[
         set_reindex_status "error" "{\"message\": \"alias flip failed; live index unchanged\", \"slot\": \"${SLOT}\"}"
         exit 1
     fi
+elif [[ $TET_OK -ne 1 ]]; then
+    # Gate 3 failed: the references are there but their topic_entity_tags are not (Gate 2 cap
+    # hit: DRAIN_OK=${DRAIN_OK}). Flipping would empty topic search, so the previous slot keeps
+    # serving. The sinks already point at this slot, so the served slot is FROZEN until a rebuild
+    # succeeds -- same caveat as the other refusals below. If the pipeline is merely slow, it keeps
+    # filling this slot; once Gate 3 would pass, the aliases can be flipped by hand (POST _aliases).
+    echo "ERROR: build slot _${SLOT} has its references (private=${new_index_doc_count}, public=${public_index_doc_count}) but NOT its topic_entity_tags (Gate 3 failed, drain_ok=${DRAIN_OK}). NOT flipping alias."
+    echo "The previous slot keeps serving but is now FROZEN (its sink moved to this slot) until a rebuild succeeds or the aliases are flipped by hand once the tags have caught up."
+    set_reindex_status "error" "{\"message\": \"topic_entity_tags incomplete (Gate 3); alias not flipped; served slot frozen\", \"slot\": \"${SLOT}\", \"drain_ok\": ${DRAIN_OK}, \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
+    exit 1
 elif [[ $OFFSETS_RESET_OK -ne 1 ]]; then
     # The sink offsets could not be cleared, so this slot was built by a sink that resumed
     # mid-topic and is short by an unknown amount. Refusing to flip is the safe side: a stale but
