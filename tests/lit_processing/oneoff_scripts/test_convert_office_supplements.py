@@ -78,8 +78,10 @@ def _run(rows, commit, limit=None, eligible=True, converted=lambda rf: False,
             patch.object(mod, "is_office_supplement_converted", side_effect=lambda db, rid, rf: converted(rf)), \
             patch.object(mod, "process_office_to_markdown",
                          side_effect=lambda **kw: outcome(kw["office_ref_file"])) as convert, \
-            patch.object(mod, "embed_reference") as embed:
+            patch.object(mod, "embed_reference") as embed, \
+            patch.object(mod, "set_suppress_upload_guardrails") as guard:
         counts = mod.convert_office_supplements([2025], commit=commit, limit=limit)
+    _run.last_guard = guard
     return counts, convert, embed
 
 
@@ -127,3 +129,32 @@ def test_limit_counts_conversion_attempts_not_rows():
     assert counts == {"converted": 1, "already_converted": 1, "ineligible": 2, "errors": 0,
                       "embedded_references": 1}
     assert [c.args[1] for c in embed.call_args_list] == [12]
+
+
+def test_commit_suppresses_upload_guardrails_for_the_whole_run_and_restores_them():
+    _run([_row(1, 10, "t1", "xlsx")], commit=True)
+    assert [c.args for c in _run.last_guard.call_args_list] == [(True,), (False,)]
+
+
+def test_guardrails_restored_even_when_the_loop_raises():
+    with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
+            patch.object(mod, "set_global_user_id"), \
+            patch.object(mod, "candidate_office_supplements", side_effect=RuntimeError("db gone")), \
+            patch.object(mod, "set_suppress_upload_guardrails") as guard:
+        with pytest.raises(RuntimeError):
+            mod.convert_office_supplements([2025], commit=True)
+    # candidate query raised before the guard was set: nothing to restore
+    guard.assert_not_called()
+    with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
+            patch.object(mod, "set_global_user_id"), \
+            patch.object(mod, "candidate_office_supplements", return_value=[_row(1, 10, "t1", "xlsx")]), \
+            patch.object(mod, "_convert_rows", side_effect=RuntimeError("boom")), \
+            patch.object(mod, "set_suppress_upload_guardrails") as guard:
+        with pytest.raises(RuntimeError):
+            mod.convert_office_supplements([2025], commit=True)
+    assert [c.args for c in guard.call_args_list] == [(True,), (False,)]
+
+
+def test_dry_run_leaves_guardrails_alone():
+    _run([_row(1, 10, "t1", "xlsx")], commit=False)
+    _run.last_guard.assert_not_called()

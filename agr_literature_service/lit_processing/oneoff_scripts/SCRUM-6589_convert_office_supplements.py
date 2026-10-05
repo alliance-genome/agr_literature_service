@@ -28,6 +28,14 @@ supplements converted (idempotent; dormant without OPENAI_API_KEY and
 skipped outside classifier MODs), so the backfilled rows are not left
 invisible to the classifiers.
 
+Uploads run with the interactive-upload guardrails suppressed
+(``set_suppress_upload_guardrails``, as the figure-metadata backfill does):
+a derived Markdown file must not move the reference's file-upload workflow
+status, prune main PDFs or be refused because a curation job is running.
+Without this, every upload re-fired the file-upload transition, which creates
+a spurious "file upload in progress" tag and fails with a duplicate-WFT 422
+from the second file of a reference on (first stage run, 2026-10-05).
+
 Safe by default: without ``--commit`` the script only reports what it would
 convert. ``--limit N`` stops after N conversion attempts (rows that are
 eligible and not yet converted, so a trial slice always exercises real
@@ -47,6 +55,7 @@ from agr_literature_service.api.models import (
     ReferencefileModel,
     ReferenceModel,
 )
+from agr_literature_service.api.crud.referencefile_crud import set_suppress_upload_guardrails
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     OFFICE_SUPPLEMENT_FORMATS,
@@ -163,6 +172,25 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
     counts = {"converted": 0, "already_converted": 0, "ineligible": 0, "errors": 0,
               "embedded_references": 0}
     eligible_cache: Dict[int, bool] = {}
+    if commit:
+        set_suppress_upload_guardrails(True)
+    try:
+        _convert_rows(db, rows, commit, limit, all_mods, counts, eligible_cache)
+    finally:
+        if commit:
+            set_suppress_upload_guardrails(False)
+
+    logger.info("done: %s converted%s, %s already converted, %s on ineligible references, "
+                "%s errors, %s reference(s) embedded",
+                counts["converted"], "" if commit else " (dry run)",
+                counts["already_converted"], counts["ineligible"], counts["errors"],
+                counts["embedded_references"])
+    return counts
+
+
+def _convert_rows(db: Session, rows: List[ReferencefileModel], commit: bool,
+                  limit: Optional[int], all_mods: bool, counts: Dict[str, int],
+                  eligible_cache: Dict[int, bool]) -> None:
     attempted = 0
     # Rows are ordered by reference: embed a reference once, after its last
     # successful conversion, when the loop moves on to the next reference.
@@ -220,13 +248,6 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
                          ref_file.referencefile_id, ref_file.display_name,
                          ref_file.file_extension, error)
     flush_embed()
-
-    logger.info("done: %s converted%s, %s already converted, %s on ineligible references, "
-                "%s errors, %s reference(s) embedded",
-                counts["converted"], "" if commit else " (dry run)",
-                counts["already_converted"], counts["ineligible"], counts["errors"],
-                counts["embedded_references"])
-    return counts
 
 
 if __name__ == "__main__":  # pragma: no cover
