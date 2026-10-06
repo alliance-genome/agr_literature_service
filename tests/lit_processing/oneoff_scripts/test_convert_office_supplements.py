@@ -69,18 +69,19 @@ def _row(rf_id, reference_id, name, ext):
 
 
 def _run(rows, commit, limit=None, eligible=True, converted=lambda rf: False,
-         outcome=lambda rf: (True, None)):
+         outcome=lambda rf: (True, None), in_progress=lambda rid: False, **kwargs):
     """Drive convert_office_supplements with every collaborator stubbed."""
     with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
             patch.object(mod, "set_global_user_id"), \
             patch.object(mod, "candidate_office_supplements", return_value=rows), \
-            patch.object(mod, "is_eligible_for_supplement_conversion", return_value=eligible), \
+            patch.object(mod, "in_corpus_for_an_included_mod", return_value=eligible), \
+            patch.object(mod, "upload_in_progress", side_effect=lambda db, rid: in_progress(rid)), \
             patch.object(mod, "is_office_supplement_converted", side_effect=lambda db, rid, rf: converted(rf)), \
             patch.object(mod, "process_office_to_markdown",
                          side_effect=lambda **kw: outcome(kw["office_ref_file"])) as convert, \
             patch.object(mod, "embed_reference") as embed, \
             patch.object(mod, "set_suppress_upload_guardrails") as guard:
-        counts = mod.convert_office_supplements([2025], commit=commit, limit=limit)
+        counts = mod.convert_office_supplements([2025], commit=commit, limit=limit, **kwargs)
     _run.last_guard = guard
     return counts, convert, embed
 
@@ -109,7 +110,7 @@ def test_dry_run_converts_and_embeds_nothing():
 
 
 def test_limit_counts_conversion_attempts_not_rows():
-    # Rows 1-2 belong to an ineligible reference and row 3 is already
+    # Rows 1-2 belong to a reference outside the MOD scope and row 3 is already
     # converted: none of them count towards --limit, so a limit of 1 still
     # performs one real conversion (row 4) and stops before row 5.
     rows = [_row(1, 10, "a", "xlsx"), _row(2, 10, "b", "xlsx"), _row(3, 11, "c", "xlsx"),
@@ -117,17 +118,18 @@ def test_limit_counts_conversion_attempts_not_rows():
     with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
             patch.object(mod, "set_global_user_id"), \
             patch.object(mod, "candidate_office_supplements", return_value=rows), \
-            patch.object(mod, "is_eligible_for_supplement_conversion",
-                         side_effect=lambda db, rid: rid != 10), \
+            patch.object(mod, "in_corpus_for_an_included_mod",
+                         side_effect=lambda db, rid, excluded: rid != 10), \
             patch.object(mod, "is_office_supplement_converted",
                          side_effect=lambda db, rid, rf: rf.referencefile_id == 3), \
+            patch.object(mod, "upload_in_progress", return_value=False), \
             patch.object(mod, "process_office_to_markdown", return_value=(True, None)) as convert, \
             patch.object(mod, "embed_reference") as embed:
         counts = mod.convert_office_supplements([2025], commit=True, limit=1)
     assert convert.call_count == 1
     assert convert.call_args.kwargs["office_ref_file"].referencefile_id == 4
-    assert counts == {"converted": 1, "already_converted": 1, "ineligible": 2, "errors": 0,
-                      "embedded_references": 1}
+    assert counts == {"converted": 1, "already_converted": 1, "excluded_mod": 2, "upload_in_progress": 0,
+                      "errors": 0, "embedded_references": 1}
     assert [c.args[1] for c in embed.call_args_list] == [12]
 
 
@@ -158,3 +160,54 @@ def test_guardrails_restored_even_when_the_loop_raises():
 def test_dry_run_leaves_guardrails_alone():
     _run([_row(1, 10, "t1", "xlsx")], commit=False)
     _run.last_guard.assert_not_called()
+
+
+def test_references_with_a_file_upload_in_progress_are_skipped_by_default():
+    rows = [_row(1, 10, "a", "xlsx"), _row(2, 10, "b", "docx"), _row(3, 11, "c", "xlsx")]
+    counts, convert, embed = _run(rows, commit=True, in_progress=lambda rid: rid == 10)
+    assert convert.call_count == 1
+    assert convert.call_args.kwargs["office_ref_file"].reference_id == 11
+    assert counts["upload_in_progress"] == 2 and counts["converted"] == 1
+    assert [c.args[1] for c in embed.call_args_list] == [11]
+
+
+def test_include_upload_in_progress_converts_them():
+    rows = [_row(1, 10, "a", "xlsx"), _row(3, 11, "c", "xlsx")]
+    counts, convert, embed = _run(rows, commit=True, in_progress=lambda rid: rid == 10,
+                                  include_upload_in_progress=True)
+    assert convert.call_count == 2
+    assert counts["upload_in_progress"] == 0 and counts["converted"] == 2
+
+
+def test_default_mod_scope_excludes_rgd_and_all_mods_lifts_it():
+    seen = []
+
+    def scope(db, rid, excluded):
+        seen.append(tuple(excluded))
+        return True
+    with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
+            patch.object(mod, "set_global_user_id"), \
+            patch.object(mod, "candidate_office_supplements", return_value=[_row(1, 10, "a", "xlsx")]), \
+            patch.object(mod, "in_corpus_for_an_included_mod", side_effect=scope), \
+            patch.object(mod, "upload_in_progress", return_value=False):
+        mod.convert_office_supplements([2025], commit=False)
+        mod.convert_office_supplements([2025], commit=False, all_mods=True)
+        mod.convert_office_supplements([2025], commit=False, excluded_mods=("RGD", "MGI"))
+    assert seen == [("RGD", "AGR"), (), ("RGD", "MGI")]
+
+
+def test_in_corpus_filter_excludes_only_the_excluded_mods():
+    db = MagicMock()
+    chain = MagicMock()
+    db.query.return_value = chain
+    chain.join.return_value = chain
+    chain.filter.return_value = chain
+    chain.first.return_value = None
+    assert mod.in_corpus_for_an_included_mod(db, 42, ("rgd",)) is False
+    # corpus filter + exclusion filter
+    assert chain.filter.call_count == 2
+    chain.filter.reset_mock()
+    chain.first.return_value = MagicMock()
+    assert mod.in_corpus_for_an_included_mod(db, 42, ()) is True
+    # no exclusion: only the corpus filter
+    assert chain.filter.call_count == 1

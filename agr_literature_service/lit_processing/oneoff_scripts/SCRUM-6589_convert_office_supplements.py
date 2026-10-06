@@ -18,15 +18,27 @@ Selection: final ``file_class='supplement'`` rows with an Office extension
 (``OFFICE_SUPPLEMENT_FORMATS``) whose reference was published in one of
 ``--year`` (``date_published``, else ``date_published_start``). Files that
 already have their converted row are skipped (same per-source dedup as the
-pipeline). The WB/ZFIN/FB supplement-conversion rule applies unless
-``--all-mods``. ``htp_supplement`` rows are never selected. tsv / csv / txt
-supplements are NOT covered: the parser has no reader for them yet.
+pipeline). MOD scope for the backfill (curator decision, 2026-10): every
+MOD except RGD and AGR, i.e. the reference must be in corpus for at least
+one MOD not in ``--exclude-mod`` (default ``RGD, AGR``); a paper in both the
+AGR and the WB corpus is still converted, one only in RGD and/or AGR is
+not. ``--mod ABBR`` narrows to one corpus and ``--all-mods`` lifts the
+exclusion. This is deliberately wider
+than the pipeline's WB/ZFIN/FB supplement-PDF rule, which is unchanged.
+``htp_supplement`` rows are never selected. tsv / csv / txt supplements are
+NOT covered: the parser has no reader for them yet.
 
 Like the cron, the background job and the inline endpoint, the script
 generates classifier embeddings once per reference after its Office
 supplements converted (idempotent; dormant without OPENAI_API_KEY and
 skipped outside classifier MODs), so the backfilled rows are not left
 invisible to the classifiers.
+
+References whose file upload is still in progress for any MOD (file-upload
+workflow status ATP:0000139) are skipped by default: a curator is still
+working on them (curator request on the first stage run). References with
+no file-upload tag at all (PMC loads nobody has touched) or with "upload
+needed" are converted. ``--include-upload-in-progress`` lifts the rule.
 
 Uploads run with the interactive-upload guardrails suppressed
 (``set_suppress_upload_guardrails``, as the figure-metadata backfill does):
@@ -54,12 +66,15 @@ from agr_literature_service.api.models import (
     ModModel,
     ReferencefileModel,
     ReferenceModel,
+    WorkflowTagModel,
 )
-from agr_literature_service.api.crud.referencefile_crud import set_suppress_upload_guardrails
+from agr_literature_service.api.crud.referencefile_crud import (
+    file_upload_in_progress_tag_atp_id,
+    set_suppress_upload_guardrails,
+)
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     OFFICE_SUPPLEMENT_FORMATS,
-    is_eligible_for_supplement_conversion,
     is_office_supplement_converted,
     office_converted_display_name,
     process_office_to_markdown,
@@ -72,6 +87,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DEFAULT_YEARS = (2025, 2026)
+DEFAULT_EXCLUDED_MODS = ("RGD", "AGR")
 
 
 def parse_years(values: Optional[Sequence[str]]) -> List[int]:
@@ -108,6 +124,35 @@ def source_mod_abbreviation(ref_file: ReferencefileModel) -> Optional[str]:
         if ref_file_mod.mod is not None:
             return ref_file_mod.mod.abbreviation
     return None
+
+
+def in_corpus_for_an_included_mod(db: Session, reference_id: int,
+                                  excluded_mods: Sequence[str]) -> bool:
+    """True when the reference is in corpus for at least one MOD that is not
+    excluded. With the default exclusion (RGD, AGR) a reference that is only
+    in RGD's and/or AGR's corpus (or in no corpus) is skipped."""
+    query = (
+        db.query(ModCorpusAssociationModel.mod_corpus_association_id)
+        .join(ModModel, ModModel.mod_id == ModCorpusAssociationModel.mod_id)
+        .filter(ModCorpusAssociationModel.reference_id == reference_id,
+                ModCorpusAssociationModel.corpus.is_(True))
+    )
+    if excluded_mods:
+        query = query.filter(~ModModel.abbreviation.in_([m.upper() for m in excluded_mods]))
+    return query.first() is not None
+
+
+def upload_in_progress(db: Session, reference_id: int) -> bool:
+    """True when any MOD's file-upload workflow status for the reference is
+    "file upload in progress": a curator is still adding files, so the
+    backfill leaves the reference alone."""
+    return (
+        db.query(WorkflowTagModel.reference_workflow_tag_id)
+        .filter(WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.workflow_tag_id == file_upload_in_progress_tag_atp_id)
+        .first()
+        is not None
+    )
 
 
 def embed_reference(db: Session, reference_id: int, reference_curie: str) -> None:
@@ -158,40 +203,47 @@ def candidate_office_supplements(db: Session, years: Iterable[int],
 def convert_office_supplements(years: Sequence[int], commit: bool = False,
                                limit: Optional[int] = None,
                                mod_abbreviation: Optional[str] = None,
-                               all_mods: bool = False) -> Dict[str, int]:
+                               all_mods: bool = False,
+                               include_upload_in_progress: bool = False,
+                               excluded_mods: Sequence[str] = DEFAULT_EXCLUDED_MODS) -> Dict[str, int]:
     db = create_postgres_session(False)
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
 
     rows = candidate_office_supplements(db, years, mod_abbreviation)
-    logger.info("%s Office supplement row(s) (%s) on papers published in %s%s",
+    excluded = () if all_mods else tuple(excluded_mods)
+    logger.info("%s Office supplement row(s) (%s) on papers published in %s%s%s",
                 len(rows), ", ".join(sorted(OFFICE_SUPPLEMENT_FORMATS)),
                 ", ".join(str(y) for y in years),
-                f" in the {mod_abbreviation} corpus" if mod_abbreviation else "")
+                f" in the {mod_abbreviation} corpus" if mod_abbreviation else "",
+                f"; skipping references only in corpus for {', '.join(excluded)}" if excluded else "")
 
-    counts = {"converted": 0, "already_converted": 0, "ineligible": 0, "errors": 0,
-              "embedded_references": 0}
+    counts = {"converted": 0, "already_converted": 0, "excluded_mod": 0, "upload_in_progress": 0,
+              "errors": 0, "embedded_references": 0}
     eligible_cache: Dict[int, bool] = {}
     if commit:
         set_suppress_upload_guardrails(True)
     try:
-        _convert_rows(db, rows, commit, limit, all_mods, counts, eligible_cache)
+        _convert_rows(db, rows, commit, limit, excluded, counts, eligible_cache,
+                      include_upload_in_progress)
     finally:
         if commit:
             set_suppress_upload_guardrails(False)
 
-    logger.info("done: %s converted%s, %s already converted, %s on ineligible references, "
-                "%s errors, %s reference(s) embedded",
+    logger.info("done: %s converted%s, %s already converted, %s on references outside the MOD scope, "
+                "%s on references with a file upload in progress, %s errors, %s reference(s) embedded",
                 counts["converted"], "" if commit else " (dry run)",
-                counts["already_converted"], counts["ineligible"], counts["errors"],
-                counts["embedded_references"])
+                counts["already_converted"], counts["excluded_mod"], counts["upload_in_progress"],
+                counts["errors"], counts["embedded_references"])
     return counts
 
 
 def _convert_rows(db: Session, rows: List[ReferencefileModel], commit: bool,
-                  limit: Optional[int], all_mods: bool, counts: Dict[str, int],
-                  eligible_cache: Dict[int, bool]) -> None:
+                  limit: Optional[int], excluded_mods: Sequence[str], counts: Dict[str, int],
+                  eligible_cache: Dict[int, bool],
+                  include_upload_in_progress: bool = False) -> None:
     attempted = 0
+    in_progress_cache: Dict[int, bool] = {}
     # Rows are ordered by reference: embed a reference once, after its last
     # successful conversion, when the loop moves on to the next reference.
     pending_embed: Optional[tuple] = None
@@ -209,11 +261,16 @@ def _convert_rows(db: Session, rows: List[ReferencefileModel], commit: bool,
         reference_id = ref_file.reference_id
         if pending_embed is not None and pending_embed[0] != reference_id:
             flush_embed()
-        if not all_mods:
-            if reference_id not in eligible_cache:
-                eligible_cache[reference_id] = is_eligible_for_supplement_conversion(db, reference_id)
-            if not eligible_cache[reference_id]:
-                counts["ineligible"] += 1
+        if reference_id not in eligible_cache:
+            eligible_cache[reference_id] = in_corpus_for_an_included_mod(db, reference_id, excluded_mods)
+        if not eligible_cache[reference_id]:
+            counts["excluded_mod"] += 1
+            continue
+        if not include_upload_in_progress:
+            if reference_id not in in_progress_cache:
+                in_progress_cache[reference_id] = upload_in_progress(db, reference_id)
+            if in_progress_cache[reference_id]:
+                counts["upload_in_progress"] += 1
                 continue
         if is_office_supplement_converted(db, reference_id, ref_file):
             counts["already_converted"] += 1
@@ -264,8 +321,16 @@ if __name__ == "__main__":  # pragma: no cover
                              "so a trial slice always exercises real conversions")
     parser.add_argument("--mod", default=None,
                         help="only references in this MOD's corpus (e.g. SGD)")
+    parser.add_argument("--exclude-mod", action="append", default=None,
+                        help="MOD(s) whose papers are skipped unless also in another MOD's corpus "
+                             f"(repeatable; default: {', '.join(DEFAULT_EXCLUDED_MODS)})")
     parser.add_argument("--all-mods", action="store_true",
-                        help="ignore the WB/ZFIN/FB supplement-conversion restriction")
+                        help="convert every MOD's papers, ignoring --exclude-mod")
+    parser.add_argument("--include-upload-in-progress", action="store_true",
+                        help="also convert references whose file upload is still in progress "
+                             "for some MOD (skipped by default: a curator is working on them)")
     args = parser.parse_args()
     convert_office_supplements(parse_years(args.year), commit=args.commit, limit=args.limit,
-                               mod_abbreviation=args.mod, all_mods=args.all_mods)
+                               mod_abbreviation=args.mod, all_mods=args.all_mods,
+                               include_upload_in_progress=args.include_upload_in_progress,
+                               excluded_mods=tuple(args.exclude_mod or DEFAULT_EXCLUDED_MODS))
