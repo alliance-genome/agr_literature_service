@@ -55,7 +55,7 @@ def _row(rf_id, reference_id, name, ext):
     rf.reference_id = reference_id
     rf.display_name = name
     rf.file_extension = ext
-    rf.reference = MagicMock(curie=f"AGRKB:{reference_id}")
+    rf.reference = MagicMock(curie=f"AGRKB:{reference_id}", reference_id=reference_id)
     rf.referencefile_mods = []
     return rf
 
@@ -71,9 +71,11 @@ def _run(rows, commit, limit=None, converted=lambda rf: False,
             patch.object(mod, "process_office_to_markdown",
                          side_effect=lambda **kw: outcome(kw["office_ref_file"])) as convert, \
             patch.object(mod, "embed_reference") as embed, \
+            patch.object(mod, "link_source_mods", return_value=1) as link, \
             patch.object(mod, "set_suppress_upload_guardrails") as guard:
         counts = mod.convert_office_supplements([2025], commit=commit, limit=limit, **kwargs)
     _run.last_guard = guard
+    _run.last_link = link
     return counts, convert, embed
 
 
@@ -113,12 +115,13 @@ def test_limit_counts_conversion_attempts_not_rows():
                          side_effect=lambda db, rid, rf: rf.referencefile_id == 3), \
             patch.object(mod, "upload_in_progress", side_effect=lambda db, rid: rid == 10), \
             patch.object(mod, "process_office_to_markdown", return_value=(True, None)) as convert, \
+            patch.object(mod, "link_source_mods", return_value=0), \
             patch.object(mod, "embed_reference") as embed:
         counts = mod.convert_office_supplements([2025], commit=True, limit=1)
     assert convert.call_count == 1
     assert convert.call_args.kwargs["office_ref_file"].referencefile_id == 4
     assert counts == {"converted": 1, "already_converted": 1, "upload_in_progress": 2,
-                      "errors": 0, "embedded_references": 1}
+                      "errors": 0, "embedded_references": 1, "mod_links_added": 0}
     assert [c.args[1] for c in embed.call_args_list] == [12]
 
 
@@ -175,8 +178,11 @@ def test_default_mod_scope_excludes_rgd_and_agr_and_all_mods_lifts_it():
         mod.convert_office_supplements([2025], commit=False)
         mod.convert_office_supplements([2025], commit=False, all_mods=True)
         mod.convert_office_supplements([2025], commit=False, excluded_mods=("RGD", "MGI"), mod_abbreviation="WB")
+        # --mod RGD must not be filtered out by the default RGD exclusion
+        mod.convert_office_supplements([2025], commit=False, mod_abbreviation="rgd")
     assert [c.args[1:] for c in candidates.call_args_list] == [
-        ([2025], None, ("RGD", "AGR")), ([2025], None, ()), ([2025], "WB", ("RGD", "MGI"))]
+        ([2025], None, ("RGD", "AGR")), ([2025], None, ()), ([2025], "WB", ("RGD", "MGI")),
+        ([2025], "rgd", ("AGR",))]
 
 
 def _corpus_entry_sql(**kwargs):
@@ -204,3 +210,26 @@ def test_corpus_entry_without_exclusion_or_with_one_mod():
     assert "NOT IN" not in _corpus_entry_sql()
     sql = _corpus_entry_sql(mod_abbreviation="wb")
     assert "mod.abbreviation = 'WB'" in sql
+
+
+def test_commit_links_source_mods_once_per_processed_reference():
+    # 10: converted now (two files), 11: already converted, 12: upload in progress
+    rows = [_row(1, 10, "a", "xlsx"), _row(2, 10, "b", "docx"), _row(3, 11, "c", "xlsx"),
+            _row(4, 12, "d", "xlsx")]
+    counts, _, _ = _run(rows, commit=True, converted=lambda rf: rf.reference_id == 11,
+                        in_progress=lambda rid: rid == 12)
+    assert [c.args[1].reference_id for c in _run.last_link.call_args_list] == [10, 11]
+    assert counts["mod_links_added"] == 2
+
+
+def test_dry_run_links_nothing():
+    _run([_row(1, 10, "a", "xlsx")], commit=False)
+    _run.last_link.assert_not_called()
+
+
+def test_link_source_mods_is_isolated():
+    db = MagicMock()
+    with patch.object(mod, "sync_converted_file_mods_to_sources", side_effect=RuntimeError("db gone")), \
+            patch.object(mod, "recover_session") as recover:
+        assert mod.link_source_mods(db, MagicMock(curie="AGRKB:1")) == 0
+    recover.assert_called_once()

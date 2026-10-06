@@ -407,7 +407,10 @@ def find_source_for_converted(
     the source can't be identified).
 
     Uses the display_name suffix convention written by the conversion
-    helpers: ``{source}_{nxml|merged|tei|grobid|docling|marker}``.
+    helpers: ``{source}_{nxml|merged|tei|grobid|docling|marker}``, and
+    ``{source}_{extension}`` for Office supplements
+    (``office_converted_display_name``), where the source must also have
+    that extension so a same-named Word and Excel file are told apart.
     """
     base: Optional[str] = None
     for suffix in _SOURCE_SUFFIXES:
@@ -415,6 +418,19 @@ def find_source_for_converted(
             base = converted_display_name[: -len(suffix)]
             break
     if base is None:
+        if not converted_file_class.endswith("_supplement"):
+            return None
+        for extension in OFFICE_SUPPLEMENT_FORMATS:
+            suffix = f"_{extension}"
+            if converted_display_name.endswith(suffix):
+                base = converted_display_name[: -len(suffix)]
+                return next(
+                    (ref_file for ref_file in reference.referencefiles or []
+                     if ref_file.file_class == "supplement"
+                     and ref_file.display_name == base
+                     and (ref_file.file_extension or "").lower() == extension),
+                    None,
+                )
         return None
 
     nxml_suffix_used = converted_display_name.endswith(_NXML_SUFFIX)

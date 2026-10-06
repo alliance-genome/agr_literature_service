@@ -24,12 +24,14 @@ rows with an Office extension (``OFFICE_SUPPLEMENT_FORMATS``) whose reference
   changed to True), else the association's ``date_created`` (rows loaded
   without version history, or created already in corpus);
 - carries the "file uploaded" workflow status (ATP:0000134) for at least one
-  MOD.
+  MOD. That MOD need not be the one whose corpus entry qualified the paper:
+  files are shared across MODs, so any completed upload counts.
 
 Included MODs: every MOD except those in ``--exclude-mod`` (default ``RGD,
 AGR``); a paper that entered the WB corpus in 2025 is converted even if it
 is also in RGD's, one that entered only RGD's and/or AGR's is not.
-``--mod ABBR`` narrows to one corpus and ``--all-mods`` lifts the exclusion.
+``--mod ABBR`` narrows to one corpus (and is never excluded itself, so
+``--mod RGD`` works) and ``--all-mods`` lifts the exclusion.
 This is deliberately wider than the pipeline's WB/ZFIN/FB supplement-PDF
 rule, which is unchanged. Files that already have their converted row are
 skipped (same per-source dedup as the pipeline).
@@ -41,6 +43,13 @@ generates classifier embeddings once per reference after its Office
 supplements converted (idempotent; dormant without OPENAI_API_KEY and
 skipped outside classifier MODs), so the backfilled rows are not left
 invisible to the classifiers.
+
+With ``--commit`` it also links every reference it processed (converted now
+or earlier) to all MODs of its Office sources
+(``sync_converted_file_mods_to_sources``, as the endpoint and the background
+job do), so a converted row on a source shared by several MODs is not left
+linked only to the first one. Rerunning the script therefore also backfills
+those links for rows converted before this existed.
 
 References whose file upload is still in progress for any MOD (ATP:0000139)
 are skipped even when another MOD's upload is complete: a curator is still
@@ -72,6 +81,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.models import (
     ModCorpusAssociationModel,
     ModModel,
+    ReferenceModel,
     ReferencefileModel,
     WorkflowTagModel,
 )
@@ -87,6 +97,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     office_converted_display_name,
     process_office_to_markdown,
     recover_session,
+    sync_converted_file_mods_to_sources,
 )
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -189,6 +200,18 @@ def embed_reference(db: Session, reference_id: int, reference_curie: str) -> Non
         logger.error("embeddings failed for %s: %s", reference_curie, e)
 
 
+def link_source_mods(db: Session, reference: ReferenceModel) -> int:
+    """Link the reference's converted Markdown rows to every MOD of their
+    source files. Returns the number of links added. Isolated: never
+    raises."""
+    try:
+        return sync_converted_file_mods_to_sources(db, reference)
+    except Exception as e:  # noqa: BLE001 - linking must never fail the backfill
+        recover_session(db, e)
+        logger.error("MOD linking failed for %s: %s", reference.curie, e)
+        return 0
+
+
 def candidate_office_supplements(db: Session, years: Iterable[int],
                                  mod_abbreviation: Optional[str] = None,
                                  excluded_mods: Sequence[str] = DEFAULT_EXCLUDED_MODS
@@ -228,7 +251,10 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
 
-    excluded = () if all_mods else tuple(excluded_mods)
+    excluded = () if all_mods else tuple(
+        m for m in excluded_mods
+        if not mod_abbreviation or m.upper() != mod_abbreviation.upper()
+    )
     rows = candidate_office_supplements(db, years, mod_abbreviation, excluded)
     logger.info("%s Office supplement row(s) (%s) on file-uploaded papers added to a MOD corpus in %s%s%s",
                 len(rows), ", ".join(sorted(OFFICE_SUPPLEMENT_FORMATS)),
@@ -237,7 +263,7 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
                 f"; corpus entries for {', '.join(excluded)} not counted" if excluded else "")
 
     counts = {"converted": 0, "already_converted": 0, "upload_in_progress": 0,
-              "errors": 0, "embedded_references": 0}
+              "errors": 0, "embedded_references": 0, "mod_links_added": 0}
     if commit:
         set_suppress_upload_guardrails(True)
     try:
@@ -247,10 +273,11 @@ def convert_office_supplements(years: Sequence[int], commit: bool = False,
             set_suppress_upload_guardrails(False)
 
     logger.info("done: %s converted%s, %s already converted, "
-                "%s on references with a file upload in progress, %s errors, %s reference(s) embedded",
+                "%s on references with a file upload in progress, %s errors, %s reference(s) embedded, "
+                "%s MOD link(s) added",
                 counts["converted"], "" if commit else " (dry run)",
                 counts["already_converted"], counts["upload_in_progress"],
-                counts["errors"], counts["embedded_references"])
+                counts["errors"], counts["embedded_references"], counts["mod_links_added"])
     return counts
 
 
@@ -259,12 +286,18 @@ def _convert_rows(db: Session, rows: List[ReferencefileModel], commit: bool,
                   include_upload_in_progress: bool = False) -> None:
     attempted = 0
     in_progress_cache: Dict[int, bool] = {}
-    # Rows are ordered by reference: embed a reference once, after its last
-    # successful conversion, when the loop moves on to the next reference.
+    # Rows are ordered by reference: once the loop moves on to the next
+    # reference, link the finished one's converted rows to all MODs of their
+    # sources (commit only; every reference that got past the upload gate,
+    # converted now or earlier) and embed it once if anything converted.
     pending_embed: Optional[tuple] = None
+    pending_link: Optional[ReferenceModel] = None
 
     def flush_embed() -> None:
-        nonlocal pending_embed
+        nonlocal pending_embed, pending_link
+        if pending_link is not None:
+            counts["mod_links_added"] += link_source_mods(db, pending_link)
+            pending_link = None
         if pending_embed is not None:
             embed_reference(db, *pending_embed)
             counts["embedded_references"] += 1
@@ -274,7 +307,7 @@ def _convert_rows(db: Session, rows: List[ReferencefileModel], commit: bool,
         if limit and attempted >= limit:
             break
         reference_id = ref_file.reference_id
-        if pending_embed is not None and pending_embed[0] != reference_id:
+        if pending_link is not None and pending_link.reference_id != reference_id:
             flush_embed()
         if not include_upload_in_progress:
             if reference_id not in in_progress_cache:
@@ -282,6 +315,8 @@ def _convert_rows(db: Session, rows: List[ReferencefileModel], commit: bool,
             if in_progress_cache[reference_id]:
                 counts["upload_in_progress"] += 1
                 continue
+        if commit:
+            pending_link = ref_file.reference
         if is_office_supplement_converted(db, reference_id, ref_file):
             counts["already_converted"] += 1
             continue
