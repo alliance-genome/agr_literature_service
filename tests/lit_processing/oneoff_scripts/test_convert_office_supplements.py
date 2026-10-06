@@ -1,5 +1,5 @@
-"""The SCRUM-6589 backfill's pure helpers: year parsing and the publication
-year precedence it shares with the classifier trainer."""
+"""The SCRUM-6589 backfill: pure helpers and the conversion loop with every
+collaborator stubbed."""
 import importlib.util
 from pathlib import Path
 from typing import Any, cast
@@ -20,7 +20,6 @@ cast(Any, _spec.loader).exec_module(script)
 
 mod = cast(Any, script)
 parse_years = mod.parse_years
-publication_year = cast(Any, script).publication_year
 source_mod_abbreviation = cast(Any, script).source_mod_abbreviation
 
 
@@ -36,13 +35,6 @@ def test_parse_years_accepts_repeats_and_commas():
 def test_parse_years_rejects_non_years():
     with pytest.raises(ValueError):
         parse_years(["25"])
-
-
-def test_publication_year_prefers_date_published():
-    assert publication_year("2025-03-01", "2024-12-31") == 2025
-    assert publication_year("", "2024-12-31") == 2024
-    assert publication_year(None, None) is None
-    assert publication_year("n.d.", "soon") is None
 
 
 def test_source_mod_abbreviation_first_owning_mod_or_none():
@@ -68,13 +60,12 @@ def _row(rf_id, reference_id, name, ext):
     return rf
 
 
-def _run(rows, commit, limit=None, eligible=True, converted=lambda rf: False,
+def _run(rows, commit, limit=None, converted=lambda rf: False,
          outcome=lambda rf: (True, None), in_progress=lambda rid: False, **kwargs):
     """Drive convert_office_supplements with every collaborator stubbed."""
     with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
             patch.object(mod, "set_global_user_id"), \
             patch.object(mod, "candidate_office_supplements", return_value=rows), \
-            patch.object(mod, "in_corpus_for_an_included_mod", return_value=eligible), \
             patch.object(mod, "upload_in_progress", side_effect=lambda db, rid: in_progress(rid)), \
             patch.object(mod, "is_office_supplement_converted", side_effect=lambda db, rid, rf: converted(rf)), \
             patch.object(mod, "process_office_to_markdown",
@@ -110,25 +101,23 @@ def test_dry_run_converts_and_embeds_nothing():
 
 
 def test_limit_counts_conversion_attempts_not_rows():
-    # Rows 1-2 belong to a reference outside the MOD scope and row 3 is already
-    # converted: none of them count towards --limit, so a limit of 1 still
-    # performs one real conversion (row 4) and stops before row 5.
+    # Rows 1-2 belong to a reference with a file upload in progress and row 3
+    # is already converted: none of them count towards --limit, so a limit of
+    # 1 still performs one real conversion (row 4) and stops before row 5.
     rows = [_row(1, 10, "a", "xlsx"), _row(2, 10, "b", "xlsx"), _row(3, 11, "c", "xlsx"),
             _row(4, 12, "d", "xlsx"), _row(5, 13, "e", "xlsx")]
     with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
             patch.object(mod, "set_global_user_id"), \
             patch.object(mod, "candidate_office_supplements", return_value=rows), \
-            patch.object(mod, "in_corpus_for_an_included_mod",
-                         side_effect=lambda db, rid, excluded: rid != 10), \
             patch.object(mod, "is_office_supplement_converted",
                          side_effect=lambda db, rid, rf: rf.referencefile_id == 3), \
-            patch.object(mod, "upload_in_progress", return_value=False), \
+            patch.object(mod, "upload_in_progress", side_effect=lambda db, rid: rid == 10), \
             patch.object(mod, "process_office_to_markdown", return_value=(True, None)) as convert, \
             patch.object(mod, "embed_reference") as embed:
         counts = mod.convert_office_supplements([2025], commit=True, limit=1)
     assert convert.call_count == 1
     assert convert.call_args.kwargs["office_ref_file"].referencefile_id == 4
-    assert counts == {"converted": 1, "already_converted": 1, "excluded_mod": 2, "upload_in_progress": 0,
+    assert counts == {"converted": 1, "already_converted": 1, "upload_in_progress": 2,
                       "errors": 0, "embedded_references": 1}
     assert [c.args[1] for c in embed.call_args_list] == [12]
 
@@ -179,35 +168,39 @@ def test_include_upload_in_progress_converts_them():
     assert counts["upload_in_progress"] == 0 and counts["converted"] == 2
 
 
-def test_default_mod_scope_excludes_rgd_and_all_mods_lifts_it():
-    seen = []
-
-    def scope(db, rid, excluded):
-        seen.append(tuple(excluded))
-        return True
+def test_default_mod_scope_excludes_rgd_and_agr_and_all_mods_lifts_it():
     with patch.object(mod, "create_postgres_session", return_value=MagicMock()), \
             patch.object(mod, "set_global_user_id"), \
-            patch.object(mod, "candidate_office_supplements", return_value=[_row(1, 10, "a", "xlsx")]), \
-            patch.object(mod, "in_corpus_for_an_included_mod", side_effect=scope), \
-            patch.object(mod, "upload_in_progress", return_value=False):
+            patch.object(mod, "candidate_office_supplements", return_value=[]) as candidates:
         mod.convert_office_supplements([2025], commit=False)
         mod.convert_office_supplements([2025], commit=False, all_mods=True)
-        mod.convert_office_supplements([2025], commit=False, excluded_mods=("RGD", "MGI"))
-    assert seen == [("RGD", "AGR"), (), ("RGD", "MGI")]
+        mod.convert_office_supplements([2025], commit=False, excluded_mods=("RGD", "MGI"), mod_abbreviation="WB")
+    assert [c.args[1:] for c in candidates.call_args_list] == [
+        ([2025], None, ("RGD", "AGR")), ([2025], None, ()), ([2025], "WB", ("RGD", "MGI"))]
 
 
-def test_in_corpus_filter_excludes_only_the_excluded_mods():
-    db = MagicMock()
-    chain = MagicMock()
-    db.query.return_value = chain
-    chain.join.return_value = chain
-    chain.filter.return_value = chain
-    chain.first.return_value = None
-    assert mod.in_corpus_for_an_included_mod(db, 42, ("rgd",)) is False
-    # corpus filter + exclusion filter
-    assert chain.filter.call_count == 2
-    chain.filter.reset_mock()
-    chain.first.return_value = MagicMock()
-    assert mod.in_corpus_for_an_included_mod(db, 42, ()) is True
-    # no exclusion: only the corpus filter
-    assert chain.filter.call_count == 1
+def _corpus_entry_sql(**kwargs):
+    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.orm import Session
+    query = mod.entered_corpus_reference_ids(Session(), [2025, 2026], **kwargs)
+    return str(query.statement.compile(dialect=postgresql.dialect(),
+                                       compile_kwargs={"literal_binds": True}))
+
+
+def test_corpus_entry_year_is_last_change_to_true_else_date_created():
+    sql = _corpus_entry_sql(excluded_mods=("rgd", "AGR"))
+    assert "mod_corpus_association.corpus IS true" in sql
+    # latest version row where corpus changed to True, for the same association
+    assert "max(mod_corpus_association_version.date_updated)" in sql
+    assert "mod_corpus_association_version.corpus_mod IS true" in sql
+    assert ("mod_corpus_association_version.mod_corpus_association_id = "
+            "mod_corpus_association.mod_corpus_association_id") in sql
+    assert "mod_corpus_association.date_created)) IN (2025, 2026)" in sql
+    assert "coalesce(" in sql
+    assert "NOT IN ('RGD', 'AGR')" in sql
+
+
+def test_corpus_entry_without_exclusion_or_with_one_mod():
+    assert "NOT IN" not in _corpus_entry_sql()
+    sql = _corpus_entry_sql(mod_abbreviation="wb")
+    assert "mod.abbreviation = 'WB'" in sql
