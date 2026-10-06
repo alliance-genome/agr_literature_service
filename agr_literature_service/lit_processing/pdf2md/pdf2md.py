@@ -41,6 +41,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     is_main_source_converted,
     process_extracted_images,
     process_nxml_to_markdown,
+    process_supplemental_office_files,
     process_supplemental_pdfs,
 )
 
@@ -521,6 +522,62 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
         return False, error_msg
 
 
+def _process_supplements_for_reference(  # pragma: no cover
+    db: Session,
+    reference_id: int,
+    reference_curie: str,
+    token: str,
+    methods_to_extract: Optional[List[str]],
+    mod_abbreviation: Optional[str],
+) -> None:
+    """Convert a reference's pending supplements: PDFs via PDFX, then Office
+    files (xlsx / docx) in-process (SCRUM-6589). Each group is isolated so a
+    failure in one never blocks the other or the caller's main-conversion
+    result; errors are logged per file."""
+    try:
+        sup_succeeded, sup_failed, sup_errors = process_supplemental_pdfs(
+            db=db,
+            reference_id=reference_id,
+            reference_curie=reference_curie,
+            token=token,
+            methods_to_extract=methods_to_extract,
+            mod_abbreviation=mod_abbreviation,
+        )
+        if sup_succeeded or sup_failed:
+            logger.info(
+                f"Supplemental PDFs for {reference_curie}: "
+                f"{sup_succeeded} succeeded, {sup_failed} failed"
+            )
+        for err in sup_errors:
+            logger.error(f"Supplemental PDF error for {reference_curie}: {err}")
+    except Exception as e:
+        recover_session(db, e)
+        logger.error(
+            f"Unexpected error while processing supplemental PDFs for "
+            f"{reference_curie}: {e}"
+        )
+    try:
+        off_succeeded, off_failed, off_errors = process_supplemental_office_files(
+            db=db,
+            reference_id=reference_id,
+            reference_curie=reference_curie,
+            mod_abbreviation=mod_abbreviation,
+        )
+        if off_succeeded or off_failed:
+            logger.info(
+                f"Office supplements for {reference_curie}: "
+                f"{off_succeeded} succeeded, {off_failed} failed"
+            )
+        for err in off_errors:
+            logger.error(f"Office supplement error for {reference_curie}: {err}")
+    except Exception as e:
+        recover_session(db, e)
+        logger.error(
+            f"Unexpected error while processing Office supplements for "
+            f"{reference_curie}: {e}"
+        )
+
+
 def process_single_reference(  # pragma: no cover
     db: Session,
     ref_file_info: Dict,
@@ -632,33 +689,14 @@ def process_single_reference(  # pragma: no cover
             else:
                 main_error = pdfx_error
 
-    # 3. Optionally convert supplemental PDFs regardless of main path used.
+    # 3. Optionally convert supplemental files regardless of main path used.
     # When called from the workflow batch (mod_abbreviation is set), only
     # supplements associated with that MOD are processed; bulk modes
     # (newest/since-year, mod_abbreviation=None) process every supplement.
     if process_supplements:
-        try:
-            sup_succeeded, sup_failed, sup_errors = process_supplemental_pdfs(
-                db=db,
-                reference_id=reference_id,
-                reference_curie=reference_curie,
-                token=token,
-                methods_to_extract=methods_to_extract,
-                mod_abbreviation=mod_abbreviation,
-            )
-            if sup_succeeded or sup_failed:
-                logger.info(
-                    f"Supplemental PDFs for {reference_curie}: "
-                    f"{sup_succeeded} succeeded, {sup_failed} failed"
-                )
-            for err in sup_errors:
-                logger.error(f"Supplemental PDF error for {reference_curie}: {err}")
-        except Exception as e:
-            recover_session(db, e)
-            logger.error(
-                f"Unexpected error while processing supplemental PDFs for "
-                f"{reference_curie}: {e}"
-            )
+        _process_supplements_for_reference(
+            db, reference_id, reference_curie, token, methods_to_extract, mod_abbreviation,
+        )
 
     if main_success:
         # Generate classifier embeddings for every merged Markdown of this

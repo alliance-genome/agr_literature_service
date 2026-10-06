@@ -17,11 +17,11 @@ from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 import boto3
 import requests
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from agr_abc_document_parsers import convert_xml_to_markdown
+from agr_abc_document_parsers import convert_office_to_markdown, convert_xml_to_markdown
 
 from agr_literature_service.api.crud.referencefile_crud import download_file, file_upload
 from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
@@ -109,6 +109,18 @@ _FIGURE_METADATA_MANIFEST_FIELDS = (
 # conversion. Curating the supplements is expensive and only WB/ZFIN/FB
 # currently consume them, so all other references skip supplement conversion.
 ELIGIBLE_SUPPLEMENT_MODS: frozenset = frozenset({"WB", "ZFIN", "FB"})
+
+# Office supplements (SCRUM-6589): Word and Excel supplement files are converted
+# to Markdown in-process with agr_abc_document_parsers (no PDFX round-trip),
+# the same way nXML is. Maps the referencefile extension to the parser's
+# source format. Large tabular files are classed ``htp_supplement`` at ingest
+# (SCRUM-6612), so they never reach this path.
+OFFICE_SUPPLEMENT_FORMATS: Dict[str, str] = {
+    "xlsx": "xlsx",
+    "xlsm": "xlsx",
+    "docx": "docx",
+    "docm": "docx",
+}
 
 
 def is_eligible_for_supplement_conversion(db: Session, reference_id: int) -> bool:
@@ -228,6 +240,37 @@ class PendingMainSource(TypedDict):
     """A main-side source file that still needs conversion."""
     kind: Literal["nxml", "pdf"]
     ref_file: ReferencefileModel
+
+
+def office_converted_display_name(office_ref_file: ReferencefileModel) -> str:
+    """
+    display_name of the Markdown row produced from an Office supplement:
+    ``{source_display_name}_{extension}`` (``Table_S1`` + ``.xlsx`` ->
+    ``Table_S1_xlsx``). The extension suffix keeps it apart from the
+    ``_merged`` row a same-named supplement PDF would produce, and from a
+    same-named Word file next to an Excel one.
+    """
+    return f"{office_ref_file.display_name}_{(office_ref_file.file_extension or '').lower()}"
+
+
+def is_office_supplement_converted(
+    db: Session,
+    reference_id: int,
+    office_ref_file: ReferencefileModel,
+) -> bool:
+    """Has this Office supplement already produced its converted_merged_supplement row?"""
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "converted_merged_supplement",
+            ReferencefileModel.file_extension == "md",
+            ReferencefileModel.file_publication_status == "final",
+            ReferencefileModel.display_name == office_converted_display_name(office_ref_file),
+        )
+        .first()
+        is not None
+    )
 
 
 def _file_is_for_mod(
@@ -364,7 +407,10 @@ def find_source_for_converted(
     the source can't be identified).
 
     Uses the display_name suffix convention written by the conversion
-    helpers: ``{source}_{nxml|merged|tei|grobid|docling|marker}``.
+    helpers: ``{source}_{nxml|merged|tei|grobid|docling|marker}``, and
+    ``{source}_{extension}`` for Office supplements
+    (``office_converted_display_name``), where the source must also have
+    that extension so a same-named Word and Excel file are told apart.
     """
     base: Optional[str] = None
     for suffix in _SOURCE_SUFFIXES:
@@ -372,6 +418,19 @@ def find_source_for_converted(
             base = converted_display_name[: -len(suffix)]
             break
     if base is None:
+        if not converted_file_class.endswith("_supplement"):
+            return None
+        for extension in OFFICE_SUPPLEMENT_FORMATS:
+            suffix = f"_{extension}"
+            if converted_display_name.endswith(suffix):
+                base = converted_display_name[: -len(suffix)]
+                return next(
+                    (ref_file for ref_file in reference.referencefiles or []
+                     if ref_file.file_class == "supplement"
+                     and ref_file.display_name == base
+                     and (ref_file.file_extension or "").lower() == extension),
+                    None,
+                )
         return None
 
     nxml_suffix_used = converted_display_name.endswith(_NXML_SUFFIX)
@@ -465,6 +524,25 @@ def pending_supplement_sources(
             ignore_tei_derived=ignore_tei_derived,
         ):
             pending.append(supp)
+    return pending
+
+
+def pending_office_supplement_sources(
+    db: Session,
+    reference_id: int,
+    mod_abbreviation: Optional[str] = None,
+) -> List[ReferencefileModel]:
+    """
+    Return the Office supplements (xlsx / docx) of a reference whose
+    ``converted_merged_supplement`` output is missing. Same per-source dedup
+    and optional MOD filter as ``pending_supplement_sources``.
+    """
+    pending: List[ReferencefileModel] = []
+    for office_file in get_office_files_for_reference(db, reference_id):
+        if not _file_is_for_mod(office_file, mod_abbreviation):
+            continue
+        if not is_office_supplement_converted(db, reference_id, office_file):
+            pending.append(office_file)
     return pending
 
 
@@ -1138,6 +1216,29 @@ def get_pdf_files_for_reference(  # pragma: no cover
     return pdf_files
 
 
+def get_office_files_for_reference(  # pragma: no cover
+    db: Session,
+    reference_id: int,
+) -> List[ReferencefileModel]:
+    """
+    Final ``supplement`` rows whose extension is an Office format
+    (see ``OFFICE_SUPPLEMENT_FORMATS``). ``htp_supplement`` rows are excluded
+    by file_class.
+    """
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "supplement",
+            # file_upload keeps the extension's case (Table_S1.XLSX), so match case-insensitively
+            func.lower(ReferencefileModel.file_extension).in_(list(OFFICE_SUPPLEMENT_FORMATS)),
+            ReferencefileModel.file_publication_status == "final",
+        )
+        .order_by(ReferencefileModel.referencefile_id.asc())
+        .all()
+    )
+
+
 def process_pdf_for_reference(  # pragma: no cover
     db: Session,
     curie: str,
@@ -1731,6 +1832,130 @@ def process_nxml_to_markdown(  # pragma: no cover
         error_msg = f"nXML->markdown failed: {e}"
         logger.error(f"{error_msg} (reference_curie={reference_curie})")
         return False, error_msg
+
+
+def process_office_to_markdown(  # pragma: no cover
+    db: Session,
+    office_ref_file: ReferencefileModel,
+    reference_curie: str,
+    mod_abbreviation: Optional[str],
+    s3_client=None
+) -> Tuple[bool, Optional[str]]:
+    """
+    Convert an Office supplement (xlsx / docx) to Markdown and store the result.
+
+    The file is downloaded from S3, converted in-process with
+    agr_abc_document_parsers.convert_office_to_markdown (the supplement's
+    display_name becomes the Markdown H1), and the result is uploaded with
+    file_class='converted_merged_supplement' and the
+    ``{display_name}_{extension}`` display_name (see
+    ``office_converted_display_name``), so the on-demand endpoint, show_all,
+    the embeddings and the UI treat it exactly like a PDFX-converted
+    supplement.
+
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str]).
+    """
+    try:
+        if s3_client is None:
+            s3_client = boto3.client("s3")
+
+        extension = (office_ref_file.file_extension or "").lower()
+        source_format = OFFICE_SUPPLEMENT_FORMATS.get(extension)
+        if source_format is None:
+            return False, f"Unsupported Office extension '{extension}'"
+
+        # Same S3 layout as every referencefile; the helper gunzips when needed.
+        content = download_xml_from_s3(s3_client, office_ref_file.md5sum)
+        if not content:
+            return False, "Empty file content returned from S3"
+
+        markdown = convert_office_to_markdown(
+            content, source_format=source_format, title=office_ref_file.display_name,
+        )
+        md_bytes = markdown.encode("utf-8")
+        if len(md_bytes) < 10:
+            return False, "Office conversion produced empty or minimal content"
+
+        output_display_name = office_converted_display_name(office_ref_file)
+        metadata = {
+            "reference_curie": reference_curie,
+            "display_name": output_display_name,
+            "file_class": "converted_merged_supplement",
+            "file_publication_status": "final",
+            "file_extension": "md",
+            "pdf_type": None,
+            "is_annotation": None,
+            "mod_abbreviation": mod_abbreviation
+        }
+        file_upload(
+            db=db,
+            metadata=metadata,
+            file=UploadFile(
+                file=BytesIO(md_bytes),
+                filename=f"{output_display_name}.md"
+            ),
+            upload_if_already_converted=True
+        )
+        logger.info(
+            f"Uploaded Office-derived markdown for {reference_curie} "
+            f"({extension} referencefile_id={office_ref_file.referencefile_id})"
+        )
+        return True, None
+
+    except Exception as e:
+        recover_session(db, e)
+        error_msg = f"Office->markdown failed: {e}"
+        logger.error(
+            f"{error_msg} (reference_curie={reference_curie}, "
+            f"display_name={office_ref_file.display_name})"
+        )
+        return False, error_msg
+
+
+def process_supplemental_office_files(  # pragma: no cover
+    db: Session,
+    reference_id: int,
+    reference_curie: str,
+    mod_abbreviation: Optional[str] = None,
+) -> Tuple[int, int, List[str]]:
+    """
+    Convert the pending Office supplements (xlsx / docx) of a reference to
+    Markdown in-process. Batch counterpart of ``process_supplemental_pdfs``:
+    same eligibility gate (``ELIGIBLE_SUPPLEMENT_MODS``), same per-source
+    dedup and MOD filter, no PDFX token needed.
+
+    Returns:
+        Tuple of (succeeded_count, failed_count, per_file_errors).
+    """
+    if not is_eligible_for_supplement_conversion(db, reference_id):
+        return 0, 0, []
+
+    pending = pending_office_supplement_sources(
+        db, reference_id, mod_abbreviation=mod_abbreviation
+    )
+    if not pending:
+        return 0, 0, []
+
+    logger.info(
+        f"Processing {len(pending)} pending Office supplement(s) for {reference_curie}"
+    )
+    succeeded = 0
+    failed = 0
+    errors: List[str] = []
+    for office_file in pending:
+        success, error = process_office_to_markdown(
+            db=db,
+            office_ref_file=office_file,
+            reference_curie=reference_curie,
+            mod_abbreviation=mod_abbreviation,
+        )
+        if success:
+            succeeded += 1
+        else:
+            failed += 1
+            errors.append(f"{office_file.display_name}: {error or 'unknown error'}")
+    return succeeded, failed, errors
 
 
 def process_supplemental_pdfs(  # pragma: no cover

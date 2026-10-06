@@ -4,7 +4,8 @@ Background task for on-demand file conversion.
 Dispatches to the existing batch conversion primitives in
 ``agr_literature_service.lit_processing.pdf2md.pdf2md_utils`` rather than
 re-implementing any conversion logic here. Per-source dedup (SCRUM-6041):
-the assessment's ``pending_main`` / ``pending_supplements`` lists drive
+the assessment's ``pending_main`` / ``pending_supplements`` /
+``pending_office_supplements`` lists drive
 conversion, so already-converted source files are never re-processed —
 even when a later workflow tag (added by a different MOD or after new
 files were uploaded) re-triggers the job for the same reference.
@@ -108,6 +109,49 @@ def _convert_pending_nxml(
     return success, error
 
 
+def _convert_pending_office(
+    db: Any, job_id: str, reference_id: int, reference_curie: str,
+    office_file: Any, mod_abbreviation: Optional[str],
+) -> Tuple[bool, Optional[str]]:
+    """Run the in-process Office (xlsx / docx) → MD conversion for a single
+    pending supplement (SCRUM-6589) and record its progress."""
+    from agr_literature_service.api.crud.file_conversion_crud import (
+        find_converted_referencefile_id,
+    )
+    from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+        office_converted_display_name,
+        process_office_to_markdown,
+    )
+    success, error = process_office_to_markdown(
+        db=db,
+        office_ref_file=office_file,
+        reference_curie=reference_curie,
+        mod_abbreviation=mod_abbreviation,
+    )
+    converted_display_name = (
+        office_converted_display_name(office_file) if success else None
+    )
+    converted_rf_id: Optional[int] = None
+    if success and converted_display_name is not None:
+        converted_rf_id = find_converted_referencefile_id(
+            db, reference_id, converted_display_name, "converted_merged_supplement",
+        )
+    conversion_manager.record_file_progress(
+        job_id=job_id,
+        source_display_name=office_file.display_name,
+        source_file_class=office_file.file_class,
+        source_referencefile_id=int(office_file.referencefile_id),
+        converted_display_name=converted_display_name,
+        converted_file_class=(
+            "converted_merged_supplement" if success else None
+        ),
+        converted_referencefile_id=converted_rf_id,
+        success=success,
+        error=error,
+    )
+    return success, error
+
+
 def _convert_pending_pdf(
     db: Any, job_id: str, reference_id: int, reference_curie: str,
     pdf_file: Any, output_file_class: str, token: str,
@@ -185,6 +229,28 @@ def _convert_pending_supplements(
     return any_failure, failure_messages
 
 
+def _convert_pending_office_supplements(
+    db: Any, job_id: str, reference_id: int, reference_curie: str,
+    assessment: Dict[str, Any],
+) -> Tuple[bool, List[str]]:
+    """Convert each entry in assessment['pending_office_supplements'].
+    Returns (any_failure, failure_messages)."""
+    any_failure = False
+    failure_messages: List[str] = []
+    for ref_file in assessment.get("pending_office_supplements") or []:
+        success, error = _convert_pending_office(
+            db, job_id, reference_id, reference_curie,
+            ref_file, assessment.get("mod_abbreviation"),
+        )
+        if not success:
+            any_failure = True
+            if error:
+                failure_messages.append(
+                    f"Office supplement '{ref_file.display_name}': {error}"
+                )
+    return any_failure, failure_messages
+
+
 def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
                        overwrite_tei_md: bool = False) -> None:
     """
@@ -237,9 +303,12 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
         supp_failure, supp_errors = _convert_pending_supplements(
             db, job_id, reference_id, reference_curie, assessment, get_token,
         )
+        office_failure, office_errors = _convert_pending_office_supplements(
+            db, job_id, reference_id, reference_curie, assessment,
+        )
 
-        any_failure = main_failure or supp_failure
-        failure_messages = main_errors + supp_errors
+        any_failure = main_failure or supp_failure or office_failure
+        failure_messages = main_errors + supp_errors + office_errors
 
         overall_success = not any_failure
         if overwrite_tei_md and overall_success:

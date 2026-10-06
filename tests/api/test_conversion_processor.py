@@ -20,6 +20,7 @@ if "agr_abc_document_parsers" not in sys.modules:
     except ModuleNotFoundError:  # pragma: no cover
         _stub = types.ModuleType("agr_abc_document_parsers")
         _stub.convert_xml_to_markdown = lambda *a, **k: ("", "")  # type: ignore[attr-defined]
+        _stub.convert_office_to_markdown = lambda *a, **k: ""  # type: ignore[attr-defined]
         sys.modules["agr_abc_document_parsers"] = _stub
 
 from agr_literature_service.api.utils import conversion_processor as cp
@@ -125,6 +126,72 @@ class TestConvertPendingPdf:
         assert success is False and error == "pdfx down"
 
 
+def _office_file(display_name="table_s1", extension="xlsx", rf_id=21):
+    f = _pdf_file(display_name=display_name, file_class="supplement", rf_id=rf_id)
+    f.file_extension = extension
+    return f
+
+
+class TestConvertPendingOffice:
+    """SCRUM-6589: Office (xlsx / docx) supplements convert in-process and are
+    recorded like any other source; the converted row carries the source
+    extension as its display_name suffix."""
+
+    def test_success(self, manager):
+        office = _office_file("table_s1", "xlsx", rf_id=21)
+        with patch(f"{PDF2MD}.process_office_to_markdown", return_value=(True, None)), \
+                patch(f"{CRUD}.find_converted_referencefile_id", return_value=77):
+            success, error = cp._convert_pending_office(
+                MagicMock(), "j1", 3, "AGRKB:1", office, "WB",
+            )
+        assert success is True and error is None
+        kwargs = manager.record_file_progress.call_args.kwargs
+        assert kwargs["source_display_name"] == "table_s1"
+        assert kwargs["source_file_class"] == "supplement"
+        assert kwargs["source_referencefile_id"] == 21
+        assert kwargs["converted_display_name"] == "table_s1_xlsx"
+        assert kwargs["converted_file_class"] == "converted_merged_supplement"
+        assert kwargs["converted_referencefile_id"] == 77
+
+    def test_failure(self, manager):
+        office = _office_file("methods", "docx", rf_id=22)
+        with patch(f"{PDF2MD}.process_office_to_markdown", return_value=(False, "bad zip")), \
+                patch(f"{CRUD}.find_converted_referencefile_id") as find:
+            success, error = cp._convert_pending_office(
+                MagicMock(), "j1", 3, "AGRKB:1", office, "WB",
+            )
+        assert success is False and error == "bad zip"
+        find.assert_not_called()
+        kwargs = manager.record_file_progress.call_args.kwargs
+        assert kwargs["converted_display_name"] is None
+        assert kwargs["converted_file_class"] is None
+
+
+class TestConvertPendingOfficeSupplements:
+    def test_failure_message_collected(self, manager):
+        assessment = {
+            "mod_abbreviation": "WB",
+            "pending_office_supplements": [_office_file("table_s1", "xlsx")],
+        }
+        with patch.object(cp, "_convert_pending_office", return_value=(False, "bad zip")):
+            any_failure, messages = cp._convert_pending_office_supplements(
+                MagicMock(), "j1", 3, "AGRKB:1", assessment,
+            )
+        assert any_failure is True
+        assert messages == ["Office supplement 'table_s1': bad zip"]
+
+    def test_success_and_empty(self, manager):
+        with patch.object(cp, "_convert_pending_office", return_value=(True, None)) as conv:
+            assert cp._convert_pending_office_supplements(
+                MagicMock(), "j1", 3, "AGRKB:1",
+                {"pending_office_supplements": [_office_file()]},
+            ) == (False, [])
+            conv.assert_called_once()
+            assert cp._convert_pending_office_supplements(
+                MagicMock(), "j1", 3, "AGRKB:1", {},
+            ) == (False, [])
+
+
 class TestConvertPendingMain:
     def test_mixed_nxml_and_pdf_with_failure(self, manager):
         assessment = {
@@ -186,6 +253,31 @@ class TestRunConversionJob:
         manager.complete_job.assert_called_once()
         assert manager.complete_job.call_args.kwargs["success"] is True
         session.close.assert_called_once()
+
+    def test_office_failure_fails_job_but_still_embeds(self, manager):
+        """An Office supplement failure marks the job failed (its error is
+        reported) but, like a PDF supplement failure, does not block the
+        classifier embeddings of a successfully converted main."""
+        session = MagicMock()
+        assessment = {
+            "mod_abbreviation": "WB", "pending_main": [], "pending_supplements": [],
+            "pending_office_supplements": [_office_file("table_s1", "xlsx")],
+        }
+        with patch.object(cp, "SessionLocal", return_value=session), \
+                patch.object(cp, "_convert_pending_office", return_value=(False, "bad zip")), \
+                patch(f"{CRUD}._assess_reference", return_value=assessment), \
+                patch(f"{CRUD}.delete_tei_derived_md_rows"), \
+                patch(f"{CRUD}.transition_completed_text_convert_tags"), \
+                patch("agr_literature_service.api.crud.reference_utils.get_reference"), \
+                patch(f"{PDF2MD}.sync_converted_file_mods_to_sources"), \
+                patch("agr_literature_service.lit_processing.embedding."
+                      "embedding_generation.maybe_generate_classifier_embeddings") as embed:
+            cp.run_conversion_job("j1", 3, "AGRKB:1")
+
+        embed.assert_called_once()
+        kwargs = manager.complete_job.call_args.kwargs
+        assert kwargs["success"] is False
+        assert kwargs["error"] == "Office supplement 'table_s1': bad zip"
 
     def test_unexpected_error_marks_job_failed(self, manager):
         session = MagicMock()

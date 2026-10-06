@@ -1640,3 +1640,51 @@ class TestSupplementPdfLimits:
         assert methods_uploaded == ["merged"]
         assert error is None
         assert submitted is True
+
+
+class TestFindSourceForConvertedOffice:
+    """Office-derived Markdown ({display_name}_{extension}) maps back to its
+    Office supplement, so sync_converted_file_mods_to_sources fans it out."""
+
+    @staticmethod
+    def _file(file_class, display_name, file_extension):
+        return MagicMock(file_class=file_class, display_name=display_name, file_extension=file_extension)
+
+    def _reference(self):
+        self.xlsx = self._file("supplement", "Table_S1", "XLSX")
+        self.docx = self._file("supplement", "Table_S1", "docx")
+        self.pdf = self._file("supplement", "Table_S1", "pdf")
+        return MagicMock(referencefiles=[self.pdf, self.docx, self.xlsx])
+
+    def test_office_suffix_matches_source_with_that_extension(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import find_source_for_converted
+        reference = self._reference()
+        assert find_source_for_converted(reference, "Table_S1_xlsx", "converted_merged_supplement") is self.xlsx
+        assert find_source_for_converted(reference, "Table_S1_docx", "converted_merged_supplement") is self.docx
+
+    def test_pdf_supplement_suffix_still_matches_pdf(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import find_source_for_converted
+        reference = self._reference()
+        self.pdf.file_class = "supplement"
+        found = find_source_for_converted(reference, "Table_S1_merged", "converted_merged_supplement")
+        assert found is not None and found.display_name == "Table_S1"
+
+    def test_office_suffix_needs_matching_extension_and_supplement_class(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import find_source_for_converted
+        reference = self._reference()
+        assert find_source_for_converted(reference, "Table_S1_docm", "converted_merged_supplement") is None
+        assert find_source_for_converted(reference, "Table_S1_xlsx", "converted_merged_main") is None
+        assert find_source_for_converted(reference, "Table_S1_csv", "converted_merged_supplement") is None
+
+    def test_sync_links_office_markdown_to_every_source_mod(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import sync_converted_file_mods_to_sources
+        source = self._file("supplement", "Table_S1", "xlsx")
+        source.referencefile_mods = [MagicMock(mod_id=1), MagicMock(mod_id=2), MagicMock(mod_id=None)]
+        converted = self._file("converted_merged_supplement", "Table_S1_xlsx", "md")
+        converted.referencefile_id = 99
+        converted.referencefile_mods = [MagicMock(mod_id=1)]
+        db = MagicMock()
+        added = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
+        assert added == 2
+        assert sorted((a.mod_id for a in (c.args[0] for c in db.add.call_args_list)), key=str) == [2, None]
+        db.commit.assert_called_once()

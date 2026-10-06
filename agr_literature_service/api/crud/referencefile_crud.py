@@ -168,6 +168,18 @@ _CONVERTED_DISPLAY_NAME_SUFFIXES = (
     "_merged", "_grobid", "_docling", "_marker", "_tei", "_nxml",
 )
 
+# Office supplements (SCRUM-6589) convert to "{display_name}_{extension}"
+# (Table_S1.xlsx -> Table_S1_xlsx), so the suffix also names the source's
+# extension: a PDF, an xlsx and a docx sharing a display_name each link only
+# to their own Markdown. Kept in sync with pdf2md_utils.OFFICE_SUPPLEMENT_FORMATS.
+_OFFICE_CONVERTED_SUFFIXES = {"_xlsx": "xlsx", "_xlsm": "xlsm", "_docx": "docx", "_docm": "docm"}
+
+
+def _office_suffix_for_source(source_ref_file: ReferencefileModel) -> Optional[str]:
+    """The Office-derived suffix a source row would produce, or None."""
+    suffix = f"_{(source_ref_file.file_extension or '').lower()}"
+    return suffix if suffix in _OFFICE_CONVERTED_SUFFIXES else None
+
 
 def _find_converted_derived_for_source(db: Session,
                                        source_ref_file: ReferencefileModel) -> List[dict]:
@@ -188,12 +200,18 @@ def _find_converted_derived_for_source(db: Session,
     ).all()
     derived: List[dict] = []
     source_display_name = source_ref_file.display_name or ""
+    office_suffix = _office_suffix_for_source(source_ref_file)
     for r in rows:
         display_name = r.display_name or ""
         if not display_name.startswith(source_display_name):
             continue
         suffix = display_name[len(source_display_name):]
-        if suffix not in _CONVERTED_DISPLAY_NAME_SUFFIXES:
+        if suffix in _OFFICE_CONVERTED_SUFFIXES:
+            # Office-derived Markdown belongs to the source with that extension only.
+            if suffix != office_suffix:
+                continue
+        elif suffix not in _CONVERTED_DISPLAY_NAME_SUFFIXES or office_suffix is not None:
+            # PDFX / nXML / TEI suffixes never belong to an Office source.
             continue
         derived.append({
             "referencefile_id": int(r.referencefile_id),
@@ -241,11 +259,20 @@ def _find_source_for_derived(ref_file: ReferencefileModel, all_files: List[Refer
     if not source_classes:
         return None
     display_name = ref_file.display_name or ""
+    for suffix, extension in _OFFICE_CONVERTED_SUFFIXES.items():
+        if display_name.endswith(suffix):
+            base = display_name[: len(display_name) - len(suffix)]
+            for cand in all_files:
+                if (cand.file_class in source_classes and cand.display_name == base
+                        and (cand.file_extension or "").lower() == extension):
+                    return _source_dict(cand)
+            return None
     for suffix in _CONVERTED_DISPLAY_NAME_SUFFIXES:
         if display_name.endswith(suffix):
             base = display_name[: len(display_name) - len(suffix)]
             for cand in all_files:
-                if cand.file_class in source_classes and cand.display_name == base:
+                if (cand.file_class in source_classes and cand.display_name == base
+                        and _office_suffix_for_source(cand) is None):
                     return _source_dict(cand)
     return None
 
