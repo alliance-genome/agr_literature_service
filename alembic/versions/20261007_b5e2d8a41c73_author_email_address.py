@@ -12,9 +12,16 @@ is stored on the author row instead of only at the reference level
 1. author.email_address (and its sqlalchemy-continuum version columns).
 2. ck_person_only_link_only also requires email_address IS NULL on a
    person-only link row (no author_order), like every other author metadata
-   field. The constraint is recreated NOT VALID and then validated, so the
-   full scan of the author table runs under SHARE UPDATE EXCLUSIVE instead of
-   blocking writes. No existing row can fail it: the column is new and NULL.
+   field. No existing row can fail it: the column is new and NULL.
+
+Locking: env.py runs a migration in one transaction, and ADD COLUMN /
+DROP CONSTRAINT / ADD CONSTRAINT take ACCESS EXCLUSIVE on author until it
+commits. Those steps are metadata-only (the new constraint is added NOT
+VALID, so nothing is scanned under that lock). The VALIDATE, which scans the
+whole author table (~7.8M rows in prod), runs in an autocommit block after
+that transaction has committed, so it holds only SHARE UPDATE EXCLUSIVE and
+does not block reads or writes. Until it finishes the constraint is already
+enforced for new and updated rows.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -37,10 +44,13 @@ _PERSON_ONLY_BASE = (
 
 
 def _recreate_person_only_check(include_email: bool):
+    """Swap the check under the migration's lock without scanning, then
+    validate it in its own transaction (see the module docstring)."""
     op.drop_constraint("ck_person_only_link_only", "author", type_="check")
     condition = _PERSON_ONLY_BASE.format(email="AND email_address IS NULL " if include_email else "")
     op.execute(f"ALTER TABLE author ADD CONSTRAINT ck_person_only_link_only CHECK ({condition}) NOT VALID")
-    op.execute("ALTER TABLE author VALIDATE CONSTRAINT ck_person_only_link_only")
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TABLE author VALIDATE CONSTRAINT ck_person_only_link_only")
 
 
 def upgrade():
@@ -52,6 +62,7 @@ def upgrade():
 
 
 def downgrade():
+    # The check must stop referencing email_address before the column goes.
     _recreate_person_only_check(include_email=False)
     op.drop_column('author_version', 'email_address_mod')
     op.drop_column('author_version', 'email_address')
