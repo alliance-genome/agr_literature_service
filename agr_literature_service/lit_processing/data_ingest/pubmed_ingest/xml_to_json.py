@@ -5,7 +5,7 @@ import sys
 import urllib.request
 from os import environ, makedirs, path
 import xml.etree.ElementTree as ET
-from typing import List, Set, Dict, Tuple
+from typing import List, Optional, Set, Dict, Tuple
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
@@ -69,7 +69,32 @@ known_article_id_types = {
 #     'doi': {'pages': 'DOI', 'prefix': 'DOI:'},
 #     'pmc': {'pages': 'PMC', 'prefix': 'PMCID:'}}
 ignore_article_id_types = {'bookaccession', 'mid', 'pii', 'pmcid', 'medline', 'sici'}
+
+# SCRUM-6513: PubMed puts an author's email inside that author's own
+# AffiliationInfo, usually as "... Electronic address: name@domain.org." The
+# pattern and normalization match the full-text extractor (extract_emails.py):
+# no address character may touch either end, and a '.' is only part of the
+# address when another domain label follows, so a sentence-final period is
+# never swallowed.
+AUTHOR_EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])"
+    r"([A-Za-z0-9][A-Za-z0-9._%+-]{0,63}"
+    r"@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63})"
+    r"(?![A-Za-z0-9_%+-])(?!\.[A-Za-z0-9])",
+    re.IGNORECASE,
+)
 unknown_article_id_types = set()   # type: Set
+
+
+def extract_author_email(affiliations: List[str]) -> Optional[str]:
+    """The email PubMed attributes to an author: the first address found in
+    the author's own affiliation strings, lowercased. None when there is none.
+    The affiliation text itself is stored unchanged."""
+    for affiliation in affiliations or []:
+        match = AUTHOR_EMAIL_RE.search(affiliation or "")
+        if match:
+            return match.group(1).rstrip(".").lower()
+    return None
 
 
 def represents_int(s):
@@ -424,6 +449,9 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                     author_dict["authorRank"] = authors_rank
                     if len(affiliation_list) > 0:
                         author_dict["affiliations"] = affiliation_list
+                        email = extract_author_email(affiliation_list)
+                        if email:
+                            author_dict["email"] = email
                     if len(author_cross_references) > 0:
                         author_dict["crossReferences"] = author_cross_references
                     # print fullname

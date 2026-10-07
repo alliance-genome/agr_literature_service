@@ -19,7 +19,8 @@ from agr_literature_service.api.models import (
 from agr_literature_service.api.schemas import AuthorSchemaPost
 
 
-_AUTHOR_METADATA_FIELDS = ("name", "first_name", "last_name", "first_initial", "orcid", "affiliations")
+_AUTHOR_METADATA_FIELDS = ("name", "first_name", "last_name", "first_initial", "orcid", "affiliations",
+                           "email_address")
 
 
 def _coerce_person_only_metadata(author_data: dict):
@@ -89,7 +90,7 @@ def _validate_author_constraints(author_data: dict, person_id, require_reference
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="A person-only link (no author_order) cannot carry author metadata "
-                       "(name/first_name/last_name/first_initial/orcid/affiliations/"
+                       "(name/first_name/last_name/first_initial/orcid/affiliations/email_address/"
                        "first_author/corresponding_author)")
 
 

@@ -329,6 +329,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
                       "first_initial": firstinit,
                       "author_order": author_order,
                       "affiliations": affiliations,
+                      "email_address": x.get('email') or None,
                       "orcid": orcid if orcid else None,
                       "first_author": False,
                       "corresponding_author": False}
