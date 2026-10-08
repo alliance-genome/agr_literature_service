@@ -10,6 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
+from agr_literature_service.lit_processing.data_ingest.utils.author_email_utils import assign_author_emails
 import html
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
@@ -334,7 +335,15 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                         if other_pmid not in pmids and other_pmid not in previous_pmids:
                             new_pmids_set.add(other_pmid)
             """
-            root = ET.fromstring(xml)
+            try:
+                root = ET.fromstring(xml)
+            except ET.ParseError as e:
+                # e.g. a file cached before get_pubmed_xml refused broken
+                # downloads; one bad file must not abort the whole run
+                logger.warning("%s: unparseable PubMed XML %s skipped (%s)", pmid, filename, e)
+                if not_found_xml is not None:
+                    not_found_xml.add(pmid)
+                continue
             data_dict['commentsCorrections'] = {}
             for cc in root.findall('.//CommentsCorrections'):
                 ref_type = cc.attrib.get('RefType')
@@ -428,6 +437,13 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                         author_dict["crossReferences"] = author_cross_references
                     # print fullname
                     authors_list.append(author_dict)
+                # SCRUM-6513: emails are attributed per paper, across all of
+                # its authors (see author_email_utils)
+                emails = assign_author_emails([(a.get("firstname"), a.get("lastname"), a.get("affiliations"))
+                                               for a in authors_list])
+                for author_dict, email in zip(authors_list, emails):
+                    if email:
+                        author_dict["email"] = email
                 data_dict['authors'] = authors_list
 
             pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)
