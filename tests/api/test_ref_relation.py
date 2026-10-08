@@ -44,18 +44,18 @@ class TestReferenceRelation:
                    "reference_relation_type": "CommentOn"
                    }
             response = client.post(url="/reference_relation/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {'reference_curie_to': test_ref_cc.ref_curie_to,
                    'reference_relation_type': "CommentOn"
                    }
             response = client.post(url="/reference_relation/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {'reference_curie_from': test_ref_cc.ref_curie_from,
                    'reference_curie_to': test_ref_cc.ref_curie_to}
             response = client.post(url="/reference_relation/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_bad_same_curies_from_to(self, test_ref_cc, auth_headers): # noqa
         with TestClient(app) as client:
@@ -238,7 +238,7 @@ class TestReferenceRelation:
             # merge reference 2 into reference 3
             response_merge1 = client.post(url=f"/reference/merge/{ref2}/{ref3}",
                                           headers=auth_headers)
-            assert response_merge1.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response_merge1.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             ref2_type_bool = False
             ref3_type_bool = False
             response_ref1 = client.get(url=f"/reference/{ref1}", headers=auth_headers)

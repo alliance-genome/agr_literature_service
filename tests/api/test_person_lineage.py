@@ -137,7 +137,7 @@ class TestPersonLineageCrud:
             _create(
                 db, two_people["person_subject_id"], two_people["person_object_id"], term_id
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reversed_pair_allowed_directional(self, db, two_people):  # noqa
         # Directional: B->A is a different fact from A->B.
@@ -160,7 +160,7 @@ class TestPersonLineageCrud:
             _create(
                 db, two_people["person_subject_id"], two_people["person_subject_id"], term_id
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_collaborator_of_is_symmetric_normalized(self, db, two_people):  # noqa
         # collaborator_of is non-directional: created with subject>object ids, the
@@ -189,7 +189,7 @@ class TestPersonLineageCrud:
             _create(
                 db, two_people["person_object_id"], two_people["person_subject_id"], collab
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         count = (
             db.query(PersonLineageModel)
             .filter(PersonLineageModel.relationship_vocab_term_abc_id == collab)
@@ -234,7 +234,7 @@ class TestPersonLineageCrud:
         created = _create(db, hi, lo, phd)
         with pytest.raises(HTTPException) as exc_info:
             person_lineage_crud.patch(db, created["person_lineage_id"], {"relationship": collab})
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_relationship_bad_id_422_on_create(self, db, two_people):  # noqa
         populate_test_vocabularies(db)
@@ -242,7 +242,7 @@ class TestPersonLineageCrud:
             _create(
                 db, two_people["person_subject_id"], two_people["person_object_id"], 999999
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_relationship_bad_id_422_on_patch(self, db, two_people):  # noqa
         term_id = _ppr_id(db, "PhD Supervisor of")
@@ -252,7 +252,7 @@ class TestPersonLineageCrud:
         pl_id = created["person_lineage_id"]
         with pytest.raises(HTTPException) as exc_info:
             person_lineage_crud.patch(db, pl_id, {"relationship": 999999})
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         # fail-closed: the original term id is untouched
         assert person_lineage_crud.show(db, pl_id)["relationship"] == {
             "value": term_id, "label": "PhD Supervisor of", "is_obsolete": False}
@@ -265,7 +265,7 @@ class TestPersonLineageCrud:
             _create(
                 db, two_people["person_subject_id"], two_people["person_object_id"], wrong
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_relationship_obsolete_term_422(self, db, two_people):  # noqa
         populate_test_vocabularies(db)
@@ -285,7 +285,7 @@ class TestPersonLineageCrud:
                 db, two_people["person_subject_id"], two_people["person_object_id"],
                 obsolete.vocabulary_term_abc_id,
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_list_for_person_matches_either_side(self, db, two_people):  # noqa
         # A person appearing as subject in one PPR and object in another is returned
@@ -346,7 +346,7 @@ class TestPersonLineageCrud:
             person_lineage_crud.patch(
                 db, r1["person_lineage_id"], {"person_object_curie_or_id": person_c.person_id}
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_person_and_relationship_collision_rejected(self, db, two_people):  # noqa
         # A single patch that BOTH reassigns a person into an existing triple AND
@@ -369,7 +369,7 @@ class TestPersonLineageCrud:
                 r1["person_lineage_id"],
                 {"person_object_curie_or_id": person_c.person_id, "relationship": term_id},
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_find_or_create_symmetric_matches_reversed(self, db, two_people):  # noqa
         # find_or_create normalizes symmetric pairs by term id, so a reversed lookup

@@ -43,7 +43,7 @@ def create_for_person(
 
     if "email_address" not in data or not data["email_address"]:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="email_address is required",
         )
 
@@ -59,7 +59,7 @@ def create_for_person(
     )
     if dup:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Email '{email_addr}' already exists for person_id {person_id}"
             ),
@@ -157,7 +157,7 @@ def patch(
         )
         if dup:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     f"Email '{new_addr}' already exists for person_id "
                     f"{obj.person_id}"

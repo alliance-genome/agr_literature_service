@@ -48,11 +48,11 @@ def external_lookup(external_curie: str,
     prefix, identifier, _ = split_identifier(external_curie, ignore_error=True)
     if not prefix:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="You must enter an NLM, ISSN, or ISBN")
     if prefix.lower() not in ('issn', 'nlm', 'nlmid', 'isbn'):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="You must enter an NLM, ISSN, or ISBN")
     return lookup_resource(identifier, prefix, db)
 
@@ -67,16 +67,16 @@ def add(request: ResourceSchemaAddCurie,
     prefix, identifier, _ = split_identifier(request.curie, ignore_error=True)
     if not prefix:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="You must enter an NLM, ISSN, or ISBN")
     prefix_lower = prefix.lower()
     if prefix_lower == 'isbn':
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="ISBN not supported yet")
     if prefix_lower not in ('issn', 'nlm', 'nlmid'):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="You must enter an NLM, ISSN, or ISBN")
     field = 'nlmid' if prefix_lower in ('nlm', 'nlmid') else 'issn'
     result = create_resource_from_external_curie(identifier, field, db)

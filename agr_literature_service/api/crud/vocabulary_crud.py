@@ -156,11 +156,11 @@ def validate_term_id(db: Session, vocabulary_key: str, term_id: int) -> None:
     )
     if term is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Unknown or wrong-vocabulary term id {term_id} for '{vocabulary_key}'",
         )
     if term.is_obsolete:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Term id {term_id} is obsolete and cannot be assigned",
         )
