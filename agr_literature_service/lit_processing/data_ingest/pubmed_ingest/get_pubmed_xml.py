@@ -36,6 +36,21 @@ _EFETCH_ERROR_START = "<eFetchResult>"
 _PUBMED_ARTICLE_SET_END = "</PubmedArticleSet>"
 
 
+def cached_xml_is_complete(filename: str) -> bool:
+    """Does a cached PubMed XML file end with its PubmedArticleSet? Files
+    cached before download_pubmed_xml_slice refused broken downloads can end
+    in an efetch error block or be cut off; those must be downloaded again.
+    Reads only the file's tail, so checking every cached file stays cheap."""
+    try:
+        with open(filename, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, fh.tell() - 256))
+            tail = fh.read()
+    except OSError:
+        return False
+    return tail.rstrip().endswith(_PUBMED_ARTICLE_SET_END.encode())
+
+
 def strip_efetch_error(xml_all: str) -> str:
     """Cut an embedded efetch error block off a response, keeping the complete
     articles before it and closing the PubmedArticleSet, so the error text is
@@ -169,10 +184,14 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
     full_path_pmid_xml = glob.glob(storage_path + "*.xml")
     pmids_wanted_set = set(pmids_wanted)
     for elem in full_path_pmid_xml:
+        filename = elem
         elem = elem.replace(storage_path, '')
         elem = elem.replace('.xml', '')
         if elem in pmids_wanted_set:
-            pmids_wanted_set.remove(elem)
+            if cached_xml_is_complete(filename):
+                pmids_wanted_set.remove(elem)
+            else:
+                logger.info("PMID %s: cached XML is incomplete, downloading it again", elem)
     pmids_wanted = sorted(list(pmids_wanted_set))
 
     # for pmid in pmids_wanted:

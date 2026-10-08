@@ -168,9 +168,11 @@ def backfill_author_emails(since: str = DEFAULT_SINCE, commit: bool = False,
                 counts["not_found_in_pubmed"] += 1
                 continue
             try:
-                outcome, changed = backfill_reference(db, reference_id, authors)
+                # savepoint per reference: a failure rolls back only this
+                # reference, not the uncommitted ones before it in the chunk
+                with db.begin_nested():
+                    outcome, changed = backfill_reference(db, reference_id, authors)
             except Exception as e:  # noqa: BLE001 - one bad reference must not stop the run
-                db.rollback()
                 logger.error("PMID:%s reference_id=%s failed: %s", pmid, reference_id, e)
                 continue
             counts[outcome] += 1
@@ -235,9 +237,9 @@ def recheck_existing_emails(commit: bool = False, limit: Optional[int] = None) -
               "authors_corrected": 0, "authors_cleared": 0, "errors": 0}
     for done, reference_id in enumerate(reference_ids, start=1):
         try:
-            outcome, corrected, cleared = recheck_reference(db, reference_id)
+            with db.begin_nested():  # savepoint: a failure rolls back only this reference
+                outcome, corrected, cleared = recheck_reference(db, reference_id)
         except Exception as e:  # noqa: BLE001 - one bad reference must not stop the run
-            db.rollback()
             counts["errors"] += 1
             logger.error("reference_id=%s failed: %s", reference_id, e)
             continue

@@ -91,3 +91,12 @@ def test_full_last_name_beats_part_of_a_compound_last_name():
 def test_equally_good_name_matches_are_ambiguous():
     shared = ["Dept. wang@uni.edu"]
     assert assign_author_emails(_authors(("Li", "Wang", shared), ("Hui", "Wang", shared))) == [None, None]
+
+
+def test_first_name_beats_a_short_last_name():
+    # review note: Wei Li must not take Lisa Wong's "lisa@" address
+    shared = ["X lisa@u.edu"]
+    assert assign_author_emails(_authors(("Lisa", "Wong", shared), ("Wei", "Li", shared))) == ["lisa@u.edu", None]
+    # a short last name still wins when nothing better names the address
+    assert assign_author_emails(_authors(("Zhigang", "Xu", ["Shandong. xuzg@sdu.edu.cn"]),
+                                         ("Wei", "Xiong", ["Beijing."]))) == ["xuzg@sdu.edu.cn", None]

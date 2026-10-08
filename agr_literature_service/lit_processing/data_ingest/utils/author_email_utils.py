@@ -16,8 +16,9 @@ So emails are assigned per paper, looking at all of its authors together
 
 1. an address in the author's own affiliations whose local part matches
    this author's name better than any other author's is that author's
-   (full last name > part of a compound last name > first name, so
-   "paolo.sordino" goes to Paolo Sordino, not to Raffaella De Paolo; a tie
+   (full last name > part of a compound last name > first name > a 1-2
+   letter last name plus initials, so "paolo.sordino" goes to Paolo Sordino,
+   not to Raffaella De Paolo, and "lisa" to Lisa Wong, not to Wei Li; a tie
    gives it to nobody);
 2. otherwise, an author whose affiliations hold exactly one address keeps
    it, provided no other author lists the same address and it does not
@@ -69,27 +70,27 @@ def emails_in_affiliations(affiliations: Optional[Sequence[str]]) -> List[str]:
     return emails
 
 
-# How well an address's local part carries an author's name.
-FULL_LAST_NAME = 3
-LAST_NAME_PART = 2
-FIRST_NAME = 1
+# How well an address's local part carries an author's name. A 1-2 letter last
+# name ("Li", "Xu") is the weakest evidence: it is a prefix or suffix of many
+# local parts, so a co-author's first name ("lisa") must win over it.
+FULL_LAST_NAME = 4
+LAST_NAME_PART = 3
+FIRST_NAME = 2
+SHORT_LAST_NAME = 1
 NO_MATCH = 0
 
 
 def email_match_score(email: str, first_name: Optional[str], last_name: Optional[str]) -> int:
     """FULL_LAST_NAME: the whole last name (3+ letters: "sordino" in
-    "paolosordino"), or a short last name plus initials ("xuzg" for Xu);
-    LAST_NAME_PART: one part of a compound last name (3+ letters: "payet"
-    for Payet-Bornet, "paolo" for De Paolo); FIRST_NAME: the first name (4+
-    letters: "mihaela"); else NO_MATCH."""
+    "paolosordino"); LAST_NAME_PART: one part of a compound last name (3+
+    letters: "payet" for Payet-Bornet, "paolo" for De Paolo); FIRST_NAME:
+    the first name (4+ letters: "mihaela"); SHORT_LAST_NAME: a 1-2 letter
+    last name plus initials ("xuzg" for Xu); else NO_MATCH."""
     local = _letters(email.split("@", 1)[0])
     if not local:
         return NO_MATCH
     last = _letters(last_name)
     if len(last) >= _MIN_NAME_PART and last in local:
-        return FULL_LAST_NAME
-    if 0 < len(last) < _MIN_NAME_PART and len(local) <= len(last) + _SHORT_NAME_MAX_EXTRA \
-            and (local.startswith(last) or local.endswith(last)):
         return FULL_LAST_NAME
     parts = {_letters(part) for part in re.split(r"[\s\-']+", last_name or "")}
     if any(len(part) >= _MIN_NAME_PART and part in local for part in parts):
@@ -97,6 +98,9 @@ def email_match_score(email: str, first_name: Optional[str], last_name: Optional
     first = _letters((first_name or "").split(" ")[0])
     if len(first) >= _MIN_FIRST_NAME and first in local:
         return FIRST_NAME
+    if 0 < len(last) < _MIN_NAME_PART and len(local) <= len(last) + _SHORT_NAME_MAX_EXTRA \
+            and (local.startswith(last) or local.endswith(last)):
+        return SHORT_LAST_NAME
     return NO_MATCH
 
 

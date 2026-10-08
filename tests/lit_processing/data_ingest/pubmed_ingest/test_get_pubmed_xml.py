@@ -102,3 +102,33 @@ def test_no_retry_when_the_request_was_already_small(tmp_path, monkeypatch):
     with patch.object(get_pubmed_xml, "download_pubmed_xml_slice", side_effect=fake_slice):
         get_pubmed_xml.download_pubmed_xml(["1", "2"])
     assert calls == ["1,2"]
+
+
+def test_cached_xml_is_complete(tmp_path):
+    good = tmp_path / "1.xml"
+    good.write_text(_HEADER + _article(1) + "</PubmedArticleSet> ")
+    bad = tmp_path / "2.xml"
+    bad.write_text(_HEADER + _article(2) + _ERROR)
+    cut = tmp_path / "3.xml"
+    cut.write_text(_HEADER + '<PubmedArticle><MedlineCitation><PMID Version="1">3</PMID>')
+    assert get_pubmed_xml.cached_xml_is_complete(str(good))
+    assert not get_pubmed_xml.cached_xml_is_complete(str(bad))
+    assert not get_pubmed_xml.cached_xml_is_complete(str(cut))
+    assert not get_pubmed_xml.cached_xml_is_complete(str(tmp_path / "missing.xml"))
+
+
+def test_incomplete_cached_files_are_downloaded_again(tmp_path, monkeypatch):
+    monkeypatch.setenv("XML_PATH", str(tmp_path) + "/")
+    xml_dir = tmp_path / "pubmed_xml"
+    xml_dir.mkdir()
+    (xml_dir / "1.xml").write_text(_HEADER + _article(1) + "</PubmedArticleSet>")
+    (xml_dir / "2.xml").write_text(_HEADER + _article(2) + _ERROR)
+    calls = []
+
+    def fake_slice(pmids_found, storage_path, md5dict, pmids_joined):
+        calls.append(pmids_joined)
+        pmids_found.update(pmids_joined.split(","))
+
+    with patch.object(get_pubmed_xml, "download_pubmed_xml_slice", side_effect=fake_slice):
+        get_pubmed_xml.download_pubmed_xml(["1", "2"])
+    assert calls == ["2"]
