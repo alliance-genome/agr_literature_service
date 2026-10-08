@@ -168,6 +168,34 @@ def destroy(db: Session, mod_corpus_association_id: int) -> None:
     return None
 
 
+def add_workflow_tags_on_patch_into_corpus(db: Session, mod_corpus_association_db_obj: ModCorpusAssociationModel,
+                                           reference_obj: ReferenceModel, mod_abbreviation: str,
+                                           mod_corpus_association_data: dict) -> None:
+    """Generate the MOD xref and grant the workflow tags for a reference that a
+    patch moves into the MOD's corpus."""
+    check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
+    # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
+    if mod_abbreviation != 'AGR' and get_current_workflow_status(
+            db, str(reference_obj.reference_id), "ATP:0000140",
+            mod_abbreviation=mod_abbreviation) is None:
+        transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
+    if mod_abbreviation in CORPUS_ENTRY_TAGS:
+        add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
+                                       mod_corpus_association_db_obj.mod_id, mod_abbreviation)
+    # SCRUM-6487: WB's sort page asks for author-person curation per paper
+    if mod_corpus_association_data.get('author_person_curation_needed') and \
+            mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS:
+        add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
+                                       mod_corpus_association_db_obj.mod_id, mod_abbreviation,
+                                       tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
+    if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
+        wft_id = mod_corpus_association_data['index_wft_id']
+        wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
+                                   mod_id=mod_corpus_association_db_obj.mod_id,
+                                   workflow_tag_id=wft_id)
+        db.add(wft_obj)
+
+
 def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_update):
     """
     Update a mod_corpus_association
@@ -206,27 +234,8 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
                 mod_abbreviation = db_mod.abbreviation
             if value is True and mod_corpus_association_db_obj.corpus is not True:
-                check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
-                # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
-                if mod_abbreviation != 'AGR' and get_current_workflow_status(
-                        db, str(reference_obj.reference_id), "ATP:0000140",
-                        mod_abbreviation=mod_abbreviation) is None:
-                    transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
-                if mod_abbreviation in CORPUS_ENTRY_TAGS:
-                    add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
-                                                   mod_corpus_association_db_obj.mod_id, mod_abbreviation)
-                # SCRUM-6487: WB's sort page asks for author-person curation per paper
-                if mod_corpus_association_data.get('author_person_curation_needed') and \
-                        mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS:
-                    add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
-                                                   mod_corpus_association_db_obj.mod_id, mod_abbreviation,
-                                                   tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
-                if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
-                    wft_id = mod_corpus_association_data['index_wft_id']
-                    wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
-                                               mod_id=mod_corpus_association_db_obj.mod_id,
-                                               workflow_tag_id=wft_id)
-                    db.add(wft_obj)
+                add_workflow_tags_on_patch_into_corpus(db, mod_corpus_association_db_obj, reference_obj,
+                                                       mod_abbreviation, mod_corpus_association_data)
             elif (value is False or value is None) and mod_corpus_association_db_obj.corpus is True:
                 has_manual_tags = has_manual_tet(db, str(mod_corpus_association_db_obj.reference_id),
                                                  mod_abbreviation)
