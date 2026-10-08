@@ -72,3 +72,19 @@ def test_extract_author_email():
     assert extract_author_email(["no address", "user@localhost"]) is None
     assert extract_author_email([]) is None
     assert extract_author_email(None) is None
+
+
+def test_generate_json_skips_an_unparseable_xml_file(tmp_path, monkeypatch):
+    """A broken cached download is reported as not found instead of aborting
+    the whole run (ParseError seen 2026-10-08)."""
+    from agr_literature_service.lit_processing.data_ingest.pubmed_ingest import xml_to_json
+    xml_dir = tmp_path / "pubmed_xml"
+    xml_dir.mkdir()
+    (xml_dir / "1.xml").write_text('<?xml version="1.0" ?> <PubmedArticleSet> <PubmedArticle><MedlineCitation>'
+                                   '<PMID Version="1">1</PMID><Article><ArticleTitle>T</ArticleTitle>'
+                                   '<PublicationType>Journal Article</PublicationType>')
+    monkeypatch.setattr(xml_to_json, "base_path", str(tmp_path) + "/")
+    not_found = set()
+    xml_to_json.generate_json(["1"], [], not_found, base_dir=str(tmp_path) + "/")
+    assert not_found == {"1"}
+    assert not (tmp_path / "pubmed_json" / "1.json").exists()

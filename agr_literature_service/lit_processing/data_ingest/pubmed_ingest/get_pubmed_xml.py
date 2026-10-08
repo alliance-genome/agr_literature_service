@@ -7,6 +7,7 @@ import re
 import sys
 import time
 import urllib
+import xml.etree.ElementTree as ET
 from os import environ, makedirs, path
 from typing import List, Set
 
@@ -24,6 +25,31 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 init_tmp_dir()
+
+# efetch can fail part-way through a large request and still answer 200: the
+# articles streamed so far, then an <eFetchResult><ERROR>...</ERROR>
+# </eFetchResult> block instead of the rest (seen 2026-10-08: "Failed to
+# process PubOne response", 404, after 1,980 of 5,000 PMIDs). PMIDs missing
+# after the main pass are retried once in requests this small.
+RETRY_SLICE_SIZE = 500
+_EFETCH_ERROR_START = "<eFetchResult>"
+_PUBMED_ARTICLE_SET_END = "</PubmedArticleSet>"
+
+
+def strip_efetch_error(xml_all: str) -> str:
+    """Cut an embedded efetch error block off a response, keeping the complete
+    articles before it and closing the PubmedArticleSet, so the error text is
+    never written into the last article's file. Logs the error (without the
+    request URL, which carries the API key)."""
+    index = xml_all.find(_EFETCH_ERROR_START)
+    if index == -1:
+        return xml_all
+    error = re.search(r"<ERROR>(.*?)</ERROR>", xml_all[index:], re.DOTALL)
+    message = re.sub(r"&lt;originalURL&gt;.*?&lt;/originalURL&gt;", "", error.group(1), flags=re.DOTALL) \
+        if error else xml_all[index:index + 300]
+    logger.warning("efetch returned an error part-way through the response; keeping the articles before it: %s",
+                   " ".join(message.split())[:500])
+    return xml_all[:index] + _PUBMED_ARTICLE_SET_END
 
 
 # pipenv run python get_pubmed_xml.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
@@ -80,7 +106,7 @@ def fetch_pubmed_xml(pmid_str: str) -> str:
 def download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined):
     # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)"
     # that crashes this script.
-    xml_all = fetch_pubmed_xml(pmids_joined)
+    xml_all = strip_efetch_error(fetch_pubmed_xml(pmids_joined))
     xml_split = re.split('(<Pubmed[^>]*Article>)',
                          xml_all)  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
 
@@ -97,6 +123,13 @@ def download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined):
             pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
             assert pmid_group is not None
             pmid = pmid_group.group(1)
+            try:
+                ET.fromstring(clean_xml)
+            except ET.ParseError as e:
+                # never cache a broken file: download_pubmed_xml skips PMIDs
+                # whose file exists, so it would never be fetched again
+                logger.warning("PMID %s: unparseable PubMed XML not saved (%s)", pmid, e)
+                continue
             pmids_found.add(pmid)
             filename = storage_path + pmid + '.xml'
             f = open(filename, "w")
@@ -176,6 +209,21 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         except requests.exceptions.RequestException as e:
             logger.info("requests failure with input %s %s", pmids_joined, e)
             raise SystemExit(e)
+
+    # A request that failed part-way (see strip_efetch_error) leaves the rest
+    # of its PMIDs missing; retry those once in small requests. PMIDs that
+    # are genuinely not in PubMed stay missing and are reported below.
+    pmids_missing = [pmid for pmid in pmids_wanted if pmid not in pmids_found]
+    if pmids_missing and len(pmids_wanted) > RETRY_SLICE_SIZE:
+        logger.info("Retrying %s PMID(s) missing after the first pass in slices of %s",
+                    len(pmids_missing), RETRY_SLICE_SIZE)
+        for index in range(0, len(pmids_missing), RETRY_SLICE_SIZE):
+            pmids_joined = (',').join(pmids_missing[index:index + RETRY_SLICE_SIZE])
+            try:
+                download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined)
+            except requests.exceptions.RequestException as e:
+                logger.info("requests failure with input %s %s", pmids_joined, e)
+                raise SystemExit(e)
 
     # md5file = storage_path + 'md5sum'
     logger.info("Writing md5sum mappings to %s", md5file)

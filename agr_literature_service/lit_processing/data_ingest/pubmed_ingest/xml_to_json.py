@@ -359,7 +359,15 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                         if other_pmid not in pmids and other_pmid not in previous_pmids:
                             new_pmids_set.add(other_pmid)
             """
-            root = ET.fromstring(xml)
+            try:
+                root = ET.fromstring(xml)
+            except ET.ParseError as e:
+                # e.g. a file cached before get_pubmed_xml refused broken
+                # downloads; one bad file must not abort the whole run
+                logger.warning("%s: unparseable PubMed XML %s skipped (%s)", pmid, filename, e)
+                if not_found_xml is not None:
+                    not_found_xml.add(pmid)
+                continue
             data_dict['commentsCorrections'] = {}
             for cc in root.findall('.//CommentsCorrections'):
                 ref_type = cc.attrib.get('RefType')
