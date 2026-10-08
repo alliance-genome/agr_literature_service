@@ -21,7 +21,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     cleanup_tags_for_retracted_papers, \
     set_retraction_status, \
     restore_file_upload_workflow_tags, \
-    add_zfin_corpus_entry_tags
+    add_zfin_corpus_entry_tags, add_corpus_entry_tags
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, \
     authors_lists_are_equal, authors_have_same_name
 
@@ -104,6 +104,48 @@ class TestZfinCorpusEntryTags:
 
         # probe already entered its workflow; pre-indexing had not, so only it is granted
         assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED}
+
+
+class TestWbCorpusEntryTags:
+    """SCRUM-6487: author-person curation needed (ATP:0000109) at WB corpus entry,
+    from the ingest path (DQM / post_reference_to_db)."""
+
+    NEEDED = "ATP:0000109"
+    COMPLETE = "ATP:0000378"
+
+    def _seed(self, db, *atp_ids): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'WB').scalar()
+        db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id,
+            WorkflowTagModel.mod_id == mod_id).delete()
+        for atp_id in atp_ids:
+            db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id, workflow_tag_id=atp_id))
+        db.commit()
+        return ref.reference_id, mod_id
+
+    def _tags(self, db, reference_id, mod_id): # noqa
+        return sorted(t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id).all())
+
+    def test_grants_needed_once(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db)
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
+        assert self._tags(db, reference_id, mod_id) == [self.NEEDED]
+
+    def test_not_granted_once_the_workflow_started(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db, self.COMPLETE)
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
+        assert self._tags(db, reference_id, mod_id) == [self.COMPLETE]
+
+    def test_other_mods_get_nothing(self, db, load_sanitized_references): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'FB').scalar()
+        before = self._tags(db, ref.reference_id, mod_id)
+        add_corpus_entry_tags(db, ref.reference_id, mod_id, logger, "FB")
+        assert self._tags(db, ref.reference_id, mod_id) == before
 
 
 class TestDbReadUtils:

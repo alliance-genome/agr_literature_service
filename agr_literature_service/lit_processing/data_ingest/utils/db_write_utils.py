@@ -18,7 +18,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
     TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
-from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
+from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -937,17 +937,23 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
             except Exception as e:
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
                 return
-        if mod == "ZFIN" and json_mca_entry.get("corpus"):
-            add_zfin_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger)
+        if mod in CORPUS_ENTRY_TAGS and json_mca_entry.get("corpus"):
+            add_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger, mod)
 
 
 def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
-    """Grant ZFIN's corpus-entry workflow tags.
+    """Grant ZFIN's corpus-entry workflow tags (see add_corpus_entry_tags)."""
+    add_corpus_entry_tags(db, reference_id, mod_id, logger, "ZFIN")
 
-    The tag table lives in api.crud.utils.zfin_corpus_entry so this and the API
+
+def add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation):
+    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers, WB's
+    author-person curation, SCRUM-6487); a no-op for any other MOD.
+
+    The tag table lives in api.crud.utils.corpus_entry_tags so this and the API
     path (mod_corpus_association_crud) guard the same tags against the same
-    workflow state sets and cannot drift; see that module for why the probe state
-    list is non-contiguous and cannot be derived from the ontology.
+    workflow state sets and cannot drift; see zfin_corpus_entry for why the probe
+    state list is non-contiguous and cannot be derived from the ontology.
 
     Each tag is guarded independently against its own workflow's states, so a
     reference that already holds one still picks up the other -- which is what
@@ -968,7 +974,7 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
     reference anyway.
     """
     added = False
-    for _atp_name, atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
+    for _atp_name, atpid, already_entered in CORPUS_ENTRY_TAGS.get(mod_abbreviation, []):
         try:
             with db.begin_nested():
                 existing = (
@@ -988,11 +994,11 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
                     # caught here rather than at the final commit below.
                     db.flush()
                     added = True
-                    logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
+                    logger.info(f"Adding {mod_abbreviation} corpus-entry tag: {atpid}")
                 else:
-                    logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
+                    logger.info(f"{mod_abbreviation} corpus-entry tag already exists: {existing.workflow_tag_id}")
         except Exception as e:
-            logger.error(f"Error when adding ZFIN corpus-entry tag {atpid}: {e}")
+            logger.error(f"Error when adding {mod_abbreviation} corpus-entry tag {atpid}: {e}")
     if added:
         db.commit()
 
