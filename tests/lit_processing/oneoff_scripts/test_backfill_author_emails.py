@@ -99,3 +99,39 @@ def test_candidates_are_in_corpus_papers_by_corpus_entry_date():
     # any MOD: no MOD filter
     assert "abbreviation" not in sql
     assert db.execute.call_args.args[1] == {"since": "2024-01-01"}
+
+
+def _stored(order, first, last, affiliations, email):
+    return MagicMock(author_order=order, first_name=first, last_name=last,
+                     affiliations=affiliations, email_address=email)
+
+
+def _recheck(rows, curator=False):
+    db = MagicMock()
+    db.query.return_value.filter.return_value.order_by.return_value.all.return_value = rows
+    with patch.object(mod, "_reference_touched_by_curator", return_value=curator):
+        return mod.recheck_reference(db, 42)
+
+
+def test_recheck_corrects_and_clears_wrongly_attributed_emails():
+    shared = ["Jagiellonian University. pe.cieslak@uj.edu.pl"]
+    mayer = _stored(1, "Mark L", "Mayer", ["NIH. mayerm@mail.nih.gov"], "mayerm@mail.nih.gov")
+    serpe = _stored(2, "Mihaela", "Serpe", ["NIH. mayerm@mail.nih.gov mihaela.serpe@nih.gov"],
+                    "mayerm@mail.nih.gov")
+    cieslak = _stored(3, "Przemyslaw E", "Cieslak", shared, "pe.cieslak@uj.edu.pl")
+    blasiak = _stored(4, "Anna", "Blasiak", shared, "pe.cieslak@uj.edu.pl")
+    assert _recheck([mayer, serpe, cieslak, blasiak]) == ("rechecked", 1, 1)
+    assert serpe.email_address == "mihaela.serpe@nih.gov"
+    assert blasiak.email_address is None
+    assert (mayer.email_address, cieslak.email_address) == ("mayerm@mail.nih.gov", "pe.cieslak@uj.edu.pl")
+
+
+def test_recheck_leaves_curator_managed_references_alone():
+    author = _stored(1, "Anna", "Blasiak", ["X. pe.cieslak@uj.edu.pl"], "pe.cieslak@uj.edu.pl")
+    assert _recheck([author], curator=True) == ("curator_managed", 0, 0)
+    assert author.email_address == "pe.cieslak@uj.edu.pl"
+
+
+def test_parse_args_recheck_mode():
+    assert mod.parse_args(["--recheck-existing", "--commit"]).recheck_existing is True
+    assert mod.parse_args([]).recheck_existing is False

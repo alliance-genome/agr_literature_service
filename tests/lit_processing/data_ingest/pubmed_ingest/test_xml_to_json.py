@@ -3,7 +3,7 @@ import os
 from os import environ
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
-    extract_author_email, get_alliance_category_from_pubmed_types, generate_json
+    get_alliance_category_from_pubmed_types, generate_json
 from ....fixtures import cleanup_tmp_files_when_done # noqa
 
 
@@ -60,18 +60,6 @@ class TestXmlToJson:
             cols = line.split("\t")
             assert cols[0] in pmids
             assert cols[1] != ""
-
-
-def test_extract_author_email():
-    assert extract_author_email(
-        ["Dept X, Kyoto, Japan. Electronic address: John.Doe@Kyoto-U.ac.jp."]) == "john.doe@kyoto-u.ac.jp"
-    assert extract_author_email(["Lab A, Univ B.", "Univ C, USA. yongx@bcm.edu."]) == "yongx@bcm.edu"
-    # first address wins when an affiliation lists several
-    assert extract_author_email(["Email: a.b@c.org; c@d.edu"]) == "a.b@c.org"
-    assert extract_author_email(["contact <x_y@foo.co.uk>"]) == "x_y@foo.co.uk"
-    assert extract_author_email(["no address", "user@localhost"]) is None
-    assert extract_author_email([]) is None
-    assert extract_author_email(None) is None
 
 
 def test_generate_json_skips_an_unparseable_xml_file(tmp_path, monkeypatch):
