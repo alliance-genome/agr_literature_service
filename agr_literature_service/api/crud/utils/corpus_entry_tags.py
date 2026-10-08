@@ -17,11 +17,13 @@ make ``_get_current_workflow_tag_db_obj``'s ``.one_or_none()`` raise
 
 ZFIN: see ``zfin_corpus_entry`` (SCRUM-5764).
 
-WB (SCRUM-6487): "author-person curation needed" on corpus entry, so the paper
-gets author-person curation before community curation is ready. It is granted
-at corpus entry, without waiting on a PDF. There is deliberately no backfill:
-WB curators are importing the current state of the papers already in the
-corpus themselves.
+WB (SCRUM-6487) is deliberately not in ``CORPUS_ENTRY_TAGS``: "author-person
+curation needed" is opt-in, granted only when a curator sorts a paper inside
+the corpus with the sort page's "Author-Person curation" checkbox checked
+(``mod_corpus_association_crud.patch`` with ``author_person_curation_needed``).
+Ingest, batch moves and other corpus edits never grant it. There is no
+backfill: WB curators are importing the current state of the papers already in
+the corpus themselves.
 """
 
 from typing import Dict, List, Tuple
@@ -30,18 +32,20 @@ from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_
 
 AUTHOR_PERSON_CURATION_NEEDED = "ATP:0000109"
 
-WB_CORPUS_ENTRY_TAGS: List[Tuple[str, str, List[str]]] = [
-    (
-        "author-person curation needed",
-        AUTHOR_PERSON_CURATION_NEEDED,
-        ["ATP:0000109",   # author-person curation needed
-         "ATP:0000377",   # author-person curation in progress
-         "ATP:0000376",   # author-person curation blocked
-         "ATP:0000378"],  # author-person curation complete
-    ),
-]
+# MOD -> the author-person curation tag granted on request (SCRUM-6487).
+AUTHOR_PERSON_CURATION_TAGS: Dict[str, List[Tuple[str, str, List[str]]]] = {
+    "WB": [
+        (
+            "author-person curation needed",
+            AUTHOR_PERSON_CURATION_NEEDED,
+            ["ATP:0000109",   # author-person curation needed
+             "ATP:0000377",   # author-person curation in progress
+             "ATP:0000376",   # author-person curation blocked
+             "ATP:0000378"],  # author-person curation complete
+        ),
+    ],
+}
 
 CORPUS_ENTRY_TAGS: Dict[str, List[Tuple[str, str, List[str]]]] = {
     "ZFIN": ZFIN_CORPUS_ENTRY_TAGS,
-    "WB": WB_CORPUS_ENTRY_TAGS,
 }

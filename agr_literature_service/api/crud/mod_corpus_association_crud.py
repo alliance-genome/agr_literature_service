@@ -23,8 +23,9 @@ from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost, \
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.crud.utils.zfin_corpus_entry import \
     PRE_INDEXING_PRIO_NEEDED, MOLECULAR_PROBE_CLASSIFICATION_NEEDED
-from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
-from typing import List
+from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS, \
+    AUTHOR_PERSON_CURATION_TAGS
+from typing import List, Optional, Tuple
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -33,12 +34,12 @@ molecular_probe_classification_needed_tag_atp_id = MOLECULAR_PROBE_CLASSIFICATIO
 
 
 def add_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: int,
-                                   mod_abbreviation: str) -> None:
+                                   mod_abbreviation: str,
+                                   tags: Optional[List[Tuple[str, str, List[str]]]] = None) -> None:
     """Grant the workflow tags the MOD expects the moment a reference enters its
     corpus (``corpus_entry_tags.CORPUS_ENTRY_TAGS``); a no-op for any other MOD.
-
-    WB (SCRUM-6487): author-person curation needed, so the paper gets
-    author-person curation before community curation is ready.
+    ``tags`` overrides that table, e.g. WB's opt-in author-person curation
+    needed (``AUTHOR_PERSON_CURATION_TAGS``, SCRUM-6487).
 
     ZFIN (SCRUM-5764): molecular probe abstract classification is triggered by
     "inside corpus" -- ZFIN mints a ZDB-PUB when its PubMed query finds the
@@ -59,7 +60,9 @@ def add_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: int,
 
     The caller is responsible for committing.
     """
-    for atp_name, tag_atp_id, workflow_states in CORPUS_ENTRY_TAGS.get(mod_abbreviation, []):
+    if tags is None:
+        tags = CORPUS_ENTRY_TAGS.get(mod_abbreviation, [])
+    for atp_name, tag_atp_id, workflow_states in tags:
         tag_atp_id = name_to_atp.get(atp_name, tag_atp_id)
         if db.query(WorkflowTagModel).filter(
                 WorkflowTagModel.reference_id == reference_id,
@@ -212,6 +215,12 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 if mod_abbreviation in CORPUS_ENTRY_TAGS:
                     add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
                                                    mod_corpus_association_db_obj.mod_id, mod_abbreviation)
+                # SCRUM-6487: WB's sort page asks for author-person curation per paper
+                if mod_corpus_association_data.get('author_person_curation_needed') and \
+                        mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS:
+                    add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
+                                                   mod_corpus_association_db_obj.mod_id, mod_abbreviation,
+                                                   tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
                 if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
                     wft_id = mod_corpus_association_data['index_wft_id']
                     wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
@@ -389,7 +398,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                         db, str(mca.reference_id), "ATP:0000140",
                         mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-                # Add the MOD's corpus-entry workflow tags (ZFIN, WB)
+                # Add the MOD's corpus-entry workflow tags (ZFIN)
                 if mod_abbreviation in CORPUS_ENTRY_TAGS:
                     add_corpus_entry_workflow_tags(db, mca.reference_id, mca.mod_id, mod_abbreviation)
 

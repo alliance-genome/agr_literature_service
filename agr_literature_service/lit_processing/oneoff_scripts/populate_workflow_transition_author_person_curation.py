@@ -8,9 +8,9 @@ author-person curation (ATP:0000375)
     author-person curation blocked (ATP:0000376)
     author-person curation complete (ATP:0000378)
 
-"needed" is granted automatically when a reference enters the WB corpus
-(api.crud.utils.corpus_entry_tags); from there a curator moves the paper by
-hand, so this inserts the all-to-all manual_only transitions among the four
+"needed" is granted when a WB curator sorts a reference inside the corpus with
+the "Author-Person curation" checkbox checked (api.crud.utils.corpus_entry_tags);
+from there a curator moves the paper by hand, so this inserts the all-to-all manual_only transitions among the four
 states, for the WB mod only. It is idempotent: transitions already present are
 left untouched.
 

@@ -107,11 +107,10 @@ class TestZfinCorpusEntryTags:
 
 
 class TestWbCorpusEntryTags:
-    """SCRUM-6487: author-person curation needed (ATP:0000109) at WB corpus entry,
-    from the ingest path (DQM / post_reference_to_db)."""
+    """SCRUM-6487: author-person curation needed (ATP:0000109) is opt-in from the
+    sort page, so the ingest path (DQM / post_reference_to_db) never grants it."""
 
     NEEDED = "ATP:0000109"
-    COMPLETE = "ATP:0000378"
 
     def _seed(self, db, *atp_ids): # noqa
         ref = db.query(ReferenceModel).first()
@@ -129,16 +128,10 @@ class TestWbCorpusEntryTags:
             WorkflowTagModel.reference_id == reference_id,
             WorkflowTagModel.mod_id == mod_id).all())
 
-    def test_grants_needed_once(self, db, load_sanitized_references): # noqa
+    def test_ingest_does_not_grant_needed(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db)
         add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
-        add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
-        assert self._tags(db, reference_id, mod_id) == [self.NEEDED]
-
-    def test_not_granted_once_the_workflow_started(self, db, load_sanitized_references): # noqa
-        reference_id, mod_id = self._seed(db, self.COMPLETE)
-        add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
-        assert self._tags(db, reference_id, mod_id) == [self.COMPLETE]
+        assert self.NEEDED not in self._tags(db, reference_id, mod_id)
 
     def test_other_mods_get_nothing(self, db, load_sanitized_references): # noqa
         ref = db.query(ReferenceModel).first()

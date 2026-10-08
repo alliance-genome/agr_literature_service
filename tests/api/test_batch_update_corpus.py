@@ -131,9 +131,9 @@ class TestBatchUpdateCorpus:
         db.refresh(mca)
         assert mca.corpus is True
 
-    def test_move_in_wb_adds_author_person_curation_needed(self, wb_setup): # noqa
-        """SCRUM-6487: moving a paper into the WB corpus grants author-person
-        curation needed."""
+    def test_move_in_wb_does_not_add_author_person_curation_needed(self, wb_setup): # noqa
+        """SCRUM-6487: author-person curation needed is opt-in per paper from the
+        sort page; a batch move-in never grants it."""
         db, mod, ref = wb_setup  # noqa
         mca = _make_mca(db, ref, mod, corpus=False)
         with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
@@ -145,7 +145,7 @@ class TestBatchUpdateCorpus:
             WorkflowTagModel.reference_id == ref.reference_id,
             WorkflowTagModel.mod_id == mod.mod_id,
             WorkflowTagModel.workflow_tag_id == "ATP:0000109").first()
-        assert tag is not None
+        assert tag is None
 
     def test_move_in_zfin_adds_workflow_tag(self, db): # noqa
         populate_test_mods()

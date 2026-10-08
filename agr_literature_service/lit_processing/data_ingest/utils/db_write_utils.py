@@ -947,8 +947,9 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
 
 
 def add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation):
-    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers, WB's
-    author-person curation, SCRUM-6487); a no-op for any other MOD.
+    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers); a
+    no-op for any other MOD. WB's author-person curation needed (SCRUM-6487) is
+    never granted on ingest: it is opt-in from the sort page only.
 
     The tag table lives in api.crud.utils.corpus_entry_tags so this and the API
     path (mod_corpus_association_crud) guard the same tags against the same
