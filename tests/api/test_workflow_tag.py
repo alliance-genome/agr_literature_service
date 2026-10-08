@@ -365,7 +365,9 @@ class TestWorkflowTag:
                 mock_get_map_ateam_curies_to_names:
             mock_get_map_ateam_curies_to_names.return_value = {
                 'ATP:0000141': 'file needed', 'ATP:0001111': 'test',
-                'ATP:0000168': 'catalytic activity classification complete'
+                'ATP:0000168': 'catalytic activity classification complete',
+                # SCRUM-6487: granted to each reference entering the WB corpus
+                'ATP:0000109': 'author-person curation needed'
             }
             # Create additional references and MODs
             mods = ['WB', 'WB', 'FB']
@@ -425,11 +427,13 @@ class TestWorkflowTag:
             today_date = today.date().isoformat()
             one_week_ago = today - timedelta(days=7)
             one_week_ago_date = one_week_ago.date().isoformat()
-            # Test the counters endpoint with different parameters
+            # Test the counters endpoint with different parameters. The two WB
+            # references each also carry author-person curation needed
+            # (ATP:0000109), granted at WB corpus entry (SCRUM-6487): +2.
             test_cases = [
-                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 8},
-                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 4},
-                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 8},
+                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 10},
+                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 6},
+                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 10},
             ]
 
             for case in test_cases:
