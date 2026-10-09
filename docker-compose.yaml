@@ -465,8 +465,9 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    # Custom image: stock ksqlDB 0.26.0 + the RocksDB config-setter jar baked onto the classpath
-    # (SCRUM-6231). `make build` builds it; FROM still pins the upstream 0.26.0 as the base.
+    # Custom image: the stock ksqlDB 0.26.0 jars on a multi-arch Confluent base (amd64 + arm64,
+    # SCRUM-6663) + the RocksDB config-setter jar baked onto the classpath (SCRUM-6231).
+    # `make build` builds it.
     build:
       context: .
       dockerfile: docker/ksqldb.dockerfile
@@ -602,22 +603,9 @@ services:
     networks:
       - agr-literature
 
-  # KSQLDB client for manual queries during development
-  #
-  # To start it:
-  # - start the docker-compose service: $ docker-compose up -d dbz_ksql_cli
-  # - run bash on the container: $ docker exec -it agr-literature-main-dbz_ksql_cli-1 bash
-  # - determine the server IP address (for some reason this version of ksqldb cli does not work with host names): $ ping dbz_ksql_server
-  # - start the ksql client connecting to the server: $ ksql http://<ksqldb_server_ip>:8088
-  dbz_ksql_cli:
-    image: confluentinc/ksqldb-cli:0.26.0
-    depends_on:
-      - dbz_ksql_server
-    networks:
-      - agr-literature
-    entrypoint:
-      - /bin/bash
-    tty: true
+  # KSQLDB client for manual queries during development: the ksql CLI ships in the dbz_ksql_server
+  # image, so run it there (the separate confluentinc/ksqldb-cli image is amd64-only, SCRUM-6663):
+  #   $ docker exec -it agr.literature.${ENV_STATE}.dbz.ksql.${COMPOSE_PROJECT_NAME} ksql http://localhost:8088
 
   jenkins:
     image: jenkins/jenkins:2.540-jdk21
