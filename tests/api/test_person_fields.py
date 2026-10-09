@@ -83,7 +83,7 @@ class TestPersonFields:
                 json={"institution": ["Caltech"]},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_person_with_active_status(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -313,7 +313,7 @@ class TestPersonFields:
                 json={"display_name": "Bad Status", "active_status": "invalid_value"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_invalid_active_status_rejected(self, auth_headers, test_person_id):  # noqa
         """PATCH with invalid active_status should be rejected at Pydantic layer."""
@@ -323,7 +323,7 @@ class TestPersonFields:
                 json={"active_status": "former"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_clear_address_field_bumps_timestamp(self, auth_headers):  # noqa
         """PATCHing city=null should still bump address_last_updated."""
@@ -416,7 +416,7 @@ class TestPersonFields:
                 json={"display_name": "Bad Privacy", "privacy": "invalid_value"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_invalid_privacy_rejected(self, auth_headers, test_person_id):  # noqa
         """PATCH with invalid privacy should be rejected at Pydantic layer."""
@@ -426,7 +426,7 @@ class TestPersonFields:
                 json={"privacy": "public"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_privacy_all_values(self, auth_headers):  # noqa
         """All four allowed privacy values should be accepted."""
@@ -560,7 +560,7 @@ class TestPersonCurie:
                 "curie": "AGRKB:999000000000001",
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_person_rejects_curie_update(self, db, auth_headers, test_person_id):  # noqa
         with TestClient(app) as client:
@@ -569,7 +569,7 @@ class TestPersonCurie:
                 json={"curie": "AGRKB:999000000000002"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_get_person_by_curie_matches_get_by_person_id(self, db, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -851,7 +851,7 @@ class TestPersonEmailMixedCase:
                 json={"email_address": "FOO@BAR.COM"},
                 headers=auth_headers,
             )
-            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_email_lookup_is_case_insensitive(self, db, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -1123,7 +1123,7 @@ class TestPersonCreateDuplicates:
             assert first.status_code == status.HTTP_201_CREATED
 
             second = client.post("/person/", json=payload, headers=auth_headers)
-            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "ORCID:0000-0005-1111-3333" in second.json()["detail"]
 
     def test_post_person_with_duplicate_curie_within_payload_returns_422(
@@ -1138,7 +1138,7 @@ class TestPersonCreateDuplicates:
         }
         with TestClient(app) as client:
             res = client.post("/person/", json=payload, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "duplicated in the request" in res.json()["detail"]
 
     def test_post_person_with_duplicate_prefix_within_payload_returns_422(
@@ -1155,7 +1155,7 @@ class TestPersonCreateDuplicates:
         }
         with TestClient(app) as client:
             res = client.post("/person/", json=payload, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "at most one per prefix" in res.json()["detail"]
 
     def test_duplicate_xref_does_not_consume_mati_id(
@@ -1178,5 +1178,5 @@ class TestPersonCreateDuplicates:
             monkeypatch.setattr(person_crud, "get_next_person_curie", spy)
 
             second = client.post("/person/", json=payload, headers=auth_headers)
-            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             spy.assert_not_called()

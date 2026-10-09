@@ -95,7 +95,7 @@ class TestLaboratoryAlleleDesignation:
                 },
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_obsolete_duplicate_lab_mod_allowed(self, auth_headers, test_allele):  # noqa
         # An OBSOLETE allele designation for the same (lab, mod) is allowed even

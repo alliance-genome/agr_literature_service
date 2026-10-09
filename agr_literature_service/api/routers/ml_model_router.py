@@ -84,10 +84,10 @@ def upload_model(
         try:
             model_data = json.loads(model_data_file)
         except (JSONDecodeError, ValueError):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="The provided model data file is not a valid json file")
     if not model_data:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="The provided model data is not valid")
     request = MLModelSchemaPost(
         task_type=model_data["task_type"],

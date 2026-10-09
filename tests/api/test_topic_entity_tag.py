@@ -91,7 +91,7 @@ class TestTopicEntityTag:
                 "created_by": "WBPerson1"
             }
             response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -657,7 +657,7 @@ class TestTopicEntityTag:
 
             # a flip whose INSERT fails: the prior delete must not survive it
             with patch("agr_literature_service.api.crud.topic_entity_tag_crud.create_tag",
-                       side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                       side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                                  detail="boom")):
                 n = client.post(
                     url="/topic_entity_tag/validate",
@@ -665,7 +665,7 @@ class TestTopicEntityTag:
                           "mod_abbreviation": mod, "negated": True},
                     headers=auth_headers,
                 )
-            assert n.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert n.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             # the prior positive validation is still there (delete rolled back)
             after = client.post(
@@ -1923,7 +1923,7 @@ class TestTopicEntityTag:
                 "data_context": "ATP:9999999",
             }
             response = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_data_context_participates_in_duplicate_detection(self, test_reference, auth_headers,  # noqa
                                                               test_tag_source):  # noqa
@@ -2108,7 +2108,7 @@ class TestTopicEntityTag:
                 "ml_model_id": 99999  # Invalid ML model ID
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
-            assert tag_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert tag_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, test_ml_model, test_tag_source, auth_headers): # noqa
         """Test that getting a topic entity tag returns ml_model_version."""
@@ -3071,7 +3071,7 @@ class TestTopicEntityTag:
                         topic_entity_tag=tag_schema,
                         validate_on_insert=True
                     )
-                assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+                assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
                 assert "ML model with ID 99999 not found" in str(exc_info.value.detail)
 
     def test_create_topic_entity_tag_without_ml_model_id(self, test_tag_source, test_reference, auth_headers, db): # noqa

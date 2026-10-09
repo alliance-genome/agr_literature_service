@@ -112,14 +112,14 @@ class TestPersonLineageSubmissionCrud:
         populate_test_vocabularies(db)
         with pytest.raises(HTTPException) as exc:
             _submit(db, 999999999)
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_wrong_vocabulary_term_rejected(self, db):  # noqa
         # A valid term id from a DIFFERENT vocabulary must be refused.
         wrong = _lab_position_id(db, "Post-Doc")
         with pytest.raises(HTTPException) as exc:
             _submit(db, wrong)
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_validate_creates_canonical_matching_term_id(self, db, two_people):  # noqa
         term_id = _ppr_id(db, "PhD Supervisor of")
@@ -185,7 +185,7 @@ class TestPersonLineageSubmissionCrud:
             person_lineage_submission_crud.validate(
                 db, created["person_lineage_submission_id"], {}
             )
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_validate_relationship_override_steers_canonical(self, db, two_people):  # noqa
         submitted = _ppr_id(db, "PhD Supervisor of")
@@ -217,7 +217,7 @@ class TestPersonLineageSubmissionCrud:
             person_lineage_submission_crud.validate(
                 db, created["person_lineage_submission_id"], {"relationship": 999999999}
             )
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_relationship_updates_fk(self, db, two_people):  # noqa
         first = _ppr_id(db, "PhD Supervisor of")
@@ -238,7 +238,7 @@ class TestPersonLineageSubmissionCrud:
             person_lineage_submission_crud.patch(
                 db, created["person_lineage_submission_id"], {"relationship": 999999999}
             )
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_validate_rejected_submission_blocked(self, db, two_people):  # noqa
         term_id = _ppr_id(db, "PhD Supervisor of")
@@ -254,7 +254,7 @@ class TestPersonLineageSubmissionCrud:
             person_lineage_submission_crud.validate(
                 db, created["person_lineage_submission_id"], {}
             )
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_revalidate_is_idempotent_noop(self, db, two_people):  # noqa
         term_id = _ppr_id(db, "PhD Supervisor of")

@@ -114,7 +114,7 @@ class TestDataset:
                 "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
             }
             response = client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "retracted" in response.json()["detail"].lower()
 
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"

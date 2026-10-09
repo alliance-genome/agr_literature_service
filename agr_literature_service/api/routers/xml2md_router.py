@@ -87,12 +87,12 @@ async def convert_xml_to_md(
     if not xml_content:
         return PlainTextResponse(
             content="Uploaded file is empty",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     if len(xml_content) > MAX_UPLOAD_BYTES:
         return PlainTextResponse(
             content="File too large (max 10 MB)",
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
         )
 
     # TEI support is retired (SCRUM-5954). The 'tei' source_format option is
@@ -108,7 +108,7 @@ async def convert_xml_to_md(
     if root and root.group(1).lower() in (b"tei", b"teicorpus"):
         return PlainTextResponse(
             content="TEI input is no longer supported.",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
 
     try:
@@ -119,7 +119,7 @@ async def convert_xml_to_md(
         logger.warning("XML-to-Markdown conversion failed: %s", e)
         return PlainTextResponse(
             content="Conversion failed due to invalid or unsupported input.",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     except Exception:
         logger.exception("Unexpected error during XML-to-Markdown conversion")
@@ -168,12 +168,12 @@ async def validate_md(
     if not content:
         return PlainTextResponse(
             content="Uploaded file is empty",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     if len(content) > MAX_UPLOAD_BYTES:
         return PlainTextResponse(
             content="File too large (max 10 MB)",
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
         )
 
     text = content.decode("utf-8", errors="replace")
