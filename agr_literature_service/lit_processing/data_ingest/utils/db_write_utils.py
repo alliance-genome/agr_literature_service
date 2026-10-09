@@ -7,7 +7,8 @@ from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
-from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal
+from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
+    authors_lists_match_for_review
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -19,6 +20,8 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
+from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_STATES, \
+    AUTHOR_REVIEW_NEEDED, AUTHOR_REVIEW_COMPLETE
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -793,7 +796,69 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     ).first() is not None
 
 
-def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def set_author_review_tags(db_session: Session, reference_id, authors_match: bool,
+                           logger=None, fw=None, pmid=None) -> None:
+    """SCRUM-6448: keep the author review workflow tag of a curator-edited reference
+    in step with PubMed, for each AUTHOR_REVIEW_MODS corpus it is in (see
+    api.crud.utils.author_review).
+
+    * authors differ: no tag -> "needed"; "complete" -> back to "needed".
+    * authors match: "needed" -> "complete".
+    "In progress" and "blocked" are always left for the curator.
+
+    Each MOD's change runs in a SAVEPOINT and is flushed there, so a failure rolls
+    back only that change and not the batch of reference updates the PubMed script
+    commits together. The tag rows are stamped with the script's user.
+    """
+    mod_rows = db_session.query(ModModel.mod_id, ModModel.abbreviation).join(
+        ModCorpusAssociationModel,
+        ModCorpusAssociationModel.mod_id == ModModel.mod_id
+    ).filter(
+        ModCorpusAssociationModel.reference_id == reference_id,
+        ModCorpusAssociationModel.corpus.is_(True),
+        ModModel.abbreviation.in_(AUTHOR_REVIEW_MODS)
+    ).all()
+    for mod_id, mod_abbreviation in mod_rows:
+        try:
+            with db_session.begin_nested():
+                current_tag = db_session.query(WorkflowTagModel).filter(
+                    WorkflowTagModel.reference_id == reference_id,
+                    WorkflowTagModel.mod_id == mod_id,
+                    WorkflowTagModel.workflow_tag_id.in_(AUTHOR_REVIEW_STATES)
+                ).first()
+                current_atp = current_tag.workflow_tag_id if current_tag else None
+                if authors_match:
+                    new_atp = AUTHOR_REVIEW_COMPLETE if current_atp == AUTHOR_REVIEW_NEEDED else None
+                elif current_atp is None or current_atp == AUTHOR_REVIEW_COMPLETE:
+                    new_atp = AUTHOR_REVIEW_NEEDED
+                else:
+                    new_atp = None
+                if new_atp is None:
+                    continue
+                if current_tag is None:
+                    db_session.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                                    workflow_tag_id=new_atp))
+                else:
+                    current_tag.workflow_tag_id = new_atp
+                db_session.flush()
+            _write_log_message(
+                reference_id,
+                f": AUTHOR REVIEW {mod_abbreviation} workflow tag {current_atp or 'none'} -> {new_atp}",
+                pmid,
+                logger,
+                fw
+            )
+        except Exception as e:
+            _write_log_message(
+                reference_id,
+                f": ERROR setting {mod_abbreviation} author review workflow tag: {e}",
+                pmid,
+                logger,
+                fw
+            )
+
+
+def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None, flag_author_review: bool = False):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -809,6 +874,10 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     tags set to true. We will address authors with these tags and those connected to PERSON
     in the future simultaneously.
     Skip these authors during the update and send a report to the curators.
+
+    flag_author_review (SCRUM-6448, set by the PubMed update): when the reference's
+    authors were edited by a curator, flag differences for review with the author
+    review workflow tags instead of silently skipping it; see set_author_review_tags.
     """
 
     if author_list_in_json is None:
@@ -827,6 +896,10 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     # mutation path below -- both the merged-author-string replace and the main
     # drop-and-reload. (Runs for every reference; correctness over micro-optimization.)
     if _reference_touched_by_curator(db_session, reference_id):
+        if flag_author_review:
+            set_author_review_tags(db_session, reference_id,
+                                   authors_lists_match_for_review(authors_from_json, authors_from_db),
+                                   logger, fw, pmid)
         return []
 
     if any(

@@ -410,7 +410,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                      json_data.get('authors'),
                                      pub_status_changed,
                                      pmids_with_pub_status_changed,
-                                     None, fw, pmid, update_log)
+                                     None, fw, pmid, update_log,
+                                     flag_author_review=True)
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating author table: {e}")
 
