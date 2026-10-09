@@ -214,6 +214,29 @@ THUMBNAIL_MAX_SIZE_BYTES = {
     'jpeg': 15000,
 }
 
+# High-throughput supplement datasets (SCRUM-6612): a large tabular/text
+# supplement is an HTP data file (screen results, gene lists), not prose for
+# curation. Files of these extensions STRICTLY LARGER than the threshold are
+# classed htp_supplement instead of supplement, so the conversion /
+# entity-extraction pipeline — which selects its sources by file_class —
+# leaves them alone. Thresholds per the ticket: 0.5 MB for text-family files,
+# 1 MB for Excel (xls added at the curators' request, same rule as xlsx).
+HTP_SUPPLEMENT_MIN_BYTES = {
+    'txt': 500_000,
+    'text': 500_000,
+    'tsv': 500_000,
+    'csv': 500_000,
+    'xls': 1_000_000,
+    'xlsx': 1_000_000,
+}
+
+
+def is_htp_supplement_by_size(file_extension, file_size):
+    """True when a supplement of this extension/size is a high-throughput
+    data file. Size unknown -> False (stay a plain supplement)."""
+    min_bytes = HTP_SUPPLEMENT_MIN_BYTES.get(file_extension.lower())
+    return min_bytes is not None and file_size is not None and file_size > min_bytes
+
 
 def is_thumbnail_by_size(file_extension, file_size):
     """Return True if an image of this extension and size is a thumbnail."""
@@ -293,14 +316,11 @@ def is_paired_thumbnail(file_extension, file_size, sibling_sizes):
 
 def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=None,
                       sibling_display_names=None):
-
-    """
-    image_related_file_extensions = [
-        'jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png',
-        'eps', 'ai', 'bmp', 'svg', 'webp', 'emf'
-    ]
-    """
-    image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
+    # webp: the PMC Cloud Service article datasets (which replaced the FTP/OA
+    # packages in August 2026) ship figures as .webp, one per figure with no
+    # thumbnail sibling, so webp is name-classified only - it has no entry in
+    # THUMBNAIL_MAX_SIZE_BYTES and no paired-thumbnail rule (SCRUM-6606).
+    image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp']
     ext = file_extension.lower()
     if ext == "nxml":
         return "nXML"
@@ -331,6 +351,12 @@ def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=N
         if is_print_bw(file_name) and has_color_twin(file_name, sibling_display_names):
             return "bw_duplicate"
         return "figure"
+    # Large tabular/text supplements are HTP data files (SCRUM-6612). The
+    # root-name overrides in determine_file_class still run after this, so a
+    # full-text txt matching the package's XML root keeps its 'txt' class
+    # regardless of size.
+    if is_htp_supplement_by_size(ext, file_size):
+        return "htp_supplement"
     return "supplement"
 
 

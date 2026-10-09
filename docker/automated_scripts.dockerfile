@@ -9,6 +9,8 @@ RUN mkdir -p /usr/app/agr_literature_service
 ADD ./agr_literature_service /usr/src/app/agr_literature_service
 COPY ./requirements.txt .
 COPY ./logging.conf .
+COPY ./docker/run_cron_job.sh /usr/local/bin/run_cron_job.sh
+RUN chmod 0755 /usr/local/bin/run_cron_job.sh
 
 ADD crontab /etc/cron.d/automate_scripts_crontab
 

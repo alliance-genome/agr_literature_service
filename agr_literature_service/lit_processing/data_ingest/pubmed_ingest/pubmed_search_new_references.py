@@ -5,7 +5,7 @@ import time
 import urllib
 from datetime import datetime, timedelta
 from os import environ, makedirs, path
-from typing import Set
+from typing import List, Set
 
 import requests
 from dotenv import load_dotenv
@@ -449,6 +449,11 @@ def query_mods(input_mod, reldate):  # noqa: C901
     not_loaded_pmids4mod = {}
     pmids4mod = {}
     pmids4mod['all'] = set()
+    # set per MOD below, but only once its PubMed query succeeds
+    log_path = None
+    log_url = None
+    bad_date_published = []  # type: List
+    failed_mods = []
 
     exclude_pmids = get_pmids_from_exclude_list()
 
@@ -486,6 +491,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
             pmid_group = query_pubmed_for_mod(mod, term, reldate_days, api_key)
         except Exception as e:
             logger.error(f"Failed to query PubMed for {mod}: {e}. Skipping this MOD.")
+            failed_mods.append(mod)
             continue
         logger.info(f"Total PMIDs retrieved for {mod}: {len(pmid_group)}")
 
@@ -591,7 +597,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
     process_retracted_papers(db_session, logger)
     logger.info("Sending Report")
     send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,
-                              bad_date_published)
+                              bad_date_published, failed_mods=failed_mods)
 
     # do not need to recursively process downloading errata and corrections,
     # but if they exist, connect them.

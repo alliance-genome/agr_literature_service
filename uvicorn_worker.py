@@ -1,5 +1,6 @@
 """Custom Uvicorn worker with access logging enabled."""
 import logging
+import sys
 from uvicorn.workers import UvicornWorker as BaseUvicornWorker
 
 
@@ -24,7 +25,9 @@ class UvicornWorker(BaseUvicornWorker):
 
         # Ensure handlers are propagated to root logger
         if not access_logger.handlers:
-            access_logger.addHandler(logging.StreamHandler())
+            # stdout explicitly: StreamHandler() defaults to stderr, which the
+            # log store labels ERROR (SCRUM-6632).
+            access_logger.addHandler(logging.StreamHandler(sys.stdout))
 
         # Log worker initialization
         self.log.info(f"Uvicorn worker initialized (PID: {self.pid})")

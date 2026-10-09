@@ -90,6 +90,11 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
     validating_users: List[str] = Field(default_factory=list)
     validating_tags: List[int] = Field(default_factory=list)
+    # Whether any validating tag is curator-sourced (SCRUM-6620). Must be
+    # declared here: extra='ignore' silently drops serializer keys the schema
+    # does not know, which is exactly what happened to this one (review
+    # finding) — guarded by a schema-survival test.
+    has_curator_validating_tag: bool = False
     ml_model_id: Optional[int] = None
     ml_model_version: Optional[int] = None
 

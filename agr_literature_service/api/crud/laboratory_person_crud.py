@@ -86,7 +86,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)

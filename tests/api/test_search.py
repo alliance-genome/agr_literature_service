@@ -372,7 +372,7 @@ class TestSearch:
                 "facets_values": None
             }
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_search_references_wildcard(self, initialize_elasticsearch, auth_headers): # noqa
         with TestClient(app) as client:

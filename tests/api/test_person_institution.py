@@ -172,7 +172,7 @@ class TestPersonInstitutionCrud:
             person_institution_crud.create_for_person(
                 db, seeded_person.person_id, {"institution": "   "}
             )
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_for_unknown_person_is_404(self, db):  # noqa
         with pytest.raises(HTTPException) as exc:
@@ -258,7 +258,7 @@ class TestPersonInstitutionCrud:
             person_institution_crud.patch(
                 db, created.person_institution_id, {"institution": "  "}
             )
-        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_unknown_is_404(self, db):  # noqa
         with pytest.raises(HTTPException) as exc:
@@ -361,7 +361,7 @@ class TestPersonInstitutionApi:
                 json={"institution": "   "},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_list_for_person(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
@@ -432,4 +432,4 @@ class TestPersonInstitutionApi:
                 },
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

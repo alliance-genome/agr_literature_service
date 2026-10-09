@@ -249,7 +249,7 @@ class TestReachable500Hardening:
                             json={"title": "Bad author", "category": "thesis",
                                   "authors": [{"name": "No Order No Person"}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_author_no_order_no_person(self, db, auth_headers, test_reference):  # noqa
         # POST /author with a reference but neither author_order nor person_curie
@@ -259,7 +259,7 @@ class TestReachable500Hardening:
                             json={"name": "Nameless order",
                                   "reference_curie": test_reference.new_ref_curie},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_author_person_link_with_metadata_no_order(self, db, auth_headers, test_reference):  # noqa
         # person_curie + author metadata but no author_order violates
@@ -271,7 +271,7 @@ class TestReachable500Hardening:
                                   "person_curie": p.curie,
                                   "reference_curie": test_reference.new_ref_curie},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_person_only_empty_affiliations_coerced(self, db, auth_headers, test_reference):  # noqa
         # a person-only POST carrying affiliations: [] (a UI's "no affiliations")
@@ -366,7 +366,7 @@ class TestReachable500Hardening:
             r = client.patch(url=f"/author/{stub_id}",
                              json={"name": "X"},
                              headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_colliding_reparent_422(self, db, auth_headers, test_reference):  # noqa
         # PATCHing reference_curie reparents the author but keeps its author_order (PATCH
@@ -392,7 +392,7 @@ class TestReachable500Hardening:
             r = client.patch(url=f"/author/{mover_id}",
                              json={"reference_curie": dest_curie},
                              headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         # rejected before any write: the author is still on its original reference
         db.expire_all()
         a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
@@ -485,7 +485,7 @@ class TestReachable500Hardening:
                              json={"reference_curie": dest_curie},
                              headers=auth_headers)
         # order 9 is free on the destination, so only the person guard can reject this
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         db.expire_all()
         a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
         assert a.reference_id == test_reference.related_ref_id
@@ -518,7 +518,7 @@ class TestReachable500Hardening:
             r = client.patch(url=f"/author/{stub_id}",
                              json={"reference_curie": dest_curie},
                              headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         db.expire_all()
         a = db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one()
         assert a.reference_id == test_reference.related_ref_id
@@ -636,7 +636,7 @@ class TestReachable500Hardening:
                              json={"person_curie": None},
                              headers=auth_headers)
 
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert "person-only" in r.json()["detail"]
         db.expire_all()
         a = db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one()
@@ -712,7 +712,7 @@ class TestReachable500Hardening:
                              json={"reference_curie": dest_curie},
                              headers=auth_headers)
 
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert "already links this person" in r.json()["detail"]
 
     def test_patch_empty_person_curie_is_rejected(self, db, auth_headers, test_reference):  # noqa
@@ -736,7 +736,7 @@ class TestReachable500Hardening:
                              json={"person_curie": ""},
                              headers=auth_headers)
 
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert "neither a way to unlink" in r.json()["detail"]
         db.expire_all()
         a = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).one()

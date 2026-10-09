@@ -134,7 +134,7 @@ def create_or_update(db: Session, request: EmbeddingFileSchemaCreate,
         ).one_or_none()
         if source is None or source.reference_id != reference.reference_id:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"source_referencefile_id {request.source_referencefile_id} does not "
                        f"exist or does not belong to {request.reference_curie}")
 

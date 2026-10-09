@@ -59,7 +59,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "An active allele designation for this laboratory and MOD already exists."
             ),
@@ -144,7 +144,7 @@ def patch(db: Session, laboratory_allele_designation_id: int, patch_dict: Dict[s
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "An active allele designation for this laboratory and MOD already exists."
             ),

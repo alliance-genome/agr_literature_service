@@ -45,7 +45,7 @@ def _curie_prefix_from(curie: str) -> str:
     curie = curie.strip()
     if curie.count(":") != 1:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid CURIE '{curie}': expected exactly one colon",
         )
     return curie.split(":", 1)[0]
@@ -77,7 +77,7 @@ def _resolve_inline_allele_designations(db: Session, allele_designations_data):
         if not is_obsolete:
             if mod_id in seen_mod_ids:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=(
                         f"Multiple active allele designations for MOD "
                         f"'{mod_abbreviation}' in the request; at most one "
@@ -106,14 +106,14 @@ def _validate_inline_xrefs(db: Session, xrefs_data):
 
         if curie in seen_curies:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Cross-reference '{curie}' is duplicated in the request",
             )
         seen_curies.add(curie)
 
         if curie_prefix in seen_prefixes:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     f"Multiple cross-references with prefix '{curie_prefix}' "
                     "in the request; at most one per prefix is allowed."
@@ -131,7 +131,7 @@ def _validate_inline_xrefs(db: Session, xrefs_data):
         )
         if existing:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Cross-reference '{curie}' already exists",
             )
 
@@ -195,7 +195,7 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     # Return via show() so the response eager-loads cross_references and
@@ -258,7 +258,7 @@ def patch(db: Session, curie_or_laboratory_id: str, patch_dict: Dict[str, Any]) 
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     return {"message": "updated"}

@@ -71,7 +71,7 @@ class TestCrossRef:
             assert xref.resource.curie == test_resource.new_resource_curie
 
             response = client.post(url="/cross_reference/", json={"curie": 'XREF:no_ref_res'}, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_xref_constraints(self, db, auth_headers, test_cross_reference, test_reference2): # noqa
         with TestClient(app) as client:

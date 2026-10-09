@@ -30,7 +30,7 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     # nondeterministic; reject it up front.
     if len(set(author_ids)) != len(author_ids):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="author_id values must be unique within the reorder request")
 
     # every author_id must belong to this reference; a foreign/nonexistent id would
@@ -45,7 +45,7 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     unknown = [aid for aid in author_ids if aid not in owned]
     if unknown:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"author_id(s) {unknown} do not belong to reference {reference_curie}")
 
     # reject person-only stubs (author_order IS NULL, person_id set): they are not
@@ -54,14 +54,14 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     person_only = [aid for aid in author_ids if owned.get(aid) is None]
     if person_only:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"author_id(s) {person_only} are person-only rows and cannot be reordered")
 
     # target author_order values must be unique within the payload; duplicates would
     # otherwise blow up as a deferred-constraint IntegrityError (500) at COMMIT.
     if len(set(author_orders)) != len(author_orders):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="author_order values must be unique within the reorder request")
 
     # target orders must not collide with ordered authors of this reference that are
@@ -77,7 +77,7 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     colliding = sorted(set(author_orders) & non_payload_orders)
     if colliding:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"author_order value(s) {colliding} collide with authors of "
                    f"reference {reference_curie} not included in the reorder request; "
                    f"include every ordered author of the reference")

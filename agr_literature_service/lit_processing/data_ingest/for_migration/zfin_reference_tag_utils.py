@@ -64,15 +64,15 @@ SOURCE_DESCRIPTION = (
 # Emit a progress line every this many rows so a long run shows a heartbeat.
 PROGRESS_LOG_INTERVAL = 1000
 
-# Skip a paper entirely when it has more than this many entity associations of a
-# given type in the ZFIN file. Elasticsearch caps the reference document's
-# `topic_entity_tags` nested field at 10000 sub-documents
-# (index.mapping.nested_objects.limit); a handful of bulk ZFIN papers carried
-# 10k-50k gene/allele tags and halted the search reindex. This per-type cap keeps
-# ZFIN's contribution well under that ceiling (SCRUM-6363). Note the ES limit is
-# on the reference's *total* nested tags across all sources, so this per-type,
-# per-source cap bounds ZFIN's share rather than the document as a whole.
-MAX_ASSOCIATIONS_PER_PAPER = 250
+# A paper is "large scale" for an entity type above this many associations in
+# the ZFIN file. Everything is loaded regardless (SCRUM-6614) - the threshold
+# only drives reporting, so curators can see which papers got genome-scale tag
+# sets. Defined once in data_ingest/utils/large_scale.py (re-exported here
+# for the loaders), where it is kept equal to the search indexer's cutoff in
+# debezium/ksql_queries.ksql by a CI test.
+from agr_literature_service.lit_processing.data_ingest.utils.large_scale import (  # noqa: F401,E402
+    LARGE_SCALE_THRESHOLD,
+)
 
 # Cap the number of "not in corpus" papers listed inline in the emailed report;
 # the full set is always written to the log file.
@@ -81,13 +81,14 @@ NOT_IN_CORPUS_REPORT_CAP = 100
 log_path = environ.get("LOG_PATH", "")
 
 
-def select_over_cap_papers(entities_by_paper: Dict[str, Set[str]]) -> Dict[str, int]:
+def select_large_scale_papers(entities_by_paper: Dict[str, Set[str]]) -> Dict[str, int]:
     """Given a mapping of paper token -> set of associated entity curies, return
-    the papers whose association count exceeds MAX_ASSOCIATIONS_PER_PAPER, mapped
-    to that count. These papers are skipped so they never overflow the
-    Elasticsearch nested-object limit on the reference document."""
+    the papers whose association count exceeds LARGE_SCALE_THRESHOLD, mapped to
+    that count. Reporting only: these papers are loaded in full, and the search
+    indexer collapses each such group into one large_scale_tag summary
+    (SCRUM-6614)."""
     return {token: len(entities) for token, entities in entities_by_paper.items()
-            if len(entities) > MAX_ASSOCIATIONS_PER_PAPER}
+            if len(entities) > LARGE_SCALE_THRESHOLD}
 
 
 def download_file(url: str, file_with_path: str, timeout: int = 300) -> bool:  # pragma: no cover

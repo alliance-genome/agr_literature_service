@@ -111,7 +111,9 @@ make stop-debezium            # Stop Debezium services
 
 ### Technology Stack
 
-- **FastAPI 0.95.x** - Async Python web framework
+- **FastAPI 0.141.x / Starlette 1.x** - Async Python web framework. `include_router()` no longer
+  copies routes into `app.routes` (it adds one wrapper per router), so inspect routes via
+  `app.openapi()["paths"]` instead
 - **SQLAlchemy 2.0.x** - Modern ORM with type hints
 - **PostgreSQL 17.x** - Primary database
 - **Elasticsearch 7.x** - Search indexing
@@ -164,6 +166,73 @@ make run-local-mypy      # Must pass with zero issues
 - `.env.test` - Testing configuration
 - Multiple environment file support via `ENV_FILE` variable
 - Docker-based development with mounted volumes for code changes
+- `ENV_STATE` is **not** set consistently per deployment: it is `prod` on the
+  production box but `build` on the dev box (the repo default). Container names
+  embed it (`agr.literature.${ENV_STATE}.<service>.${COMPOSE_PROJECT_NAME}`), so
+  the environment a container belongs to is really identified by
+  `COMPOSE_PROJECT_NAME`. Check `docker ps` rather than assuming.
+
+### Logging and Monitoring
+
+Container stdout/stderr ships to `logs.alliancegenome.org:12201` via the Docker
+GELF driver (`docker-compose.yaml`: `api`, `xml_processing`,
+`automated_scripts`, and the five `dbz.*` services). That endpoint is the
+`agr_logs` stack — Fluent Bit → S3 partitioned by `dt`/`hour` → Glue/Athena,
+plus a web viewer behind Cognito.
+
+Two things about it are counter-intuitive and worth knowing before debugging
+anything log-related:
+
+- **Severity in the log store reflects the stream, not the Python level.** The
+  GELF driver maps stdout to `INFO` and stderr to `ERROR` and never sees the
+  application's own level. `logging.conf` sends every record to `sys.stdout`, so
+  an application `logger.error(...)` arrives in Athena labelled `INFO`. Anything
+  that filters on `level_name` alone will miss it.
+- **Cron output does not reach the log stream by default.** A `> file 2>&1`
+  redirect replaces the process's fds, so the output only ever goes to the file.
+
+`crontab` therefore runs every job through `docker/run_cron_job.sh`, which keeps
+the per-job log file at exactly the same path and additionally writes an
+`ABC-JOB-OK` / `ABC-JOB-FAILED` record to PID 1's fds so the GELF driver picks it
+up (failures on fd 2, so they arrive as `level_name='ERROR'`). **Do not revert a
+crontab line to a bare redirect** — it silently drops that job out of alerting.
+`tests/test_run_cron_job.py` guards this.
+
+On failure the `ABC-JOB-FAILED` record is the **only** line on fd 2, and it
+carries a `last_error="..."` field: the last exception line in the job's final
+40 log lines, or else the last ERROR/CRITICAL line there (left out for a signal
+kill, whose log predates it). The 40-line log tail follows on fd 1. Every stderr
+line is a separate ERROR row that the alerter groups by message, so a tail on
+fd 2 turned one failure into ~37 alert groups and pushed the record itself past
+the 10-group cap. **Do not move the tail back to fd 2.**
+
+The API's gunicorn has the opposite problem: its error log, which also carries
+every routine INFO line ("Booting worker", "Worker exiting" from `max_requests`
+recycling), went entirely to stderr and so arrived as `ERROR`.
+`gunicorn_logging.SplitStreamLogger`, set as `logger_class` in
+`gunicorn.conf.py`, sends DEBUG..WARNING to stdout and only ERROR/CRITICAL to
+stderr. A gunicorn `[WARNING]` line arriving as `INFO` is therefore intended —
+**do not remove `logger_class`** to "fix" it. `tests/test_gunicorn_logging.py`
+guards this.
+
+Each ERROR record is also exactly **one** stderr line. An exception (uvicorn's
+"Exception in ASGI application") is rendered as its message plus
+`| module.Type: first line (file.py:N in func)`, the innermost frame in our own
+code. The full traceback goes to stdout without the `[ERROR]` header, because the
+alerter matches that text on stdout too. Before this, every traceback line was a
+separate ERROR record, so one failed request made ~150 alert groups.
+
+`SplitStreamLogger` also turns on `logging.captureWarnings` and writes each
+Python warning to stdout as one `[WARNING]` line. Before that, Python wrote
+every warning to stderr as two lines (the message, then the source line), so
+each Starlette deprecation warning became two ERROR records.
+
+Log files live under `${LOG_PATH}` (bind-mounted, web-served at `${LOG_URL}`)
+and are truncated per run. Separately, some scripts write their own report files
+into subdirectories — `QC/`, `dqm_load/`, `pubmed_search/`, `pubmed_update/`,
+`data_check/` — and four QC reports also write dated copies
+(`<stem>_YYYYMMDD.log`) that the API exposes via `QC_REPORTS` in
+`api/crud/check_crud.py`. Those are unrelated to the crontab redirect.
 
 ### Bioinformatics Context
 When working with this codebase, understand that:

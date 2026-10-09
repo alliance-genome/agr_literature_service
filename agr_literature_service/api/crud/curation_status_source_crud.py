@@ -85,7 +85,7 @@ def stage_association(db: Session, curation_status_id: int, tag_source_id: int,
     # source's secondary_data_provider, not its data_provider.
     if source.secondary_data_provider_id != curation_status_mod_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(f"TagSource {tag_source_id} belongs to a different MOD than "
                     f"curation_status {curation_status_id}; a curation status may only be "
                     f"attributed to a source of its own MOD"))

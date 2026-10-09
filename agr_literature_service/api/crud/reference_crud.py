@@ -347,7 +347,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                             # create validations (resource/merged_into), not 404.
                             if exc.status_code == status.HTTP_404_NOT_FOUND:
                                 raise HTTPException(
-                                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=exc.detail)
                             raise
                         if pid is not None:
@@ -398,14 +398,14 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             with db.no_autoflush:
                 resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Resource with curie {value} does not exist")
             reference_data["resource"] = resource
         elif field == "merged_into_reference_curie":
             with db.no_autoflush:
                 merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
             if not merged_into_obj:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Merged_into Reference with curie {value} does not exist")
             reference_data["merged_into_reference"] = merged_into_obj
         elif field in add_separately_fields:
@@ -443,12 +443,12 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                         # 1) Mod does not exist , this is a problem.
                         if e.detail.startswith('Mod with abbreviation') and e.detail.endswith('does not exist'):
                             logger.error(e.detail)
-                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                                 detail=e.detail)
                         # 2) Reference does not exist, this is a problem
                         elif e.detail.startswith('Reference with curie') and e.detail.endswith('does not exist'):
                             logger.error(e.detail)
-                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                                 detail=e.detail)
                         # 3) It already exists, not really a problem
                         elif e.detail.startswith('ModCorpusAssociation with the reference_curie') and e.detail.endswith(
@@ -555,7 +555,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
             resource_curie = value
             resource = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
             if not resource:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Resource with curie {resource_curie} does not exist")
             reference_db_obj.resource = resource
         else:
@@ -651,7 +651,7 @@ def set_reference_emails(
             norm = normalize_email(raw)
         except Exception as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Invalid email address '{raw}': {exc}",
             )
 
@@ -712,21 +712,21 @@ def add_reference_email(
 
     if email_address is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Email address cannot be null",
         )
 
     raw = email_address.strip()
     if not raw:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Email address cannot be blank",
         )
     try:
         normalized_email = normalize_email(raw)
     except Exception as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid email address '{raw}': {exc}",
         )
 
@@ -1161,7 +1161,7 @@ def merge_references(db: Session,
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Cannot merge these two references. {e}")
 
     # Delete the old_curie object
@@ -1232,7 +1232,7 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
     ]
     if len(set([(min(rel[0], rel[1]), max(rel[0], rel[1])) for rel in all_ref_relations_with_new_ids])) < len(
             all_ref_relations):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="Cannot merge these two references as they have duplicate reference relations")
     try:
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_from=old_reference_id).all():
@@ -1262,7 +1262,7 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
         logger.warning(
             "An error occurred when transferring the reference_relations from " + old_curie + " to " + new_curie + " : " + str(
                 e))
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Cannot merge these two references. {e}")
 
 
@@ -1699,12 +1699,12 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
 
     reference = db.query(ReferenceModel).filter_by(curie=reference_curie).first()
     if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference with curie {reference_curie} does not exist")
 
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).first()
     if not mod:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
 
     mca = db.query(ModCorpusAssociationModel).filter_by(
@@ -1731,7 +1731,7 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
                                            mod_abbreviation) is None:
                 transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
 
 

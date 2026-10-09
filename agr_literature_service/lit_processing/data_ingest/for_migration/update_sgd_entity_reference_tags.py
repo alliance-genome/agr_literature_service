@@ -70,7 +70,7 @@ from dotenv import load_dotenv
 # hits a circular import through the versioning plugins.
 from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_reference_tag_utils import (
     ENTITY_TYPE_TO_ATP,
-    MAX_ASSOCIATIONS_PER_PAPER,
+    LARGE_SCALE_THRESHOLD,
     ROOT_TOPIC_ATP,
     SGD_CURIE_PREFIX,
     build_sgd_corpus_ref_curies,
@@ -191,7 +191,7 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
 
     missing_ref_ids: Set[str] = set()
     not_in_corpus_refs: Dict[str, str] = {}
-    over_cap_paper_tokens: Set[str] = set()
+    large_scale_paper_tokens: Set[str] = set()
     # SGD curator database id -> users.id (resolve_sgd_created_by memoization).
     user_id_cache: Dict[str, str] = {}
     # distinct unmappable SGD topics seen on entities, warned once each
@@ -259,19 +259,19 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                     unmapped_topics_warned)
 
                 for entity_type, entity_curies in entities_by_type.items():
-                    if len(entity_curies) > MAX_ASSOCIATIONS_PER_PAPER:
-                        counts["skipped_over_cap"] += len(entity_curies)
+                    if len(entity_curies) > LARGE_SCALE_THRESHOLD:
+                        counts["large_scale_associations"] += len(entity_curies)
                         # count distinct papers, matching the one-off loader's
                         # report semantics (not (paper, type) groups)
-                        if ref_token not in over_cap_paper_tokens:
-                            over_cap_paper_tokens.add(ref_token)
-                            counts["papers_over_cap"] += 1
+                        if ref_token not in large_scale_paper_tokens:
+                            large_scale_paper_tokens.add(ref_token)
+                            counts["large_scale_papers"] += 1
                         logger.info(
-                            "Skipping %d %s associations for %s (over the %d cap)",
+                            "Loading %d %s associations for %s in full (over the "
+                            "%d large-scale threshold; search shows a summary tag)",
                             len(entity_curies), entity_type, ref_token,
-                            MAX_ASSOCIATIONS_PER_PAPER,
+                            LARGE_SCALE_THRESHOLD,
                         )
-                        continue
                     for entity_curie in sorted(entity_curies):
                         display_tag, sgd_created_by, date_created = entity_curies[entity_curie]
                         yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie,

@@ -393,7 +393,7 @@ class TestMLModelDataContextValidation:
             with TestClient(app) as client:
                 response = _upload_model(client, auth_headers, test_mod,
                                          data_context="ATP:000325")
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         # The message names the offending term, so the cause is not a guess.
         assert "ATP:000325" in str(response.json()["detail"])
 
@@ -419,7 +419,7 @@ class TestMLModelDataContextValidation:
             with TestClient(app) as client:
                 response = _upload_model(client, auth_headers, test_mod,
                                          production=True, data_context="ATP:000325")
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         db.expire_all()
         assert db.query(MLModel).filter(
             MLModel.ml_model_id == existing_id).one().production is True

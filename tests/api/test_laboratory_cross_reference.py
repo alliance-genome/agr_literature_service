@@ -71,7 +71,7 @@ class TestLaboratoryCrossReference:
                 json={"laboratory_curie": str(test_xref.laboratory_id), "curie": "WB:WBlab9001"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_duplicate_prefix_rejected(self, auth_headers, test_xref):  # noqa
         with TestClient(app) as client:
@@ -80,7 +80,7 @@ class TestLaboratoryCrossReference:
                 json={"laboratory_curie": str(test_xref.laboratory_id), "curie": "WB:WBlab9002"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_obsolete_then_readd_curie_allowed(self, auth_headers, test_xref):  # noqa
         # Obsoleting the active xref frees its curie/prefix so the same curie can
@@ -124,7 +124,7 @@ class TestLaboratoryCrossReference:
                 json={"laboratory_curie": str(seeded_laboratory["laboratory_id"]), "curie": "no-colon"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_get_laboratory_by_cross_reference(self, auth_headers, test_xref):  # noqa
         with TestClient(app) as client:

@@ -217,7 +217,7 @@ class TestManualIndexingTagReferenceIdentifiers:
         with TestClient(app) as client:
             r = self._create(client, auth_headers, "PMID:99999999",
                              test_mod.new_mod_abbreviation, "ATP:curation_tag1")
-            assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+            assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
             assert "PMID:99999999" in r.json()["detail"]
 
     def test_create_duplicate_across_identifier_forms(
@@ -234,7 +234,7 @@ class TestManualIndexingTagReferenceIdentifiers:
 
             dup = self._create(client, auth_headers, TEST_PMID_XREF,
                                test_mod.new_mod_abbreviation, "ATP:curation_tag1")
-            assert dup.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, dup.text
+            assert dup.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, dup.text
             # abc_utils.send_manual_indexing_to_abc matches on this wording
             assert "already exists" in dup.json()["detail"]
 
@@ -256,4 +256,4 @@ class TestManualIndexingTagReferenceIdentifiers:
             url = f"/manual_indexing_tag/{test_manual_indexing_tag.new_manual_indexing_tag_id}"
             r = client.patch(url, headers=auth_headers,
                              json={"reference_curie": "WB:WBPaper00000000"})
-            assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+            assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text

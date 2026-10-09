@@ -695,6 +695,193 @@ class TestConvertedEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Office supplements (SCRUM-6589): xlsx / docx convert in-process, the
+# converted row is ``{display_name}_{extension}``.
+# ---------------------------------------------------------------------------
+
+CRUD_MOD = "agr_literature_service.api.crud.file_conversion_crud"
+
+
+def _ref_file_stub(display_name, file_class, file_extension, rf_id):
+    rf = MagicMock()
+    rf.display_name = display_name
+    rf.file_class = file_class
+    rf.file_extension = file_extension
+    rf.referencefile_id = rf_id
+    return rf
+
+
+class TestOfficeSourceInference:
+    """No DB: the display_name suffix convention for Office-derived Markdown."""
+
+    def test_office_suffix_resolves_to_the_row_with_matching_extension(self):
+        from agr_literature_service.api.crud.file_conversion_crud import _infer_source_info
+
+        reference = MagicMock()
+        reference.referencefiles = [
+            _ref_file_stub("table_s1", "supplement", "pdf", 1),
+            _ref_file_stub("table_s1", "supplement", "xlsx", 2),
+            _ref_file_stub("table_s1", "supplement", "docx", 3),
+        ]
+        xlsx = _infer_source_info(reference, "table_s1_xlsx", "converted_merged_supplement")
+        docx = _infer_source_info(reference, "table_s1_docx", "converted_merged_supplement")
+        assert xlsx == {"display_name": "table_s1", "file_class": "supplement", "referencefile_id": 2}
+        assert docx == {"display_name": "table_s1", "file_class": "supplement", "referencefile_id": 3}
+
+    def test_office_suffix_only_applies_to_supplement_markdown(self):
+        from agr_literature_service.api.crud.file_conversion_crud import _infer_source_info
+
+        reference = MagicMock()
+        reference.referencefiles = [_ref_file_stub("paper", "supplement", "xlsx", 2)]
+        assert _infer_source_info(reference, "paper_xlsx", "converted_merged_main") is None
+
+    def test_expected_source_files_include_pending_office_supplements(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _expected_source_files_from_assessment,
+        )
+
+        assessment = {
+            "pending_main": [],
+            "pending_supplements": [_ref_file_stub("supp", "supplement", "pdf", 5)],
+            "pending_office_supplements": [_ref_file_stub("table_s1", "supplement", "xlsx", 6)],
+        }
+        expected = _expected_source_files_from_assessment(assessment)
+        assert [e["expected_converted_display_name"] for e in expected] == [
+            "supp_merged", "table_s1_xlsx",
+        ]
+        assert {e["expected_converted_file_class"] for e in expected} == {
+            "converted_merged_supplement",
+        }
+        assert expected[1]["source_file_class"] == "supplement"
+        assert expected[1]["source_referencefile_id"] == 6
+
+
+class TestOfficeSupplementConversion:
+
+    def test_assessment_detects_pending_office_supplement(self, db, test_reference, auth_headers):  # noqa: F811
+        from agr_literature_service.api.crud.file_conversion_crud import _assess_reference
+        from agr_literature_service.api.crud.reference_utils import get_reference
+
+        _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
+                            "supplement", "xlsx", "md5_office_xlsx_assess")
+
+        reference = get_reference(db=db, curie_or_reference_id=test_reference.new_ref_curie,
+                                  load_referencefiles=True)
+        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True):
+            assessment = _assess_reference(db, reference)
+
+        assert assessment["supp_office_available"] is True
+        assert assessment["supp_pdf_available"] is False
+        assert [f.display_name for f in assessment["pending_office_supplements"]] == ["table_s1"]
+        assert assessment["supp_missing"] is True
+        # Office supplements convert in-process: no PDFX, no background job.
+        assert assessment["needs_async"] is False
+
+    def test_office_supplement_converts_synchronously(self, db, test_reference, auth_headers):  # noqa: F811
+        """An xlsx supplement with no converted row → converted inline, 200
+        with status=converted and the Office-derived row in per_file_progress."""
+        _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
+                            "supplement", "xlsx", "md5_office_xlsx_sync")
+
+        def fake_process_office(*, db, office_ref_file, reference_curie, mod_abbreviation,
+                                s3_client=None):
+            create_metadata(
+                db,
+                ReferencefileSchemaPost(
+                    reference_curie=reference_curie,
+                    display_name=f"{office_ref_file.display_name}_{office_ref_file.file_extension}",
+                    file_class="converted_merged_supplement",
+                    file_publication_status="final",
+                    file_extension="md",
+                    md5sum="md5_generated_office_md",
+                ),
+            )
+            return True, None
+
+        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True), \
+                patch(f"{CRUD_MOD}.process_office_to_markdown", side_effect=fake_process_office), \
+                patch(f"{CRUD_MOD}.run_conversion_job") as background_job:
+            with TestClient(app) as client:
+                response = client.get(
+                    url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
+                    headers=auth_headers,
+                )
+        background_job.assert_not_called()
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "converted"
+        assert body["converted_classes"] == ["converted_merged_supplement"]
+        assert len(body["per_file_progress"]) == 1
+        entry = body["per_file_progress"][0]
+        assert entry["status"] == "success"
+        assert entry["source"]["display_name"] == "table_s1"
+        assert entry["source"]["file_class"] == "supplement"
+        assert entry["converted"]["display_name"] == "table_s1_xlsx"
+        assert entry["converted"]["file_class"] == "converted_merged_supplement"
+        assert entry["converted"]["referencefile_id"] is not None
+
+    def test_office_conversion_failure_reports_failed(self, db, test_reference, auth_headers):  # noqa: F811
+        _make_referencefile(db, test_reference.new_ref_curie, "methods",
+                            "supplement", "docx", "md5_office_docx_fail")
+
+        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True), \
+                patch(f"{CRUD_MOD}.process_office_to_markdown", return_value=(False, "bad zip")):
+            with TestClient(app) as client:
+                response = client.get(
+                    url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
+                    headers=auth_headers,
+                )
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "failed"
+        assert "Office supplement 'methods': bad zip" in body["error_message"]
+
+    def test_office_with_pdf_supplement_goes_async_and_seeds_both(self, db, test_reference, auth_headers):  # noqa: F811
+        """A PDF supplement still needs PDFX, so the job runs in the background;
+        the Office supplement is seeded as pending alongside it."""
+        _make_referencefile(db, test_reference.new_ref_curie, "supp",
+                            "supplement", "pdf", "md5_office_mix_pdf")
+        _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
+                            "supplement", "xlsx", "md5_office_mix_xlsx")
+
+        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True), \
+                patch(f"{CRUD_MOD}.run_conversion_job", return_value=None):
+            with TestClient(app) as client:
+                response = client.get(
+                    url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
+                    headers=auth_headers,
+                )
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        body = response.json()
+        assert body["status"] == "running"
+        pending = {e["converted"]["display_name"]: e for e in body["per_file_progress"]}
+        assert set(pending) == {"supp_merged", "table_s1_xlsx"}
+        assert all(e["status"] == "pending" for e in pending.values())
+        assert pending["table_s1_xlsx"]["source"]["display_name"] == "table_s1"
+        assert pending["table_s1_xlsx"]["converted"]["file_class"] == "converted_merged_supplement"
+
+    def test_office_supplement_ignored_when_reference_not_eligible(self, db, test_reference, auth_headers):  # noqa: F811
+        """Same SCRUM-6026 rule as supplement PDFs: outside WB/ZFIN/FB the
+        Office supplement is not pending, so the endpoint reports converted
+        without starting anything."""
+        _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
+                            "supplement", "xlsx", "md5_office_xlsx_inel")
+
+        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=False), \
+                patch(f"{CRUD_MOD}.process_office_to_markdown") as convert:
+            with TestClient(app) as client:
+                response = client.get(
+                    url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
+                    headers=auth_headers,
+                )
+        convert.assert_not_called()
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "converted"
+        assert body["converted_classes"] == []
+
+
+# ---------------------------------------------------------------------------
 # Unit test for _assess_reference (uses DB but not the HTTP layer)
 # ---------------------------------------------------------------------------
 

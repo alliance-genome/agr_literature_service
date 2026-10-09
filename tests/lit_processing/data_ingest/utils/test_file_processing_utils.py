@@ -5,7 +5,9 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     is_inline_image,
     is_print_bw,
     has_color_twin,
+    is_htp_supplement_by_size,
     THUMBNAIL_MAX_SIZE_BYTES,
+    HTP_SUPPLEMENT_MIN_BYTES,
 )
 
 
@@ -98,6 +100,42 @@ class TestClassifyPmcFile:
                                  sibling_sizes={'gif': 73784}) == 'figure'
 
 
+class TestWebpClassification:
+    # The PMC Cloud Service article datasets (post-FTP, August 2026) ship
+    # figures as .webp, one per figure with no thumbnail sibling (SCRUM-6606).
+
+    def test_webp_is_a_figure(self):
+        # Real names from AGRKB:101000001310396 / AGRKB:101000001311921.
+        assert classify_pmc_file('gr1', 'webp', 123456) == 'figure'
+        assert classify_pmc_file('LSA-2026-03795_Fig1', 'webp', 98765) == 'figure'
+
+    def test_webp_without_size_is_a_figure(self):
+        # Backfill path: referencefile stores no size, webp is name-classified.
+        assert classify_pmc_file('gr1', 'webp') == 'figure'
+
+    def test_webp_is_not_size_classified(self):
+        # No THUMBNAIL_MAX_SIZE_BYTES entry: even a tiny webp is a figure.
+        assert is_thumbnail_by_size('webp', 1000) is False
+        assert classify_pmc_file('gr1', 'webp', 1000) == 'figure'
+
+    def test_webp_name_rules_still_apply(self):
+        assert classify_pmc_file('rsob220308.thumb', 'webp', 999999) == 'thumbnail'
+        assert classify_pmc_file('KRNB_A_2685379_ILM0001', 'webp', 2577) == 'inline_image'
+
+    def test_webp_pb_with_oc_twin_is_bw_duplicate(self):
+        # Real names from AGRKB:101000001310270: T&F now ships the _OC/_PB
+        # renditions as webp too.
+        names = {'KFLY_A_2719251_F0001_OC', 'KFLY_A_2719251_F0001_PB'}
+        assert classify_pmc_file('KFLY_A_2719251_F0001_PB', 'webp',
+                                 sibling_display_names=names) == 'bw_duplicate'
+        assert classify_pmc_file('KFLY_A_2719251_F0001_OC', 'webp',
+                                 sibling_display_names=names) == 'figure'
+
+    def test_webp_is_never_a_paired_thumbnail(self):
+        # The gif-vs-jpg pairing rule does not extend to webp.
+        assert is_paired_thumbnail('webp', 10000, {'jpg': 340500}) is False
+
+
 class TestInlineImage:
 
     def test_ilm_suffix_is_inline_image(self):
@@ -182,3 +220,57 @@ class TestIsPairedThumbnail:
     def test_non_gif_is_never_paired_thumbnail(self):
         assert is_paired_thumbnail('jpg', 73784, {'jpg': 340500}) is False
         assert is_paired_thumbnail('png', 10, {'jpg': 340500}) is False
+
+
+class TestHtpSupplementBySize:
+    """High-throughput supplement classification (SCRUM-6612): text-family
+    files > 0.5 MB and Excel files (xls and xlsx, per the curators) > 1 MB
+    are htp_supplement."""
+
+    def test_thresholds_are_the_expected_values(self):
+        assert HTP_SUPPLEMENT_MIN_BYTES == {
+            'txt': 500_000,
+            'text': 500_000,
+            'tsv': 500_000,
+            'csv': 500_000,
+            'xls': 1_000_000,
+            'xlsx': 1_000_000,
+        }
+
+    def test_text_family_over_half_mb_is_htp(self):
+        for ext in ('txt', 'text', 'tsv', 'csv'):
+            assert is_htp_supplement_by_size(ext, 500_001) is True
+            assert classify_pmc_file('tableS1', ext, 500_001) == 'htp_supplement'
+
+    def test_text_family_at_or_under_half_mb_stays_supplement(self):
+        for ext in ('txt', 'tsv', 'csv'):
+            assert is_htp_supplement_by_size(ext, 500_000) is False
+            assert classify_pmc_file('tableS1', ext, 500_000) == 'supplement'
+            assert classify_pmc_file('tableS1', ext, 12_345) == 'supplement'
+
+    def test_excel_over_one_mb_is_htp(self):
+        for ext in ('xlsx', 'xls'):
+            assert is_htp_supplement_by_size(ext, 1_000_001) is True
+            assert classify_pmc_file('screen_results', ext, 1_000_001) == 'htp_supplement'
+
+    def test_excel_at_or_under_one_mb_stays_supplement(self):
+        for ext in ('xlsx', 'xls'):
+            assert classify_pmc_file('tableS2', ext, 1_000_000) == 'supplement'
+            # the text-family threshold does not apply to Excel files
+            assert classify_pmc_file('tableS2', ext, 600_000) == 'supplement'
+
+    def test_unknown_size_stays_supplement(self):
+        assert is_htp_supplement_by_size('csv', None) is False
+        assert classify_pmc_file('tableS1', 'csv', None) == 'supplement'
+
+    def test_extension_is_case_insensitive(self):
+        assert classify_pmc_file('TableS1', 'CSV', 600_000) == 'htp_supplement'
+        assert classify_pmc_file('TableS1', 'XLSX', 2_000_000) == 'htp_supplement'
+
+    def test_other_extensions_never_htp(self):
+        assert classify_pmc_file('data', 'pdf', 5_000_000) == 'supplement'
+        assert classify_pmc_file('data', 'docx', 5_000_000) == 'supplement'
+
+    def test_nxml_and_images_unaffected(self):
+        assert classify_pmc_file('main', 'nxml', 9_999_999) == 'nXML'
+        assert classify_pmc_file('fig1', 'jpg', 9_999_999) == 'figure'

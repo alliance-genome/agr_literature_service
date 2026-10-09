@@ -32,12 +32,12 @@ def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
 
     reference_from = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
     if not reference_from:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference_curie_from {reference_curie_from} does not exist")
 
     reference_to = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
     if not reference_to:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference_curie_to {reference_curie_to} does not exist")
 
     reference_id_from = reference_from.reference_id
@@ -62,7 +62,7 @@ def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
         return db_obj.reference_relation_id
     except (IntegrityError, HTTPException) as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"invalid request: {e}")
 
 
@@ -112,14 +112,14 @@ def patch(db: Session, reference_relation_id: int, reference_relation_update):
             reference_curie_to = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_to).first()
             if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Reference with curie {reference_curie_to} does not exist")
             new_reference_id_to = reference.reference_id
         elif field == "reference_curie_from" and value:
             reference_curie_from = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie_from).first()
             if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Reference with curie {reference_curie_from} does not exist")
             new_reference_id_from = reference.reference_id
         else:
@@ -157,7 +157,7 @@ def patch(db: Session, reference_relation_id: int, reference_relation_update):
         return db_obj.reference_relation_id
     except (IntegrityError, HTTPException) as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"invalid request: {e}")
 
 

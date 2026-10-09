@@ -17,7 +17,7 @@ def _curie_prefix(curie: str) -> str:
     curie = curie.strip()
     if curie.count(":") != 1:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid CURIE '{curie}': expected exactly one colon",
         )
     return curie.split(":", 1)[0]
@@ -46,7 +46,7 @@ def _check_xref_unique(db, laboratory_id, curie, curie_prefix, exclude_id=None):
         curie_q = curie_q.filter(LaboratoryCrossReferenceModel.laboratory_cross_reference_id != exclude_id)
     if curie_q.first():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Cross-reference '{curie}' already exists",
         )
 
@@ -63,7 +63,7 @@ def _check_xref_unique(db, laboratory_id, curie, curie_prefix, exclude_id=None):
             )
         if prefix_q.first():
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     f"Another cross-reference with prefix '{curie_prefix}' "
                     f"already exists for this laboratory."
@@ -88,7 +88,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
 
     curie = (data.get("curie") or "").strip()
     if not curie:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="curie is required")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="curie is required")
 
     curie_prefix = _curie_prefix(curie)
 
@@ -107,7 +107,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)
@@ -208,7 +208,7 @@ def patch(db: Session, laboratory_cross_reference_id: int, patch_dict: Dict[str,
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     return {"message": "updated"}

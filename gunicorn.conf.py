@@ -21,7 +21,10 @@ max_requests_jitter = 100
 
 # Logging
 accesslog = '-'  # Log to stdout
-errorlog = '-'   # Log to stderr
+errorlog = '-'   # Split by level: INFO/WARNING to stdout, ERROR+ to stderr
+# The GELF driver labels anything on stderr ERROR, so without this every worker
+# recycle ("Booting worker", "Worker exiting") shows up as an error in the logs.
+logger_class = 'gunicorn_logging.SplitStreamLogger'
 loglevel = os.getenv('LOG_LEVEL', 'info').lower()
 
 # Access log format - includes worker PID to identify which worker handled request

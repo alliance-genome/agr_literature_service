@@ -32,7 +32,7 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:
         db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     )
     if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference with curie {reference_curie} does not exist")
 
     db_obj = MeshDetailModel(**mesh_detail_data)
@@ -80,7 +80,7 @@ def patch(db: Session, mesh_detail_id: int, mesh_detail_update) -> dict:
             reference_curie = value
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
             if not reference:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Reference with curie {reference_curie} does not exist")
             mesh_detail_db_obj.reference = reference
         else:

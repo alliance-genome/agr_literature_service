@@ -65,8 +65,9 @@ def test_list_vocabularies_includes_static_and_table_backed(db):  # noqa
 
 def test_autocomplete_route_exists():
     """The vocabulary typeahead route is served at ``/autocomplete``; the old
-    ``/search`` path no longer exists. Asserted via route inspection so it needs
-    no DB or Cognito auth."""
-    paths = {r.path for r in app.routes}
+    ``/search`` path no longer exists. Asserted via the OpenAPI schema so it
+    needs no DB or Cognito auth (not app.routes: since FastAPI 0.14x,
+    include_router() adds one wrapper per router there, not its routes)."""
+    paths = set(app.openapi()["paths"])
     assert "/vocabulary/{name}/autocomplete" in paths
     assert "/vocabulary/{name}/search" not in paths

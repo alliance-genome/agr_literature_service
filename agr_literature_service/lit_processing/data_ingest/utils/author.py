@@ -1,10 +1,11 @@
 import unicodedata
-from typing import List, Dict
+from typing import Dict, List, Optional
 
 
 class Author:
     def __init__(self, name, first_name, last_name, first_initial, order, orcid, affiliations: List[str],
-                 first_author=None, corresponding_author=None, string_affiliations: str = ""):
+                 first_author=None, corresponding_author=None, string_affiliations: str = "",
+                 email: Optional[str] = None):
         self.name = name
         self.first_name = first_name
         self.last_name = last_name
@@ -15,6 +16,10 @@ class Author:
         self.first_author = first_author
         self.corresponding_author = corresponding_author
         self.string_affiliations = string_affiliations
+        # SCRUM-6513: deliberately not part of get_normalized_lowercase_author_string,
+        # so a new or changed email never triggers the author drop-and-reload;
+        # update_authors syncs it in place instead.
+        self.email = email
 
     @staticmethod
     def normalize_field(field, set_lowercase: bool = False):
@@ -42,7 +47,8 @@ class Author:
                       self.orcid,
                       self.affiliations,
                       self.first_author, self.corresponding_author,
-                      self.normalize_field(self.string_affiliations, set_lowercase))
+                      self.normalize_field(self.string_affiliations, set_lowercase),
+                      email=self.email)
 
     def get_unique_key_based_on_names(self):
         """
@@ -111,7 +117,8 @@ class Author:
                                first_initial=x['firstinit'] if 'firstinit' in x else x.get('firstInit', ''),
                                order=x['authorRank'] if 'authorRank' in x else None,
                                affiliations=x['affiliations'] if x.get('affiliations') else [],
-                               orcid=x['orcid'] if 'orcid' in x else None)
+                               orcid=x['orcid'] if 'orcid' in x else None,
+                               email=x.get('email') or None)
         normalized_author = loaded_author.get_normalized_author(set_lowercase=False)
         normalized_author.fix_orcid_format()
         return normalized_author
@@ -129,7 +136,8 @@ class Author:
                                first_initial=x.get('first_initial', ''),
                                order=x.get('author_order', x.get('order')),
                                affiliations=x.get('affiliations', []),
-                               orcid=x.get('orcid', None))
+                               orcid=x.get('orcid', None),
+                               email=x.get('email_address') or None)
         normalized_author = loaded_author.get_normalized_author(set_lowercase=False)
         normalized_author.fix_orcid_format()
         return normalized_author

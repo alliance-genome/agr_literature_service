@@ -45,7 +45,7 @@ def create_source(db: Session, source: TagSourceSchemaCreate):
         db.commit()
     except (IntegrityError, HTTPException) as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"invalid request: {e}")
     return source_obj.tag_source_id
 

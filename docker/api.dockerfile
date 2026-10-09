@@ -12,6 +12,7 @@ COPY ./requirements.txt .
 COPY ./logging.conf .
 COPY ./gunicorn.conf.py .
 COPY ./uvicorn_worker.py .
+COPY ./gunicorn_logging.py .
 RUN pip3 install --upgrade pip
 RUN pip3 install wheel
 RUN pip3 install "Cython<3.0" pyyaml --no-build-isolation

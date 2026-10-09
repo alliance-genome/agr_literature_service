@@ -144,7 +144,7 @@ class TestLaboratoryPerson:
                 },
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_lab_person(self, db, auth_headers, test_lab_person):  # noqa
         new_term = _term_id_by_label(db, "Post-Doc")
@@ -275,7 +275,7 @@ class TestLaboratoryPerson:
                 },
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 class TestLaboratoryPersonCrud:
@@ -373,7 +373,7 @@ class TestLaboratoryPersonCrud:
         lp_id = created["laboratory_person_id"]
         with pytest.raises(HTTPException) as exc_info:
             laboratory_person_crud.patch(db, lp_id, {"lab_position": 999999})
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         # The rejected patch left the original term id in place (fail-closed).
         assert laboratory_person_crud.show(db, lp_id)["lab_position"] == {
             "value": term_id, "label": "Lab Member", "is_obsolete": False}
@@ -386,7 +386,7 @@ class TestLaboratoryPersonCrud:
                 {"person_id": seeded_lab_and_person["person_id"],
                  "lab_position": 999999},
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_wrong_vocabulary_term_raises_422(self, db, seeded_lab_and_person):  # noqa
         populate_test_vocabularies(db)
@@ -398,7 +398,7 @@ class TestLaboratoryPersonCrud:
                 {"person_id": seeded_lab_and_person["person_id"],
                  "lab_position": wrong},
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_obsolete_term_raises_422(self, db, seeded_lab_and_person):  # noqa
         populate_test_vocabularies(db)
@@ -419,4 +419,4 @@ class TestLaboratoryPersonCrud:
                 {"person_id": seeded_lab_and_person["person_id"],
                  "lab_position": obsolete.vocabulary_term_abc_id},
             )
-        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

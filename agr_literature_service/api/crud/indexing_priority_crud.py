@@ -60,7 +60,7 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
     )
     if not reference:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Reference with curie {reference_curie} does not exist",
         )
 
@@ -71,7 +71,7 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
     )
     if not mod:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Mod with abbreviation {mod_abbreviation} does not exist",
         )
 
@@ -83,7 +83,7 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
     )
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "IndexingPriority already exists for "
                 f"reference_curie={reference_curie}, "
@@ -147,7 +147,7 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
                 ref = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
                 if not ref:
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail=f"Reference with curie {value} does not exist",
                     )
                 obj.reference_id = ref.reference_id
@@ -157,13 +157,13 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
                 continue
             if isinstance(value, str) and value.strip() == "":
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="mod_abbreviation cannot be empty",
                 )
             mod = db.query(ModModel).filter(ModModel.abbreviation == value).first()
             if not mod:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Mod with abbreviation {value} does not exist",
                 )
             obj.mod_id = mod.mod_id

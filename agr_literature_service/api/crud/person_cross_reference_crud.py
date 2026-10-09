@@ -17,7 +17,7 @@ def _curie_prefix(curie: str) -> str:
     curie = curie.strip()
     if curie.count(":") != 1:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid CURIE '{curie}': expected exactly one colon",
         )
     return curie.split(":", 1)[0]
@@ -96,7 +96,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)
@@ -229,7 +229,7 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     return {"message": "updated"}

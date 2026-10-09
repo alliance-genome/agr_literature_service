@@ -2,8 +2,9 @@
 
 Pattern matching + yml loading are exercised directly through ``patterns_check``
 (no db, no auth, run locally). The new ``/check/...`` routes are asserted present
-via ``app.routes`` (auth-free). Full authed endpoint behavior runs in CI (needs
-Cognito), like the reference/resource check tests in ``test_cross_ref.py``.
+via the OpenAPI schema, ``app.openapi()["paths"]`` (auth-free). Full authed
+endpoint behavior runs in CI (needs Cognito), like the reference/resource check
+tests in ``test_cross_ref.py``.
 """
 from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.main import app
@@ -57,7 +58,9 @@ def test_person_and_lab_bodies_are_distinct():
 
 
 def test_check_routes_present_on_entity_routers():
-    paths = {r.path for r in app.routes}
+    # The OpenAPI schema, not app.routes: since FastAPI 0.14x, include_router()
+    # adds one wrapper per router to app.routes instead of copying its routes.
+    paths = set(app.openapi()["paths"])
     for base in ("/person_cross_reference", "/laboratory_cross_reference"):
         assert base + "/check/patterns" in paths
         assert any(p.startswith(base + "/check/curie/") for p in paths)

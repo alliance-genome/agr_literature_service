@@ -88,7 +88,7 @@ def create(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)
@@ -232,7 +232,7 @@ def validate(
     # (which could otherwise create or link a canonical row).
     if obj.status == "rejected":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A rejected submission cannot be validated; reset its status first.",
         )
 
@@ -258,7 +258,7 @@ def validate(
 
     if subject_id is None or object_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Both subject and object persons must be resolved (via the validate "
                    "body or the submission) before validating.",
         )
@@ -275,9 +275,9 @@ def validate(
         # override), the generic message ("Term id N is obsolete...") reads as if the
         # curator supplied it. Clarify that the stale id is the submission's, so the
         # fix (re-validate with a current relationship) is obvious.
-        if not from_override and e.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+        if not from_override and e.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(f"This submission's stored relationship term ({relationship_term_id}) is no "
                         f"longer assignable ({e.detail}); re-validate with a current relationship."),
             )
@@ -303,7 +303,7 @@ def validate(
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)

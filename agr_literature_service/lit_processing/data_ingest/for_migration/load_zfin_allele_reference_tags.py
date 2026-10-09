@@ -53,7 +53,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.zfin_refere
     ENTITY_ID_VALIDATION,
     EXISTING_DATA_NOVELTY_ATP,
     EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
-    MAX_ASSOCIATIONS_PER_PAPER,
+    LARGE_SCALE_THRESHOLD,
     PROGRESS_LOG_INTERVAL,
     build_zfin_corpus_ref_curies,
     build_zfin_pub_to_ref_curie,
@@ -64,7 +64,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.zfin_refere
     load_existing_entity_pairs,
     new_unresolved_prefix_counter,
     resolve_reference_curie,
-    select_over_cap_papers,
+    select_large_scale_papers,
     write_id_log,
 )
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import (
@@ -90,7 +90,7 @@ file_path = base_path + "zfin_data/"
 
 MISSING_LOG = "zfin_allele_reference_missing_ref_curies.log"
 NOT_IN_CORPUS_LOG = "zfin_allele_reference_not_in_corpus.log"
-OVER_CAP_LOG = "zfin_allele_reference_over_cap.log"
+LARGE_SCALE_LOG = "zfin_allele_reference_large_scale.log"
 
 
 def _extract_ingest_records(data) -> List[Dict]:
@@ -130,10 +130,10 @@ def parse_allele_records(file_with_path: str) -> Iterator[Tuple[str, str, List[s
 
 def count_allele_associations_per_paper(file_with_path: str) -> Dict[str, Set[str]]:
     """First pass over the file: map each reference curie to the set of distinct
-    allele curies associated with it. Used to identify papers whose allele
-    association count exceeds MAX_ASSOCIATIONS_PER_PAPER so they can be skipped
-    wholesale (they would otherwise overflow the Elasticsearch nested-object
-    limit on the reference page)."""
+    allele curies associated with it. Used to report papers whose allele
+    association count exceeds LARGE_SCALE_THRESHOLD (loaded in full; the
+    search indexer collapses each such group into one large_scale_tag summary,
+    SCRUM-6614)."""
     alleles_by_paper: Dict[str, Set[str]] = defaultdict(set)
     for allele_curie, _taxon_curie, reference_curies in parse_allele_records(file_with_path):
         for zfin_ref_curie in reference_curies:
@@ -194,8 +194,8 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         "duplicate_in_file": 0,
         "missing_reference": 0,
         "not_in_corpus": 0,
-        "skipped_over_cap": 0,
-        "papers_over_cap": 0,
+        "large_scale_associations": 0,
+        "large_scale_papers": 0,
         "errors": 0,
     }
     missing_ref_curies: Set[str] = set()
@@ -218,14 +218,15 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         logger.info(f"Loaded {len(existing_pairs)} allele tags already present for this source")
 
         alleles_by_paper = count_allele_associations_per_paper(file_with_path)
-        over_cap_papers = select_over_cap_papers(alleles_by_paper)
-        counts["papers_over_cap"] = len(over_cap_papers)
-        # Distinct associations withheld (per-paper counts already dedup within
-        # the file), so this is the tag count we refuse -- not raw file pairs.
-        counts["skipped_over_cap"] = sum(over_cap_papers.values())
+        large_scale_papers = select_large_scale_papers(alleles_by_paper)
+        counts["large_scale_papers"] = len(large_scale_papers)
+        # Distinct associations (per-paper counts already dedup within the
+        # file), so this is a tag count -- not raw file pairs.
+        counts["large_scale_associations"] = sum(large_scale_papers.values())
         logger.info(
-            "%d papers exceed %d allele associations and will be skipped",
-            len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
+            "%d papers exceed %d allele associations and will be loaded in full "
+            "(the search index shows a summary tag per group)",
+            len(large_scale_papers), LARGE_SCALE_THRESHOLD,
         )
 
         pmid_cache: Dict[str, Optional[str]] = {}
@@ -244,9 +245,6 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
                         counts["skipped_duplicate"], counts["missing_reference"],
                         counts["not_in_corpus"], counts["errors"],
                     )
-
-                if zfin_ref_curie in over_cap_papers:
-                    continue
 
                 reference_curie = resolve_reference_curie(
                     db, zfin_ref_curie, None, pub_to_ref_curie, pmid_cache,
@@ -311,11 +309,11 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         logger.info(
             "ZFIN allele-reference load done: total_alleles=%d total_pairs=%d created=%d "
             "skipped_duplicate=%d duplicate_in_file=%d missing_reference=%d "
-            "not_in_corpus=%d skipped_over_cap=%d papers_over_cap=%d errors=%d",
+            "not_in_corpus=%d large_scale_associations=%d large_scale_papers=%d errors=%d",
             counts["total_alleles"], counts["total_pairs"], counts["created"],
             counts["skipped_duplicate"], counts["duplicate_in_file"],
             counts["missing_reference"], counts["not_in_corpus"],
-            counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],
+            counts["large_scale_associations"], counts["large_scale_papers"], counts["errors"],
         )
         if unresolved_prefixes:
             logger.info("Unresolved reference curie prefixes: %s", dict(unresolved_prefixes))
@@ -325,10 +323,10 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         write_id_log(NOT_IN_CORPUS_LOG,
                      f"References not in the ZFIN corpus ({len(not_in_corpus_refs)})",
                      [f"{tok}\t{ref}" for ref, tok in sorted(not_in_corpus_refs.items())])
-        write_id_log(OVER_CAP_LOG,
-                     f"Papers skipped for exceeding {MAX_ASSOCIATIONS_PER_PAPER} "
-                     f"allele associations ({len(over_cap_papers)})",
-                     [f"{curie}\t{count}" for curie, count in sorted(over_cap_papers.items())])
+        write_id_log(LARGE_SCALE_LOG,
+                     f"Large-scale papers exceeding {LARGE_SCALE_THRESHOLD} "
+                     f"allele associations, loaded in full ({len(large_scale_papers)})",
+                     [f"{curie}\t{count}" for curie, count in sorted(large_scale_papers.items())])
         return counts
     finally:
         db.close()
@@ -350,8 +348,9 @@ def compose_report_message(counts: Dict) -> str:
     message += f"<li>Duplicate pairs within file: {counts['duplicate_in_file']}"
     message += f"<li>References not found in ABC: {counts['missing_reference']}"
     message += f"<li>Associations skipped (paper not in ZFIN corpus): {counts['not_in_corpus']}"
-    message += (f"<li>Papers skipped (&gt; {MAX_ASSOCIATIONS_PER_PAPER} allele associations): "
-                f"{counts['papers_over_cap']} papers, {counts['skipped_over_cap']} associations")
+    message += (f"<li>Large-scale papers (&gt; {LARGE_SCALE_THRESHOLD} allele associations, "
+                f"loaded in full; search shows a summary tag per group): "
+                f"{counts['large_scale_papers']} papers, {counts['large_scale_associations']} associations")
     message += f"<li>Errors: {counts['errors']}"
     message += format_not_in_corpus_section(counts.get("not_in_corpus_refs", {}),
                                             NOT_IN_CORPUS_LOG)

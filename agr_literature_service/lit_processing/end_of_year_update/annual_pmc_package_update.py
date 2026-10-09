@@ -560,7 +560,7 @@ def get_sibling_image_sizes(file_with_path, file_name):
     same-named gif/jpg pair (SCRUM-6095). Raw file sizes are preferred over
     the gzipped copies when both are present.
     """
-    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp')
     base = file_name.rsplit(".", 1)[0].lower() if "." in file_name else file_name.lower()
     directory = path.dirname(file_with_path)
     sibling_sizes: Dict = {}
@@ -591,7 +591,7 @@ def get_sibling_display_names(file_with_path):
     the package directory, for detecting color/B&W rendition twins (_OC/_PB,
     SCRUM-6095).
     """
-    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png', 'webp')
     directory = path.dirname(file_with_path)
     names: set = set()
     try:
@@ -739,26 +739,6 @@ def destroy_file(db, pmid, file_name, md5sum, file_class, pmids_for_retracted_pa
             logger.info(f"{pmid}: removing main PDF ({file_name}) for a retracted paper.")
         else:
             logger.info(f"{pmid}: removing main PDF ({file_name}) for a non-retracted paper.")
-
-        # remove tei file if it exists
-        tei_display_name = file_name.replace(".pdf", "")
-        teiRefFile = (
-            db.query(ReferencefileModel)
-            .join(
-                CrossReferenceModel,
-                ReferencefileModel.reference_id == CrossReferenceModel.reference_id,
-            )
-            .filter(
-                CrossReferenceModel.curie == pmid,
-                CrossReferenceModel.curie_prefix == "PMID",
-                ReferencefileModel.display_name == tei_display_name,
-                ReferencefileModel.file_extension == "tei"
-            )
-            .one_or_none()
-        )
-        if teiRefFile:
-            logger.info(f"{pmid}: removing tei file ({tei_display_name}.tei)")
-            remove_from_s3_and_db(db, teiRefFile)
 
         try:
             cleanup_wft_tet_tags_for_deleted_main_pdf(db, referencefile.reference_id, [], 'all_access')

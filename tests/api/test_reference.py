@@ -101,7 +101,7 @@ class TestReference:
                              "person_curie": "AGR:AP-DOES-NOT-EXIST"}]
             }
             response = client.post(url="/reference/", json=bad_person_reference, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             # No title
             # ReferenceSchemaPost no longer raises exception
@@ -133,7 +133,7 @@ class TestReference:
                 "category": ""
             }
             response = client.post(url="/reference/", json=blank_category_reference, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_reference_later_author_carries_reference_curie(self, db, auth_headers, test_reference):  # noqa
         # POST /reference with 2+ authors where a LATER author carries reference_curie
@@ -1200,7 +1200,7 @@ class TestReference:
         with TestClient(app) as client:
             response = client.get(url="/reference/external_lookup/DOI:10.1234",
                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 class TestReferenceEmails:
@@ -1260,7 +1260,7 @@ class TestReferenceEmails:
                 json=["justastring"],
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_get_emails_by_pmid_and_mod_curie(self, db, auth_headers, test_reference):  # noqa
         """The emails GET also resolves PMID and MOD cross-reference curies."""

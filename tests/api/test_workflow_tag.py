@@ -53,25 +53,25 @@ class TestWorkflowTag:
                    "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {"reference_curie": test_workflow_tag.related_ref_curie,
                    "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {"mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
                    "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {'mod_abbreviation': "",
                    'workflow_tag_id': "ATP:0002222",
                    'reference_curie': test_workflow_tag.related_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_ref_wt(self, db, test_workflow_tag): # noqa
         assert test_workflow_tag.response.status_code == status.HTTP_201_CREATED
@@ -162,7 +162,7 @@ class TestWorkflowTag:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -353,7 +353,7 @@ class TestWorkflowTag:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -667,3 +667,39 @@ class TestWorkflowTagReportsAndPriority:
                 url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
                 headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
+
+    def test_get_reference_workflow_tags_by_mod(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            for mod in ("WB", "FB"):
+                if not db.query(ModModel).filter(ModModel.abbreviation == mod).first():
+                    db.add(ModModel(abbreviation=mod, short_name=mod, full_name=mod))
+            references = [
+                ("AGRKB:101000000000201", "WB:WBPaper00000201", "WB", "ATP:0000163"),
+                ("AGRKB:101000000000202", "WB:WBPaper00000202", "WB", "ATP:0000164"),
+                ("AGRKB:101000000000203", "FB:FBrf0000203", "FB", "ATP:0000163"),
+            ]
+            for ref_curie, xref_curie, mod, _ in references:
+                db_ref = ReferenceModel(curie=ref_curie, title=f"Test Reference {ref_curie}")
+                db.add(db_ref)
+                db.flush()
+                db.add(CrossReferenceModel(curie=xref_curie, curie_prefix=mod, reference_id=db_ref.reference_id))
+            db.commit()
+            for ref_curie, _, mod, workflow_tag_id in references:
+                new_wt = {"reference_curie": ref_curie, "mod_abbreviation": mod, "workflow_tag_id": workflow_tag_id}
+                response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
+                assert response.status_code == status.HTTP_201_CREATED
+
+            response = client.get(url="/workflow_tag/by_mod/WB", params={"workflow_tag_id": "ATP:0000163"},
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            tags = response.json()
+            assert [(tag["reference_curie"], tag["cross_reference_curie"]) for tag in tags] == [
+                ("AGRKB:101000000000201", "WB:WBPaper00000201")]
+            assert {"date_updated", "curation_tag", "note"} <= set(tags[0])
+
+            response = client.get(url="/workflow_tag/by_mod/WB",
+                                  params={"workflow_tag_id": "ATP:0000163", "startDate": "2000-01-01",
+                                          "endDate": "2000-01-02"},
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() == []

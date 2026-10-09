@@ -75,7 +75,7 @@ class TestComposeReportMessage:
         counts = {
             "total_pairs": 10, "created": 6, "skipped_duplicate": 2,
             "duplicate_in_file": 1, "skipped_non_gene": 0, "missing_reference": 1,
-            "not_in_corpus": 0, "skipped_over_cap": 0, "papers_over_cap": 0,
+            "not_in_corpus": 0, "large_scale_associations": 0, "large_scale_papers": 0,
             "errors": 0,
         }
         counts.update(overrides)
@@ -159,7 +159,7 @@ class TestLoadLoop:
         mock_create_tag.assert_not_called()
 
     @patch("agr_literature_service.lit_processing.data_ingest.for_migration."
-           "zfin_reference_tag_utils.MAX_ASSOCIATIONS_PER_PAPER", 2)
+           "zfin_reference_tag_utils.LARGE_SCALE_THRESHOLD", 2)
     @patch.object(mod, "write_id_log")
     @patch.object(mod, "load_existing_entity_pairs", return_value=set())
     @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1", "AGRKB:2"})
@@ -171,11 +171,12 @@ class TestLoadLoop:
     @patch.object(mod, "set_global_user_id")
     @patch.object(mod, "create_postgres_session")
     @patch.object(mod, "create_tag")
-    def test_skips_papers_over_association_cap(self, mock_create_tag, mock_session, *_mocks):
+    def test_large_scale_papers_load_in_full_and_are_reported(
+            self, mock_create_tag, mock_session, *_mocks):
         mock_session.return_value = MagicMock()
         mock_create_tag.return_value = (1, False)
-        # PUB-1 has 3 gene associations (over the patched cap of 2) so none of its
-        # tags load; PUB-2 has 1 and loads normally.
+        # PUB-1 has 3 gene associations (over the patched threshold of 2): it is
+        # reported as large scale but every tag still loads (SCRUM-6614).
         rows = [
             ("ZDB-GENE-1", "ZDB-PUB-1", ""),
             ("ZDB-GENE-2", "ZDB-PUB-1", ""),
@@ -184,10 +185,10 @@ class TestLoadLoop:
         ]
         with patch.object(mod, "parse_gene_publication", side_effect=lambda *a, **k: iter(rows)):
             counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
-        assert counts["papers_over_cap"] == 1
-        assert counts["skipped_over_cap"] == 3
-        assert counts["created"] == 1
-        mock_create_tag.assert_called_once()
+        assert counts["large_scale_papers"] == 1
+        assert counts["large_scale_associations"] == 3
+        assert counts["created"] == 4
+        assert mock_create_tag.call_count == 4
 
     @patch.object(mod, "write_id_log")
     @patch.object(mod, "load_existing_entity_pairs", return_value=set())

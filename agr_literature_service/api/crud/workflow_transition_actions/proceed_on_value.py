@@ -21,6 +21,17 @@ def proceed_on_value(db, current_workflow_tag_db_obj, args):
     for other organisms it would be
     proceed_on_value::category::Research_Article::ATP:0000162
     """
+    # SCRUM-6597: the actions of a transition run back to back in one session and are committed
+    # together. With autoflush on, the queries below would flush and see the tags an earlier action
+    # of the same transition just added, so the duplicate guard would take them for pre-existing
+    # state and skip a tag named explicitly by a later action (e.g. WB antibody string matching
+    # needed, a child of "reference classification needed" that is not in the WB subset). Only
+    # tags the reference had before the transition must count.
+    with db.no_autoflush:
+        _proceed_on_value(db, current_workflow_tag_db_obj, args)
+
+
+def _proceed_on_value(db, current_workflow_tag_db_obj, args):
     from sqlalchemy import text
 
     checktype = args[0]
@@ -87,8 +98,16 @@ def proceed_on_value(db, current_workflow_tag_db_obj, args):
                 if already_present:
                     preexisting_processes.add(process_atp_id)
 
+        # Tags an earlier action of the same transition added are still pending (see proceed_on_value).
+        # They do not count as pre-existing state, but the same tag must not be added twice.
+        pending_tags = {
+            obj.workflow_tag_id for obj in db.new
+            if isinstance(obj, WorkflowTagModel)
+            and obj.reference is current_workflow_tag_db_obj.reference
+            and obj.mod is current_workflow_tag_db_obj.mod
+        }
         for atp in atps_to_add:
-            if atp_get_parent(atp) in preexisting_processes:
+            if atp_get_parent(atp) in preexisting_processes or atp in pending_tags:
                 continue
             wtm = WorkflowTagModel(
                 reference=current_workflow_tag_db_obj.reference,

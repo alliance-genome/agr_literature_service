@@ -78,7 +78,7 @@ class TestReorder:
             r = client.patch(url=f"/author/{a1}",
                              json={"author_order": 5, "reference_curie": test_reference.new_ref_curie},
                              headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reorder_foreign_author_id_rejected(self, db, auth_headers, test_reference):  # noqa
         # an author_id belonging to a DIFFERENT reference must be rejected (422),
@@ -100,7 +100,7 @@ class TestReorder:
                                   "ordering": [{"author_id": a1, "author_order": 2},
                                                {"author_id": foreign_id, "author_order": 1}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reorder_duplicate_target_orders_rejected(self, db, auth_headers, test_reference):  # noqa
         # two authors assigned the same target order must be rejected (422), not a
@@ -113,7 +113,7 @@ class TestReorder:
                                   "ordering": [{"author_id": a1, "author_order": 1},
                                                {"author_id": a2, "author_order": 1}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reorder_duplicate_author_id_rejected(self, db, auth_headers, test_reference):  # noqa
         # the same author_id twice makes the UPDATE winner nondeterministic -> 422.
@@ -125,7 +125,7 @@ class TestReorder:
                                   "ordering": [{"author_id": a1, "author_order": 1},
                                                {"author_id": a1, "author_order": 2}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reorder_partial_collides_with_absent_author(self, db, auth_headers, test_reference):  # noqa
         # a1=1, a2=2; a partial reorder [{a1: 2}] leaves a2 at order 2, so a1's new
@@ -138,7 +138,7 @@ class TestReorder:
                             json={"reference_curie": test_reference.new_ref_curie,
                                   "ordering": [{"author_id": a1, "author_order": 2}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reorder_zero_author_order_rejected(self, db, auth_headers, test_reference):  # noqa
         # author_order must be >= 1; 0 is a schema validation 422, not a 500.
@@ -149,7 +149,7 @@ class TestReorder:
                             json={"reference_curie": test_reference.new_ref_curie,
                                   "ordering": [{"author_id": a1, "author_order": 0}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_reorder_person_only_stub_rejected(self, db, auth_headers, test_reference):  # noqa
         # a person-only stub (author_order IS NULL, person_id set) is not an ordered
@@ -171,7 +171,7 @@ class TestReorder:
                                   "ordering": [{"author_id": a1, "author_order": 1},
                                                {"author_id": stub_id, "author_order": 2}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert "person-only" in r.json()["detail"]
 
     def test_reorder_missing_key_is_422(self, db, auth_headers, test_reference):  # noqa
@@ -184,4 +184,4 @@ class TestReorder:
                             json={"reference_curie": test_reference.new_ref_curie,
                                   "ordering": [{"author_id": a1}]},
                             headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

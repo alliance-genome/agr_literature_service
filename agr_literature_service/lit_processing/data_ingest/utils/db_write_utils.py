@@ -729,8 +729,33 @@ def replace_authors_from_json(db_session, reference_id: int, authors_from_json: 
             first_initial=author.first_initial,
             orcid=author.orcid,
             affiliations=author.affiliations,
+            email_address=author.email,
         )
         db_session.add(db_author)
+
+
+def sync_author_emails(db_session, reference_id: int, authors_from_json: List[Author]) -> int:
+    """SCRUM-6513: set author.email_address in place from the PubMed authors,
+    matched by author_order, without touching author_id or anything else.
+
+    Only called when the JSON and DB author lists already match (same names
+    in the same order), so position N is the same author on both sides. An
+    email is only ever set or changed, never cleared: DQM author JSON carries
+    no email, and a PubMed record that drops an address does not unlearn it.
+    Returns the number of author rows changed."""
+    email_by_order = {author.order: author.email for author in authors_from_json
+                      if author.order is not None and author.email}
+    if not email_by_order:
+        return 0
+    changed = 0
+    for db_author in db_session.query(AuthorModel).filter(
+            AuthorModel.reference_id == reference_id,
+            AuthorModel.author_order.in_(list(email_by_order))):
+        email = email_by_order[db_author.author_order]
+        if db_author.email_address != email:
+            db_author.email_address = email
+            changed += 1
+    return changed
 
 
 def _reference_touched_by_curator(db_session, reference_id) -> bool:
@@ -826,6 +851,19 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
         return []
 
     if authors_lists_are_equal(authors_from_json, authors_from_db):
+        emails_changed = sync_author_emails(db_session, reference_id, authors_from_json)
+        if emails_changed:
+            db_session.flush()
+            if update_log is not None:
+                update_log['author_email'] = update_log.get('author_email', 0) + 1
+                update_log.setdefault('pmids_updated', []).append(pmid)
+            _write_log_message(
+                reference_id,
+                f": AUTHOR EMAILS set on {emails_changed} author(s)",
+                pmid,
+                logger,
+                fw
+            )
         return []
 
     # Drop-and-reload: delete every author row for this reference and reinsert the
@@ -2431,7 +2469,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     - Otherwise → ATP:0000141 (file needed)
 
     Also restore text conversion workflow:
-    - If there's a main PDF AND a TEI or MD file (file_class in ('tei', 'converted_merged_main'))
+    - If there's a main PDF AND an MD file (file_class = 'converted_merged_main')
       → ATP:0000163 (file converted to text)
 
     Args:
@@ -2550,12 +2588,12 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
             if current_text_conversion_status == file_converted_to_text_tag_atp_id:
                 continue
 
-            # Check if there's a main PDF AND a TEI or MD file for this reference and mod
+            # Check if there's a main PDF AND an MD file for this reference and mod
             # Only transition to "file converted to text" if both conditions are met
             main_pdf_and_text_file_query = text("""
                 SELECT
                     SUM(CASE WHEN rf.file_class = 'main' THEN 1 ELSE 0 END) AS main_pdf_count,
-                    SUM(CASE WHEN rf.file_class IN ('tei', 'converted_merged_main') THEN 1 ELSE 0 END) AS text_file_count
+                    SUM(CASE WHEN rf.file_class = 'converted_merged_main' THEN 1 ELSE 0 END) AS text_file_count
                 FROM referencefile rf
                 JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
                 WHERE rf.reference_id = :reference_id

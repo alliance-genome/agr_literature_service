@@ -77,7 +77,7 @@ class TestCurationStatusSourceAssociation:
                                        "tag_source_id": foreign_source,
                                        "curation_status": "ATP:curation_not_needed",
                                    })
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             associations = client.get(
                 url=f"/curation_status/{test_curation_status.new_curation_status_id}/source_associations",
                 headers=auth_headers).json()

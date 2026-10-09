@@ -124,23 +124,24 @@ class TestResolveReferenceCurie:
         assert unresolved == {"ZFIN": 1}
 
 
-class TestSelectOverCapPapers:
+class TestSelectLargeScalePapers:
 
-    def test_returns_only_papers_over_the_cap_with_counts(self):
+    def test_returns_only_papers_over_the_threshold_with_counts(self):
         entities_by_paper = {
             "ZFIN:ZDB-PUB-big": {f"ZFIN:ZDB-GENE-{i}" for i in range(
-                util.MAX_ASSOCIATIONS_PER_PAPER + 1)},
+                util.LARGE_SCALE_THRESHOLD + 1)},
             "ZFIN:ZDB-PUB-exact": {f"ZFIN:ZDB-GENE-{i}" for i in range(
-                util.MAX_ASSOCIATIONS_PER_PAPER)},
+                util.LARGE_SCALE_THRESHOLD)},
             "ZFIN:ZDB-PUB-small": {"ZFIN:ZDB-GENE-1"},
         }
-        # Exactly at the cap is allowed; only strictly-greater papers are returned.
-        assert util.select_over_cap_papers(entities_by_paper) == {
-            "ZFIN:ZDB-PUB-big": util.MAX_ASSOCIATIONS_PER_PAPER + 1,
+        # Exactly at the threshold is not large scale; only strictly-greater
+        # papers are reported.
+        assert util.select_large_scale_papers(entities_by_paper) == {
+            "ZFIN:ZDB-PUB-big": util.LARGE_SCALE_THRESHOLD + 1,
         }
 
     def test_empty_input(self):
-        assert util.select_over_cap_papers({}) == {}
+        assert util.select_large_scale_papers({}) == {}
 
 
 class TestFormatNotInCorpusSection:

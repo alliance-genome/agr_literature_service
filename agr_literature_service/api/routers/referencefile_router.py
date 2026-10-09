@@ -116,11 +116,11 @@ def file_upload(reference_curie: str = None,
         try:
             metadata = json.load(metadata_file.file)
         except JSONDecodeError:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="The provided metadata file is not a valid json file")
     if not metadata or not metadata["reference_curie"] or not metadata["display_name"] or not \
             metadata["file_class"] or not metadata["file_publication_status"]:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="The provided metadata is not valid")
     created_referencefiles = referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
     return [referencefile_crud.show(db, rf.referencefile_id) for rf in created_referencefiles]
@@ -343,17 +343,17 @@ async def bulk_upload_archive(
         validation = validate_archive_structure(archive.file)
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Archive validation failed: {e}",
         )
     if not validation.get("valid", False):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid archive format: {validation.get('error')}",
         )
     if validation.get("total_files", 0) == 0:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Archive contains no files",
         )
 

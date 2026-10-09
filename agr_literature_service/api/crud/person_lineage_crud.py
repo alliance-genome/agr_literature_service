@@ -58,7 +58,7 @@ def _normalize_pair(
 def _reject_self_pair(person_subject_id: int, person_object_id: int) -> None:
     if person_subject_id == person_object_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="person_subject_id and person_object_id must be different people",
         )
 
@@ -113,7 +113,7 @@ def create(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "A person_lineage with this person_subject_id, person_object_id and "
                 "relationship already exists."
@@ -262,7 +262,7 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     return {"message": "updated"}

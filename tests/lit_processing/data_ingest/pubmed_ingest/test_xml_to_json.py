@@ -43,9 +43,36 @@ class TestXmlToJson:
                 assert "PMID:" + pmid in [xref['id'] for xref in json_obj["crossReferences"]]
             assert "allianceCategory" in json_obj
             assert "publicationStatus" in json_obj
+        # SCRUM-6513: an author's email comes from that author's own affiliations
+        # ("Electronic address: ..." or a bare address), and only that author gets it.
+        expected_emails = {
+            "34530988": {19: "paolo.sordino@szn.it"},
+            "30979869": {26: "isf20@cam.ac.uk", 27: "yongx@bcm.edu"},
+            "30002370": {8: "baify@im.ac.cn"},
+        }
+        for pmid, by_rank in expected_emails.items():
+            json_obj = json.load(open(os.path.join(base_path, "pubmed_json", pmid + ".json")))
+            emails = {a["authorRank"]: a["email"] for a in json_obj["authors"] if "email" in a}
+            assert emails == by_rank
         md5_filename = os.path.join(base_path, "pubmed_json", "md5sum")
         assert os.path.exists(md5_filename)
         for line in open(md5_filename):
             cols = line.split("\t")
             assert cols[0] in pmids
             assert cols[1] != ""
+
+
+def test_generate_json_skips_an_unparseable_xml_file(tmp_path, monkeypatch):
+    """A broken cached download is reported as not found instead of aborting
+    the whole run (ParseError seen 2026-10-08)."""
+    from agr_literature_service.lit_processing.data_ingest.pubmed_ingest import xml_to_json
+    xml_dir = tmp_path / "pubmed_xml"
+    xml_dir.mkdir()
+    (xml_dir / "1.xml").write_text('<?xml version="1.0" ?> <PubmedArticleSet> <PubmedArticle><MedlineCitation>'
+                                   '<PMID Version="1">1</PMID><Article><ArticleTitle>T</ArticleTitle>'
+                                   '<PublicationType>Journal Article</PublicationType>')
+    monkeypatch.setattr(xml_to_json, "base_path", str(tmp_path) + "/")
+    not_found = set()
+    xml_to_json.generate_json(["1"], [], not_found, base_dir=str(tmp_path) + "/")
+    assert not_found == {"1"}
+    assert not (tmp_path / "pubmed_json" / "1.json").exists()

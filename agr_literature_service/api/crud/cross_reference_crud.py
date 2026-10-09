@@ -227,7 +227,7 @@ def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
                 "reference_curie": ref_curie
             }
             return new_xref
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot create a new SGDID")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Cannot create a new SGDID")
 
 
 def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):
@@ -245,7 +245,7 @@ def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):
             db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Error setting {mod_abbreviation} MOD ID to invalid for reference_id = {reference_id}. Error={str(e)}")
 
 

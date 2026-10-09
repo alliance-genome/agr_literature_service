@@ -253,7 +253,7 @@ class TestPersonName:
                 json={"last_name": None},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_destroy_person_name(self, auth_headers, seeded_person):  # noqa
         """Delete a non-primary name."""

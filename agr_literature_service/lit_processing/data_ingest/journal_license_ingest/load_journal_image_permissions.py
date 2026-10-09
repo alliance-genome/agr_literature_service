@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """
+RETIRED (SCRUM-6587): do not run. The image working group withdrew the old
+per-journal spreadsheet as a permission source (the Alliance only has
+permission from publishers in the alliance copyright sheet, and none from
+Elsevier); the data this loader wrote was deleted by
+oneoff_scripts/delete_old_image_spreadsheet_permissions.py. The module stays
+because load_alliance_copyright_permissions.py imports helpers from it.
+
 Load journal_permission.tsv into image_permission and resource_image_permission.
 
 This loader is intentionally non-destructive:

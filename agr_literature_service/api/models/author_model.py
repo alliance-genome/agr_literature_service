@@ -72,6 +72,15 @@ class AuthorModel(Base, AuditedModel):
         nullable=True
     )
 
+    # SCRUM-6513: the author's email as PubMed attributes it (extracted from
+    # the author's own AffiliationInfo); reference-level addresses stay in
+    # reference_email.
+    email_address = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
     first_name = Column(
         String(),
         unique=False,
@@ -108,6 +117,7 @@ class AuthorModel(Base, AuditedModel):
             "author_order IS NOT NULL OR ("
             "name IS NULL AND first_name IS NULL AND last_name IS NULL "
             "AND first_initial IS NULL AND orcid IS NULL AND affiliations IS NULL "
+            "AND email_address IS NULL "
             "AND COALESCE(first_author, false) = false "
             "AND COALESCE(corresponding_author, false) = false)",
             name="ck_person_only_link_only",

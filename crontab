@@ -2,39 +2,39 @@ SHELL=/bin/bash
 BASH_ENV=/container.env
 
 
-0 2 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_all_mod_references_to_json.py > /var/log/automated_scripts/export_all_mod_references_to_json.log 2>&1
-0 5 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_sgd_new_references.py > /var/log/automated_scripts/export_sgd_new_references.log 2>&1
-0 6 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py > /var/log/automated_scripts/pubmed_search_new_references.log 2>&1
-0 1 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/interaction/load_interaction_papers.py > /var/log/automated_scripts/load_interaction_papers.log 2>&1
-0 2 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/go_annotations/load_mod_gaf_papers.py > /var/log/automated_scripts/load_mod_gaf_papers.log 2>&1
-0 11 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py > /var/log/automated_scripts/pubmed_update_references_all_mods.log 2>&1
-0 13 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/backfill_geo_links.py --since-days 7 > /var/log/automated_scripts/backfill_geo_links.log 2>&1 ; python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/load_geo_topic_tags.py --since-days 7 > /var/log/automated_scripts/load_geo_topic_tags.log 2>&1
-0 13 20 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/download_pdfs_from_europepmc.py > /var/log/automated_scripts/download_pdfs_from_europepmc.log 2>&1
-0 13 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/get_emails_from_pubmed_pmc.py --commit > /var/log/automated_scripts/get_emails_from_pubmed_pmc.log 2>&1
-0 15 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/extract_emails.py > /var/log/automated_scripts/extract_emails.log 2>&1
-0 7 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_wft_in_progress.py > /var/log/automated_scripts/check_wft_in_progress.log 2>&1
-0 9 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py > /var/log/automated_scripts/load_dqm_resource.log 2>&1
-0 8 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py > /var/log/automated_scripts/sort_dqm_json_reference_updates.log 2>&1
-0 23 * * 3 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py > /var/log/automated_scripts/download_pmc_files.log 2>&1
-0 17 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py > /var/log/automated_scripts/pubmed_update_references_by_doi.log 2>&1
-0 0 16 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/go_annotations/load_goa_human_papers.py > /var/log/automated_scripts/load_goa_human_papers.log 2>&1
-0 0 17 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_references_for_cross_references.py > /var/log/automated_scripts/find_refs_with_no_xrefs.log 2>&1
-0 0 18 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/remove_obsolete_pubmed_types.py > /var/log/automated_scripts/remove_obsolete_pubmed_types.log 2>&1
-0 21 18 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_duplicate_orcid_in_reference.py > /var/log/automated_scripts/report_duplicate_orcid_in_reference.log 2>&1
-0 22 18 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_and_fix_obsolete_pmids.py > /var/log/automated_scripts/report_and_fix_obsolete_pmids.log 2>&1
-0 2 7 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_entities.py > /var/log/automated_scripts/report_obsolete_entities.log 2>&1
-0 0 20 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_retracted_papers_with_tags.py > /var/log/automated_scripts/report_retracted_papers_with_tags.log 2>&1
-0 0 7 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_atp_ids.py > /var/log/automated_scripts/report_obsolete_disappeared_atp_ids.log 2>&1
-0 1 7 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/load_missing_species_to_ateam.py > /var/log/automated_scripts/load_missing_species_to_ateam.log 2>&1
-0 3 7 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_species_ids.py > /var/log/automated_scripts/report_obsolete_disappeared_species_ids.log 2>&1
-0 4 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_export/dump_database.py -t cron > /var/log/automated_scripts/dump_prod_database.log  2>&1
-0 0 15 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/compare_referencefiles_s3_to_db.py > /var/log/automated_scripts/compare_referencefiles_s3_to_db.log 2>&1
-0 2 * * 4 python3 /usr/src/app/agr_literature_service/lit_processing/pdf2md/pdf2md.py > /var/log/automated_scripts/pdf2md.log 2>&1
-0 3 1 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/update_publishers_for_resources.py > /var/log/automated_scripts/update_publishers_for_resources.log 2>&1
-0 2 5 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/doi_ingest/add_missing_dois_from_europepmc.py > /var/log/automated_scripts/add_missing_dois_from_europepmc.log 2>&1
-0 4 3 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/journal_license_ingest/load_doaj_licenses.py > /var/log/automated_scripts/load_doaj_licenses.log 2>&1
-0 4 22 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pdb_ingest/load_pdb_associations.py > /var/log/automated_scripts/load_pdb_associations.log 2>&1
-0 18 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/for_migration/load_zfin_gene_reference_tags.py > /var/log/automated_scripts/load_zfin_gene_reference_tags.log 2>&1 ; python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/for_migration/load_zfin_allele_reference_tags.py > /var/log/automated_scripts/load_zfin_allele_reference_tags.log 2>&1
-0 18 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/for_migration/update_sgd_entity_reference_tags.py > /var/log/automated_scripts/update_sgd_entity_reference_tags.log 2>&1
+0 2 * * * /usr/local/bin/run_cron_job.sh export_all_mod_references_to_json python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_all_mod_references_to_json.py
+0 5 * * * /usr/local/bin/run_cron_job.sh export_sgd_new_references python3 /usr/src/app/agr_literature_service/lit_processing/data_export/export_sgd_new_references.py
+0 6 * * * /usr/local/bin/run_cron_job.sh pubmed_search_new_references python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_search_new_references.py
+0 1 * * * /usr/local/bin/run_cron_job.sh load_interaction_papers python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/interaction/load_interaction_papers.py
+0 2 * * * /usr/local/bin/run_cron_job.sh load_mod_gaf_papers python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/go_annotations/load_mod_gaf_papers.py
+0 11 * * 6 /usr/local/bin/run_cron_job.sh pubmed_update_references_all_mods python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py
+0 13 * * 7 /usr/local/bin/run_cron_job.sh backfill_geo_links python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/backfill_geo_links.py --since-days 7 ; /usr/local/bin/run_cron_job.sh load_geo_topic_tags python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/load_geo_topic_tags.py --since-days 7
+0 13 20 * * /usr/local/bin/run_cron_job.sh download_pdfs_from_europepmc python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/download_pdfs_from_europepmc.py
+0 13 * * 7 /usr/local/bin/run_cron_job.sh get_emails_from_pubmed_pmc python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/get_emails_from_pubmed_pmc.py --commit
+0 15 * * 7 /usr/local/bin/run_cron_job.sh extract_emails python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/extract_emails.py
+0 7 * * 6 /usr/local/bin/run_cron_job.sh check_wft_in_progress python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_wft_in_progress.py
+0 9 * * 7 /usr/local/bin/run_cron_job.sh load_dqm_resource python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py
+0 8 * * * /usr/local/bin/run_cron_job.sh sort_dqm_json_reference_updates python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
+0 23 * * 3 /usr/local/bin/run_cron_job.sh download_pmc_files python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py
+0 17 * * 7 /usr/local/bin/run_cron_job.sh pubmed_update_references_by_doi python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py
+0 0 16 * * /usr/local/bin/run_cron_job.sh load_goa_human_papers python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/go_annotations/load_goa_human_papers.py
+0 0 17 * * /usr/local/bin/run_cron_job.sh find_refs_with_no_xrefs python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_references_for_cross_references.py
+0 0 18 * * /usr/local/bin/run_cron_job.sh remove_obsolete_pubmed_types python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/remove_obsolete_pubmed_types.py
+0 21 18 * * /usr/local/bin/run_cron_job.sh report_duplicate_orcid_in_reference python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_duplicate_orcid_in_reference.py
+0 22 18 * * /usr/local/bin/run_cron_job.sh report_and_fix_obsolete_pmids python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_and_fix_obsolete_pmids.py
+0 2 7 * * /usr/local/bin/run_cron_job.sh report_obsolete_entities python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_entities.py
+0 0 20 * * /usr/local/bin/run_cron_job.sh report_retracted_papers_with_tags python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_retracted_papers_with_tags.py
+0 0 7 * * /usr/local/bin/run_cron_job.sh report_obsolete_disappeared_atp_ids python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_atp_ids.py
+0 1 7 * * /usr/local/bin/run_cron_job.sh load_missing_species_to_ateam python3 /usr/src/app/agr_literature_service/lit_processing/data_check/load_missing_species_to_ateam.py
+0 3 7 * * /usr/local/bin/run_cron_job.sh report_obsolete_disappeared_species_ids python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_species_ids.py
+0 4 * * * /usr/local/bin/run_cron_job.sh dump_prod_database python3 /usr/src/app/agr_literature_service/lit_processing/data_export/dump_database.py -t cron
+0 0 15 * * /usr/local/bin/run_cron_job.sh compare_referencefiles_s3_to_db python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/compare_referencefiles_s3_to_db.py
+0 2 * * 4 /usr/local/bin/run_cron_job.sh pdf2md python3 /usr/src/app/agr_literature_service/lit_processing/pdf2md/pdf2md.py
+0 3 1 * * /usr/local/bin/run_cron_job.sh update_publishers_for_resources python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/update_publishers_for_resources.py
+0 2 5 * * /usr/local/bin/run_cron_job.sh add_missing_dois_from_europepmc python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/doi_ingest/add_missing_dois_from_europepmc.py
+0 4 3 * * /usr/local/bin/run_cron_job.sh load_doaj_licenses python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/journal_license_ingest/load_doaj_licenses.py
+0 4 22 * * /usr/local/bin/run_cron_job.sh load_pdb_associations python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pdb_ingest/load_pdb_associations.py
+0 18 * * 7 /usr/local/bin/run_cron_job.sh load_zfin_gene_reference_tags python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/for_migration/load_zfin_gene_reference_tags.py ; /usr/local/bin/run_cron_job.sh load_zfin_allele_reference_tags python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/for_migration/load_zfin_allele_reference_tags.py
+0 18 * * 6 /usr/local/bin/run_cron_job.sh update_sgd_entity_reference_tags python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/for_migration/update_sgd_entity_reference_tags.py
 0 9 * * 7 docker system prune -af && docker volume prune -f > /var/log/automated_scripts/docker_prune.log 2>&1
 #0 1 * * 0 bash /usr/src/app/debezium/setup.sh > /var/log/automated_scripts/rebuild_debezium.log  2>&1
