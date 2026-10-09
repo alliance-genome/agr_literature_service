@@ -143,7 +143,7 @@ services:
     networks:
       - agr-literature
     volumes:
-      - "${LOG_PATH}:/var/log/automated_scripts"
+      - "${LOG_PATH:-.}:/var/log/automated_scripts"
       - "${DEBEZIUM_STATUS_PATH:-agr-literature-debezium-status}:/var/lib/debezium_status"
     ports:
       - "${API_PORT}:8080"
@@ -262,7 +262,7 @@ services:
       PERSISTENT_STORE_DB_PORT: "${PERSISTENT_STORE_DB_PORT}"
       PERSISTENT_STORE_DB_NAME: "${PERSISTENT_STORE_DB_NAME}"
     volumes:
-      - "${LOG_PATH}:/var/log/automated_scripts"
+      - "${LOG_PATH:-.}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker
