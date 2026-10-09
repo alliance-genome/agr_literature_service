@@ -87,10 +87,10 @@ class TestLaboratory:
         """A laboratory created with only defaulted fields is rejected."""
         with TestClient(app) as client:
             res = client.post("/laboratory/", json={"status": "active"}, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             res = client.post("/laboratory/", json={}, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_name_or_strain_required(self, db, auth_headers):  # noqa
         """A laboratory with a substantive field but no name/strain_designation is
@@ -102,7 +102,7 @@ class TestLaboratory:
                 json={"institution": ["Caltech"]},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_patch_clearing_name_and_strain_rejected(self, auth_headers, test_laboratory):  # noqa
         """Clearing both name and strain_designation violates
@@ -113,7 +113,7 @@ class TestLaboratory:
                 json={"name": None, "strain_designation": None},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_bad_status_rejected(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -122,7 +122,7 @@ class TestLaboratory:
                 json={"name": "X", "status": "nonsense"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_bad_email_visibility_rejected(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -131,7 +131,7 @@ class TestLaboratory:
                 json={"name": "X", "email_visibility": "everyone"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show_laboratory(self, test_laboratory, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -164,7 +164,7 @@ class TestLaboratory:
                 json={"status": "bogus"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_destroy_laboratory(self, test_laboratory, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -339,7 +339,7 @@ class TestLaboratory:
             r2 = client.post(
                 "/laboratory/", json={"name": "Unique Name Lab UNQNM"}, headers=auth_headers
             )
-            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_duplicate_strain_designation_rejected(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -350,7 +350,7 @@ class TestLaboratory:
             r2 = client.post(
                 "/laboratory/", json={"strain_designation": "UNQST"}, headers=auth_headers
             )
-            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_null_name_and_strain_allowed_multiple(self, auth_headers):  # noqa
         # name and strain_designation are each nullable, so many labs may leave

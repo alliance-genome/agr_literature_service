@@ -164,7 +164,7 @@ class TestPersonNote:
                 json={"note": None},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_destroy_person_note(self, test_person_note, auth_headers):  # noqa
         with TestClient(app) as client:

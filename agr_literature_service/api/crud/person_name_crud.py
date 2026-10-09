@@ -40,7 +40,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
 
     if "last_name" not in data or not data["last_name"]:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="last_name is required",
         )
 
@@ -143,7 +143,7 @@ def patch(db: Session, person_name_id: int, patch_dict: Dict[str, Any]) -> Dict[
     if "last_name" in data:
         if not data["last_name"]:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="last_name cannot be empty",
             )
         obj.last_name = data["last_name"]

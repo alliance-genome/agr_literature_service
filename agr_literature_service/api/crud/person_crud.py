@@ -81,7 +81,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
         curie = curie.strip()
         if curie.count(":") != 1:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Invalid CURIE '{curie}': expected exactly one colon",
             )
         return curie.split(":", 1)[0]
@@ -101,14 +101,14 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
 
             if curie in seen_curies:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Cross-reference '{curie}' is duplicated in the request",
                 )
             seen_curies.add(curie)
 
             if curie_prefix in seen_prefixes:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=(
                         f"Multiple cross-references with prefix '{curie_prefix}' "
                         "in the request; at most one per prefix is allowed."
@@ -123,7 +123,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
             )
             if existing:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Cross-reference '{curie}' already exists",
                 )
 
@@ -230,7 +230,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)

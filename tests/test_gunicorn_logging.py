@@ -5,12 +5,14 @@ so gunicorn's routine error-log lines must reach stdout and only ERROR and
 CRITICAL may stay on stderr.
 """
 
+import logging
 import os
 import signal
 import socket
 import subprocess
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,24 @@ APP_SOURCE = '''
 async def app(scope, receive, send):
     if scope["type"] != "http":
         return
+    await send({"type": "http.response.start", "status": 200, "headers": []})
+    await send({"type": "http.response.body", "body": b"ok"})
+'''
+
+WARNING_APP_SOURCE = '''
+import warnings
+
+warnings.warn("warned at import", UserWarning)
+
+
+def handler():
+    warnings.warn("warned in a request", UserWarning)
+
+
+async def app(scope, receive, send):
+    if scope["type"] != "http":
+        return
+    handler()
     await send({"type": "http.response.start", "status": 200, "headers": []})
     await send({"type": "http.response.body", "body": b"ok"})
 '''
@@ -150,6 +170,37 @@ def test_reload_does_not_duplicate_lines(capsys):
     ours = [h for h in log.error_log.handlers if getattr(h, "_split_stream", False)]
     assert len(ours) == 3
     assert sorted(h.stream is sys.stdout for h in ours) == [False, True, True]
+
+
+@pytest.fixture
+def restore_warnings_logging():
+    """captureWarnings() and the py.warnings logger are process-wide. Earlier
+    tests' setup() already turned capture on, and pytest has since swapped
+    showwarning back for its own recording, which would make a second
+    captureWarnings(True) a no-op -- so start from capture off."""
+    warnings_log = logging.getLogger("py.warnings")
+    handlers, propagate = list(warnings_log.handlers), warnings_log.propagate
+    logging.captureWarnings(False)
+    yield
+    logging.captureWarnings(False)
+    warnings_log.handlers[:] = handlers
+    warnings_log.propagate = propagate
+
+
+def test_a_warning_is_one_stdout_line(capsys, restore_warnings_logging):
+    """warnings.showwarning() writes the message and then the source line to
+    stderr, i.e. two ERROR records per warning; it must be one stdout line."""
+    log, cfg = _make_logger()
+    log.setup(cfg)  # as on SIGHUP: must not duplicate the line
+    with warnings.catch_warnings():
+        warnings.simplefilter("always")
+        warnings.warn("'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated.", UserWarning)
+    out, err = capsys.readouterr()
+    assert err == ""
+    lines = [line for line in out.splitlines() if "HTTP_422_UNPROCESSABLE_ENTITY" in line]
+    assert len(lines) == 1, out
+    assert "[WARNING]" in lines[0] and "UserWarning" in lines[0]
+    assert "test_gunicorn_logging.py:" in lines[0]
 
 
 def test_log_file_is_left_alone(capsys, tmp_path):
@@ -282,3 +333,50 @@ def test_real_gunicorn_request_exception_is_one_stderr_line(tmp_path):
     assert "failing_app.py:" in stderr_lines[0] and "in handler" in stderr_lines[0]
     assert "Traceback (most recent call last)" in stdout
     assert "[ERROR]" not in stdout
+
+
+def test_real_gunicorn_warnings_go_to_stdout(tmp_path):
+    """End to end: a warning raised while the master preloads the app, as the API
+    runs (preload_app=True), and one raised in a request each reach stdout as one
+    line, and nothing reaches stderr."""
+    (tmp_path / "warning_app.py").write_text(WARNING_APP_SOURCE)
+    (tmp_path / "empty_gunicorn_conf.py").write_text("")
+    port = _free_port()
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(tmp_path), str(REPO_ROOT)]))
+    stdout_file = tmp_path / "stdout"
+    stderr_file = tmp_path / "stderr"
+    with open(stdout_file, "w") as out, open(stderr_file, "w") as err:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "gunicorn", "warning_app:app",
+             "-c", str(tmp_path / "empty_gunicorn_conf.py"),
+             "--preload",
+             "--bind", f"127.0.0.1:{port}",
+             "--workers", "1",
+             "--worker-class", "uvicorn_worker.UvicornWorker",
+             "--error-logfile", "-",
+             "--logger-class", "gunicorn_logging.SplitStreamLogger"],
+            cwd=tmp_path, env=env, stdout=out, stderr=err,
+        )
+        try:
+            deadline = time.monotonic() + 30
+            status = None
+            while status is None and time.monotonic() < deadline:
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=2) as conn:
+                        conn.sendall(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+                        status = conn.recv(64)
+                except OSError:
+                    time.sleep(0.2)
+            assert status and status.startswith(b"HTTP/1.1 200"), status
+            time.sleep(1)
+        finally:
+            proc.send_signal(signal.SIGTERM)
+            proc.wait(timeout=30)
+
+    stdout = stdout_file.read_text()
+    stderr = stderr_file.read_text()
+    assert stderr.strip() == "", stderr
+    for message in ("warned at import", "warned in a request"):
+        lines = [line for line in stdout.splitlines() if message in line]
+        assert len(lines) == 1, stdout
+        assert "[WARNING]" in lines[0] and "warning_app.py:" in lines[0]

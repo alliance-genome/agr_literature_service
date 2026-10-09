@@ -370,7 +370,7 @@ class TestWorkflowTagAutomation:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert response.json().get("detail") == "process_atp_id ATP:MadeUp has NO process."
 
             # Bad mod abbreviation
@@ -401,7 +401,7 @@ class TestWorkflowTagAutomation:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert response.json().get("detail") == 'Transition to ATP:fileuploadcomplete not allowed as not initial state.'
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
@@ -427,7 +427,7 @@ class TestWorkflowTagAutomation:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=automated_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             # a manual transition succeeds
             manual_req = {

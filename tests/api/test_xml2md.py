@@ -50,7 +50,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert?source_format=tei",
                 files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_tei_content_rejected_under_auto(self, db):  # noqa: F811
         """A TEI upload is rejected even with source_format=auto — the parser
@@ -65,7 +65,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert",
                 files={"file": ("test.xml", tei_xml, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "no longer supported" in resp.text.lower()
 
     def test_jats_mentioning_tei_is_not_rejected(self, db):  # noqa: F811
@@ -119,7 +119,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert?source_format=docx",
                 files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_invalid_output_format(self, db):  # noqa: F811
         """Invalid output_format returns 422 (Literal validation)."""
@@ -129,7 +129,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert?output_format=pdf",
                 files={"file": ("test.xml", MINIMAL_JATS, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_empty_file(self, db):  # noqa: F811
         """Empty uploaded file returns 422."""
@@ -139,7 +139,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert",
                 files={"file": ("empty.xml", b"", "text/xml")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "empty" in resp.text.lower()
 
     def test_unrecognized_xml_format(self, db):  # noqa: F811
@@ -150,7 +150,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert",
                 files={"file": ("bad.xml", b"<html/>", "text/xml")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "invalid or unsupported input" in resp.text.lower()
 
     def test_file_too_large(self, db):  # noqa: F811
@@ -162,7 +162,7 @@ class TestXml2MdConvert:
                 "/xml2md/convert",
                 files={"file": ("big.xml", large_content, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            assert resp.status_code == status.HTTP_413_CONTENT_TOO_LARGE
             assert "too large" in resp.text.lower()
 
     def test_requires_authentication(self, db):  # noqa: F811
@@ -224,7 +224,7 @@ class TestXml2MdValidate:
                 "/xml2md/validate",
                 files={"file": ("empty.md", b"", "text/markdown")},
             )
-            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_validate_line_numbers(self, db):  # noqa: F811
         """Validation issues include line numbers."""

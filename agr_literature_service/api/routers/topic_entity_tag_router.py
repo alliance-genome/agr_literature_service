@@ -141,10 +141,10 @@ def show_all_reference_tags(
         try:
             parsed_column_filters = json.loads(column_filters)
         except ValueError:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="column_filters must be a JSON object")
         if not isinstance(parsed_column_filters, dict):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="column_filters must be a JSON object")
     result = topic_entity_tag_crud.show_all_reference_tags(
         db, curie_or_reference_id,

@@ -35,7 +35,7 @@ class TestVocabularyAbc:
     def test_blank_rejected(self, db, auth_headers):  # noqa
         with TestClient(app) as client:
             r = client.post("/vocabulary_abc/", json={"vocabulary": "  "}, headers=auth_headers)
-            assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_destroy_unused_vocabulary_cascades_terms_and_synonyms(self, db, test_vocabulary, auth_headers):  # noqa
         # Deleting a vocabulary whose terms are all unused succeeds (204) and the ORM

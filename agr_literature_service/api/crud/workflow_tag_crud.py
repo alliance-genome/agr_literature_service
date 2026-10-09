@@ -194,7 +194,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         raise
     except Exception as ex:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Error fetching workflow diagram for {mod}. {ex}"
         )
     return data
@@ -377,7 +377,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
             filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).one()
         orig_wft = workflow_tag.workflow_tag_id
     except NoResultFound:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Bad reference_workflow_tag_id {reference_workflow_tag_id}")
     # Get what it is transitioning too
     try:
@@ -398,7 +398,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
             Could not find condition {condition} and
             transition_from {workflow_tag.workflow_tag_id},
             for mod {workflow_tag.mod_id}"""
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=error)
 
     # get main atp. There may not be one. If not just return
@@ -437,7 +437,7 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
     # process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
     process_atp_id = atp_get_parent(new_workflow_tag_atp_id)
     if not process_atp_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
     return mod, process_atp_id, reference
 
@@ -454,7 +454,7 @@ def check_requirements(reference, mod, transition):
             if negated_function:
                 check_passed = not check_passed
             if not check_passed:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"{requirement_function_str} requirement not met")
 
 
@@ -482,7 +482,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
                                                                            process_atp_id, mod_abbreviation)
         except TypeError:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Could not find wft for {reference.reference_id} {process_atp_id} {mod_abbreviation}")
 
     # if setting to a child of manual indexing process and there is no sibling term in db, add needed first
@@ -514,7 +514,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             message = f"Transition from {current_workflow_tag_db_obj.workflow_tag_id} to {new_workflow_tag_atp_id} "
             "NOT in the transition table and hence NOT allowed."
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=message)
     if not current_workflow_tag_db_obj or transition:
         if transition and transition.requirements:
@@ -532,7 +532,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
         db.commit()
     else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="Workflow status transition not supported")
 
 
@@ -640,24 +640,24 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     reference_curie = normalize_reference_curie(db, reference_curie)
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference with curie {reference_curie} does not exist")
     mod_id = None
     if mod_abbreviation:
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
         if not mod:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
         mod_id = mod.mod_id
     if not mod_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
     workflow_tag_db_obj = db.query(WorkflowTagModel).filter(
         WorkflowTagModel.reference_id == reference.reference_id).filter(
         WorkflowTagModel.mod_id == mod_id).filter(
         WorkflowTagModel.workflow_tag_id == workflow_tag_id).first()
     if workflow_tag_db_obj:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"WorkflowTag with the reference_curie {reference_curie} "
                                    f"and mod_abbreviation {mod_abbreviation} and "
                                    f"{workflow_tag_id} already exist, "
@@ -721,7 +721,7 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
                 reference_curie = normalize_reference_identifier(db, value)
                 new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
                 if not new_reference:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                         detail=f"Reference with curie {reference_curie} does not exist")
                 workflow_tag_db_obj.reference = new_reference
         elif field == "mod_abbreviation":
@@ -731,7 +731,7 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
                 mod_abbreviation = value
                 new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
                 if not new_mod:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                         detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
                 workflow_tag_db_obj.mod_id = new_mod.mod_id
         else:
@@ -1189,11 +1189,11 @@ def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: 
 
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
     if reference_id is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The reference curie {reference_curie} is not in the database.")
     mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
     if mod is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The mod_abbreviation {mod_abbreviation} is not in the database.")
     mod_id = mod.mod_id
 
@@ -1223,12 +1223,12 @@ def delete_workflow_tags(db: Session, curie_or_reference_id: str, mod_abbreviati
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
     reference_id = ref.reference_id
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if mod is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
 
@@ -1244,7 +1244,7 @@ def delete_workflow_tags(db: Session, curie_or_reference_id: str, mod_abbreviati
         })
         db.commit()
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error occurred when deleting WFTs for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
 
 
@@ -1252,12 +1252,12 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
     reference_id = ref.reference_id
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if mod is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
 
@@ -1285,7 +1285,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         })
         db.commit()
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error occurred when resetting text conversion/ref classication/entity extraction for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
 
     if change_file_status is True:
@@ -1322,7 +1322,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
             'curr_atp_id': curr_atp_id
         })
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
 
 
@@ -1335,7 +1335,7 @@ def get_field_and_status(atp):
         field_type = " ".join(parts[:-2])
         field_status = "in progress"
     else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="{name} does not end in list of approved statuses")
     return field_type, field_status
 
@@ -1382,7 +1382,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     try:
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one()
     except NoResultFound:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="{mod_abbreviation} mod abbreviation NOT found")
 
     # get overall paper statuses
@@ -1553,7 +1553,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
     if reference_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"The reference curie '{reference_curie}' is not in the database."
         )
 
@@ -1695,7 +1695,7 @@ def get_pre_curation_workflow_overview(db: Session, reference_curie: str):
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
     if reference_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"The reference curie '{reference_curie}' is not in the database."
         )
 

@@ -214,7 +214,7 @@ class TestAllEndpointsSkipAuth:
                 response = client.post(url="/reference/", json=new_reference)
                 # Should not be 401 - auth is completely skipped
                 assert response.status_code in [
-                    status.HTTP_201_CREATED, status.HTTP_422_UNPROCESSABLE_ENTITY
+                    status.HTTP_201_CREATED, status.HTTP_422_UNPROCESSABLE_CONTENT
                 ]
 
     def test_skip_all_delete_no_auth_required(self, db):  # noqa

@@ -222,6 +222,11 @@ code. The full traceback goes to stdout without the `[ERROR]` header, because th
 alerter matches that text on stdout too. Before this, every traceback line was a
 separate ERROR record, so one failed request made ~150 alert groups.
 
+`SplitStreamLogger` also turns on `logging.captureWarnings` and writes each
+Python warning to stdout as one `[WARNING]` line. Before that, Python wrote
+every warning to stderr as two lines (the message, then the source line), so
+each Starlette deprecation warning became two ERROR records.
+
 Log files live under `${LOG_PATH}` (bind-mounted, web-served at `${LOG_URL}`)
 and are truncated per run. Separately, some scripts write their own report files
 into subdirectories — `QC/`, `dqm_load/`, `pubmed_search/`, `pubmed_update/`,

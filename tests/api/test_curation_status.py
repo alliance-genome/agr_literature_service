@@ -121,7 +121,7 @@ class TestCurationStatus:
             url = (f"/curation_status/aggregated_curation_status_and_tet_info/"
                    f"{test_curation_status.new_reference_curie}/NO_SUCH_MOD")
             response = client.get(url=url, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:

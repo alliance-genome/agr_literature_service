@@ -49,12 +49,12 @@ class TestResource:
             # No title
             # ResourceSchemaPost raises exception
             new_resource = client.post(url="/resource/", json={"title": None}, headers=auth_headers)
-            assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             # blank title
             # ResourceSchemaPost raises exception
             new_resource = client.post(url="/resource/", json={"title": ""}, headers=auth_headers)
-            assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show_resource(self, auth_headers, test_resource):  # noqa
         with TestClient(app) as client:
@@ -485,7 +485,7 @@ class TestResource:
             response = client.get(
                 url="/resource/external_lookup/DOI:10.1234",
                 headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
     @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
@@ -521,7 +521,7 @@ class TestResource:
                 url="/resource/add/",
                 json={"curie": "ISBN:978-0-12345"},
                 headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "ISBN not supported yet" in response.json()['detail']
 
     def test_add_unsupported_prefix(self, auth_headers, db):  # noqa
@@ -530,7 +530,7 @@ class TestResource:
                 url="/resource/add/",
                 json={"curie": "DOI:10.1234"},
                 headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             assert "You must enter an NLM, ISSN, or ISBN" in response.json()['detail']
 
     def test_add_missing_curie(self, auth_headers, db):  # noqa
@@ -539,7 +539,7 @@ class TestResource:
                 url="/resource/add/",
                 json={"curie": "nocolon"},
                 headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
     @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")

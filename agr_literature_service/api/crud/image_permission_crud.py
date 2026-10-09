@@ -26,7 +26,7 @@ from agr_literature_service.api.schemas import (
 def _validate_year_range(start_year: Optional[int], end_year: Optional[int]) -> None:
     if start_year is not None and end_year is not None and end_year < start_year:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="end_year must be greater than or equal to start_year",
         )
 
