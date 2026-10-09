@@ -58,7 +58,7 @@ def create_for_person(
         institution = normalize_institution(data.get("institution"))
     except ValueError as err:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(err),
         )
 
@@ -156,7 +156,7 @@ def patch(
             obj.institution = normalize_institution(data["institution"])
         except ValueError as err:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(err),
             )
 

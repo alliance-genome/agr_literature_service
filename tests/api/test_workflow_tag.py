@@ -53,25 +53,25 @@ class TestWorkflowTag:
                    "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {"reference_curie": test_workflow_tag.related_ref_curie,
                    "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {"mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
                    "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             xml = {'mod_abbreviation': "",
                    'workflow_tag_id': "ATP:0002222",
                    'reference_curie': test_workflow_tag.related_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_ref_wt(self, db, test_workflow_tag): # noqa
         assert test_workflow_tag.response.status_code == status.HTTP_201_CREATED
@@ -162,7 +162,7 @@ class TestWorkflowTag:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -353,7 +353,7 @@ class TestWorkflowTag:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
                                    headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)

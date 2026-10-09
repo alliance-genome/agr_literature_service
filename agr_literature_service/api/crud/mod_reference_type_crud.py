@@ -65,7 +65,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
 
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference with curie {reference_curie} does not exist")
     # this is going to create a new mod_referencetype entry and possibly a new referencetype if the entry is not in the
     # db and mod is SGD and the label is a valid pubmed type
@@ -74,7 +74,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
                                                             mod_reference_type_data["reference_type"],
                                                             reference.reference_id)
     if new_mod_ref_type_id is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="Invalid reference type")
     return new_mod_ref_type_id
 
@@ -119,7 +119,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
     if "reference_curie" in mrt_data:
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == mrt_data["reference_curie"]).first()
         if not reference:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Reference with curie {mrt_data['reference_curie']} does not exist")
         ref_mod_ref_type_obj.reference_id = reference.reference_id
     if "reference_type" in mrt_data or "mod_abbreviation" in mrt_data:
@@ -129,7 +129,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
         if "mod_abbreviation" in mrt_data:
             mod = db.query(ModModel).filter(ModModel.abbreviation == mrt_data["mod_abbreviation"]).one_or_none()
             if mod is None:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Mod with abbreviation {mrt_data['mod_abbreviation']} does not exist")
         else:
             mod = ref_mod_ref_type_obj.mod_referencetype.mod
@@ -137,7 +137,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
             referencetype = db.query(ReferencetypeModel).filter(
                 ReferencetypeModel.label == mrt_data["reference_type"]).first()
             if referencetype is None:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail="The provided reference type is not valid")
         else:
             referencetype = ref_mod_ref_type_obj.mod_referencetype.referencetype
@@ -145,7 +145,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
             ModReferencetypeAssociationModel.mod_id == mod.mod_id,
             ModReferencetypeAssociationModel.referencetype_id == referencetype.referencetype_id).one_or_none()
         if mod_ref_type is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="The provided reference type and mod combination is not valid")
         ref_mod_ref_type_obj.mod_referencetype = mod_ref_type
     db.add(ref_mod_ref_type_obj)

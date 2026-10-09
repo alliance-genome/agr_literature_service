@@ -146,7 +146,7 @@ class TestPersonCrossReference:
                 headers=auth_headers,
             )
             # Pydantic field_validator on PersonCrossReferenceSchemaCreate rejects this
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_invalid_curie_two_colons(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
@@ -155,7 +155,7 @@ class TestPersonCrossReference:
                 json={"person_curie": str(seeded_person["person_id"]), "curie": "ORCID:0000:0001"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_create_duplicate_curie_same_person(self, auth_headers, test_person_xref):  # noqa
         """Posting the same curie for the same person should be rejected."""
@@ -165,7 +165,7 @@ class TestPersonCrossReference:
                 json={"person_curie": str(test_person_xref.person_id), "curie": "ORCID:0000-0001-2345-6789"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_obsolete_xref_does_not_block_new_curie(self, auth_headers, test_person_xref):  # noqa
         """An obsolete xref must not block re-adding the same curie/prefix (SCRUM-6257).
@@ -202,7 +202,7 @@ class TestPersonCrossReference:
                 },
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_list_for_person(self, auth_headers, test_person_xref):  # noqa
         with TestClient(app) as client:

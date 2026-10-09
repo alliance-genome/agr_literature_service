@@ -87,7 +87,7 @@ class TestPersonSetting:
                 "json_settings": {},
             }
             res = client.post("/person_setting/", json=payload, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_only_one_default_per_person_component(self, auth_headers, test_person_setting):  # noqa
         with TestClient(app) as client:
@@ -99,7 +99,7 @@ class TestPersonSetting:
                 "json_settings": {"cols": ["status"]},
             }
             res = client.post("/person_setting/", json=dup_default, headers=auth_headers)
-            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
             non_default = {
                 "person_id": test_person_setting.person_id,

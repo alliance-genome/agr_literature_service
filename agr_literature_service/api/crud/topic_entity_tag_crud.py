@@ -251,7 +251,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     invalid_atp_ids = atp_return_invalid_ids(atp_ids_filtered)
     if len(invalid_atp_ids) > 0:
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"{message}")
 
     # Validate ml_model_id if provided
@@ -261,7 +261,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         ml_model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
         if not ml_model:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"ML model with ID {ml_model_id} not found"
             )
         topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
@@ -337,7 +337,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         return (new_db_obj.topic_entity_tag_id, False)
     except (IntegrityError, HTTPException) as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"invalid request: {e}")
 
 
@@ -505,7 +505,7 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error: '{e}' occurred when adding {reference_curie} into corpus/adding file needed tag")
 
 
@@ -1437,7 +1437,7 @@ def filter_tet_data_by_column(query, column_name, values):
 
 
 def _column_filter_422(column_name, why):
-    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail=f"Invalid filter for column '{column_name}': {why}")
 
 
@@ -1561,14 +1561,14 @@ def apply_column_filters(query, column_filters: Dict[str, Any]):
             # also resolve relationships/methods (e.g. reference, metadata)
             # and 500 downstream instead of 422ing here (review hardening).
             if attr not in TagSourceModel.__table__.columns:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Unknown tag_source column '{attr}'")
             condition = _column_filter_condition(getattr(TagSourceModel, attr), spec, column_name)
             if condition is not None:
                 query = query.filter(TopicEntityTagModel.tag_source.has(condition))
             continue
         if column_name not in TopicEntityTagModel.__table__.columns:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Unknown topic_entity_tag column '{column_name}'")
         condition = _column_filter_condition(getattr(TopicEntityTagModel, column_name), spec, column_name)
         if condition is not None:
@@ -1646,7 +1646,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
                 return existing_tag.topic_entity_tag_id
             except (IntegrityError, HTTPException) as e:
                 db.rollback()
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"invalid request: {e}")
 
     if source.source_method == "abc_literature_system" and source.validation_type == "professional_biocurator":

@@ -95,18 +95,18 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
 
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference with curie {reference_curie} does not exist")
 
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     if not mod:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
     mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter(
         ModCorpusAssociationModel.reference_id == reference.reference_id).filter(
         ModCorpusAssociationModel.mod_id == mod.mod_id).first()
     if mod_corpus_association_db_obj:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"ModCorpusAssociation with the reference_curie {reference_curie} "
                                    f"and mod_abbreviation {mod_abbreviation} already exist, "
                                    f"with id:{mod_corpus_association_db_obj.mod_corpus_association_id} can not "
@@ -222,7 +222,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 reference_curie = value
                 new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
                 if not new_reference:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                         detail=f"Reference with curie {reference_curie} does not exist")
                 mod_corpus_association_db_obj.reference = new_reference
         elif field == "corpus":
@@ -240,7 +240,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 has_manual_tags = has_manual_tet(db, str(mod_corpus_association_db_obj.reference_id),
                                                  mod_abbreviation)
                 if has_manual_tags and not mod_corpus_association_data.get('force_out'):
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                         detail=f"Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags. mod_corpus_association_id = {mod_corpus_association_db_obj.mod_corpus_association_id}")
                 delete_non_manual_tets(db, str(mod_corpus_association_db_obj.reference_id), mod_abbreviation)
                 if has_manual_tags:

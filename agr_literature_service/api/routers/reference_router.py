@@ -82,12 +82,12 @@ def external_lookup(external_curie: str,
     prefix, identifier, _ = split_identifier(external_curie, ignore_error=True)
     if not prefix:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid curie format: {external_curie}")
     if prefix.lower() in ('pmid', 'pubmed', 'pubmedid'):
         return lookup_reference_by_pmid(identifier, db)
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=f"Unsupported curie prefix: {prefix}")
 
 

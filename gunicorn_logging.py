@@ -18,6 +18,12 @@ traceback ("Exception in ASGI application") became ~150 records per failed
 request and as many alert groups (SCRUM-6632). An ERROR record is therefore one
 stderr line, naming the exception and the innermost frame in our own code; the
 full traceback goes to stdout (INFO), next to it in the viewer.
+
+Python warnings are routed the same way. warnings.showwarning() writes to
+stderr, so every StarletteDeprecationWarning arrived as two ERROR records (the
+message, then the offending source line). They are captured into the logging
+system instead and written to stdout as one line, so a deprecation is visible
+in the viewer without raising an alert.
 """
 import logging
 import sys
@@ -102,6 +108,22 @@ class _OneLineFormatter(logging.Formatter):
         return line
 
 
+def _capture_warnings(formatter: logging.Formatter) -> None:
+    """Send Python warnings to stdout as one line each, not to stderr."""
+    logging.captureWarnings(True)
+    warnings_log = logging.getLogger("py.warnings")
+    for handler in list(warnings_log.handlers):
+        if getattr(handler, "_split_stream", False):
+            warnings_log.removeHandler(handler)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(_OneLineFormatter(formatter))
+    handler._split_stream = True  # type: ignore[attr-defined]
+    warnings_log.addHandler(handler)
+    # The root logger's handler depends on which module configured it first
+    # (basicConfig defaults to stderr), so do not hand warnings on to it.
+    warnings_log.propagate = False
+
+
 class SplitStreamLogger(Logger):
     """Gunicorn's Logger with its stderr error handler split by level."""
 
@@ -125,6 +147,8 @@ class SplitStreamLogger(Logger):
         )
         if original is None:
             return
+
+        _capture_warnings(original.formatter or logging.Formatter())
 
         routine = logging.StreamHandler(sys.stdout)
         routine.addFilter(_BelowLevelFilter(STDERR_LEVEL))

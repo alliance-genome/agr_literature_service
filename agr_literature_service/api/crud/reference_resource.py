@@ -33,21 +33,21 @@ def stripout(db: Session, file_update: dict, non_fatal: bool = False) -> dict:
         reference_curie = file_update["reference_curie"]
         del file_update["reference_curie"]
     if resource_curie and reference_curie:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="Only supply either resource_curie or reference_curie")
     elif resource_curie:
         data_object["resource"] = db.query(ResourceModel).filter(ResourceModel.curie == resource_curie).first()
         if not data_object["resource"]:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Resource with curie {resource_curie} does not exist")
     elif reference_curie:
         data_object["reference"] = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
         if not data_object["reference"]:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Reference with curie {reference_curie} does not exist")
     else:
         if not non_fatal:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="Supply one of resource_curie or reference_curie")
 
     return data_object

@@ -418,7 +418,7 @@ def check_file_upload_status_change(db, referencefile, request):
                                                                       text_conversion_process_atp_id,
                                                                       referenceMod.mod.abbreviation)
                     if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
-                        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                             detail=f"File already converted to text for {referenceMod.mod.abbreviation}, use UI if you really need to change the file status.")
         return True
 
@@ -499,7 +499,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
                 if referencefile_mod.mod.abbreviation == MOD_ACCESS_ABBR[mod_access]:
                     destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
     else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="You are not signed in. Please sign in to delete a file.")
 
     if file_class == 'main' and file_publication_status == 'final' and pdf_type == 'pdf':
@@ -530,7 +530,7 @@ def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mod
             delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
             has_manual_tags = has_manual_tet(db, str(reference_id), mod_abbreviation)
             if has_manual_tags:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail="Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags.")
 
 
@@ -615,7 +615,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
     if metadata["mod_abbreviation"]:
         inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
         if not inCorpus:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"This paper ({metadata['reference_curie']}) is not in {metadata['mod_abbreviation']}.")
         # The one-off backfill (auxiliary metadata sidecars) suppresses this
         # guard: a downstream job in progress (entity extraction / classification)
@@ -623,7 +623,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
         if not _suppress_upload_guardrails:
             job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
             if job_type:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
     if (
@@ -644,7 +644,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                                                           text_conversion_process_atp_id,
                                                           metadata["mod_abbreviation"])
         if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="File already converted to text, use UI if you really need to replace the file.")
 
     created_referencefiles = []
@@ -735,7 +735,7 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
                 transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
         except Exception as e:
             db.rollback()
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Transitioning file_upload WFT for reference_curie = {reference_curie}, mod={mod} failed. error={e}")
     db.commit()
 
@@ -787,7 +787,7 @@ def create_metadata(db: Session, request: ReferencefileSchemaPost):
 
     ref_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == request.reference_curie).one_or_none()
     if ref_obj is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Reference with curie {request.reference_curie} does not exist")
     del request_dict["reference_curie"]
     request_dict["reference_id"] = ref_obj.reference_id
@@ -795,7 +795,7 @@ def create_metadata(db: Session, request: ReferencefileSchemaPost):
     if mod_abbreviation is not None:
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
         if mod is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Mod with abbreviation {request.mod_abbreviation} does not exist")
     del request_dict["mod_abbreviation"]
 

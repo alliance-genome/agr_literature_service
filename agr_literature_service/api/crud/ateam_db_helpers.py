@@ -51,7 +51,7 @@ def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONR
     """
     entity_type_lc = (entity_type or "").lower()
     if not entity_type_lc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Missing entity_type")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Missing entity_type")
 
     name_list, curie_list = classify_entity_list(entity_list)
     cli = _get_client()
@@ -72,7 +72,7 @@ def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONR
             )
     except AGRAPIError as e:
         if "Unknown entity_type" in str(e):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Unknown entity_type '{entity_type}'")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Mapping failed: {e}")
     return JSONResponse(content=jsonable_encoder(data))
@@ -147,7 +147,7 @@ def get_topic_term_details(curies: List[str]) -> JSONResponse:
         return JSONResponse(content={})
     if len(curies) > MAX_TERM_DETAILS_CURIES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"too many curies: {len(curies)} > {MAX_TERM_DETAILS_CURIES}",
         )
     cli = _get_client()

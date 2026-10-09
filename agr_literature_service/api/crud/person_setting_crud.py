@@ -19,7 +19,7 @@ def _non_empty_or_422(field: str, value: Optional[str]) -> str:
     v = (value or "").strip()
     if not v:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{field} must be a non-empty string",
         )
     return v
@@ -29,7 +29,7 @@ def _assert_person_exists(db: Session, person_id: int) -> None:
     exists = db.query(PersonModel.person_id).filter(PersonModel.person_id == person_id).first()
     if not exists:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"person_id {person_id} does not exist",
         )
 
@@ -57,7 +57,7 @@ def _assert_default_unique(
     existing = q.first()
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "A default setting already exists for this (person_id, component_name). "
                 "Unset the existing default or set this row to default_setting = false."
@@ -83,7 +83,7 @@ def create(db: Session, payload) -> PersonSettingModel:
     person_id = data.get("person_id")
     if person_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="person_id is required",
         )
     _assert_person_exists(db, int(person_id))

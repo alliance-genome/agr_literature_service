@@ -319,12 +319,12 @@ def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
     reference_id = ref.reference_id
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if mod is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
     try:
@@ -348,7 +348,7 @@ def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation
         })
         db.commit()
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error occurred when deleting manual tets: {e}")
 
 
@@ -360,12 +360,12 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
     reference_id = ref.reference_id
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if mod is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
     try:
@@ -392,7 +392,7 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
         })
         db.commit()
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error occurred when deleting non-manual tets: {e}")
 
 
@@ -400,12 +400,12 @@ def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: st
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
     reference_id = ref.reference_id
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if mod is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
 

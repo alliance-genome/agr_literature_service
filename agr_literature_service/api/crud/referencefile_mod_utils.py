@@ -15,7 +15,7 @@ def reject_direct_embedding_access_change(referencefile: ReferencefileModel) -> 
     affected by this guard.)"""
     if referencefile.file_class == "embedding":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Access to embedding files is derived from their source file and cannot be "
                    "changed directly. Change the source file's access instead, or delete the "
                    "embedding by deleting its parquet referencefile.")
@@ -43,7 +43,7 @@ def create(db: Session, request: ReferencefileModSchemaPost):
     if referencefile and any(
             (ref_file_mod.mod.abbreviation if ref_file_mod.mod else ref_file_mod.mod) == request.mod_abbreviation for
             ref_file_mod in referencefile.referencefile_mods):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="The specified mod and reference file are already associated")
     if request.mod_abbreviation:
         mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == request.mod_abbreviation).one_or_none()

@@ -71,13 +71,13 @@ def _validate_author_constraints(author_data: dict, person_id, require_reference
     # author.reference_id is NOT NULL: every author must belong to a reference.
     if require_reference and not author_data.get("reference_curie"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="An author must belong to a reference; supply reference_curie")
 
     # ck_author_person_or_order: person_id IS NOT NULL OR author_order IS NOT NULL.
     if not has_person and not has_order:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="An author must have an author_order or be linked to a person (person_curie)")
 
     # ck_person_only_link_only: with no author_order the row is a person-only link
@@ -88,7 +88,7 @@ def _validate_author_constraints(author_data: dict, person_id, require_reference
                         or bool(author_data.get("corresponding_author")))
         if has_metadata:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="A person-only link (no author_order) cannot carry author metadata "
                        "(name/first_name/last_name/first_initial/orcid/affiliations/email_address/"
                        "first_author/corresponding_author)")
@@ -226,7 +226,7 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     author_data = jsonable_encoder(author_patch)
 
     if author_data.get("author_order") is not None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="author_order cannot be changed via PATCH; use POST /author/reorder")
 
     if "created_by" in author_data and author_data["created_by"] is not None:
@@ -271,7 +271,7 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     # so a field_validator would reject "" on create too.
     if author_data.get("person_curie") == "":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail='person_curie must be a person curie or null; "" is neither a way to '
                    'unlink (send null) nor a way to leave the link alone (omit the key)')
 
@@ -287,7 +287,7 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
                 ).first()
             if order_taken is not None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"author_order {author_db_obj.author_order} is already taken on "
                            f"reference {dest_ref.curie}; author_order cannot be changed via "
                            f"PATCH, so free that order there first with POST /author/reorder")
@@ -308,7 +308,7 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
                 ).first()
             if person_taken is not None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Reference {dest_ref.curie} already links this person to author "
                            f"{person_taken[0]}; a person may be linked to only one author per "
                            f"reference, so merge or remove that author first")
@@ -329,7 +329,7 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
                         or bool(author_data.get("corresponding_author")))
         if has_metadata:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Cannot add author details to a person-only row; add or link this "
                        "person as an ordered author instead (which merges the stub)")
 
@@ -344,7 +344,7 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         # those means deleting the row, not clearing a column.
         if author_db_obj.author_order is None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Cannot unlink the person from a person-only row (no author_order); "
                        "delete the author row instead")
         author_db_obj.person_id = None
