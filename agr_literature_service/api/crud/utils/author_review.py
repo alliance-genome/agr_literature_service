@@ -6,9 +6,10 @@ edited (``db_write_utils._reference_touched_by_curator``). Instead, for each MOD
 listed here whose corpus holds the reference, it flags the paper for review:
 
 * PubMed's authors differ from ABC's -> "author review needed". A reference with
-  no tag yet gets it; one whose review is complete is reopened, since PubMed
-  changed after that review. "In progress" and "blocked" are left alone because
-  a curator is working on them.
+  no tag yet gets it; one whose review is complete is reopened only on a run
+  where PubMed's record for it changed since the previous run (its stored
+  md5sum), since a curator may have kept ABC's authors on purpose. "In progress"
+  and "blocked" are left alone because a curator is working on them.
 * PubMed's authors match ABC's and the reference is "author review needed" ->
   "author review complete", stamped with the updating script's user.
 

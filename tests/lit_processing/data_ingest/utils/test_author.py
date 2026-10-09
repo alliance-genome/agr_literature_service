@@ -408,10 +408,11 @@ class TestUpdateAuthorsAuthorReview:
             WorkflowTagModel.mod_id == mod.mod_id,
             WorkflowTagModel.workflow_tag_id.in_(AUTHOR_REVIEW_STATES)).all()]
 
-    def _run(self, db, ref, author_list_in_json, flag_author_review=True):  # noqa
+    def _run(self, db, ref, author_list_in_json, flag_author_review=True, pubmed_record_changed=False):  # noqa
         result = update_authors(db, ref.reference_id, self.DB_AUTHORS, author_list_in_json,
                                 "x", {}, None, None, None, None,
-                                flag_author_review=flag_author_review)
+                                flag_author_review=flag_author_review,
+                                pubmed_record_changed=pubmed_record_changed)
         db.commit()
         return result
 
@@ -422,9 +423,22 @@ class TestUpdateAuthorsAuthorReview:
         rows = db.query(AuthorModel).filter_by(reference_id=ref.reference_id).all()
         assert [row.name for row in rows] == ["Existing One"]
 
-    def test_difference_reopens_complete(self, db):  # noqa
+    def test_difference_reopens_complete_when_pubmed_changed(self, db):  # noqa
         ref, mod = self._curated_reference(db, 2, tag=AUTHOR_REVIEW_COMPLETE)
-        self._run(db, ref, self.DIFFERENT_JSON)
+        self._run(db, ref, self.DIFFERENT_JSON, pubmed_record_changed=True)
+        assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_NEEDED]
+
+    def test_difference_keeps_complete_when_pubmed_unchanged(self, db):  # noqa
+        # a curator reviewed the paper and kept ABC's authors on purpose: later runs
+        # over the same PubMed record must not reopen the review
+        ref, mod = self._curated_reference(db, 10, tag=AUTHOR_REVIEW_COMPLETE)
+        for _ in range(2):
+            self._run(db, ref, self.DIFFERENT_JSON, pubmed_record_changed=False)
+            assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_COMPLETE]
+
+    def test_difference_sets_needed_without_tag_even_if_pubmed_unchanged(self, db):  # noqa
+        ref, mod = self._curated_reference(db, 11)
+        self._run(db, ref, self.DIFFERENT_JSON, pubmed_record_changed=False)
         assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_NEEDED]
 
     def test_difference_leaves_in_progress_and_blocked(self, db):  # noqa

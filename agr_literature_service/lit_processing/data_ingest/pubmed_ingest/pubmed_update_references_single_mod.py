@@ -411,7 +411,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                      pub_status_changed,
                                      pmids_with_pub_status_changed,
                                      None, fw, pmid, update_log,
-                                     flag_author_review=True)
+                                     flag_author_review=True,
+                                     pubmed_record_changed=pubmed_record_has_changed(
+                                         pmid, old_md5sum, new_md5sum))
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating author table: {e}")
 
@@ -655,6 +657,14 @@ def set_paths():  # pragma: no cover
 
     return (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
             email_recipients, sender_email, sender_password, reply_to)
+
+
+def pubmed_record_has_changed(pmid, old_md5sum, new_md5sum):
+    """SCRUM-6448: whether the PubMed record for pmid changed since the previous run,
+    from the per-PMID md5sums stored at the end of each run (a PMID with no stored
+    md5sum counts as changed)."""
+    pmid_with_prefix = "PMID:" + pmid
+    return old_md5sum.get(pmid_with_prefix) != new_md5sum.get(pmid_with_prefix)
 
 
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):

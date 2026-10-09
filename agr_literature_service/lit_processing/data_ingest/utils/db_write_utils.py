@@ -797,12 +797,15 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
 
 
 def set_author_review_tags(db_session: Session, reference_id, authors_match: bool,
-                           logger=None, fw=None, pmid=None) -> None:
+                           pubmed_record_changed: bool = False, logger=None, fw=None, pmid=None) -> None:
     """SCRUM-6448: keep the author review workflow tag of a curator-edited reference
     in step with PubMed, for each AUTHOR_REVIEW_MODS corpus it is in (see
     api.crud.utils.author_review).
 
-    * authors differ: no tag -> "needed"; "complete" -> back to "needed".
+    * authors differ: no tag -> "needed"; "complete" -> back to "needed" only when
+      pubmed_record_changed. A curator who reviewed the paper and kept ABC's authors
+      on purpose leaves them different from PubMed, so without that check every
+      PubMed run (which reprocesses every reference) would reopen the review.
     * authors match: "needed" -> "complete".
     "In progress" and "blocked" are always left for the curator.
 
@@ -829,7 +832,7 @@ def set_author_review_tags(db_session: Session, reference_id, authors_match: boo
                 current_atp = current_tag.workflow_tag_id if current_tag else None
                 if authors_match:
                     new_atp = AUTHOR_REVIEW_COMPLETE if current_atp == AUTHOR_REVIEW_NEEDED else None
-                elif current_atp is None or current_atp == AUTHOR_REVIEW_COMPLETE:
+                elif current_atp is None or (current_atp == AUTHOR_REVIEW_COMPLETE and pubmed_record_changed):
                     new_atp = AUTHOR_REVIEW_NEEDED
                 else:
                     new_atp = None
@@ -858,7 +861,7 @@ def set_author_review_tags(db_session: Session, reference_id, authors_match: boo
             )
 
 
-def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None, flag_author_review: bool = False):  # noqa: C901 # pragma: no cover
+def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None, flag_author_review: bool = False, pubmed_record_changed: bool = False):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -878,6 +881,8 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     flag_author_review (SCRUM-6448, set by the PubMed update): when the reference's
     authors were edited by a curator, flag differences for review with the author
     review workflow tags instead of silently skipping it; see set_author_review_tags.
+    pubmed_record_changed: the PubMed record changed since the previous run, which
+    is what lets a completed author review be reopened.
     """
 
     if author_list_in_json is None:
@@ -899,7 +904,7 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
         if flag_author_review:
             set_author_review_tags(db_session, reference_id,
                                    authors_lists_match_for_review(authors_from_json, authors_from_db),
-                                   logger, fw, pmid)
+                                   pubmed_record_changed, logger, fw, pmid)
         return []
 
     if any(
