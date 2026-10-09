@@ -196,6 +196,11 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
 def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
 
     if mod_abbreviation == 'WB':
+        # WBPaper ids are max + 1, not a sequence: serialize minting so two papers
+        # sorted inside at once cannot both take the same number (the second insert
+        # then fails on idx_curie). The transaction-level lock is held until create()
+        # commits the new xref, so the next request reads the updated max.
+        db.execute(text("SELECT pg_advisory_xact_lock(hashtext('generate_new_wbpaper_curie'))"))
         new_wbpaper_number = 1
         cross_reference = db.query(CrossReferenceModel.curie).filter(
             and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),

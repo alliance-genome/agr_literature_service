@@ -24,6 +24,8 @@ ZFIN_INDEX = "ATP:0000306"
 ZFIN_PRE_INDEXING_COMPLETE = "ATP:0000303"
 ZFIN_MOLECULAR_PROBE = "ATP:0000380"
 ZFIN_MOLECULAR_PROBE_IN_PROGRESS = "ATP:0000383"
+WB_AUTHOR_PERSON_NEEDED = "ATP:0000109"
+WB_AUTHOR_PERSON_IN_PROGRESS = "ATP:0000377"
 
 
 def _reference(db, curie): # noqa
@@ -111,6 +113,24 @@ class TestCreate:
             WorkflowTagModel.mod_id == mod_id).all()}
         assert tags == {ZFIN_MOLECULAR_PROBE_IN_PROGRESS, ZFIN_PRE_INDEXING_COMPLETE}
 
+    def _create_in_corpus(self, db, ref, mod_abbreviation): # noqa
+        payload = ModCorpusAssociationSchemaPost(
+            mod_abbreviation=mod_abbreviation, reference_curie=ref.curie, corpus=True,
+            mod_corpus_sort_source=ModCorpusSortSourceType.Mod_pubmed_search)
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+                patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            mca_crud.create(db, payload)
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).scalar()
+        return {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id,
+            WorkflowTagModel.mod_id == mod_id).all()}
+
+    def test_wb_corpus_create_does_not_add_author_person_curation_needed(self, seeded): # noqa
+        """SCRUM-6487: author-person curation needed is opt-in from the sort page
+        (patch with author_person_curation_needed), never granted on create."""
+        db, ref = seeded  # noqa
+        assert WB_AUTHOR_PERSON_NEEDED not in self._create_in_corpus(db, ref, "WB")
+
     def test_sgd_corpus_adds_manual_indexing_tag(self, seeded): # noqa
         db, ref = seeded  # noqa
         payload = ModCorpusAssociationSchemaPost(
@@ -196,6 +216,46 @@ class TestPatch:
             with pytest.raises(HTTPException) as exc:
                 mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
         assert exc.value.status_code == 422
+
+    def _patch_into_corpus(self, db, ref, mod_abbreviation, **flags): # noqa
+        mod = _mod(db, mod_abbreviation)
+        mca = _mca(db, ref, mod, corpus=False)
+        update = ModCorpusAssociationSchemaUpdate(corpus=True, **flags)
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+                patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
+        return {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id,
+            WorkflowTagModel.mod_id == mod.mod_id).all()}
+
+    def test_patch_wb_with_checkbox_adds_author_person_needed(self, seeded): # noqa
+        """SCRUM-6487: sorting inside with the checkbox checked grants the tag."""
+        db, ref = seeded  # noqa
+        tags = self._patch_into_corpus(db, ref, "WB", author_person_curation_needed=True)
+        assert WB_AUTHOR_PERSON_NEEDED in tags
+
+    def test_patch_wb_without_checkbox_skips_author_person_needed(self, seeded): # noqa
+        db, ref = seeded  # noqa
+        assert WB_AUTHOR_PERSON_NEEDED not in self._patch_into_corpus(db, ref, "WB")
+        assert WB_AUTHOR_PERSON_NEEDED not in self._patch_into_corpus(
+            db, _reference(db, "AGRKB:101000300002"), "WB", author_person_curation_needed=False)
+
+    def test_patch_wb_skips_author_person_tag_already_in_workflow(self, seeded): # noqa
+        """A paper WB curators already moved on (e.g. imported as in progress) must not
+        get a second state of the same workflow."""
+        db, ref = seeded  # noqa
+        mod_id = _mod(db, "WB").mod_id
+        db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id,
+                                workflow_tag_id=WB_AUTHOR_PERSON_IN_PROGRESS))
+        db.commit()
+        tags = self._patch_into_corpus(db, ref, "WB", author_person_curation_needed=True)
+        assert WB_AUTHOR_PERSON_IN_PROGRESS in tags
+        assert WB_AUTHOR_PERSON_NEEDED not in tags
+
+    def test_patch_author_person_curation_is_wb_only(self, seeded): # noqa
+        db, ref = seeded  # noqa
+        tags = self._patch_into_corpus(db, ref, "FB", author_person_curation_needed=True)
+        assert WB_AUTHOR_PERSON_NEEDED not in tags
 
     def test_patch_sgd_corpus_true_adds_index_tag(self, seeded): # noqa
         db, ref = seeded  # noqa

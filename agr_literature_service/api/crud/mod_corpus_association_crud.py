@@ -22,8 +22,10 @@ from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost, \
     ModCorpusAssociationBatchResultItem, ModCorpusSortSourceType
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.crud.utils.zfin_corpus_entry import \
-    ZFIN_CORPUS_ENTRY_TAGS, PRE_INDEXING_PRIO_NEEDED, MOLECULAR_PROBE_CLASSIFICATION_NEEDED
-from typing import List
+    PRE_INDEXING_PRIO_NEEDED, MOLECULAR_PROBE_CLASSIFICATION_NEEDED
+from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS, \
+    AUTHOR_PERSON_CURATION_TAGS
+from typing import List, Optional, Tuple
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -31,15 +33,20 @@ pre_indexing_prio_needed_tag_atp_id = PRE_INDEXING_PRIO_NEEDED
 molecular_probe_classification_needed_tag_atp_id = MOLECULAR_PROBE_CLASSIFICATION_NEEDED
 
 
-def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: int) -> None:
-    """Grant the workflow tags ZFIN expects the moment a reference enters the corpus.
+def add_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: int,
+                                   mod_abbreviation: str,
+                                   tags: Optional[List[Tuple[str, str, List[str]]]] = None) -> None:
+    """Grant the workflow tags the MOD expects the moment a reference enters its
+    corpus (``corpus_entry_tags.CORPUS_ENTRY_TAGS``); a no-op for any other MOD.
+    ``tags`` overrides that table, e.g. WB's opt-in author-person curation
+    needed (``AUTHOR_PERSON_CURATION_TAGS``, SCRUM-6487).
 
-    SCRUM-5764: molecular probe abstract classification is triggered by "inside
-    corpus" -- ZFIN mints a ZDB-PUB when its PubMed query finds the reference and
-    the ABC picks it up within a day, before students are given the paper -- so
-    its "needed" tag is granted alongside the pre-indexing prioritization one
-    rather than later in the workflow. Both are abstract-only classifiers, so
-    neither waits on a PDF.
+    ZFIN (SCRUM-5764): molecular probe abstract classification is triggered by
+    "inside corpus" -- ZFIN mints a ZDB-PUB when its PubMed query finds the
+    reference and the ABC picks it up within a day, before students are given
+    the paper -- so its "needed" tag is granted alongside the pre-indexing
+    prioritization one rather than later in the workflow. Both are abstract-only
+    classifiers, so neither waits on a PDF.
 
     A tag is skipped when the reference already sits in ANY state of that tag's
     own workflow, not merely when it holds that exact tag. destroy() removes only
@@ -53,7 +60,9 @@ def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: 
 
     The caller is responsible for committing.
     """
-    for atp_name, tag_atp_id, workflow_states in ZFIN_CORPUS_ENTRY_TAGS:
+    if tags is None:
+        tags = CORPUS_ENTRY_TAGS.get(mod_abbreviation, [])
+    for atp_name, tag_atp_id, workflow_states in tags:
         tag_atp_id = name_to_atp.get(atp_name, tag_atp_id)
         if db.query(WorkflowTagModel).filter(
                 WorkflowTagModel.reference_id == reference_id,
@@ -115,8 +124,8 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if mod_abbreviation != 'AGR' and get_current_workflow_status(
                 db, reference_curie, "ATP:0000140", mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-        if mod_abbreviation == 'ZFIN':
-            add_zfin_corpus_entry_workflow_tags(db, reference.reference_id, mod.mod_id)
+        if mod_abbreviation in CORPUS_ENTRY_TAGS:
+            add_corpus_entry_workflow_tags(db, reference.reference_id, mod.mod_id, mod_abbreviation)
             db.commit()
         elif mod_abbreviation == 'SGD':
             db.add(WorkflowTagModel(reference_id=reference.reference_id,
@@ -159,6 +168,34 @@ def destroy(db: Session, mod_corpus_association_id: int) -> None:
     return None
 
 
+def add_workflow_tags_on_patch_into_corpus(db: Session, mod_corpus_association_db_obj: ModCorpusAssociationModel,
+                                           reference_obj: ReferenceModel, mod_abbreviation: str,
+                                           mod_corpus_association_data: dict) -> None:
+    """Generate the MOD xref and grant the workflow tags for a reference that a
+    patch moves into the MOD's corpus."""
+    check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
+    # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
+    if mod_abbreviation != 'AGR' and get_current_workflow_status(
+            db, str(reference_obj.reference_id), "ATP:0000140",
+            mod_abbreviation=mod_abbreviation) is None:
+        transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
+    if mod_abbreviation in CORPUS_ENTRY_TAGS:
+        add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
+                                       mod_corpus_association_db_obj.mod_id, mod_abbreviation)
+    # SCRUM-6487: WB's sort page asks for author-person curation per paper
+    if mod_corpus_association_data.get('author_person_curation_needed') and \
+            mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS:
+        add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
+                                       mod_corpus_association_db_obj.mod_id, mod_abbreviation,
+                                       tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
+    if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
+        wft_id = mod_corpus_association_data['index_wft_id']
+        wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
+                                   mod_id=mod_corpus_association_db_obj.mod_id,
+                                   workflow_tag_id=wft_id)
+        db.add(wft_obj)
+
+
 def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_update):
     """
     Update a mod_corpus_association
@@ -197,21 +234,8 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 db_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_corpus_association_data["mod_abbreviation"]).first()
                 mod_abbreviation = db_mod.abbreviation
             if value is True and mod_corpus_association_db_obj.corpus is not True:
-                check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
-                # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
-                if mod_abbreviation != 'AGR' and get_current_workflow_status(
-                        db, str(reference_obj.reference_id), "ATP:0000140",
-                        mod_abbreviation=mod_abbreviation) is None:
-                    transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
-                if mod_abbreviation == 'ZFIN':
-                    add_zfin_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
-                                                        mod_corpus_association_db_obj.mod_id)
-                if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
-                    wft_id = mod_corpus_association_data['index_wft_id']
-                    wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
-                                               mod_id=mod_corpus_association_db_obj.mod_id,
-                                               workflow_tag_id=wft_id)
-                    db.add(wft_obj)
+                add_workflow_tags_on_patch_into_corpus(db, mod_corpus_association_db_obj, reference_obj,
+                                                       mod_abbreviation, mod_corpus_association_data)
             elif (value is False or value is None) and mod_corpus_association_db_obj.corpus is True:
                 has_manual_tags = has_manual_tet(db, str(mod_corpus_association_db_obj.reference_id),
                                                  mod_abbreviation)
@@ -383,9 +407,9 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                         db, str(mca.reference_id), "ATP:0000140",
                         mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-                # Add ZFIN-specific workflow tags
-                if mod_abbreviation == 'ZFIN':
-                    add_zfin_corpus_entry_workflow_tags(db, mca.reference_id, mca.mod_id)
+                # Add the MOD's corpus-entry workflow tags (ZFIN)
+                if mod_abbreviation in CORPUS_ENTRY_TAGS:
+                    add_corpus_entry_workflow_tags(db, mca.reference_id, mca.mod_id, mod_abbreviation)
 
             # Update the corpus value (date_updated is auto-set by AuditedModel event)
             mca.corpus = corpus

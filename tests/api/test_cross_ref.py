@@ -1,8 +1,10 @@
+import threading
 from collections import namedtuple
 
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
+from sqlalchemy.orm import sessionmaker
 
 import agr_literature_service.api.resource_descriptor_cache as rdc
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
@@ -213,6 +215,41 @@ class TestCrossRef:
             check_xref_and_generate_mod_id(db, reference_obj2, 'WB')
             xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj2.reference_id).one()
             assert xref.curie == 'WB:WBPaper00000002'
+
+    def test_xref_wb_modid_concurrent(self, db, test_reference, test_reference2, auth_headers): # noqa
+        """Two papers sorted inside WB at once must get different WBPaper ids:
+        minting is max + 1, so without the advisory lock in generate_new_mod_curie
+        both read the same max and the second insert fails on idx_curie."""
+        with TestClient(app) as client:
+            new_mod = {"abbreviation": "WB", "short_name": "WB", "full_name": "WormBase"}
+            response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            ref_curies = [test_reference.new_ref_curie, test_reference2.new_ref_curie]
+            barrier = threading.Barrier(len(ref_curies))
+            errors = []
+
+            def mint(ref_curie):
+                session = sessionmaker(bind=db.get_bind(), autoflush=True)()
+                try:
+                    reference_obj = session.query(ReferenceModel).filter(
+                        ReferenceModel.curie == ref_curie).one()
+                    barrier.wait(timeout=30)
+                    check_xref_and_generate_mod_id(session, reference_obj, 'WB')
+                except Exception as e:
+                    errors.append(e)
+                finally:
+                    session.close()
+
+            threads = [threading.Thread(target=mint, args=(ref_curie,)) for ref_curie in ref_curies]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=60)
+
+            assert errors == []
+            curies = sorted(xref.curie for xref in db.query(CrossReferenceModel).filter_by(curie_prefix='WB'))
+            assert curies == ['WB:WBPaper00000001', 'WB:WBPaper00000002']
 
 
     def test_get_patterns_reference(self, auth_headers): # noqa
