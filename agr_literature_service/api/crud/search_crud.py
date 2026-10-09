@@ -305,7 +305,7 @@ def search_references(
                 "aggs": {
                     "by_curation_status": {
                         "terms": {
-                            "field": "curation_tags.curation_status",
+                            "field": "curation_tags.curation_status.keyword",
                             "min_doc_count": 0,
                             "size": 100
                         },
@@ -788,6 +788,10 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     res["aggregations"].update(topic_aggs)
     res["aggregations"].update(workflow_aggs)
     res["aggregations"].update(curation_aggs)
+
+    ##De-nest curation agg
+    curation_status_tags = res["aggregations"].get("curation_tags").get("by_curation_status")
+    res['aggregations']["curation_tags"] = curation_status_tags
 
     # unwrap nested authors agg to the expected shape
     agg = res["aggregations"].get("authors.name.keyword")
