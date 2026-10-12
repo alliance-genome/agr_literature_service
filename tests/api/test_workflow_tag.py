@@ -560,6 +560,27 @@ class TestWorkflowTag:
         sgd_result = get_indexing_and_community_workflow_tags(db, ref_curie, 'SGD')
         assert 'first pass curation' not in sgd_result
 
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_author_workflows_in_wf_editor_wb_only(self, test_workflow_tag, db, auth_headers):  # noqa
+        """WB's author-person curation (SCRUM-6487) and author review (SCRUM-6448) are
+        exposed to the WF editor for WormBase only, so curators can move them by hand."""
+        load_name_to_atp_and_relationships_mock()
+        ref_curie = test_workflow_tag.related_ref_curie
+
+        wb_result = get_indexing_and_community_workflow_tags(db, ref_curie, 'WB')
+        assert set(wb_result['author-person curation']['all_workflow_tags'].keys()) == {
+            'ATP:0000109', 'ATP:0000377', 'ATP:0000376', 'ATP:0000378'
+        }
+        assert set(wb_result['author review']['all_workflow_tags'].keys()) == {
+            'ATP:0000389', 'ATP:0000390', 'ATP:0000391', 'ATP:0000392'
+        }
+
+        for mod_abbreviation in ('FB', 'SGD', 'ZFIN'):
+            result = get_indexing_and_community_workflow_tags(db, ref_curie, mod_abbreviation)
+            assert 'author-person curation' not in result
+            assert 'author review' not in result
+
 
 class TestPreCurationWorkflowOverview:
     """Cover get_pre_curation_workflow_overview and its helpers (SCRUM-6298)."""

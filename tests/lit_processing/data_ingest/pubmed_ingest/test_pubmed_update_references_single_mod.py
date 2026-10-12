@@ -3,7 +3,7 @@ from os import path
 
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, CitationModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import\
-    update_database, update_reference_table, generate_pmids_with_info
+    update_database, update_reference_table, generate_pmids_with_info, pubmed_record_has_changed
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_pmid_to_reference_id, get_author_data
 from ....fixtures import load_sanitized_references, populate_test_mod_reference_types, db # noqa
@@ -138,3 +138,13 @@ class TestPubmedUpdateReferenceSingleMod:
                 assert x.page_range != '88'
                 assert x.volume != '888'
                 assert "OLD: " not in x.title
+
+
+def test_pubmed_record_has_changed():
+    # SCRUM-6448: lets the PubMed update reopen a completed author review
+    old_md5sum = {"PMID:1": "aaa", "PMID:2": "bbb"}
+    new_md5sum = {"PMID:1": "aaa", "PMID:2": "ccc", "PMID:3": "ddd"}
+    assert pubmed_record_has_changed("1", old_md5sum, new_md5sum) is False
+    assert pubmed_record_has_changed("2", old_md5sum, new_md5sum) is True
+    # no md5sum stored from a previous run counts as changed
+    assert pubmed_record_has_changed("3", old_md5sum, new_md5sum) is True

@@ -1572,6 +1572,14 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
     if mod_abbreviation == 'FB':
         first_pass_curation_atp = get_atp_id_by_name('first pass curation', fallback='ATP:0000329')
         process_atp_ids[first_pass_curation_atp] = "first pass curation"
+    # WormBase's author workflows, moved by hand in the WF editor: author-person curation
+    # (SCRUM-6487, granted from the sort page) and author review (SCRUM-6448, set by the
+    # PubMed update).
+    if mod_abbreviation == 'WB':
+        author_person_curation_atp = get_atp_id_by_name('author-person curation', fallback='ATP:0000375')
+        process_atp_ids[author_person_curation_atp] = "author-person curation"
+        author_review_atp = get_atp_id_by_name('author review', fallback='ATP:0000388')
+        process_atp_ids[author_review_atp] = "author review"
 
     result: dict[str, dict[str, Any]] = {}
 

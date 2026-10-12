@@ -77,6 +77,8 @@ class ModCorpusAssociationSchemaUpdate(BaseModel):
     corpus: Optional[bool] = None
     index_wft_id: Optional[str] = None
     force_out: Optional[bool] = None
+    # SCRUM-6487: WB only; grant "author-person curation needed" when sorted inside
+    author_person_curation_needed: Optional[bool] = None
 
 
 class ModCorpusAssociationSchemaBatchUpdate(BaseModel):
