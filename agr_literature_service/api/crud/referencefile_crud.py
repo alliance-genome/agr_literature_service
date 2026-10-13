@@ -610,7 +610,14 @@ def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
     return bool(row and row[0])
 
 
-def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
+def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False,
+                skip_post_upload_actions: bool = False):  # pragma: no cover
+    """skip_post_upload_actions: persist the file without cleanup_old_pdf_file or
+    transition_WFT_for_uploaded_file, so the upload neither prunes the
+    reference's other main PDFs nor queues text conversion. Per call, unlike
+    the process-wide _suppress_upload_guardrails, so the API can use it for one
+    request (archive uploads, SCRUM-6633) without affecting concurrent uploads.
+    """
     metadata["reference_curie"] = normalize_reference_curie(db, metadata["reference_curie"])
     if metadata["mod_abbreviation"]:
         inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
@@ -680,9 +687,10 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
     else:
         created_referencefiles.append(file_upload_single(db, metadata, file))
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-    if _suppress_upload_guardrails:
-        # Auxiliary upload (e.g. figure-metadata sidecar): persist the file but
-        # do not move the reference's workflow status or prune its main PDFs.
+    if _suppress_upload_guardrails or skip_post_upload_actions:
+        # Auxiliary upload (e.g. figure-metadata sidecar) or archive upload:
+        # persist the file but do not move the reference's workflow status or
+        # prune its main PDFs.
         # transition_WFT_for_uploaded_file is normally the committing step, so
         # commit explicitly to guarantee the new referencefile is persisted.
         db.commit()
