@@ -99,6 +99,7 @@ class TestReadOnlyEnforcement:
         ("POST", "/topic_entity_tag/"),
         ("POST", "/reference/merge/AGRKB:1/AGRKB:2"),
         ("POST", "/reference/referencefile/file_upload/"),
+        ("POST", "/reference/referencefile/pdf_archive_upload/"),
         ("POST", "/topic_entity_tag/validate"),
         ("POST", "/workflow_tag/transition_to_workflow_status"),
         ("PATCH", "/reference/AGRKB:1"),
