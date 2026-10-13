@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -155,3 +155,16 @@ class ReferencefileByMd5MatchSchema(AuditedObjectModelSchema):
     copyright_license_name: Optional[str] = None
     referencefile_mods: List[ReferencefileModSchemaRelated]
     converted_referencefiles: List[ReferencefileConvertedDerivedSchema]
+
+
+class ReferencefileArchiveUploadSchemaShow(BaseModel):
+    """Outcome of one archive upload (SCRUM-6633); see referencefile_archive_crud
+    for the statuses."""
+    model_config = ConfigDict(extra='forbid')
+
+    file_name: str
+    status: Literal["bad_name", "no_xref", "not_in_corpus", "already_loaded",
+                    "has_other_mod_pdf", "would_upload", "uploaded"]
+    xref_curie: Optional[str] = None
+    reference_curie: Optional[str] = None
+    workflow_change: Optional[str] = None
