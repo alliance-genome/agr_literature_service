@@ -178,6 +178,17 @@ def authors_lists_are_equal(author_list1: List[Author], author_list2: List[Autho
         author.get_normalized_lowercase_author_string() for author in author_list2]
 
 
+def authors_lists_match_for_review(author_list1: List[Author], author_list2: List[Author]):
+    """SCRUM-6448: whether two author lists agree on what an author review cares
+    about -- each author's name, order and ORCID. First/last name, initials,
+    affiliations and email differences are ignored."""
+    def review_key(author: Author):
+        normalized_author = author.get_normalized_author(set_lowercase=True)
+        return normalized_author.name, normalized_author.order, normalized_author.orcid
+
+    return [review_key(author) for author in author_list1] == [review_key(author) for author in author_list2]
+
+
 def authors_have_same_name(author1: Author, author2: Author):
     author1_normalized = author1.get_normalized_author(set_lowercase=True)
     author2_normalized = author2.get_normalized_author(set_lowercase=True)

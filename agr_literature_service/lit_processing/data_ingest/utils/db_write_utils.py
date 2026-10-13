@@ -7,7 +7,8 @@ from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
-from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal
+from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
+    authors_lists_match_for_review
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -18,7 +19,9 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
     TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
-from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
+from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
+from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_STATES, \
+    AUTHOR_REVIEW_NEEDED, AUTHOR_REVIEW_COMPLETE
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -793,7 +796,72 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     ).first() is not None
 
 
-def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def set_author_review_tags(db_session: Session, reference_id, authors_match: bool,
+                           pubmed_record_changed: bool = False, logger=None, fw=None, pmid=None) -> None:
+    """SCRUM-6448: keep the author review workflow tag of a curator-edited reference
+    in step with PubMed, for each AUTHOR_REVIEW_MODS corpus it is in (see
+    api.crud.utils.author_review).
+
+    * authors differ: no tag -> "needed"; "complete" -> back to "needed" only when
+      pubmed_record_changed. A curator who reviewed the paper and kept ABC's authors
+      on purpose leaves them different from PubMed, so without that check every
+      PubMed run (which reprocesses every reference) would reopen the review.
+    * authors match: "needed" -> "complete".
+    "In progress" and "blocked" are always left for the curator.
+
+    Each MOD's change runs in a SAVEPOINT and is flushed there, so a failure rolls
+    back only that change and not the batch of reference updates the PubMed script
+    commits together. The tag rows are stamped with the script's user.
+    """
+    mod_rows = db_session.query(ModModel.mod_id, ModModel.abbreviation).join(
+        ModCorpusAssociationModel,
+        ModCorpusAssociationModel.mod_id == ModModel.mod_id
+    ).filter(
+        ModCorpusAssociationModel.reference_id == reference_id,
+        ModCorpusAssociationModel.corpus.is_(True),
+        ModModel.abbreviation.in_(AUTHOR_REVIEW_MODS)
+    ).all()
+    for mod_id, mod_abbreviation in mod_rows:
+        try:
+            with db_session.begin_nested():
+                current_tag = db_session.query(WorkflowTagModel).filter(
+                    WorkflowTagModel.reference_id == reference_id,
+                    WorkflowTagModel.mod_id == mod_id,
+                    WorkflowTagModel.workflow_tag_id.in_(AUTHOR_REVIEW_STATES)
+                ).first()
+                current_atp = current_tag.workflow_tag_id if current_tag else None
+                if authors_match:
+                    new_atp = AUTHOR_REVIEW_COMPLETE if current_atp == AUTHOR_REVIEW_NEEDED else None
+                elif current_atp is None or (current_atp == AUTHOR_REVIEW_COMPLETE and pubmed_record_changed):
+                    new_atp = AUTHOR_REVIEW_NEEDED
+                else:
+                    new_atp = None
+                if new_atp is None:
+                    continue
+                if current_tag is None:
+                    db_session.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                                    workflow_tag_id=new_atp))
+                else:
+                    current_tag.workflow_tag_id = new_atp
+                db_session.flush()
+            _write_log_message(
+                reference_id,
+                f": AUTHOR REVIEW {mod_abbreviation} workflow tag {current_atp or 'none'} -> {new_atp}",
+                pmid,
+                logger,
+                fw
+            )
+        except Exception as e:
+            _write_log_message(
+                reference_id,
+                f": ERROR setting {mod_abbreviation} author review workflow tag: {e}",
+                pmid,
+                logger,
+                fw
+            )
+
+
+def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None, flag_author_review: bool = False, pubmed_record_changed: bool = False):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -809,6 +877,12 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     tags set to true. We will address authors with these tags and those connected to PERSON
     in the future simultaneously.
     Skip these authors during the update and send a report to the curators.
+
+    flag_author_review (SCRUM-6448, set by the PubMed update): when the reference's
+    authors were edited by a curator, flag differences for review with the author
+    review workflow tags instead of silently skipping it; see set_author_review_tags.
+    pubmed_record_changed: the PubMed record changed since the previous run, which
+    is what lets a completed author review be reopened.
     """
 
     if author_list_in_json is None:
@@ -827,6 +901,10 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     # mutation path below -- both the merged-author-string replace and the main
     # drop-and-reload. (Runs for every reference; correctness over micro-optimization.)
     if _reference_touched_by_curator(db_session, reference_id):
+        if flag_author_review:
+            set_author_review_tags(db_session, reference_id,
+                                   authors_lists_match_for_review(authors_from_json, authors_from_db),
+                                   pubmed_record_changed, logger, fw, pmid)
         return []
 
     if any(
@@ -937,17 +1015,24 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
             except Exception as e:
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
                 return
-        if mod == "ZFIN" and json_mca_entry.get("corpus"):
-            add_zfin_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger)
+        if mod in CORPUS_ENTRY_TAGS and json_mca_entry.get("corpus"):
+            add_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger, mod)
 
 
 def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
-    """Grant ZFIN's corpus-entry workflow tags.
+    """Grant ZFIN's corpus-entry workflow tags (see add_corpus_entry_tags)."""
+    add_corpus_entry_tags(db, reference_id, mod_id, logger, "ZFIN")
 
-    The tag table lives in api.crud.utils.zfin_corpus_entry so this and the API
+
+def add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation):
+    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers); a
+    no-op for any other MOD. WB's author-person curation needed (SCRUM-6487) is
+    never granted on ingest: it is opt-in from the sort page only.
+
+    The tag table lives in api.crud.utils.corpus_entry_tags so this and the API
     path (mod_corpus_association_crud) guard the same tags against the same
-    workflow state sets and cannot drift; see that module for why the probe state
-    list is non-contiguous and cannot be derived from the ontology.
+    workflow state sets and cannot drift; see zfin_corpus_entry for why the probe
+    state list is non-contiguous and cannot be derived from the ontology.
 
     Each tag is guarded independently against its own workflow's states, so a
     reference that already holds one still picks up the other -- which is what
@@ -968,7 +1053,7 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
     reference anyway.
     """
     added = False
-    for _atp_name, atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
+    for _atp_name, atpid, already_entered in CORPUS_ENTRY_TAGS.get(mod_abbreviation, []):
         try:
             with db.begin_nested():
                 existing = (
@@ -988,11 +1073,11 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
                     # caught here rather than at the final commit below.
                     db.flush()
                     added = True
-                    logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
+                    logger.info(f"Adding {mod_abbreviation} corpus-entry tag: {atpid}")
                 else:
-                    logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
+                    logger.info(f"{mod_abbreviation} corpus-entry tag already exists: {existing.workflow_tag_id}")
         except Exception as e:
-            logger.error(f"Error when adding ZFIN corpus-entry tag {atpid}: {e}")
+            logger.error(f"Error when adding {mod_abbreviation} corpus-entry tag {atpid}: {e}")
     if added:
         db.commit()
 

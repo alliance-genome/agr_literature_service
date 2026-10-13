@@ -1,17 +1,28 @@
 """Unit tests for the pure Author value object and helpers in
 ``agr_literature_service.lit_processing.data_ingest.utils.author``.
 """
+from agr_literature_service.api.crud.utils.author_review import (
+    AUTHOR_REVIEW_BLOCKED,
+    AUTHOR_REVIEW_COMPLETE,
+    AUTHOR_REVIEW_IN_PROGRESS,
+    AUTHOR_REVIEW_NEEDED,
+    AUTHOR_REVIEW_STATES,
+)
 from agr_literature_service.api.models import (
     AuthorModel,
+    ModCorpusAssociationModel,
+    ModModel,
     PersonModel,
     ReferenceModel,
     UserModel,
+    WorkflowTagModel,
 )
 from agr_literature_service.lit_processing.data_ingest.utils.author import (
     Author,
     add_order_to_list_of_authors,
     authors_have_same_name,
     authors_lists_are_equal,
+    authors_lists_match_for_review,
 )
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import (
     _reference_touched_by_curator,
@@ -181,6 +192,31 @@ class TestModuleHelpers:
         assert authors_lists_are_equal([_author(name="Jane Doe")],
                                        [_author(name="John Roe")]) is False
 
+    def test_review_match_ignores_other_fields(self):
+        # SCRUM-6448: only name, order and ORCID count for an author review
+        a = [_author(name="Jane Doe", orcid="ORCID:0000-0001")]
+        b = [_author(name="JANE DOE", first_name="J.", last_name="D", first_initial="X",
+                     orcid="ORCID:0000-0001", affiliations=["Somewhere"], string_affiliations="Somewhere",
+                     email="jane@example.org")]
+        assert authors_lists_match_for_review(a, b) is True
+
+    def test_review_mismatch_on_name(self):
+        assert authors_lists_match_for_review([_author(name="Jane Doe")],
+                                              [_author(name="Jane Roe")]) is False
+
+    def test_review_mismatch_on_order(self):
+        a = [_author(name="Jane Doe", order=1), _author(name="John Roe", order=2)]
+        b = [_author(name="John Roe", order=1), _author(name="Jane Doe", order=2)]
+        assert authors_lists_match_for_review(a, b) is False
+
+    def test_review_mismatch_on_orcid(self):
+        assert authors_lists_match_for_review([_author(orcid="ORCID:0000-0001")],
+                                              [_author(orcid=None)]) is False
+
+    def test_review_mismatch_on_author_count(self):
+        assert authors_lists_match_for_review([_author()],
+                                              [_author(), _author(name="John Roe", order=2)]) is False
+
     def test_same_name_matches_long_token(self):
         assert authors_have_same_name(_author(name="Jane Smith"),
                                       _author(name="Robert Smith")) is True
@@ -328,3 +364,109 @@ class TestUpdateAuthorsSync:
         # old rows gone, fresh reload with clean sequential 1..N order
         assert [r.author_order for r in rows] == [1, 2]
         assert [r.name for r in rows] == ["Xx X", "Yy Y"]
+
+
+def _get_or_create_mod(db, abbreviation):  # noqa
+    mod = db.query(ModModel).filter_by(abbreviation=abbreviation).one_or_none()
+    if mod is None:
+        mod = ModModel(abbreviation=abbreviation, short_name=abbreviation, full_name=abbreviation)
+        db.add(mod)
+        db.commit()
+        db.refresh(mod)
+    return mod
+
+
+class TestUpdateAuthorsAuthorReview:
+    """SCRUM-6448: the PubMed update (flag_author_review=True) flags curator-edited
+    author lists for review with the WB author review workflow tags."""
+
+    DB_AUTHORS = [{"name": "Existing One", "first_name": "Existing", "last_name": "One",
+                   "first_initial": "E", "author_order": 1}]
+    MATCHING_JSON = [{"name": "Existing One", "firstname": "E.", "lastname": "One",
+                      "firstinit": "E", "authorRank": 1, "affiliations": ["Elsewhere"]}]
+    DIFFERENT_JSON = [{"name": "New Person", "firstname": "New", "lastname": "Person",
+                       "firstinit": "N", "authorRank": 1}]
+
+    def _curated_reference(self, db, n, mod_abbreviation="WB", corpus=True, tag=None):  # noqa
+        ref = _make_reference(db, f"AGRKB:AR-TEST-{n}")
+        curator = _make_curator_user(db, f"curator-ar-{n}", f"AGR:ARLINK-{n}")
+        mod = _get_or_create_mod(db, mod_abbreviation)
+        db.add(ModCorpusAssociationModel(reference_id=ref.reference_id, mod_id=mod.mod_id,
+                                         corpus=corpus, mod_corpus_sort_source="manual_creation"))
+        db.add(AuthorModel(reference_id=ref.reference_id, author_order=1,
+                           name="Existing One", first_name="Existing", last_name="One",
+                           first_initial="E", created_by=curator.id, updated_by=curator.id))
+        if tag:
+            db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod.mod_id,
+                                    workflow_tag_id=tag))
+        db.commit()
+        return ref, mod
+
+    def _review_tags(self, db, ref, mod):  # noqa
+        return [row.workflow_tag_id for row in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id,
+            WorkflowTagModel.mod_id == mod.mod_id,
+            WorkflowTagModel.workflow_tag_id.in_(AUTHOR_REVIEW_STATES)).all()]
+
+    def _run(self, db, ref, author_list_in_json, flag_author_review=True, pubmed_record_changed=False):  # noqa
+        result = update_authors(db, ref.reference_id, self.DB_AUTHORS, author_list_in_json,
+                                "x", {}, None, None, None, None,
+                                flag_author_review=flag_author_review,
+                                pubmed_record_changed=pubmed_record_changed)
+        db.commit()
+        return result
+
+    def test_difference_sets_needed_and_keeps_authors(self, db):  # noqa
+        ref, mod = self._curated_reference(db, 1)
+        assert self._run(db, ref, self.DIFFERENT_JSON) == []
+        assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_NEEDED]
+        rows = db.query(AuthorModel).filter_by(reference_id=ref.reference_id).all()
+        assert [row.name for row in rows] == ["Existing One"]
+
+    def test_difference_reopens_complete_when_pubmed_changed(self, db):  # noqa
+        ref, mod = self._curated_reference(db, 2, tag=AUTHOR_REVIEW_COMPLETE)
+        self._run(db, ref, self.DIFFERENT_JSON, pubmed_record_changed=True)
+        assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_NEEDED]
+
+    def test_difference_keeps_complete_when_pubmed_unchanged(self, db):  # noqa
+        # a curator reviewed the paper and kept ABC's authors on purpose: later runs
+        # over the same PubMed record must not reopen the review
+        ref, mod = self._curated_reference(db, 10, tag=AUTHOR_REVIEW_COMPLETE)
+        for _ in range(2):
+            self._run(db, ref, self.DIFFERENT_JSON, pubmed_record_changed=False)
+            assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_COMPLETE]
+
+    def test_difference_sets_needed_without_tag_even_if_pubmed_unchanged(self, db):  # noqa
+        ref, mod = self._curated_reference(db, 11)
+        self._run(db, ref, self.DIFFERENT_JSON, pubmed_record_changed=False)
+        assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_NEEDED]
+
+    def test_difference_leaves_in_progress_and_blocked(self, db):  # noqa
+        for n, tag in ((3, AUTHOR_REVIEW_IN_PROGRESS), (4, AUTHOR_REVIEW_BLOCKED)):
+            ref, mod = self._curated_reference(db, n, tag=tag)
+            self._run(db, ref, self.DIFFERENT_JSON)
+            assert self._review_tags(db, ref, mod) == [tag]
+
+    def test_match_completes_needed(self, db):  # noqa
+        ref, mod = self._curated_reference(db, 5, tag=AUTHOR_REVIEW_NEEDED)
+        self._run(db, ref, self.MATCHING_JSON)
+        assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_COMPLETE]
+
+    def test_match_without_tag_adds_nothing(self, db):  # noqa
+        ref, mod = self._curated_reference(db, 6)
+        self._run(db, ref, self.MATCHING_JSON)
+        assert self._review_tags(db, ref, mod) == []
+
+    def test_not_flagged_without_opt_in(self, db):  # noqa
+        # the DQM loads call update_authors without flag_author_review
+        ref, mod = self._curated_reference(db, 7)
+        self._run(db, ref, self.DIFFERENT_JSON, flag_author_review=False)
+        assert self._review_tags(db, ref, mod) == []
+
+    def test_not_flagged_outside_wb_corpus(self, db):  # noqa
+        ref, wb = self._curated_reference(db, 8, corpus=False)
+        self._run(db, ref, self.DIFFERENT_JSON)
+        assert self._review_tags(db, ref, wb) == []
+        ref, sgd = self._curated_reference(db, 9, mod_abbreviation="SGD")
+        self._run(db, ref, self.DIFFERENT_JSON)
+        assert self._review_tags(db, ref, sgd) == []

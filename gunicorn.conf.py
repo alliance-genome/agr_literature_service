@@ -57,6 +57,13 @@ def pre_fork(server, worker):  # noqa: ARG001
 
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
+    # on_starting's setup_database() runs in the master (preload_app), so the forked
+    # worker inherits the engine's pool with that connection still in it. Two workers
+    # using the same inherited socket at once corrupt the libpq protocol
+    # ("error with status PGRES_TUPLES_OK and no message from the libpq"). Drop the
+    # inherited pool without closing the master's connections; the worker opens its own.
+    from agr_literature_service.api.database.main import engine
+    engine.dispose(close=False)
     msg = f"Worker spawned (pid: {worker.pid})"
     server.log.info(msg)
     print(msg, flush=True)
