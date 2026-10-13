@@ -4,6 +4,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.author_email_utils 
     assign_author_emails,
     email_matches_author,
     emails_in_affiliations,
+    strip_emails_from_affiliation,
+    strip_emails_from_affiliations,
 )
 
 
@@ -100,3 +102,37 @@ def test_first_name_beats_a_short_last_name():
     # a short last name still wins when nothing better names the address
     assert assign_author_emails(_authors(("Zhigang", "Xu", ["Shandong. xuzg@sdu.edu.cn"]),
                                          ("Wei", "Xiong", ["Beijing."]))) == ["xuzg@sdu.edu.cn", None]
+
+
+def test_strip_emails_from_affiliation_keeps_the_institution():
+    assert strip_emails_from_affiliation(
+        "School of Biotechnology, East China University of Science and Technology, Shanghai 200000, China. "
+        "Electronic address: zhaoliming@ecust.edu.cn.") == (
+        "School of Biotechnology, East China University of Science and Technology, Shanghai 200000, China.")
+    assert strip_emails_from_affiliation(
+        "School of Food and Liquor Engineering, Sichuan University of Science and Engineering, Yibin 644000, "
+        "China; Brewing Science and Technology Key Laboratory of Sichuan Province, Yibin, 644000 Yibin, China. "
+        "Electronic address: tongwh@suse.edu.cn.") == (
+        "School of Food and Liquor Engineering, Sichuan University of Science and Engineering, Yibin 644000, "
+        "China; Brewing Science and Technology Key Laboratory of Sichuan Province, Yibin, 644000 Yibin, China.")
+    assert strip_emails_from_affiliation("Lab Y. mayerm@mail.nih.gov mihaela.serpe@nih.gov.") == "Lab Y."
+    assert strip_emails_from_affiliation("Program in Cellular Regulation and Metabolism and "
+                                         "mayerm@mail.nih.gov mihaela.serpe@nih.gov.") == \
+        "Program in Cellular Regulation and Metabolism"
+    assert strip_emails_from_affiliation("Dept X, a@b.org, Kyoto, Japan.") == "Dept X, Kyoto, Japan."
+    assert strip_emails_from_affiliation("Dept X (E-mail: a@b.org), Kyoto.") == "Dept X, Kyoto."
+    assert strip_emails_from_affiliation("Dept X. Electronic address: a@b.org; b@c.org.") == "Dept X."
+    assert strip_emails_from_affiliation("Dept X, Kyoto. E-mails: a@b.org, b@c.org") == "Dept X, Kyoto."
+
+
+def test_strip_emails_from_affiliation_without_an_address_is_unchanged():
+    assert strip_emails_from_affiliation("Dept X ,  Kyoto.") == "Dept X ,  Kyoto."
+    assert strip_emails_from_affiliation("user@localhost") == "user@localhost"
+    assert strip_emails_from_affiliation(None) is None
+
+
+def test_strip_emails_from_affiliations_drops_address_only_and_repeats():
+    assert strip_emails_from_affiliations([
+        "Dept X, Kyoto. Electronic address: a@b.org.", "Electronic address: a@b.org.", "c@d.org",
+        "Dept X, Kyoto.", "Lab Y."]) == ["Dept X, Kyoto.", "Lab Y."]
+    assert strip_emails_from_affiliations(None) == []

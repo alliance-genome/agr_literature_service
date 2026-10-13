@@ -26,6 +26,10 @@ So emails are assigned per paper, looking at all of its authors together
 3. otherwise the author gets no email (ambiguous).
 
 An address therefore goes to at most one author per paper.
+
+Once attributed, the addresses are removed from the affiliation text
+(``strip_emails_from_affiliations``): curators do not want
+"... Electronic address: name@domain.org." kept as part of the institution.
 """
 import re
 import unicodedata
@@ -40,6 +44,17 @@ AUTHOR_EMAIL_RE = re.compile(
     r"([A-Za-z0-9][A-Za-z0-9._%+-]{0,63}"
     r"@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63})"
     r"(?![A-Za-z0-9_%+-])(?!\.[A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
+# An address list as PubMed writes it in an affiliation, optionally labelled
+# ("Electronic address: a@x.org.", "E-mail: a@x.org, b@y.org", "... and
+# a@x.org b@y.org."), with its sentence-final period.
+_EMAIL = AUTHOR_EMAIL_RE.pattern
+_EMAIL_LIST = rf"{_EMAIL}(?:\s*(?:[,;/]|\band\b|\bor\b)?\s*{_EMAIL})*"
+_EMAIL_LABEL = r"(?:electronic\s+address(?:es)?|e-?mail(?:\s+address(?:es)?|s)?)"
+AFFILIATION_EMAIL_RE = re.compile(
+    rf"(?:\b{_EMAIL_LABEL}\s*:\s*)?(?:\b(?:and|or)\s+)?{_EMAIL_LIST}\.?",
     re.IGNORECASE,
 )
 
@@ -68,6 +83,35 @@ def emails_in_affiliations(affiliations: Optional[Sequence[str]]) -> List[str]:
             if email not in emails:
                 emails.append(email)
     return emails
+
+
+def strip_emails_from_affiliation(affiliation: Optional[str]) -> Optional[str]:
+    """The affiliation without its email addresses and their "Electronic
+    address:" label, tidied up; None when nothing but the addresses was there.
+    An affiliation with no address is returned unchanged."""
+    if not affiliation:
+        return affiliation
+    stripped, removed = AFFILIATION_EMAIL_RE.subn("", affiliation)
+    if not removed:
+        return affiliation
+    stripped = re.sub(r"\s+", " ", stripped)
+    stripped = re.sub(r"\(\s*[,;:.]?\s*\)|\[\s*\]|<\s*>", "", stripped)
+    stripped = re.sub(r"\s+([,;.])", r"\1", stripped)
+    stripped = re.sub(r"([,;])(?:\s*[,;])+", r"\1", stripped)
+    stripped = re.sub(r"(?:[\s,;:]+|\s+(?:and|or))+$", "", stripped, flags=re.IGNORECASE)
+    stripped = re.sub(r"^[\s,;:.]+", "", stripped)
+    return stripped if re.search(r"[^\W\d_]", stripped) else None
+
+
+def strip_emails_from_affiliations(affiliations: Optional[Sequence[str]]) -> List[str]:
+    """Each affiliation without its email addresses, in order, once; an
+    affiliation that held only addresses is dropped."""
+    stripped_affiliations: List[str] = []
+    for affiliation in affiliations or []:
+        stripped = strip_emails_from_affiliation(affiliation)
+        if stripped and stripped not in stripped_affiliations:
+            stripped_affiliations.append(stripped)
+    return stripped_affiliations
 
 
 # How well an address's local part carries an author's name. A 1-2 letter last
