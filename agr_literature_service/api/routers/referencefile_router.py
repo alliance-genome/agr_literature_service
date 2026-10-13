@@ -152,7 +152,9 @@ def pdf_archive_upload(mod_abbreviation: str,
     matched to the reference through that cross-reference and stored as a
     main / final PDF of the MOD. The MOD's file-upload status is set to "files
     uploaded" without running transition actions, and no existing file is
-    deleted. A file that is skipped is reported in `status`, not as an error.
+    deleted. A file that is skipped is reported in `status`, not as an error;
+    a paper with a job in progress (text conversion, classification, entity
+    extraction) still gets a 422, so retry it later.
 
     - include_existing: also upload when the reference already has a
       different main PDF of the MOD (skipped by default)

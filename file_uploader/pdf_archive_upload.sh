@@ -76,8 +76,9 @@ for path in "$FOLDER"/*.pdf "$FOLDER"/*.PDF; do
     skipped=$((skipped + 1))
     continue
   fi
-  # The token goes in on stdin so it never shows in the process list.
-  response=$(curl -s -w $'\n%{http_code}' -X POST "$URL" \
+  # The token goes in on stdin so it never shows in the process list. A stalled
+  # transfer gives up after 10 minutes; a resend is safe (already_loaded).
+  response=$(curl -s --max-time 600 --retry 2 -w $'\n%{http_code}' -X POST "$URL" \
     -H 'accept: application/json' \
     -H @- \
     -F "file=@\"${path}\";type=application/pdf" <<< "Authorization: Bearer ${ABC_TOKEN}")
@@ -94,5 +95,6 @@ for path in "$FOLDER"/*.pdf "$FOLDER"/*.PDF; do
 done
 
 echo "Done: $sent sent, $skipped already done in an earlier run, $failed failed (non-200, retried on a rerun)."
-echo "Results by status in $RESULTS:"
-grep -o '"status": *"[a-z_]*"' "$RESULTS" | tr -d ' ' | sort | uniq -c
+echo "Latest result per file in $RESULTS, by status:"
+awk -F'\t' '{latest[$1] = $3} END {for (f in latest) print latest[f]}' "$RESULTS" \
+  | grep -o '"status": *"[a-z_]*"' | tr -d ' ' | sort | uniq -c

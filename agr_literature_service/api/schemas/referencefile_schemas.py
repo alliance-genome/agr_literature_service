@@ -164,7 +164,7 @@ class ReferencefileArchiveUploadSchemaShow(BaseModel):
 
     file_name: str
     status: Literal["bad_name", "no_xref", "not_in_corpus", "already_loaded",
-                    "has_other_mod_pdf", "would_upload", "uploaded"]
+                    "has_other_mod_pdf", "same_file_not_main", "would_upload", "uploaded"]
     xref_curie: Optional[str] = None
     reference_curie: Optional[str] = None
     workflow_change: Optional[str] = None

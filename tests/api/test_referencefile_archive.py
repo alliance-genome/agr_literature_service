@@ -100,12 +100,13 @@ def _ref(reference_id):
     return MagicMock(reference_id=reference_id, curie=f"AGRKB:{reference_id}")
 
 
-def _archive_upload(file, reference=None, in_corpus=True, existing=(), **kwargs):
+def _archive_upload(file, reference=None, in_corpus=True, existing=(), same_file_not_main=False, **kwargs):
     """archive_upload with every database collaborator stubbed."""
     mock_db = MagicMock()
     with patch(f"{CRUD}.find_reference", return_value=reference) as find, \
             patch(f"{CRUD}.check_if_paper_in_corpus", return_value=in_corpus), \
             patch(f"{CRUD}.mod_main_pdf_md5s", return_value=set(existing)), \
+            patch(f"{CRUD}.has_same_file_not_main", return_value=same_file_not_main), \
             patch(f"{CRUD}.file_upload") as upload, \
             patch(f"{CRUD}.set_file_uploaded_status", return_value="created") as status:
         result = archive.archive_upload(mock_db, "FB", file, **kwargs)
@@ -140,6 +141,12 @@ class TestArchiveUpload:
     def test_no_xref(self):
         result, _, upload, status = _archive_upload(_upload_file(), reference=None)
         assert result["status"] == "no_xref" and result["xref_curie"] == "FB:FBrf0000001"
+        upload.assert_not_called()
+        status.assert_not_called()
+
+    def test_same_file_not_main(self):
+        result, _, upload, status = _archive_upload(_upload_file(), reference=_ref(6), same_file_not_main=True)
+        assert result["status"] == "same_file_not_main"
         upload.assert_not_called()
         status.assert_not_called()
 
@@ -302,3 +309,22 @@ def test_archive_upload_against_the_database(db, fb_paper):  # noqa
             db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == fb_paper.reference_id).all()}
     assert FILES_UPLOADED in tags
     assert TEXT_CONVERSION_NEEDED not in tags
+
+
+def test_same_file_as_a_supplement_against_the_database(db, fb_paper):  # noqa
+    """The same bytes already on the paper as a supplement: file_upload would
+    only link that row to FB, so nothing is uploaded and the status says why."""
+    file = _upload_file()
+    md5sum = archive.file_md5(file)
+    assert archive.find_reference(db, "FB:FBrf0000001").reference_id == fb_paper.reference_id
+    assert archive.has_same_file_not_main(db, fb_paper.reference_id, md5sum) is False
+
+    db.add(ReferencefileModel(reference_id=fb_paper.reference_id, display_name="supplement",
+                              file_class="supplement", file_publication_status="final",
+                              file_extension="pdf", pdf_type=None, md5sum=md5sum, is_annotation=False))
+    db.commit()
+
+    assert archive.has_same_file_not_main(db, fb_paper.reference_id, md5sum) is True
+    with patch("agr_literature_service.api.crud.referencefile_crud.upload_file_to_bucket") as s3_upload:
+        assert archive.archive_upload(db, "FB", file)["status"] == "same_file_not_main"
+    s3_upload.assert_not_called()

@@ -27,7 +27,14 @@ Per file the result status is one of:
 - ``has_other_mod_pdf``: the reference already has a different main PDF of
   the MOD (``include_existing`` uploads alongside it instead; nothing is ever
   deleted);
+- ``same_file_not_main``: the same bytes are already on the reference as a
+  file that is not a main / final PDF (e.g. a supplement); ``file_upload``
+  would only link that file to the MOD, so nothing is uploaded;
 - ``would_upload`` (``dry_run``) / ``uploaded``.
+
+A paper with a job in progress (text conversion, classification, entity
+extraction) still gets the normal 422 from ``file_upload``'s
+``is_file_upload_blocked`` check rather than a status, so a client retries it.
 """
 import hashlib
 import re
@@ -35,6 +42,7 @@ from os import path
 from typing import Any, Dict, Optional, Set
 
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.referencefile_crud import (
@@ -77,7 +85,8 @@ def archive_xref_curie(mod_abbreviation: str, filename: str) -> Optional[str]:
 
 
 def find_reference(db: Session, xref_curie: str) -> Optional[ReferenceModel]:
-    """The reference carrying the live cross-reference ``xref_curie``."""
+    """The reference carrying the live cross-reference ``xref_curie`` (live
+    curies are unique: idx_curie)."""
     return (
         db.query(ReferenceModel)
         .join(CrossReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id)
@@ -102,6 +111,19 @@ def mod_main_pdf_md5s(db: Session, reference_id: int, mod_abbreviation: str) -> 
         .all()
     )
     return {row.md5sum for row in rows}
+
+
+def has_same_file_not_main(db: Session, reference_id: int, md5sum: str) -> bool:
+    """Whether the reference already has these bytes as a file that is not a
+    main / final PDF. file_upload_single matches on md5 + reference alone and
+    would only link that file to the MOD, keeping its metadata."""
+    return db.query(ReferencefileModel.referencefile_id).filter(
+        ReferencefileModel.reference_id == reference_id,
+        ReferencefileModel.md5sum == md5sum,
+        or_(ReferencefileModel.file_class != "main",
+            ReferencefileModel.file_publication_status != "final",
+            ReferencefileModel.pdf_type.is_distinct_from("pdf")),
+    ).first() is not None
 
 
 def set_file_uploaded_status(db: Session, reference_curie: str, mod_abbreviation: str) -> Optional[str]:
@@ -159,13 +181,17 @@ def archive_upload(db: Session, mod_abbreviation: str, file: UploadFile,
         return result
 
     existing = mod_main_pdf_md5s(db, reference.reference_id, mod_abbreviation)
-    if file_md5(file) in existing:
+    md5sum = file_md5(file)
+    if md5sum in existing:
         result["status"] = "already_loaded"
         if not dry_run:
             result["workflow_change"] = set_file_uploaded_status(db, reference_curie, mod_abbreviation)
         return result
     if existing and not include_existing:
         result["status"] = "has_other_mod_pdf"
+        return result
+    if has_same_file_not_main(db, reference.reference_id, md5sum):
+        result["status"] = "same_file_not_main"
         return result
     if dry_run:
         result["status"] = "would_upload"
