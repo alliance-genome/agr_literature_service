@@ -143,3 +143,12 @@ def test_strip_emails_from_affiliation_dangling_end_and_long_input():
     assert strip_emails_from_affiliation("Brand a@b.org") == "Brand"
     # linear on long separator runs (CodeQL: inefficient regular expression)
     assert strip_emails_from_affiliation("Dept X a@b.org" + " and" * 50000 + "\t" * 50000) == "Dept X"
+
+
+def test_strip_emails_from_affiliation_mid_text_keeps_the_sentence_apart():
+    assert strip_emails_from_affiliation("Dept A, Kyoto, a@b.org. Dept B, Osaka.") == "Dept A, Kyoto. Dept B, Osaka."
+    assert strip_emails_from_affiliation("Dept A, Kyoto a@b.org. Dept B, Osaka.") == "Dept A, Kyoto. Dept B, Osaka."
+    assert strip_emails_from_affiliation("China. Electronic address: x@y.org. Dept B, Yibin.") == "China. Dept B, Yibin."
+    assert strip_emails_from_affiliation("Dept A. Equal contribution. a@b.org; Dept B.") == \
+        "Dept A. Equal contribution. Dept B."
+    assert strip_emails_from_affiliation("Dept A. Correspondence: a@b.org.") == "Dept A."

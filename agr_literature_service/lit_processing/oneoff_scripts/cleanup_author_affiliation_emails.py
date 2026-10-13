@@ -79,7 +79,11 @@ def cleanup_reference(db: Session, reference_id: int) -> Tuple[int, int]:
         assign_author_emails([(a.first_name, a.last_name, a.affiliations) for a in ordered])))
     affiliations_changed = emails_set = 0
     for author in authors:
-        affiliations = strip_emails_from_affiliations(author.affiliations) or None
+        # only an affiliation with an address is rewritten, so the counts are
+        # the authors who actually had one removed
+        has_address = any("@" in (affiliation or "") for affiliation in author.affiliations or [])
+        affiliations = (strip_emails_from_affiliations(author.affiliations) or None) if has_address \
+            else author.affiliations
         email = attributed.get(author.author_id) if not author.email_address else None
         if affiliations == author.affiliations and not email:
             continue

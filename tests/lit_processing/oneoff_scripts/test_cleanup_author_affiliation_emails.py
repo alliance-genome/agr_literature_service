@@ -41,6 +41,15 @@ def test_audit_columns_are_left_alone_and_untouched_authors_skipped():
     assert clean.affiliations == ["Dept X, Kyoto."]
 
 
+def test_affiliations_without_an_address_are_not_rewritten():
+    # repeated affiliations are left as they are when there is no address to remove
+    repeated = _author(1, 1, "Ann", "Lee", ["Dept X, Kyoto.", "Dept X, Kyoto."])
+    with_address = _author(2, 2, "Bo", "Kim", ["Dept Y. bo.kim@y.org"], email="bo.kim@y.org")
+    assert _cleanup([repeated, with_address]) == (1, 0)
+    assert repeated.affiliations == ["Dept X, Kyoto.", "Dept X, Kyoto."]
+    assert not hasattr(repeated, "_skip_audit_auto_update")
+
+
 def test_parse_args_is_a_dry_run_by_default():
     assert script.parse_args([]).commit is False
     assert script.parse_args(["--commit", "--limit", "3"]).limit == 3

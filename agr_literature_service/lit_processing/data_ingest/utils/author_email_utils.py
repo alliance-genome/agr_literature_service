@@ -48,11 +48,12 @@ AUTHOR_EMAIL_RE = re.compile(
 )
 
 # An address list as PubMed writes it in an affiliation, optionally labelled
-# ("Electronic address: a@x.org.", "E-mail: a@x.org, b@y.org", "... and
-# a@x.org b@y.org."), with its sentence-final period.
+# ("Electronic address: a@x.org.", "E-mail: a@x.org, b@y.org",
+# "Correspondence: a@x.org", "... and a@x.org b@y.org."), with its
+# sentence-final period.
 _EMAIL = AUTHOR_EMAIL_RE.pattern
 _EMAIL_LIST = rf"{_EMAIL}(?:\s*(?:(?:[,;/]|\band\b|\bor\b)\s*)?{_EMAIL})*"
-_EMAIL_LABEL = r"(?:electronic\s+address(?:es)?|e-?mail(?:\s+address(?:es)?|s)?)"
+_EMAIL_LABEL = r"(?:electronic\s+address(?:es)?|e-?mail(?:\s+address(?:es)?|s)?|correspondence(?:\s+to)?)"
 AFFILIATION_EMAIL_RE = re.compile(
     rf"(?:\b{_EMAIL_LABEL}\s*:\s*)?(?:\b(?:and|or)\s+)?{_EMAIL_LIST}\.?",
     re.IGNORECASE,
@@ -91,15 +92,29 @@ def strip_emails_from_affiliation(affiliation: Optional[str]) -> Optional[str]:
     An affiliation with no address is returned unchanged."""
     if not affiliation:
         return affiliation
-    stripped, removed = AFFILIATION_EMAIL_RE.subn("", affiliation)
+    stripped, removed = AFFILIATION_EMAIL_RE.subn(_keep_sentence_end, affiliation)
     if not removed:
         return affiliation
     stripped = " ".join(stripped.split())
     stripped = re.sub(r"\( ?[,;:.]? ?\)|\[ ?\]|< ?>", "", stripped)
+    # where an address was: "Kyoto, . Dept B" / "contribution. ; Dept B" / "China. . Dept B"
+    stripped = re.sub(r"[,;] \.|\. [,;.]", ".", stripped)
     stripped = re.sub(r" ([,;.])", r"\1", stripped)
     stripped = re.sub(r"([,;])(?: ?[,;])+", r"\1", stripped)
     stripped = _strip_dangling_end(stripped).lstrip(" ,;:.")
     return stripped if re.search(r"[^\W\d_]", stripped) else None
+
+
+_WORD_CHAR_RE = re.compile(r"[^\W_]")
+
+
+def _keep_sentence_end(match: "re.Match[str]") -> str:
+    """An address that ends a sentence in the middle of the affiliation
+    takes its period with it; keep the period so the next institution does
+    not run on ("Kyoto, a@b.org. Dept B" -> "Kyoto. Dept B")."""
+    if match.group(0).endswith(".") and _WORD_CHAR_RE.search(match.string, match.end()):
+        return "."
+    return ""
 
 
 # The separators and "and"/"or" an address list leaves at the end, matched on
