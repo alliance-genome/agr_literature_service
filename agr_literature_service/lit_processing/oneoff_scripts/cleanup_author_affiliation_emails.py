@@ -28,7 +28,8 @@ Run it after the SCRUM-6513 backfill: ``--recheck-existing`` there reads the
 addresses from the stored affiliations.
 
 Safe by default: without ``--commit`` the script reports what it would change
-and rolls every change back. ``--limit N`` stops after N references.
+and rolls every change back. It commits every 100 references, so a stopped
+run can simply be restarted: references already cleaned are no longer selected. ``--limit N`` stops after N references.
 """
 import argparse
 import logging
@@ -51,8 +52,12 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# references per commit round
-CHUNK_SIZE = 5000
+# References per commit. Kept small on purpose: SQLAlchemy-Continuum checks every
+# object in the session on each flush, so the per-reference cost grows with the
+# size of the open transaction (5,000 per commit ran at ~5 references/s on stage).
+COMMIT_EVERY = 100
+# references per progress line
+LOG_EVERY = 5000
 
 
 def references_with_affiliation_emails(db: Session) -> List[int]:
@@ -121,11 +126,12 @@ def cleanup_author_affiliation_emails(commit: bool = False,
             counts["emails_set"] += emails_set
             logger.info("%s reference_id=%s: %s affiliation(s) cleaned, %s email(s) set",
                         "FIXED" if commit else "WOULD FIX", reference_id, affiliations_changed, emails_set)
-        if done % CHUNK_SIZE == 0 or done == len(reference_ids):
+        if done % COMMIT_EVERY == 0 or done == len(reference_ids):
             if commit:
                 db.commit()
             else:
                 db.rollback()
+        if done % LOG_EVERY == 0 or done == len(reference_ids):
             logger.info("processed %s/%s references", done, len(reference_ids))
     logger.info("done%s: %s", "" if commit else " (dry run)",
                 ", ".join(f"{key}={value}" for key, value in counts.items()))
