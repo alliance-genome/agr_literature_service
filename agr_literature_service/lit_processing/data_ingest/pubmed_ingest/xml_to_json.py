@@ -10,7 +10,10 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
-from agr_literature_service.lit_processing.data_ingest.utils.author_email_utils import assign_author_emails
+from agr_literature_service.lit_processing.data_ingest.utils.author_email_utils import (
+    assign_author_emails,
+    strip_emails_from_affiliations,
+)
 import html
 # pipenv run python xml_to_json.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/sample_set
 #
@@ -444,6 +447,14 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                 for author_dict, email in zip(authors_list, emails):
                     if email:
                         author_dict["email"] = email
+                    # the addresses are now on the author: keep them out of
+                    # the institution ("... Electronic address: x@y.org.")
+                    if "affiliations" in author_dict:
+                        affiliations = strip_emails_from_affiliations(author_dict["affiliations"])
+                        if affiliations:
+                            author_dict["affiliations"] = affiliations
+                        else:
+                            del author_dict["affiliations"]
                 data_dict['authors'] = authors_list
 
             pub_date_re_output = re.search("<PubDate>(.+?)</PubDate>", xml, re.DOTALL)

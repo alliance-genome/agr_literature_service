@@ -43,6 +43,9 @@ reference_classification_root_ids = ["ATP:0000165"]
 entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
 curation_classification_root_ids = ["ATP:0000311", "ATP:0000210"]
+# SCRUM-6467: abstract classification (generic and ZFIN molecular probe states) sits
+# directly under the workflow root, outside every other facet's roots.
+abstract_classification_root_ids = ["ATP:0000379"]
 community_curation_classification_root_ids = ["ATP:0000235"]
 first_pass_curation_root_ids = ["ATP:0000329"]
 email_extraction_root_ids = ["ATP:0000354"]
@@ -73,6 +76,7 @@ WORKFLOW_FACETS = [
     "entity_extraction",
     "reference_classification",
     "curation_classification",
+    "abstract_classification",
     "community_curation",
     "first_pass_curation",
     "email_extraction"
@@ -967,6 +971,7 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
         "manual_indexing": get_atp_ids(manual_indexing_root_ids),
         "curation_classification": get_atp_ids(curation_classification_root_ids),
+        "abstract_classification": get_atp_ids(abstract_classification_root_ids),
         "community_curation": get_atp_ids(community_curation_classification_root_ids),
         "first_pass_curation": get_atp_ids(first_pass_curation_root_ids),
         "email_extraction": get_atp_ids(email_extraction_root_ids)
