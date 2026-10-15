@@ -20,9 +20,11 @@
 # ABC_TOKEN). The token expires after a while: the script then stops, and
 # running the same command again with a new token carries on where it stopped.
 #
-# Every response is appended to <MOD>_pdf_archive[_dry_run].tsv in the current
-# directory (file, HTTP code, JSON result). Files with a 200 there are skipped
-# on a rerun; anything else is retried. Needs only bash and curl.
+# Every response is appended to <MOD>_pdf_archive_<env>[_dry_run].tsv in the
+# current directory (file, HTTP code, JSON result), where <env> is production,
+# stage, or custom (ABC_API set). Files with a 200 there are skipped on a rerun;
+# anything else is retried. Each environment has its own file, so a stage run
+# never makes a production run skip files. Needs only bash and curl.
 
 set -u
 
@@ -38,15 +40,19 @@ shift 2
 DRY_RUN=false
 INCLUDE_EXISTING=false
 API="https://literature-rest.alliancegenome.org"
+ENV_NAME=production
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --include-existing) INCLUDE_EXISTING=true ;;
-    --stage) API="https://stage-literature-rest.alliancegenome.org" ;;
+    --stage) API="https://stage-literature-rest.alliancegenome.org"; ENV_NAME=stage ;;
     *) usage ;;
   esac
 done
-API=${ABC_API:-$API}
+if [[ -n "${ABC_API:-}" ]]; then
+  API=$ABC_API
+  ENV_NAME=custom
+fi
 
 if [[ ! -d "$FOLDER" ]]; then
   echo "ERROR: folder '$FOLDER' does not exist." >&2
@@ -58,8 +64,8 @@ if [[ -z "${ABC_TOKEN:-}" ]]; then
   echo
 fi
 
-RESULTS="${MOD}_pdf_archive.tsv"
-[[ "$DRY_RUN" == true ]] && RESULTS="${MOD}_pdf_archive_dry_run.tsv"
+RESULTS="${MOD}_pdf_archive_${ENV_NAME}.tsv"
+[[ "$DRY_RUN" == true ]] && RESULTS="${MOD}_pdf_archive_${ENV_NAME}_dry_run.tsv"
 touch "$RESULTS"
 
 URL="${API}/reference/referencefile/pdf_archive_upload/?mod_abbreviation=${MOD}&dry_run=${DRY_RUN}&include_existing=${INCLUDE_EXISTING}"
