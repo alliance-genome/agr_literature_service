@@ -20,6 +20,7 @@ class ImagePermissionModel(Base, AuditedModel):
     __tablename__ = "image_permission"
 
     image_permission_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -77,6 +78,7 @@ class ResourceImagePermissionModel(Base, AuditedModel):
     )
 
     resource_image_permission_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -84,14 +86,14 @@ class ResourceImagePermissionModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id", ondelete="CASCADE"),
+        ForeignKey("resource.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     image_permission_id = Column(
         Integer,
-        ForeignKey("image_permission.image_permission_id", ondelete="CASCADE"),
+        ForeignKey("image_permission.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )

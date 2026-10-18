@@ -25,6 +25,7 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
     __versioned__: Dict = {}
 
     curation_status_source_association_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -32,7 +33,7 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
 
     curation_status_id = Column(
         Integer,
-        ForeignKey("curation_status.curation_status_id", ondelete="CASCADE"),
+        ForeignKey("curation_status.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -50,7 +51,7 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
     # deleted in normal operation.
     tag_source_id = Column(
         Integer,
-        ForeignKey("tag_source.tag_source_id", ondelete="CASCADE"),
+        ForeignKey("tag_source.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

@@ -21,11 +21,11 @@ class ReferenceEmailModel(Base, AuditedModel):
     __tablename__ = "reference_email"
     __versioned__: Dict = {}
 
-    reference_email_id = Column(Integer, primary_key=True, autoincrement=True)
+    reference_email_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

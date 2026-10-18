@@ -29,6 +29,7 @@ class ReferenceRelationModel(Base):
     __versioned__: Dict = {}
 
     reference_relation_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -36,7 +37,7 @@ class ReferenceRelationModel(Base):
 
     reference_id_from = Column(
         Integer,
-        ForeignKey("reference.reference_id"),
+        ForeignKey("reference.id"),
         index=True,
         nullable=False
     )
@@ -49,7 +50,7 @@ class ReferenceRelationModel(Base):
 
     reference_id_to = Column(
         Integer,
-        ForeignKey("reference.reference_id"),
+        ForeignKey("reference.id"),
         index=True,
         nullable=False
     )

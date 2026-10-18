@@ -15,6 +15,7 @@ class CopyrightLicenseModel(Base):
     __versioned__: Dict = {}
 
     copyright_license_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True

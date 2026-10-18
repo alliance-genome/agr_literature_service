@@ -21,6 +21,7 @@ class EditorModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     editor_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -28,7 +29,7 @@ class EditorModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id",
+        ForeignKey("resource.id",
                    ondelete="CASCADE"),
         index=True
     )

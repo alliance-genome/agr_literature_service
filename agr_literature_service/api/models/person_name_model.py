@@ -20,11 +20,11 @@ class PersonNameModel(Base, AuditedModel):
     __tablename__ = "person_name"
     __versioned__: Dict = {}
 
-    person_name_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_name_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     person_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

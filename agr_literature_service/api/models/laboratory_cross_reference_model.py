@@ -12,20 +12,20 @@ class LaboratoryCrossReferenceModel(Base, AuditedModel):
     __tablename__ = "laboratory_cross_reference"
     __versioned__: Dict = {}
 
-    laboratory_cross_reference_id = Column(Integer, primary_key=True, autoincrement=True)
+    laboratory_cross_reference_id = Column('id', Integer, primary_key=True, autoincrement=True)
     curie = Column(String(), nullable=False, index=True)
     curie_prefix = Column(String(), nullable=False, index=True)
 
     laboratory_id = Column(
         Integer,
-        ForeignKey("laboratory.laboratory_id", ondelete="CASCADE"),
+        ForeignKey("laboratory.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
     laboratory = relationship("LaboratoryModel", back_populates="cross_references")
 
     pages = Column(ARRAY(String), nullable=True)
-    is_obsolete = Column(Boolean, nullable=False, server_default=text("false"))
+    is_obsolete = Column('obsolete', Boolean, nullable=False, default=False, server_default=text('false'))
 
     __table_args__ = (
         # Uniqueness is enforced only among non-obsolete rows (mirrors

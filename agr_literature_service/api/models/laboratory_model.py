@@ -28,7 +28,7 @@ class LaboratoryModel(Base, AuditedModel):
         UniqueConstraint("strain_designation", name="uq_laboratory_strain_designation"),
     )
 
-    laboratory_id = Column(Integer, primary_key=True, autoincrement=True)
+    laboratory_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     # Allocated from MATI on create (laboratory subdomain -> AGRKB:104), like
     # reference/resource/person. Required and unique like those siblings; the

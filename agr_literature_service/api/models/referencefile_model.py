@@ -27,6 +27,7 @@ class ReferencefileModel(Base, AuditedModel):
     )
 
     referencefile_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -40,7 +41,7 @@ class ReferencefileModel(Base, AuditedModel):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
@@ -105,6 +106,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     referencefile_mod_id = Column(
+        'id',
         Integer,
         autoincrement=True,
         primary_key=True
@@ -112,7 +114,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     mod_id: Column = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=True
     )
@@ -121,7 +123,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     referencefile_id: Column = Column(
         Integer,
-        ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
+        ForeignKey("referencefile.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

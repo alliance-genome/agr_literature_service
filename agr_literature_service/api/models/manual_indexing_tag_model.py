@@ -43,19 +43,20 @@ class ManualIndexingTagModel(Base, AuditedModel):
 
     # PK
     manual_indexing_tag_id: Mapped[int] = mapped_column(
+        'id',
         Integer, primary_key=True, autoincrement=True
     )
 
     # Foreign keys
     reference_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
     mod_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )

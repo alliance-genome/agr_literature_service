@@ -20,6 +20,7 @@ class ResourceModel(Base, AuditedModel):
     __tablename__ = "resource"
 
     resource_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -98,7 +99,7 @@ class ResourceModel(Base, AuditedModel):
 
     copyright_license_id = Column(
         Integer,
-        ForeignKey("copyright_license.copyright_license_id", ondelete="SET NULL"),
+        ForeignKey("copyright_license.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )

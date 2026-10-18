@@ -23,6 +23,7 @@ class WorkflowTransitionModel(AuditedModel, Base):
     __versioned__: Dict = {}
 
     workflow_transition_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -31,7 +32,7 @@ class WorkflowTransitionModel(AuditedModel, Base):
     # mod id
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

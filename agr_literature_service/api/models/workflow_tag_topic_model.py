@@ -7,6 +7,7 @@ class WorkflowTagTopicModel(AuditedModel, Base):
     __tablename__ = "workflow_tag_topic"
 
     workflow_tag_topic_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True

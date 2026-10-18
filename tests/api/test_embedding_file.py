@@ -27,11 +27,11 @@ from ..fixtures import db  # noqa
 
 def test_embedding_file_model_columns():
     cols = EmbeddingFileModel.__table__.columns
-    assert "embedding_file_id" in cols
+    assert "id" in cols  # embedding_file_id is mapped onto column id
     assert {"reference_id", "profile_name", "version", "model_name",
             "source_referencefile_id", "parquet_referencefile_id"} <= set(cols.keys())
     # Non-audited: no audit columns
-    assert "created_by" not in cols
+    assert "created_by_id" not in cols
     assert "date_created" not in cols
     # Nullability per spec
     assert cols["source_referencefile_id"].nullable is True

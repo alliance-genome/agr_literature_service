@@ -11,6 +11,7 @@ class CitationModel(Base):
     __tablename__ = "citation"
 
     citation_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True

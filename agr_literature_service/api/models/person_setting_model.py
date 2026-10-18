@@ -10,11 +10,11 @@ from agr_literature_service.api.models.audited_model import AuditedModel
 class PersonSettingModel(Base, AuditedModel):
     __tablename__ = "person_setting"
 
-    person_setting_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_setting_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     person_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

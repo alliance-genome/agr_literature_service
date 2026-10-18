@@ -17,11 +17,11 @@ class EmbeddingFileModel(Base):
     """
     __tablename__ = "embedding_file"
 
-    embedding_file_id = Column(Integer, primary_key=True, autoincrement=True)
+    embedding_file_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
@@ -36,7 +36,7 @@ class EmbeddingFileModel(Base):
     # The converted_merged_* markdown that was embedded; NULL for abstracts.
     source_referencefile_id = Column(
         Integer,
-        ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
+        ForeignKey("referencefile.id", ondelete="CASCADE"),
         index=True,
         nullable=True,
     )
@@ -48,7 +48,7 @@ class EmbeddingFileModel(Base):
     # The stored embedding parquet (storage + download delegated to it).
     parquet_referencefile_id = Column(
         Integer,
-        ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
+        ForeignKey("referencefile.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )

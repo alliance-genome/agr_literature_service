@@ -6,7 +6,7 @@ cross_reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, Sequence
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, Sequence, text
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -24,6 +24,7 @@ class CrossReferenceModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     cross_reference_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -41,16 +42,11 @@ class CrossReferenceModel(Base, AuditedModel):
         nullable=False
     )
 
-    is_obsolete = Column(
-        Boolean,
-        unique=False,
-        default=False,
-        server_default='false'
-    )
+    is_obsolete = Column('obsolete', Boolean, nullable=False, default=False, server_default=text('false'))
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True
     )
 
@@ -61,7 +57,7 @@ class CrossReferenceModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id"),
+        ForeignKey("resource.id"),
         index=True
     )
 

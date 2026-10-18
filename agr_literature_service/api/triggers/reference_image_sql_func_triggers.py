@@ -74,7 +74,7 @@ BEGIN
     IF p_copyright_license_id IS NOT NULL THEN
         SELECT cl.open_access INTO v_open_access
         FROM copyright_license cl
-        WHERE cl.copyright_license_id = p_copyright_license_id;
+        WHERE cl.id = p_copyright_license_id;
         IF FOUND THEN
             RETURN COALESCE(v_open_access, FALSE);
         END IF;
@@ -85,8 +85,8 @@ BEGIN
         SELECT r.license_start_year, cl.open_access
         INTO v_license_start_year, v_resource_open_access
         FROM resource r
-        JOIN copyright_license cl ON cl.copyright_license_id = r.copyright_license_id
-        WHERE r.resource_id = p_resource_id;
+        JOIN copyright_license cl ON cl.id = r.copyright_license_id
+        WHERE r.id = p_resource_id;
         IF FOUND AND (v_license_start_year IS NULL
                       OR (p_publication_year IS NOT NULL
                           AND p_publication_year >= v_license_start_year)) THEN
@@ -101,7 +101,7 @@ BEGIN
         -- fail closed, SCRUM-6416)
         SELECT ip.can_display_images INTO v_can_display
         FROM resource_image_permission rip
-        JOIN image_permission ip ON ip.image_permission_id = rip.image_permission_id
+        JOIN image_permission ip ON ip.id = rip.image_permission_id
         WHERE rip.resource_id = p_resource_id
           AND ((p_publication_year IS NULL
                 AND rip.start_year IS NULL AND rip.end_year IS NULL)
@@ -113,7 +113,7 @@ BEGIN
                  (rip.end_year IS NULL),
                  COALESCE(rip.end_year, 9999),
                  (ip.can_display_images IS TRUE),
-                 rip.resource_image_permission_id
+                 rip.id
         LIMIT 1;
         IF FOUND THEN
             RETURN COALESCE(v_can_display, FALSE);
@@ -136,7 +136,7 @@ AS $$
         r.resource_id,
         extract_publication_year(r.date_published_start, r.date_published, r.date_published_end))
     FROM reference r
-    WHERE r.reference_id = p_reference_id;
+    WHERE r.id = p_reference_id;
 $$;
 """
 
@@ -161,11 +161,11 @@ AS $$
     UPDATE reference r
     SET can_display_image = sub.new_value
     FROM (
-        SELECT reference_id, compute_reference_can_display_image(reference_id) AS new_value
+        SELECT id, compute_reference_can_display_image(id) AS new_value
         FROM reference
         WHERE resource_id = p_resource_id
     ) sub
-    WHERE r.reference_id = sub.reference_id
+    WHERE r.id = sub.id
       AND r.can_display_image IS DISTINCT FROM sub.new_value;
 $$;
 """
@@ -217,13 +217,13 @@ BEGIN
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
         UPDATE reference
         SET image_count = compute_reference_image_count(NEW.reference_id)
-        WHERE reference_id = NEW.reference_id;
+        WHERE id = NEW.reference_id;
     END IF;
     IF TG_OP = 'DELETE'
        OR (TG_OP = 'UPDATE' AND OLD.reference_id IS DISTINCT FROM NEW.reference_id) THEN
         UPDATE reference
         SET image_count = compute_reference_image_count(OLD.reference_id)
-        WHERE reference_id = OLD.reference_id;
+        WHERE id = OLD.reference_id;
     END IF;
     RETURN NULL;
 END;
@@ -264,7 +264,7 @@ CREATE OR REPLACE FUNCTION resource_refresh_can_display_image()
   LANGUAGE plpgsql
 AS $$
 BEGIN
-    PERFORM refresh_can_display_image_for_resource(NEW.resource_id);
+    PERFORM refresh_can_display_image_for_resource(NEW.id);
     RETURN NULL;
 END;
 $$;
@@ -292,16 +292,16 @@ BEGIN
     UPDATE reference r
     SET can_display_image = sub.new_value
     FROM (
-        SELECT reference_id, compute_reference_can_display_image(reference_id) AS new_value
+        SELECT id, compute_reference_can_display_image(id) AS new_value
         FROM reference
-        WHERE copyright_license_id = NEW.copyright_license_id
+        WHERE copyright_license_id = NEW.id
     ) sub
-    WHERE r.reference_id = sub.reference_id
+    WHERE r.id = sub.id
       AND r.can_display_image IS DISTINCT FROM sub.new_value;
     -- references whose resource uses this license
-    PERFORM refresh_can_display_image_for_resource(res.resource_id)
+    PERFORM refresh_can_display_image_for_resource(res.id)
     FROM resource res
-    WHERE res.copyright_license_id = NEW.copyright_license_id;
+    WHERE res.copyright_license_id = NEW.id;
     RETURN NULL;
 END;
 $$;
@@ -352,7 +352,7 @@ BEGIN
     FROM (
         SELECT DISTINCT resource_id
         FROM resource_image_permission
-        WHERE image_permission_id = NEW.image_permission_id
+        WHERE image_permission_id = NEW.id
     ) sub;
     RETURN NULL;
 END;

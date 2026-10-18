@@ -6,8 +6,8 @@ CREATE OR REPLACE FUNCTION reference_update_citation()
   language plpgsql
 as $$
 BEGIN
-  raise notice 'reference_update_citation: % % : % %', NEW.reference_id, NEW.title, OLD.title, OLD.curie;
-  call update_citations(NEW.reference_id);
+  raise notice 'reference_update_citation: % % : % %', NEW.id, NEW.title, OLD.title, OLD.curie;
+  call update_citations(NEW.id);
   raise notice 'Exiting reference_update_citation';
   return NEW;
   END;
