@@ -18,6 +18,12 @@ make_versioned(user_cls=None,
 # access to the values within the .ini file in use.
 config = context.config
 
+# `alembic -x db_url=<sqlalchemy url> ...` targets another database than the
+# sqlalchemy.url of alembic.ini (e.g. the merged ABC + A-team database for the ateam_merge branch)
+_db_url = context.get_x_argument(as_dictionary=True).get('db_url')
+if _db_url:
+    config.set_main_option('sqlalchemy.url', _db_url.replace('%', '%%'))
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 # fileConfig(config.config_file_name)
