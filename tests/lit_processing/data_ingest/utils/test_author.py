@@ -234,38 +234,29 @@ def _make_reference(db, curie):  # noqa
     return ref
 
 
-def _make_curator_user(db, user_id, person_curie, display_name="Curator"):  # noqa
-    """Get-or-create a person-linked (curator) users row: person_id set, no
-    automation_username.
+def _make_curator_user(db, person_curie, display_name="Curator"):  # noqa
+    """Create a person and its person-linked (curator) agent; return the agent's
+    label, the person curie, which is what created_by / updated_by take.
 
-    The test-cleanup fixture deletes person rows but never deletes users rows (the
-    default user is preserved), and it converts any leftover curator user to an
-    automation user to keep the person/automation XOR valid. So on a re-run the
-    users.id survives as an automation row: reuse it and re-link it to a fresh person.
+    The test-cleanup fixture deletes person rows but never agents (the default
+    user is preserved): it turns a leftover curator agent into an automation
+    agent first, so a re-run creates a fresh person and agent here.
     """
     person = PersonModel(display_name=display_name, curie=person_curie)
     db.add(person)
     db.commit()
     db.refresh(person)
-    user = db.query(UserModel).filter_by(id=user_id).one_or_none()
-    if user is None:
-        user = UserModel(id=user_id, person_id=person.person_id)
-    else:
-        user.automation_username = None
-        user.person_id = person.person_id
-    db.add(user)
+    db.add(UserModel(person_id=person.person_id))
     db.commit()
-    return user
+    return person_curie
 
 
-def _make_automation_user(db, user_id, script_name="scriptNm"):  # noqa
-    """Get-or-create an automation users row: automation_username set, person_id NULL."""
-    user = db.query(UserModel).filter_by(id=user_id).one_or_none()
-    if user is None:
-        user = UserModel(id=user_id, automation_username=script_name)
-        db.add(user)
+def _make_automation_user(db, label):  # noqa
+    """Get-or-create an automation agent (person_id NULL); return its label."""
+    if db.query(UserModel).filter_by(automation_username=label).one_or_none() is None:
+        db.add(UserModel(automation_username=label))
         db.commit()
-    return user
+    return label
 
 
 class TestReferenceTouchedByCurator:
@@ -277,9 +268,9 @@ class TestReferenceTouchedByCurator:
 
     def test_true_when_author_touched_by_curator(self, db):  # noqa
         ref = _make_reference(db, "AGRKB:CT-TEST-1")
-        curator = _make_curator_user(db, "curator-user-1", "AGR:CTLINK-1")
+        curator = _make_curator_user(db, "AGR:CTLINK-1")
         db.add(AuthorModel(reference_id=ref.reference_id, author_order=1,
-                           name="Alpha A", created_by=curator.id, updated_by=curator.id))
+                           name="Alpha A", created_by=curator, updated_by=curator))
         db.commit()
         assert _reference_touched_by_curator(db, ref.reference_id) is True
 
@@ -287,9 +278,9 @@ class TestReferenceTouchedByCurator:
         ref = _make_reference(db, "AGRKB:CT-TEST-2")
         automation = _make_automation_user(db, "automation-user-1")
         db.add(AuthorModel(reference_id=ref.reference_id, author_order=1,
-                           name="Alpha A", created_by=automation.id, updated_by=automation.id))
+                           name="Alpha A", created_by=automation, updated_by=automation))
         db.add(AuthorModel(reference_id=ref.reference_id, author_order=2,
-                           name="Beta B", created_by=automation.id, updated_by=automation.id))
+                           name="Beta B", created_by=automation, updated_by=automation))
         db.commit()
         assert _reference_touched_by_curator(db, ref.reference_id) is False
 
@@ -299,12 +290,12 @@ class TestUpdateAuthorsSync:
 
     def test_sync_skips_curator_touched_reference(self, db):  # noqa
         ref = _make_reference(db, "AGRKB:CT-TEST-3")
-        curator = _make_curator_user(db, "curator-user-2", "AGR:CTLINK-2")
+        curator = _make_curator_user(db, "AGR:CTLINK-2")
         # an existing order-based author row that a curator has touched
         db.add(AuthorModel(reference_id=ref.reference_id, author_order=1,
                            name="Existing One", first_name="Existing",
                            last_name="One", first_initial="E",
-                           created_by=curator.id, updated_by=curator.id))
+                           created_by=curator, updated_by=curator))
         db.commit()
 
         author_list_in_db = [
@@ -325,7 +316,7 @@ class TestUpdateAuthorsSync:
         # curator-touched author untouched (no delete, no rename from the JSON)
         assert len(rows) == 1
         assert rows[0].name == "Existing One"
-        assert rows[0].created_by == curator.id
+        assert rows[0].created_by == curator
 
     def test_sync_drop_and_reload_automation_touched_reference(self, db):  # noqa
         ref = _make_reference(db, "AGRKB:CT-TEST-4")
@@ -336,7 +327,7 @@ class TestUpdateAuthorsSync:
         ):
             db.add(AuthorModel(reference_id=ref.reference_id, author_order=order,
                                name=name, first_name=fn, last_name=ln, first_initial=fi,
-                               created_by=automation.id, updated_by=automation.id))
+                               created_by=automation, updated_by=automation))
         db.commit()
 
         author_list_in_db = [
@@ -389,13 +380,13 @@ class TestUpdateAuthorsAuthorReview:
 
     def _curated_reference(self, db, n, mod_abbreviation="WB", corpus=True, tag=None):  # noqa
         ref = _make_reference(db, f"AGRKB:AR-TEST-{n}")
-        curator = _make_curator_user(db, f"curator-ar-{n}", f"AGR:ARLINK-{n}")
+        curator = _make_curator_user(db, f"AGR:ARLINK-{n}")
         mod = _get_or_create_mod(db, mod_abbreviation)
         db.add(ModCorpusAssociationModel(reference_id=ref.reference_id, mod_id=mod.mod_id,
                                          corpus=corpus, mod_corpus_sort_source="manual_creation"))
         db.add(AuthorModel(reference_id=ref.reference_id, author_order=1,
                            name="Existing One", first_name="Existing", last_name="One",
-                           first_initial="E", created_by=curator.id, updated_by=curator.id))
+                           first_initial="E", created_by=curator, updated_by=curator))
         if tag:
             db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod.mod_id,
                                     workflow_tag_id=tag))

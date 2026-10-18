@@ -4,7 +4,7 @@ from sqlalchemy_continuum.plugins import Plugin
 class UserPlugin(Plugin):
     def transaction_args(self, uow, session):
         """
-        Provide integer users.user_id for the transaction row.
+        Provide the current user's agent.id for the transaction row.
         Falls back to NULL if no current user is set.
 
         ``api.user`` is imported lazily: this module is pulled in at import

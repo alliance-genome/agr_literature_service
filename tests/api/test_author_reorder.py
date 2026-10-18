@@ -44,9 +44,9 @@ class TestReorder:
         # seeded value and this must fail.
         ref_id = test_reference.related_ref_id
         seed_uid = "reorder-seed-user"
-        # users rows survive the per-test cleanup, so get-or-create this seed user.
-        if db.query(UserModel).filter_by(id=seed_uid).one_or_none() is None:
-            db.add(UserModel(id=seed_uid, automation_username="reorderSeed"))
+        # agents survive the per-test cleanup, so get-or-create this seed user.
+        if db.query(UserModel).filter_by(automation_username=seed_uid).one_or_none() is None:
+            db.add(UserModel(automation_username=seed_uid))
             db.commit()
         a1 = AuthorModel(reference_id=ref_id, author_order=1, name="A1",
                          created_by=seed_uid, updated_by=seed_uid)
