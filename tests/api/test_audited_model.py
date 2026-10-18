@@ -2,12 +2,14 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import Column, Integer, String, inspect
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy import Column, Integer, String, inspect, text
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models import PersonModel
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.crud import user_crud
-from agr_literature_service.api.user import set_global_user_id, ensure_user_exists_on_connection
+from agr_literature_service.api.user import get_current_agent_id, link_user_to_person, set_global_user_id
 
 from ..fixtures import db  # noqa: F401
 
@@ -35,7 +37,7 @@ def _is_recent(dt: datetime, seconds: int = 5) -> bool:
 def _ensure_user(db, uid: str): # noqa
     if uid is None:
         return
-    u = db.query(UserModel).filter_by(id=uid).one_or_none()
+    u = db.query(UserModel).filter_by(automation_username=uid).one_or_none()
     if u is None:
         user_crud.create(db, uid)
 
@@ -45,9 +47,11 @@ def _clear_global_user():
     """Ensure each test starts with no global user set."""
     from agr_literature_service.api import user as user_mod
     token = user_mod._current_user_id.set(None)
+    agent_token = user_mod._current_agent_id.set(None)
     try:
         yield
     finally:
+        user_mod._current_agent_id.reset(agent_token)
         user_mod._current_user_id.reset(token)
 
 
@@ -151,46 +155,16 @@ def test_update_uses_default_user_when_global_unset(db): # noqa
     assert _is_recent(obj.date_updated)
 
 
-def test_ensure_user_exists_on_connection_creates_automation_user(db): # noqa
-    """The Connection-based helper materializes an automation users row."""
-    uid = "CONN_HELPER_NEW"
-    ensure_user_exists_on_connection(db.connection(), uid)
-
-    # Visible within the same transaction.
-    user = db.query(UserModel).filter_by(id=uid).one_or_none()
-    assert user is not None
-    assert user.automation_username == uid
-    assert user.person_id is None
-
-
-def test_ensure_user_exists_on_connection_is_idempotent(db): # noqa
-    """Calling twice for the same id is a no-op (ON CONFLICT) — no IntegrityError."""
-    uid = "CONN_HELPER_IDEMPOTENT"
-    conn = db.connection()
-    ensure_user_exists_on_connection(conn, uid)
-    ensure_user_exists_on_connection(conn, uid)
-
-    assert db.query(UserModel).filter_by(id=uid).count() == 1
-
-
-@pytest.mark.parametrize("empty_value", [None, ""])
-def test_ensure_user_exists_on_connection_noop_for_empty(db, empty_value): # noqa
-    """None / empty id is guarded and inserts nothing."""
-    before = db.query(UserModel).count()
-    ensure_user_exists_on_connection(db.connection(), empty_value)
-    assert db.query(UserModel).count() == before
-
-
 def test_insert_autocreates_missing_created_by_user(db): # noqa
     """
-    An explicit created_by/updated_by that does not yet exist in `users` is
+    An explicit created_by/updated_by that does not yet exist as an agent is
     auto-created by the before_insert listener (no FK violation, no manual
     pre-creation). This is what lets an admin-token tag load attribute records
     to a named curator on any write endpoint.
     """
     new_uid = "LOADER_NEW_CREATOR"
     # Make sure it does not already exist.
-    assert db.query(UserModel).filter_by(id=new_uid).one_or_none() is None
+    assert db.query(UserModel).filter_by(automation_username=new_uid).one_or_none() is None
 
     obj = AuditedDummy(name="foxtrot", created_by=new_uid)
     db.add(obj)
@@ -200,8 +174,8 @@ def test_insert_autocreates_missing_created_by_user(db): # noqa
     assert obj.created_by == new_uid
     # updated_by mirrors created_by when not supplied (impute_audit_user_ids).
     assert obj.updated_by == new_uid
-    # The users row was created as an automation user.
-    user = db.query(UserModel).filter_by(id=new_uid).one_or_none()
+    # The agent was created as an automation agent.
+    user = db.query(UserModel).filter_by(automation_username=new_uid).one_or_none()
     assert user is not None
     assert user.automation_username == new_uid
     assert user.person_id is None
@@ -212,7 +186,7 @@ def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
     creator = "LOADER_CREATOR_X"
     updater = "LOADER_UPDATER_Y"
     for uid in (creator, updater):
-        assert db.query(UserModel).filter_by(id=uid).one_or_none() is None
+        assert db.query(UserModel).filter_by(automation_username=uid).one_or_none() is None
 
     obj = AuditedDummy(name="golf", created_by=creator, updated_by=updater)
     db.add(obj)
@@ -221,28 +195,28 @@ def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
 
     assert obj.created_by == creator
     assert obj.updated_by == updater
-    assert db.query(UserModel).filter_by(id=creator).one_or_none() is not None
-    assert db.query(UserModel).filter_by(id=updater).one_or_none() is not None
+    assert db.query(UserModel).filter_by(automation_username=creator).one_or_none() is not None
+    assert db.query(UserModel).filter_by(automation_username=updater).one_or_none() is not None
 
 
 def test_insert_skips_autocreate_for_global_user(db, monkeypatch): # noqa
     """
     Hot-path optimization: when created_by/updated_by resolve to the already-
-    ensured global user, no redundant ON CONFLICT insert is issued (so the
-    users.user_id identity sequence is not burned on every ordinary write).
+    ensured global user, its agent id is reused: no label lookup and no
+    redundant ON CONFLICT insert (which would burn the agent.id sequence).
     """
     import agr_literature_service.api.models.audited_model as am
     _ensure_user(db, "SPY_GLOBAL")
     set_global_user_id(db, "SPY_GLOBAL")
 
     calls = []
-    orig = am.ensure_user_exists_on_connection
+    orig = am.resolve_agent_id
 
     def spy(connection, uid): # noqa
         calls.append(uid)
         return orig(connection, uid)
 
-    monkeypatch.setattr(am, "ensure_user_exists_on_connection", spy)
+    monkeypatch.setattr(am, "resolve_agent_id", spy)
 
     # No explicit created_by/updated_by -> both resolve to the global user.
     obj = AuditedDummy(name="india")
@@ -263,7 +237,7 @@ def test_update_autocreates_missing_updated_by_user(db): # noqa
     db.refresh(obj)
 
     new_updater = "LOADER_UPDATER_ON_PATCH"
-    assert db.query(UserModel).filter_by(id=new_updater).one_or_none() is None
+    assert db.query(UserModel).filter_by(automation_username=new_updater).one_or_none() is None
 
     obj.name = "hotel-2"
     obj.updated_by = new_updater
@@ -272,4 +246,85 @@ def test_update_autocreates_missing_updated_by_user(db): # noqa
     db.refresh(obj)
 
     assert obj.updated_by == new_updater
-    assert db.query(UserModel).filter_by(id=new_updater).one_or_none() is not None
+    assert db.query(UserModel).filter_by(automation_username=new_updater).one_or_none() is not None
+
+
+def _reload(db, name): # noqa
+    db.expunge_all()
+    return db.query(AuditedDummy).filter_by(name=name).one()
+
+
+def test_audit_columns_hold_agent_ids(db): # noqa
+    """created_by_id / updated_by_id are agent ids; created_by / updated_by are their labels."""
+    db.add(AuditedDummy(name="kilo", created_by="OTTO"))
+    db.commit()
+    obj = _reload(db, "kilo")
+    otto = db.query(UserModel).filter_by(automation_username="OTTO").one()
+    assert obj.created_by_id == otto.user_id
+    assert obj.updated_by_id == otto.user_id
+    assert obj.created_by == "OTTO"
+
+
+def test_loaded_object_keys_unchanged(db): # noqa
+    """jsonable_encoder(obj) -- how ~100 endpoints build responses -- keeps today's keys.
+
+    The LinkML columns are deferred: an extra key would break the show schemas, which
+    forbid extra fields."""
+    db.add(AuditedDummy(name="lima", created_by="OTTO"))
+    db.commit()
+    keys = set(jsonable_encoder(_reload(db, "lima")))
+    assert {"created_by", "updated_by", "date_created", "date_updated"} <= keys
+    assert not keys & {"created_by_id", "updated_by_id", "db_date_created", "db_date_updated",
+                       "internal", "obsolete"}
+
+
+def test_person_label_round_trip(db): # noqa
+    """A curator's label is the person curie, on the way in and on the way out."""
+    person = PersonModel(display_name="Audit Curator", curie="AGRKB:AUDIT-TEST-1")
+    db.add(person)
+    db.commit()
+    link_user_to_person(db, "AUDIT_TEST_CURATOR", person.person_id)
+    db.add(AuditedDummy(name="mike", created_by="AGRKB:AUDIT-TEST-1"))
+    db.commit()
+    obj = _reload(db, "mike")
+    assert obj.created_by == "AGRKB:AUDIT-TEST-1"
+    assert db.get(UserModel, obj.created_by_id).person_id == person.person_id
+
+
+def test_insert_sets_linkml_columns(db): # noqa
+    db.add(AuditedDummy(name="november"))
+    db.commit()
+    obj = _reload(db, "november")
+    assert _is_recent(obj.db_date_created)
+    assert obj.db_date_updated == obj.db_date_created
+    assert obj.internal is False
+    assert obj.obsolete is False
+
+
+def test_update_stamps_current_agent_and_db_date(db): # noqa
+    db.add(AuditedDummy(name="oscar"))
+    db.commit()
+    obj = _reload(db, "oscar")
+    created = obj.db_date_created
+    set_global_user_id(db, "OTTO")
+    obj.name = "oscar-2"
+    db.commit()
+    obj = _reload(db, "oscar-2")
+    assert obj.updated_by == "OTTO"
+    assert obj.updated_by_id == get_current_agent_id()
+    assert obj.db_date_updated > created
+
+
+def test_filter_by_audit_label(db): # noqa
+    db.add(AuditedDummy(name="papa", created_by="MANUAL_CREATOR"))
+    db.commit()
+    assert db.query(AuditedDummy).filter(AuditedDummy.created_by == "MANUAL_CREATOR").count() == 1
+
+
+def test_obsolete_column_on_is_obsolete_tables(db): # noqa
+    """The five tables that had is_obsolete keep the attribute and the API key, on column obsolete."""
+    from agr_literature_service.api.models import CrossReferenceModel
+    assert CrossReferenceModel.__table__.c.obsolete is CrossReferenceModel.is_obsolete.property.columns[0]
+    assert "is_obsolete" not in CrossReferenceModel.__table__.c
+    assert db.execute(text("SELECT count(*) FROM information_schema.columns "
+                           "WHERE table_name = 'cross_reference' AND column_name = 'obsolete'")).scalar() == 1
