@@ -505,7 +505,7 @@ expected_tet_count() {
         WITH g AS (
             SELECT count(*) AS n
               FROM topic_entity_tag t
-              JOIN tag_source s ON s.tag_source_id = t.tag_source_id
+              JOIN tag_source s ON s.id = t.tag_source_id
              GROUP BY t.reference_id, coalesce(t.entity_type, ''), coalesce(t.topic, ''),
                       coalesce(s.data_provider, ''),
                       CASE WHEN s.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035')

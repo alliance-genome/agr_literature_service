@@ -80,7 +80,7 @@ CREATE TABLE cross_reference (
     ROWKEY string PRIMARY KEY,
     reference_id string,
     curie string,
-    is_obsolete boolean
+    obsolete boolean
   ) WITH (
     KAFKA_TOPIC='abc.public.cross_reference',
     VALUE_FORMAT='json'
@@ -186,8 +186,6 @@ CREATE TABLE topic_entity_tag(
     entity_type string,
     date_created string,
     date_updated string,
-    created_by string,
-    updated_by string,
     entity string,
     entity_published_as string,
     species string,
@@ -216,8 +214,6 @@ CREATE TABLE curation_status(
     note string,
     date_created string,
     date_updated string,
-    created_by string,
-    updated_by string,
     curation_tag string
 ) WITH (
     KAFKA_TOPIC='abc.public.curation_status',
@@ -262,8 +258,6 @@ CREATE TABLE topic_entity_tag_with_source AS
     topic_entity_tag.entity_type,
     topic_entity_tag.date_created,
     topic_entity_tag.date_updated,
-    topic_entity_tag.created_by,
-    topic_entity_tag.updated_by,
     topic_entity_tag.entity,
     topic_entity_tag.entity_published_as,
     topic_entity_tag.species,
@@ -360,7 +354,7 @@ CREATE TABLE topic_entity_tags AS
 
 CREATE TABLE cross_references AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
+    collect_list(map('curie':=curie, 'is_obsolete':=cast(obsolete as string))) \"CROSS_REFERENCES\"
     FROM cross_reference
     GROUP BY reference_id
     EMIT CHANGES;
@@ -472,8 +466,7 @@ CREATE TABLE reference_workflow_tag(
     reference_workflow_tag_id string PRIMARY KEY,
     reference_id string,
     workflow_tag_id string,
-    mod_id string,
-    created_by string
+    mod_id string
   ) WITH (
     KAFKA_TOPIC='abc.public.workflow_tag',
     VALUE_FORMAT='json',
@@ -485,8 +478,7 @@ CREATE TABLE reference_workflow_tag_with_mod AS
         reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
         reference_workflow_tag.reference_id,
         reference_workflow_tag.workflow_tag_id,
-        mod.abbreviation AS mod_abbreviation,
-        reference_workflow_tag.created_by
+        mod.abbreviation AS mod_abbreviation
     FROM reference_workflow_tag
     JOIN mod
         ON reference_workflow_tag.mod_id = mod.mod_id;
