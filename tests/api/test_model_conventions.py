@@ -70,7 +70,8 @@ def test_trigger_sources_match_revision():
 def test_citation_created_on_reference_insert(db):  # noqa
     """The citation trigger finds its sequence whether it is citation_citation_id_seq (migrated) or
     citation_id_seq (create_all)."""
-    resource = ResourceModel(title='Conventions Test Journal', iso_abbreviation='Conv Test J')
+    resource = ResourceModel(curie='AGRKB:102999999999901', title='Conventions Test Journal',
+                             title_abbreviation='Conv Test J')
     db.add(resource)
     db.flush()
     reference = ReferenceModel(curie='AGRKB:101999999999901', title='Conventions test',

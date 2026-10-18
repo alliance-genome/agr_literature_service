@@ -484,7 +484,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                                        f"FROM mod_corpus_association mca, reference r "
                                        f"WHERE mca.mod_id = {mod_id} "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.reference_id = r.reference_id "
+                                       f"AND mca.reference_id = r.id "
                                        f"AND r.prepublication_pipeline is False")).fetchall()
     try:
         # update those that are no longer valid

@@ -27,6 +27,8 @@ EXCLUDED = ('agr_literature_service/lit_processing/oneoff_scripts/', 'tests/test
 
 SQL_KEYWORD = re.compile(r'\b(select|update|insert|delete|join|from)\b', re.IGNORECASE)
 TABLE_REF = re.compile(r'\b(?:from|join|update|into)\s+(\w+)(?:\s+(?:as\s+)?(\w+))?', re.IGNORECASE)
+# further tables of a comma-separated FROM list (FROM a x, b y); only known tables count
+COMMA_REF = re.compile(r',\s*(\w+)(?:\s+(?:as\s+)?(\w+))?', re.IGNORECASE)
 NOT_ALIAS = {'on', 'where', 'join', 'left', 'right', 'inner', 'outer', 'full', 'cross', 'natural', 'set',
              'using', 'group', 'order', 'limit', 'as', 'and', 'or', 'returning', 'values', 'having', 'union',
              'window', 'lateral', 'select', 'offset', 'for', 'default'}
@@ -63,6 +65,8 @@ def scan_text(sql: str) -> List[Tuple[int, str]]:
         for match in pattern.finditer(sql):
             found.add((line_of(match.start()), rule))
     references = [(table.lower(), (alias or '').lower()) for table, alias in TABLE_REF.findall(sql)]
+    references += [(table.lower(), (alias or '').lower()) for table, alias in COMMA_REF.findall(sql)
+                   if table.lower() in PK_RENAMES]
     tables = {table for table, _alias in references}
     for table, pk in PK_RENAMES.items():
         if table not in tables:
@@ -142,6 +146,11 @@ def test_scanner_detects_each_rule():
 
 def test_scanner_detects_unqualified_own_key():
     assert scan_text('SELECT reference_id FROM reference WHERE curie = :c') == [(0, 'own-pk')]
+
+
+def test_scanner_detects_own_key_in_comma_join():
+    sql = 'SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, mod m WHERE mca.mod_id = m.mod_id'
+    assert scan_text(sql) == [(0, 'own-pk')]
 
 
 def test_scanner_detects_own_key_in_subquery():

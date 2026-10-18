@@ -283,12 +283,13 @@ def test_person_label_round_trip(db): # noqa
     person = PersonModel(display_name="Audit Curator", curie="AGRKB:AUDIT-TEST-1")
     db.add(person)
     db.commit()
-    link_user_to_person(db, "AUDIT_TEST_CURATOR", person.person_id)
+    person_id = person.person_id
+    link_user_to_person(db, "AUDIT_TEST_CURATOR", person_id)
     db.add(AuditedDummy(name="mike", created_by="AGRKB:AUDIT-TEST-1"))
     db.commit()
     obj = _reload(db, "mike")
     assert obj.created_by == "AGRKB:AUDIT-TEST-1"
-    assert db.get(UserModel, obj.created_by_id).person_id == person.person_id
+    assert db.get(UserModel, obj.created_by_id).person_id == person_id
 
 
 def test_insert_sets_linkml_columns(db): # noqa

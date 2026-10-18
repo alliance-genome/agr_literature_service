@@ -39,7 +39,7 @@ def check_data():
                                        f"AND tet.reference_id = r.id "
                                        f"AND tet.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.mod_id = m.mod_id")).fetchall()
+                                       f"AND mca.mod_id = m.id")).fetchall()
 
         cols_to_check = ['topic', 'entity_type']
         for row in rows:

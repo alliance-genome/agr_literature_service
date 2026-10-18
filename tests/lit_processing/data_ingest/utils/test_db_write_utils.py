@@ -299,7 +299,7 @@ class TestDbReadUtils:
         ## test mark_false_positive_papers_as_out_of_corpus()
         mca_rows = db.execute(text("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
                                    "mod m WHERE mca.reference_id = cr.reference_id "
-                                   "AND mca.mod_id = m.mod_id "
+                                   "AND mca.mod_id = m.id "
                                    "AND m.abbreviation = 'XB'")).fetchall()
         assert len(mca_rows) > 0
 

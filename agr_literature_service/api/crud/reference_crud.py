@@ -858,8 +858,8 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                     "FROM reference_version rv "
                     "JOIN agent u ON rv.updated_by_id = u.id "
                     "LEFT JOIN person up ON up.id = u.person_id "
-                    "WHERE curie = :curie "
-                    "AND copyright_license_id_mod IS true "
+                    "WHERE rv.curie = :curie "
+                    "AND rv.copyright_license_id_mod IS true "
                     "ORDER BY rv.date_updated DESC LIMIT 1"
                 ),
                 {"curie": reference_data["curie"]},
