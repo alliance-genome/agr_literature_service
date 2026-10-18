@@ -114,14 +114,14 @@ def ref_curie_mapping(db_session):
         f"FROM   cross_reference cr, reference r "
         f"WHERE  cr.reference_id = r.reference_id "
         f"AND    cr.curie_prefix = '{mod}' "
-        f"AND    cr.is_obsolete is False")).fetchall()])
+        f"AND    cr.obsolete is False")).fetchall()])
 
     return sgdid_to_ref_curie
 
 
 def get_source_id(db_session):
 
-    rows = db_session.execute(text(f"SELECT t.tag_source_id "
+    rows = db_session.execute(text(f"SELECT t.id AS tag_source_id "
                                    f"FROM   tag_source t, mod m "
                                    f"WHERE  t.secondary_data_provider_id = m.mod_id "
                                    f"AND    m.abbreviation = '{mod}'")).fetchall()

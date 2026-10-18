@@ -8,7 +8,7 @@ import tempfile
 from unittest.mock import patch, MagicMock
 
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    get_meta_data, get_reference_col_names, generate_json_data, generate_json_file, dump_data
+    get_meta_data, get_reference_col_names, get_reference_col_sql, generate_json_data, generate_json_file, dump_data
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
@@ -129,9 +129,8 @@ class TestExportSingleModReferencesToJson:
         reference_id_to_license_data = {}
 
         # Get reference data
-        ref_cols = get_reference_col_names()
-        cols = ", ".join(ref_cols)
-        ref_data = db.execute(text(f"SELECT {cols} FROM reference WHERE reference_id = :ref_id"),
+        cols = get_reference_col_sql()
+        ref_data = db.execute(text(f"SELECT {cols} FROM reference WHERE id = :ref_id"),
                               {'ref_id': ref_id}).fetchall()
 
         data = []

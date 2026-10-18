@@ -308,7 +308,7 @@ class TestDbReadUtils:
             fp_pmids.add(x[0].replace("PMID:", ""))
         mark_false_positive_papers_as_out_of_corpus(db, 'XB', fp_pmids)
 
-        cr_rows = db.execute(text("SELECT is_obsolete FROM cross_reference "
+        cr_rows = db.execute(text("SELECT obsolete AS is_obsolete FROM cross_reference "
                                   "WHERE curie_prefix = 'Xenbase'")).fetchall()
         for x in cr_rows:
             assert x[0] is True

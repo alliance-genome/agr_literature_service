@@ -149,8 +149,8 @@ def normalize_reference_curie(db: Session, curie: str):
                 SELECT r.curie
                 FROM reference AS r
                 JOIN cross_reference AS cr
-                  ON r.reference_id = cr.reference_id
-                WHERE cr.is_obsolete IS FALSE
+                  ON r.id = cr.reference_id
+                WHERE cr.obsolete IS FALSE
                   AND cr.curie = :xref
                 LIMIT 1
             """),

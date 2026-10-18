@@ -114,7 +114,7 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
 
     ref_file_key_dbid = {}
     ref_file_uniq_filename_set = set()
-    for row in db_session.execute(text("SELECT referencefile_id, reference_id, md5sum, display_name, file_extension FROM "
+    for row in db_session.execute(text("SELECT id AS referencefile_id, reference_id, md5sum, display_name, file_extension FROM "
                                        "referencefile")).mappings().fetchall():
         ref_file_key = (row["reference_id"], row["md5sum"])
         ref_file_dbid = row["referencefile_id"]
@@ -224,7 +224,7 @@ def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]): 
     rows = db_session.execute(text(f"""
         SELECT mca.reference_id, m.abbreviation
         FROM mod_corpus_association mca
-        JOIN mod m ON mca.mod_id = m.mod_id
+        JOIN mod m ON mca.mod_id = m.id
         WHERE mca.reference_id IN ({ref_id_list})
         AND mca.corpus = TRUE
     """)).fetchall()
@@ -244,7 +244,7 @@ def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]): 
     rows = db_session.execute(text(f"""
         SELECT wt.reference_id, m.abbreviation
         FROM workflow_tag wt
-        JOIN mod m ON wt.mod_id = m.mod_id
+        JOIN mod m ON wt.mod_id = m.id
         WHERE wt.reference_id IN ({ref_id_list})
         AND wt.workflow_tag_id = '{FILE_UPLOADED_TAG_ATP_ID}'
     """)).fetchall()

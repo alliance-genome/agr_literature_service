@@ -479,13 +479,13 @@ def get_pmids_and_pmcids():  # pragma: no cover
     rows = db_session.execute(text("SELECT distinct rf.reference_id "
                                    "FROM referencefile rf, referencefile_mod rfm "
                                    "WHERE rfm.mod_id is null "
-                                   "AND rf.referencefile_id = rfm.referencefile_id ")).fetchall()
+                                   "AND rf.id = rfm.referencefile_id ")).fetchall()
 
     reference_ids_with_PMC = set()
     for x in rows:
         reference_ids_with_PMC.add(x[0])
 
-    rows = db_session.execute(text("SELECT reference_id "
+    rows = db_session.execute(text("SELECT id AS reference_id "
                                    "FROM reference "
                                    "WHERE copyright_license_id is not null")).fetchall()
 
@@ -508,10 +508,10 @@ def get_pmids_and_pmcids():  # pragma: no cover
                                        f"FROM cross_reference cr, mod_corpus_association mca, "
                                        f"cross_reference cr2, mod m "
                                        f"WHERE cr.curie_prefix = 'PMID' "
-                                       f"AND cr.is_obsolete is False "
+                                       f"AND cr.obsolete is False "
                                        f"AND cr.reference_id = cr2.reference_id "
                                        f"AND cr2.curie_prefix = 'PMCID' "
-                                       f"AND cr2.is_obsolete is False "
+                                       f"AND cr2.obsolete is False "
                                        f"AND cr.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
                                        f"AND mca.mod_id = m.mod_id "
@@ -553,7 +553,7 @@ def load_license_into_db(pmids_with_ref_ids, pmid_to_license):
 
     db_session = create_postgres_session(False)
 
-    rows = db_session.execute(text("SELECT copyright_license_id, name FROM copyright_license")).fetchall()
+    rows = db_session.execute(text("SELECT id AS copyright_license_id, name FROM copyright_license")).fetchall()
     license_to_id = {}
     for x in rows:
         license_to_id[x[1]] = x[0]

@@ -48,7 +48,7 @@ def _proceed_on_value(db, current_workflow_tag_db_obj, args):
         select = f"""
         select rt.label
           from referencetype rt, mod_referencetype mrt, reference_mod_referencetype rmrt
-          where rt.referencetype_id = mrt.referencetype_id and
+          where rt.id = mrt.referencetype_id and
                 mrt.mod_id = {current_workflow_tag_db_obj.mod_id} and
                 rmrt.reference_id = {current_workflow_tag_db_obj.reference_id} and
                 mrt.mod_referencetype_id = rmrt.mod_referencetype_id

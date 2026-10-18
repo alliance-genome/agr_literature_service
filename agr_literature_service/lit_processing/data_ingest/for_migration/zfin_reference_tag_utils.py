@@ -163,9 +163,9 @@ def build_zfin_pub_to_ref_curie(db: Session) -> Dict[str, str]:
     rows = db.execute(text(
         "SELECT cr.curie, r.curie "
         "FROM   cross_reference cr, reference r "
-        "WHERE  cr.reference_id = r.reference_id "
+        "WHERE  cr.reference_id = r.id "
         "AND    cr.curie_prefix = :prefix "
-        "AND    cr.is_obsolete IS FALSE"
+        "AND    cr.obsolete IS FALSE"
     ), {"prefix": ZFIN_CURIE_PREFIX}).fetchall()
     return {row[0]: row[1] for row in rows}
 
@@ -176,8 +176,8 @@ def build_zfin_corpus_ref_curies(db: Session) -> Set[str]:
     rows = db.execute(text(
         "SELECT r.curie "
         "FROM   mod_corpus_association mca "
-        "JOIN   reference r ON mca.reference_id = r.reference_id "
-        "JOIN   mod m ON mca.mod_id = m.mod_id "
+        "JOIN   reference r ON mca.reference_id = r.id "
+        "JOIN   mod m ON mca.mod_id = m.id "
         "WHERE  m.abbreviation = :abbr "
         "AND    mca.corpus IS TRUE"
     ), {"abbr": SECONDARY_DATA_PROVIDER_ABBR}).fetchall()
@@ -195,7 +195,7 @@ def load_existing_entity_pairs(db: Session, source_id: int,
     rows = db.execute(text(
         "SELECT r.curie, tet.entity "
         "FROM   topic_entity_tag tet "
-        "JOIN   reference r ON tet.reference_id = r.reference_id "
+        "JOIN   reference r ON tet.reference_id = r.id "
         "WHERE  tet.tag_source_id = :sid "
         "AND    tet.topic = :atp "
         "AND    tet.entity_type = :atp"

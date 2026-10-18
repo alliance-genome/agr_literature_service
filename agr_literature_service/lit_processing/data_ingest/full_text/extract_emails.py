@@ -405,17 +405,17 @@ def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[int, int, str]]:
             """
             SELECT
               r.curie,
-              r.reference_id,
+              r.id AS reference_id,
               m.abbreviation,
-              MIN(rf.referencefile_id) AS md_referencefile_id
+              MIN(rf.id) AS md_referencefile_id
             FROM reference r
-            JOIN workflow_tag wft ON wft.reference_id = r.reference_id
-            JOIN mod m ON m.mod_id = wft.mod_id
-            JOIN referencefile rf ON rf.reference_id = r.reference_id
+            JOIN workflow_tag wft ON wft.reference_id = r.id
+            JOIN mod m ON m.id = wft.mod_id
+            JOIN referencefile rf ON rf.reference_id = r.id
             WHERE wft.workflow_tag_id = :email_extraction_needed
               AND rf.file_class = 'converted_merged_main'
               AND rf.file_extension = 'md'
-            GROUP BY r.curie, r.reference_id, m.abbreviation
+            GROUP BY r.curie, r.id, m.abbreviation
             """
         ),
         {"email_extraction_needed": needed_tag},

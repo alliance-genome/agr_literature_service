@@ -117,7 +117,7 @@ def send_report_to_slack(mod, rows_to_report):
 
 def get_mod_abbreviations(db_session, debug):
     mod_abbreviations = {}
-    sql = text("SELECT mod_id, abbreviation FROM mod")
+    sql = text("SELECT id, abbreviation FROM mod")
     rows = db_session.execute(sql).fetchall()
     for row in rows:
         mod_abbreviations[row[0]] = row[1]
@@ -133,8 +133,8 @@ def process_no_parent(db_session, phase, slack_messages, counts, failed_refs, de
 
     for wft in wfts:
         sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                        WHERE r.reference_id = {wft.reference_id} AND
-                              r.reference_id = wft.reference_id AND
+                        WHERE r.id = {wft.reference_id} AND
+                              r.id = wft.reference_id AND
                               wft.workflow_tag_id = '{phase['start of progress']}' AND
                               wft.date_created >= '{start_date}'""")
         if debug:
@@ -166,8 +166,8 @@ def process_no_parent(db_session, phase, slack_messages, counts, failed_refs, de
                     print(f"Already set to failed for {wft}")
                 continue
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                            WHERE r.reference_id = {wft.reference_id} AND
-                                  r.reference_id = wft.reference_id AND
+                            WHERE r.id = {wft.reference_id} AND
+                                  r.id = wft.reference_id AND
                                   wft.workflow_tag_id = '{wft.workflow_tag_id}' """)
             if debug:
                 print(sql)
@@ -203,8 +203,8 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
                                                      WorkflowTagModel.date_created > start_date).all()
     for wft in wfts:
         sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                        WHERE r.reference_id = {wft.reference_id} AND
-                              r.reference_id = wft.reference_id AND
+                        WHERE r.id = {wft.reference_id} AND
+                              r.id = wft.reference_id AND
                               wft.workflow_tag_id = '{phase['start of progress']}' AND
                               wft.date_created >= '{start_date}'""")
         if debug:
@@ -231,8 +231,8 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
                 print(f"Setting to try again for {wft}")
         else:  # need to set to failed
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                            WHERE r.reference_id = {wft.reference_id} AND
-                                  r.reference_id = wft.reference_id AND
+                            WHERE r.id = {wft.reference_id} AND
+                                  r.id = wft.reference_id AND
                                   wft.workflow_tag_id = '{wft.workflow_tag_id}' """)
             if debug:
                 print(sql)

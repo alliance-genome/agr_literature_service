@@ -258,7 +258,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
 
     sql = """
     SELECT
-        mit.manual_indexing_tag_id,
+        mit.id AS manual_indexing_tag_id,
         mit.curation_tag,
         mit.confidence_score,
         mit.validation_by_biocurator,
@@ -266,14 +266,14 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
         mit.note,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
-        COALESCE(get_most_current_email(u.person_id), mit.updated_by) AS updated_by_email,
-        COALESCE(p.display_name, mit.updated_by) AS updated_by_name,
-        mit.updated_by
+        COALESCE(get_most_current_email(u.person_id), u.automation_username, p.curie) AS updated_by_email,
+        COALESCE(p.display_name, u.automation_username, p.curie) AS updated_by_name,
+        COALESCE(u.automation_username, p.curie) AS updated_by
     FROM manual_indexing_tag mit
-    JOIN reference r ON r.reference_id = mit.reference_id
-    JOIN mod m ON m.mod_id = mit.mod_id
-    LEFT JOIN users u  ON u.id = mit.updated_by
-    LEFT JOIN person p ON p.person_id = u.person_id
+    JOIN reference r ON r.id = mit.reference_id
+    JOIN mod m ON m.id = mit.mod_id
+    LEFT JOIN agent u  ON u.id = mit.updated_by_id
+    LEFT JOIN person p ON p.id = u.person_id
     WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()

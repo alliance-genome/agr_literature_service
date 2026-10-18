@@ -58,7 +58,7 @@ def add_file_uploaded_workflow(db_session: Session, curie_or_reference_id, mod=N
     if mod is None:
         rows = db_session.execute(text(f"SELECT m.abbreviation "
                                        f"FROM mod m, mod_corpus_association mca "
-                                       f"WHERE m.mod_id = mca.mod_id "
+                                       f"WHERE m.id = mca.mod_id "
                                        f"AND mca.reference_id = {ref.reference_id} "
                                        f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
@@ -466,7 +466,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
     cr_rows = db_session.execute(text(f"SELECT reference_id "
                                       f"FROM cross_reference "
                                       f"WHERE curie_prefix = '{curie_prefix}' "
-                                      f"AND is_obsolete is False")).fetchall()
+                                      f"AND obsolete is False")).fetchall()
     valid_reference_ids = {row[0] for row in cr_rows}
 
     # NEW: for FB only, detect references that have *any* FB curie at all
@@ -480,7 +480,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
         """)).fetchall()
         ref_ids_with_any_mod_curie = {row[0] for row in any_rows}
 
-    mca_rows = db_session.execute(text(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
+    mca_rows = db_session.execute(text(f"SELECT mca.id AS mod_corpus_association_id, mca.reference_id "
                                        f"FROM mod_corpus_association mca, reference r "
                                        f"WHERE mca.mod_id = {mod_id} "
                                        f"AND mca.corpus is True "
@@ -501,7 +501,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                 text("""
                     UPDATE mod_corpus_association
                        SET corpus = False
-                    WHERE mod_corpus_association_id = :assoc_id
+                    WHERE id = :assoc_id
                 """),
                 {"assoc_id": assoc_id}
             )
@@ -520,7 +520,7 @@ def _is_prepublication_pipeline(db_session: Session, reference_id):  # pragma: n
 
     rows = db_session.execute(text(f"SELECT prepublication_pipeline "
                                    f"FROM   reference "
-                                   f"WHERE  reference_id = {reference_id}")).fetchall()
+                                   f"WHERE  id = {reference_id}")).fetchall()
     return rows[0][0]
 
 
@@ -627,7 +627,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
     db_session = create_postgres_session(False)
 
     ref_curies = ", ".join(["'" + x + "'" for x in ref_curie_list])
-    rs = db_session.execute(text("SELECT reference_id, curie FROM reference WHERE curie IN (" + ref_curies + ")"))
+    rs = db_session.execute(text("SELECT id, curie FROM reference WHERE curie IN (" + ref_curies + ")"))
     rows = rs.fetchall()
     curie_to_reference_id = {}
     for x in rows:
@@ -657,7 +657,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
             continue
         just_added.add(entry["curie"])
 
-        rs = db_session.execute(text("SELECT reference_id, resource_id, is_obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'"))
+        rs = db_session.execute(text("SELECT reference_id, resource_id, obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'"))
         rows = rs.fetchall()
         if len(rows) > 0:
             for x in rows:
@@ -787,8 +787,8 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     return db_session.query(AuthorModel.author_id).join(
         UserModel,
         or_(
-            UserModel.id == AuthorModel.created_by,
-            UserModel.id == AuthorModel.updated_by,
+            UserModel.user_id == AuthorModel.created_by_id,
+            UserModel.user_id == AuthorModel.updated_by_id,
         ),
     ).filter(
         AuthorModel.reference_id == reference_id,
@@ -1331,12 +1331,12 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     rows = db_session.execute(text(f"SELECT get_most_current_email(u.person_id) AS email "
-                                   f"FROM reference_relation_version rcc, transaction t, users u "
+                                   f"FROM reference_relation_version rcc, transaction t, agent u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND u.user_id = t.user_id")).mappings().fetchall()
+                                   f"AND u.id = t.user_id")).mappings().fetchall()
     if len(rows) == 0:
         return None
     for row in rows:
@@ -1349,13 +1349,13 @@ def _is_reference_relation_added_by_mod_dqm(db_session: Session, reference_id_fr
 
     user_id = "sort_dqm_json_reference_updates"
     rows = db_session.execute(text(f"SELECT * "
-                                   f"FROM reference_relation_version rcc, transaction t, users u "
+                                   f"FROM reference_relation_version rcc, transaction t, agent u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND t.user_id = u.user_id "
-                                   f"AND u.id = '{user_id}'")).fetchall()
+                                   f"AND t.user_id = u.id "
+                                   f"AND u.automation_username = '{user_id}'")).fetchall()
     if len(rows) > 0:
         return True
     return False
@@ -1789,11 +1789,11 @@ def set_category_for_fb_note_papers(db, logger):
             SELECT rmrt.reference_id
               FROM reference_mod_referencetype rmrt
               JOIN mod_referencetype mrt
-                ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id
+                ON rmrt.mod_referencetype_id = mrt.id
               JOIN referencetype rt
-                ON mrt.referencetype_id = rt.referencetype_id
+                ON mrt.referencetype_id = rt.id
               JOIN mod m
-                ON mrt.mod_id = m.mod_id
+                ON mrt.mod_id = m.id
              WHERE rt.label = 'note'
                AND m.abbreviation = 'FB'
         )
@@ -1801,7 +1801,7 @@ def set_category_for_fb_note_papers(db, logger):
             SELECT mca.reference_id
               FROM mod_corpus_association mca
               JOIN mod m2
-                ON mca.mod_id = m2.mod_id
+                ON mca.mod_id = m2.id
              WHERE mca.corpus = TRUE
                AND m2.abbreviation <> 'FB'
         )
@@ -2574,9 +2574,9 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     try:
         # Get all MODs associated with this reference (corpus=True), excluding AGR
         mods_query = text("""
-            SELECT m.mod_id, m.abbreviation
+            SELECT m.id AS mod_id, m.abbreviation
             FROM mod m
-            JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+            JOIN mod_corpus_association mca ON m.id = mca.mod_id
             WHERE mca.reference_id = :reference_id
             AND mca.corpus = TRUE
             AND m.abbreviation != 'AGR'
@@ -2602,7 +2602,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                 main_pdf_query = text("""
                     SELECT COUNT(*)
                     FROM referencefile rf
-                    JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                    JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
                     WHERE rf.reference_id = :reference_id
                     AND rf.file_class = 'main'
                     AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
@@ -2620,7 +2620,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                     any_file_query = text("""
                         SELECT COUNT(*)
                         FROM referencefile rf
-                        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                        JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
                         WHERE rf.reference_id = :reference_id
                         AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
                     """)
@@ -2680,7 +2680,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                     SUM(CASE WHEN rf.file_class = 'main' THEN 1 ELSE 0 END) AS main_pdf_count,
                     SUM(CASE WHEN rf.file_class = 'converted_merged_main' THEN 1 ELSE 0 END) AS text_file_count
                 FROM referencefile rf
-                JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
                 WHERE rf.reference_id = :reference_id
                 AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
             """)
