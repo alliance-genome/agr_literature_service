@@ -1,10 +1,11 @@
 from datetime import datetime
 import pytz
 
-from sqlalchemy import Boolean, Column, ForeignKey, DateTime, Integer, event, false
+from sqlalchemy import Boolean, Column, ForeignKey, DateTime, Integer, event, false, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.inspection import inspect as sa_inspect
-from sqlalchemy.orm import column_property, deferred
+from sqlalchemy.orm import Session, column_property, deferred
+from sqlalchemy.orm.attributes import set_committed_value
 from agr_literature_service.api.models.user_model import agent_label_expression
 from agr_literature_service.api.user import get_current_agent_id, get_global_user_id, resolve_agent_id
 
@@ -221,6 +222,40 @@ def _set_updated(mapper, connection, target):
     created_by = _assigned(target, 'created_by')
     if created_by is not None:
         target.created_by_id = agent_id_for_label(connection, created_by)
+
+
+@event.listens_for(Session, "before_flush")
+def _load_deferred_audit_columns(session, _flush_context, _instances):
+    """Load the deferred LinkML columns of audited rows about to be updated or deleted.
+
+    Continuum copies every versioned column of a changed row into its history row
+    after the flush. A deferred column it reads would be loaded with one query per
+    column per row, and on a DELETE -- the row already gone -- recorded as NULL. One
+    query per class here, before the statements run, loads them all.
+    """
+    pending = {}
+    for obj in list(session.dirty) + list(session.deleted):
+        if not isinstance(obj, AuditedModel):
+            continue
+        state = sa_inspect(obj)
+        if state.key is None:
+            continue
+        keys = [prop.key for prop in state.mapper.column_attrs if prop.deferred and prop.key in state.unloaded]
+        if keys:
+            pending.setdefault(state.mapper, []).append((obj, keys))
+    for mapper, objects in pending.items():
+        deferred_props = [prop for prop in mapper.column_attrs if prop.deferred]
+        pk = mapper.primary_key[0]
+        ids = [sa_inspect(obj).identity[0] for obj, _keys in objects]
+        with session.no_autoflush:
+            rows = session.execute(
+                select(pk, *[prop.columns[0] for prop in deferred_props]).where(pk.in_(ids))).all()
+        values = {row[0]: dict(zip((prop.key for prop in deferred_props), row[1:])) for row in rows}
+        for obj, keys in objects:
+            row = values.get(sa_inspect(obj).identity[0])
+            if row is not None:
+                for key in keys:
+                    set_committed_value(obj, key, row[key])
 
 
 def _persist_assigned_labels(connection, target):

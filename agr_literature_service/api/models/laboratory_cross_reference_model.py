@@ -25,7 +25,9 @@ class LaboratoryCrossReferenceModel(Base, AuditedModel):
     laboratory = relationship("LaboratoryModel", back_populates="cross_references")
 
     pages = Column(ARRAY(String), nullable=True)
-    is_obsolete = Column('obsolete', Boolean, nullable=False, default=False, server_default=text('false'))
+    # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column
+    is_obsolete = Column('obsolete', Boolean, key='is_obsolete', nullable=False, default=False,
+                         server_default=text('false'))
 
     __table_args__ = (
         # Uniqueness is enforced only among non-obsolete rows (mirrors

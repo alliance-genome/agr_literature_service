@@ -1718,7 +1718,9 @@ def _orm_column_keys(model) -> List[str]:
     """
     keys = _orm_column_keys_cache.get(model)
     if keys is None:
-        keys = [attr.key for attr in sa_inspect(model).mapper.column_attrs]
+        # deferred columns (the LinkML audit columns) are not part of the output and
+        # would each cost a query per object
+        keys = [attr.key for attr in sa_inspect(model).mapper.column_attrs if not attr.deferred]
         _orm_column_keys_cache[model] = keys
     return keys
 

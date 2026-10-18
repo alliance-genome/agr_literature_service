@@ -7,7 +7,7 @@ cross_reference_model.py
 from typing import Dict
 
 from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, Sequence, text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
@@ -42,7 +42,9 @@ class CrossReferenceModel(Base, AuditedModel):
         nullable=False
     )
 
-    is_obsolete = Column('obsolete', Boolean, nullable=False, default=False, server_default=text('false'))
+    # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column
+    is_obsolete = Column('obsolete', Boolean, key='is_obsolete', nullable=False, default=False,
+                         server_default=text('false'))
 
     reference_id = Column(
         Integer,
@@ -109,6 +111,11 @@ class CrossReferenceModel(Base, AuditedModel):
               unique=True,
               postgresql_where=(is_obsolete.is_(False)))
     )
+
+    @validates('is_obsolete')
+    def _obsolete_not_null(self, _key, value):
+        # obsolete is NOT NULL (LinkML); an explicit null from the API means not obsolete
+        return False if value is None else value
 
     def __str__(self):
         """

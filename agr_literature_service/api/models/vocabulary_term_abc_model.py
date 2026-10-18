@@ -23,7 +23,9 @@ class VocabularyTermAbcModel(Base, AuditedModel):
         index=True,
     )
     name = Column(String(), nullable=False)
-    is_obsolete = Column('obsolete', Boolean, nullable=False, default=False, server_default=text('false'))
+    # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column
+    is_obsolete = Column('obsolete', Boolean, key='is_obsolete', nullable=False, default=False,
+                         server_default=text('false'))
 
     vocabulary = relationship("VocabularyAbcModel", back_populates="terms")
     synonyms = relationship(

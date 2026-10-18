@@ -1,3 +1,5 @@
+from sqlalchemy import text
+from sqlalchemy.orm import object_session
 from sqlalchemy_continuum.plugins import Plugin
 
 
@@ -16,3 +18,33 @@ class UserPlugin(Plugin):
         return {
             'user_id': get_current_user_pk(session)
         }
+
+
+class AuditLabelPlugin(Plugin):
+    """
+    Keep history changesets in the API's terms (SCRUM-6719): created_by /
+    updated_by as agent labels rather than the created_by_id / updated_by_id
+    integers they are stored as, and without the LinkML-only columns, which
+    the API does not expose.
+    """
+    HIDDEN = ('db_date_created', 'db_date_updated', 'internal', 'obsolete')
+    LABELS = (('created_by_id', 'created_by'), ('updated_by_id', 'updated_by'))
+    _SQL_LABELS = text(
+        "SELECT a.id, COALESCE(a.automation_username, p.curie) FROM agent a "
+        "LEFT JOIN person p ON p.id = a.person_id WHERE a.id = ANY(:ids)"
+    )
+
+    def after_construct_changeset(self, version_obj, changeset):
+        for key in self.HIDDEN:
+            changeset.pop(key, None)
+        id_keys = [id_key for id_key, _label in self.LABELS if id_key in changeset]
+        if not id_keys:
+            return
+        ids = sorted({value for key in id_keys for value in changeset[key] if value is not None})
+        labels = {}
+        if ids:
+            session = object_session(version_obj)
+            labels = dict(session.execute(self._SQL_LABELS, {"ids": ids}).all())
+        for id_key, label_key in self.LABELS:
+            if id_key in changeset:
+                changeset[label_key] = [labels.get(value) for value in changeset.pop(id_key)]

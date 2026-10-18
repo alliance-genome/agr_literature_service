@@ -325,7 +325,6 @@ def test_filter_by_audit_label(db): # noqa
 def test_obsolete_column_on_is_obsolete_tables(db): # noqa
     """The five tables that had is_obsolete keep the attribute and the API key, on column obsolete."""
     from agr_literature_service.api.models import CrossReferenceModel
-    assert CrossReferenceModel.__table__.c.obsolete is CrossReferenceModel.is_obsolete.property.columns[0]
-    assert "is_obsolete" not in CrossReferenceModel.__table__.c
+    assert CrossReferenceModel.is_obsolete.property.columns[0].name == "obsolete"
     assert db.execute(text("SELECT count(*) FROM information_schema.columns "
                            "WHERE table_name = 'cross_reference' AND column_name = 'obsolete'")).scalar() == 1

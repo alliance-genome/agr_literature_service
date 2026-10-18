@@ -32,7 +32,9 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
 
     allele_designation = Column(String(), nullable=False)
 
-    is_obsolete = Column('obsolete', Boolean, nullable=False, default=False, server_default=text('false'))
+    # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column
+    is_obsolete = Column('obsolete', Boolean, key='is_obsolete', nullable=False, default=False,
+                         server_default=text('false'))
 
     __table_args__ = (
         # One active allele designation per (laboratory, mod); obsolete rows are
