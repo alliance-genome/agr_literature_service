@@ -68,4 +68,5 @@ cryptography>=41.0.0         # PyJWT can handle RS256 and other asymmetric algor
 # AGR Cognito Authentication
 agr-cognito-py==0.1.0        # AWS Cognito authentication for AGR services
 agr-abc-document-parsers[embeddings]==1.8.0  # Shared ABC document parsers (xml2md, office2md, md_reader, plain_text, embeddings)
+pyarrow==25.0.1              # pulled in by the [embeddings] extra; 26.x refuses to import with numpy<2 (pinned above for ES 7)
 openai>=1.0.0                # OpenAI embeddings client (SCRUM-6142 embedding generation)
