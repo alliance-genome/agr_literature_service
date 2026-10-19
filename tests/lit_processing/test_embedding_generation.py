@@ -7,7 +7,7 @@ embeddings extra (agr-abc-document-parsers[embeddings], pinned in
 requirements.txt) and skip in environments installed without it.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -204,3 +204,75 @@ def test_end_to_end_skips_reference_without_classifier_mod(db, test_reference): 
     assert result == {"skipped": "no_classifier_mod"}
     rows = db.query(EmbeddingFileModel).filter_by(reference_id=ref.reference_id).all()
     assert rows == []
+
+
+def _masked_pyarrow_error():
+    """The error agr_abc_document_parsers raises when pyarrow 26 refuses to load
+    under numpy<2: a friendly ImportError chained from the real one."""
+    try:
+        try:
+            raise ImportError("pyarrow requires NumPy 2.0 or newer, found 1.26.4")
+        except ImportError as exc:
+            raise ImportError(
+                "reading/writing embedding parquet needs pyarrow; install the optional "
+                "extra: pip install 'agr-abc-document-parsers[embeddings]'"
+            ) from exc
+    except ImportError as masked:
+        return masked
+
+
+def test_describe_includes_chained_cause():
+    """The logged text keeps the underlying reason a library re-raised over."""
+    text = eg._describe(_masked_pyarrow_error())
+    assert text.startswith("reading/writing embedding parquet needs pyarrow")
+    assert "caused by ImportError: pyarrow requires NumPy 2.0 or newer, found 1.26.4" in text
+    assert "\n" not in text
+    assert eg._describe(ValueError("plain")) == "plain"
+
+
+def test_describe_skips_suppressed_context():
+    """`raise ... from None` deliberately hides the context; so do we."""
+    try:
+        try:
+            raise KeyError("internal")
+        except KeyError:
+            raise RuntimeError("outer") from None
+    except RuntimeError as exc:
+        assert eg._describe(exc) == "outer"
+
+
+def _logged(mock_error):
+    """The text of each logger.error call, %-formatted like the log line."""
+    return [call.args[0] % call.args[1:] for call in mock_error.call_args_list]
+
+
+def test_maybe_generate_logs_the_cause():
+    """The fire-and-forget wrapper logs the cause, not just the masking message."""
+    with patch.object(eg, "generate_classifier_embeddings_for_reference",
+                      side_effect=_masked_pyarrow_error()), \
+            patch.object(eg.logger, "error") as error:
+        eg.maybe_generate_classifier_embeddings(db=None, reference_id=1, reference_curie="AGRKB:1")
+    (line,) = _logged(error)
+    assert "caused by ImportError: pyarrow requires NumPy 2.0 or newer" in line
+
+
+def test_per_source_failure_logs_the_cause():
+    """A per-source failure is counted and its log line carries the chained cause.
+    The prod alert of 2026-10-19 showed only the masking message."""
+    pytest.importorskip("agr_abc_document_parsers.embeddings",
+                        reason="embeddings extra / shared release not installed")
+    source = MagicMock(referencefile_id=5203578)
+    fake_db = MagicMock()
+    fake_db.query.return_value.filter.return_value.all.return_value = [source]
+    with patch.object(eg.config, "OPENAI_API_KEY", "sk-test"), \
+            patch("agr_literature_service.lit_processing.embedding.openai_embedder.OpenAIEmbedder",
+                  _FakeEmbedder), \
+            patch.object(eg, "_reference_has_classifier_mod", return_value=True), \
+            patch.object(eg.embedding_file_crud, "get_embeddings_for_sources", return_value={}), \
+            patch.object(eg, "_embed_and_register", side_effect=_masked_pyarrow_error()), \
+            patch.object(eg.logger, "error") as error:
+        result = eg.generate_classifier_embeddings_for_reference(fake_db, 1, "AGRKB:101000001310104")
+    assert result["failed"] == 1 and result["embedded"] == 0
+    (line,) = _logged(error)
+    assert line.startswith("Embedding generation failed for referencefile 5203578 (AGRKB:101000001310104)")
+    assert "caused by ImportError: pyarrow requires NumPy 2.0 or newer" in line
