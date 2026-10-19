@@ -19,6 +19,10 @@
 # in the user menu, then run the script; it asks for the token (or set
 # ABC_TOKEN). The token expires after a while: the script then stops, and
 # running the same command again with a new token carries on where it stopped.
+# The prompt needs a terminal, so for a run in the background (nohup) set the
+# token first; read keeps it out of the shell history:
+#   read -r -s -p "Paste your ABC access token: " ABC_TOKEN; echo; export ABC_TOKEN
+#   nohup ./pdf_archive_upload.sh <folder> <MOD> > upload.log 2>&1 &
 #
 # Every response is appended to <MOD>_pdf_archive_<env>[_dry_run].tsv in the
 # current directory (file, HTTP code, JSON result), where <env> is production,
@@ -60,8 +64,18 @@ if [[ ! -d "$FOLDER" ]]; then
 fi
 
 if [[ -z "${ABC_TOKEN:-}" ]]; then
+  # Without a terminal (e.g. under nohup) read cannot prompt, and every file
+  # would then fail; stop instead and say how to pass the token.
+  if [[ ! -t 0 ]]; then
+    echo "ERROR: no terminal to ask for the token. Set ABC_TOKEN first (see the usage notes: $0 with no arguments)." >&2
+    exit 1
+  fi
   read -r -s -p "Paste your ABC access token: " ABC_TOKEN
   echo
+fi
+if [[ -z "${ABC_TOKEN:-}" ]]; then
+  echo "ERROR: no access token given. Copy one from the user menu of the ABC literature UI and run the command again." >&2
+  exit 1
 fi
 
 RESULTS="${MOD}_pdf_archive_${ENV_NAME}.tsv"
