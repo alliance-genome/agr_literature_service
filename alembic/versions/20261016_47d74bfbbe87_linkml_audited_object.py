@@ -31,10 +31,12 @@ upgrade stops before dropping the strings if any value has no user (measured 202
 copy of prod: 75 tables, none).
 
 Locking and time: ADD / RENAME COLUMN are metadata-only. The backfill rewrites every audited
-row (~70M live + history rows) in primary-key batches, each committed on its own in an
+row (~87M live + history rows on dev, 75 tables) in primary-key batches, each committed on its own in an
 autocommit block, so stop the API and the automated scripts for the duration: a row written
 during the backfill keeps NULL ids and makes the drop refuse. Every step is idempotent, so a
-failed upgrade can simply be re-run.
+failed upgrade can simply be re-run. A final VACUUM FULL of the same tables takes back the space
+of the dead row versions and dropped strings. Measured 2026-10-20 on a PG 18.4 copy of dev
+(gp3, 3,000 IOPS): backfill 3h09m, VACUUM FULL 13 min, database 47 GB -> 77 GB -> 46 GB.
 
 Downgrade restores the strings from users.id. A history row that carried a replaced Okta uid
 gets the person curie that replaced it, not the uid.
@@ -206,6 +208,11 @@ def upgrade():
             op.execute(f'ALTER TABLE {table} DROP COLUMN IF EXISTS {old}')
             if _history(table):
                 op.execute(f'ALTER TABLE {table} DROP COLUMN IF EXISTS {old}_mod')
+    # the backfill left a dead version of every row and the dropped strings still sit in every live
+    # row: VACUUM FULL rewrites each table and its indexes without them (it cannot run in a transaction)
+    with op.get_context().autocommit_block():
+        for table in tables:
+            op.execute(f'VACUUM (FULL, ANALYZE) {table}')
 
 
 def downgrade():
