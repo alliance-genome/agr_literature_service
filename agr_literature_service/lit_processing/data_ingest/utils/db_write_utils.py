@@ -34,6 +34,9 @@ file_uploaded_tag_atp_id = "ATP:0000134"  # files uploaded
 text_conversion_process_atp_id = "ATP:0000161"  # text conversion
 file_converted_to_text_tag_atp_id = "ATP:0000163"  # file converted to text
 text_conversion_needed_tag_atp_id = "ATP:0000162"  # text conversion needed
+# retracted (ATP:0000346) and fully retracted (ATP:0000348); partially retracted
+# (ATP:0000347) papers keep their workflow tags
+full_retraction_status_atp_ids = ("ATP:0000346", "ATP:0000348")
 
 # One "Lastname, Initials" pair.
 # - last: anything up to a comma (handles hyphens, apostrophes, spaces like "van der Ven")
@@ -118,6 +121,16 @@ def add_file_needed_for_new_papers(db_session: Session, mod, curie_or_reference_
     else:
         reference_ids = {curie_or_reference_id}
 
+    # Fully retracted papers get no "file needed": process_retracted_papers deletes
+    # all their workflow tags except the two "won't ..." ones, so adding it here
+    # put it back every night, and also wiped any real file upload status the
+    # paper had (SCRUM-6733). restore_file_upload_workflow_tags sets the status
+    # again if the retraction is reversed.
+    fully_retracted_ids = {
+        row.reference_id for row in db_session.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.retraction_status.in_(full_retraction_status_atp_ids)).all()
+    }
+
     if logger:
         logger.info(f"Total reference_ids to process: {len(reference_ids)}")
         logger.info(f"Total reference_ids with existing workflow tags: {len(reference_ids_with_wft)}")
@@ -130,7 +143,7 @@ def add_file_needed_for_new_papers(db_session: Session, mod, curie_or_reference_
     try:
         count = 0
         for reference_id in reference_ids:
-            if reference_id not in reference_ids_with_wft:
+            if reference_id not in reference_ids_with_wft and reference_id not in fully_retracted_ids:
                 count += 1
                 transition_to_workflow_status(db_session, str(reference_id), mod, file_needed_tag_atp_id, transition_type)
                 if logger:
