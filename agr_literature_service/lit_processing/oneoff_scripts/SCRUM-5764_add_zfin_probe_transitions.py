@@ -23,7 +23,7 @@ What this script does (idempotent -- safe to re-run):
   (a) INSERTs six transitions for ZFIN, mirroring the shape of ZFIN's working
       pre-indexing chain (ATP:0000306), which also defines its terminal states
       from both "needed" and "in progress":
-       - START_STATE -> ATP:0000380 (condition='abstract_classification_job')
+       - ATP:0000177 -> ATP:0000380 (condition='abstract_classification_job')
          -- the virtual job-poll connector that makes ATP:0000380 visible to
          load_all_jobs. The condition contains 'classification_job' as a
          substring, and get_jobs filters with condition.contains(job_str), so
@@ -93,16 +93,17 @@ PROBE_TOPIC = "ATP:0000370"
 
 PROBE_STATES = (PROBE_NEEDED, PROBE_IN_PROGRESS, PROBE_COMPLETE, PROBE_FAILED)
 
-# Verified against prod 2026-08-26: ZFIN's own acquisition-stage queue uses a
-# START_STATE sentinel rather than a real prior tag --
-#     START_STATE | ATP:0000306 | indexing_priority_job | any | {}
+# Verified against prod 2026-08-26: ZFIN's own acquisition-stage queue hangs off
+# an entry state rather than a real prior tag (the START_STATE sentinel then,
+# ATP:0000177 "workflow process" since SCRUM-6754) --
+#     ATP:0000177 | ATP:0000306 | indexing_priority_job | any | {}
 # -- which is the right shape here, because Ceri's trigger is "inside corpus"
 # and nothing precedes it. mod_corpus_association_crud.py:82-91 grants ZFIN
 # ATP:0000306 when the corpus association is created, so probe classification
 # fires at the same moment. transition_type is 'any' to match that working row
 # (the SCRUM-5601 antibody entry used 'action', but it hung off a real prior
-# state; START_STATE is held by no reference so 'any' cannot misfire).
-UPSTREAM_STATE = "START_STATE"
+# state; ATP:0000177 is held by no reference so 'any' cannot misfire).
+UPSTREAM_STATE = "ATP:0000177"  # workflow process: the entry state of a directly set tag (SCRUM-6754)
 
 # Contains 'classification_job' as a substring, so the existing
 # load_all_jobs("classification_job") call picks these jobs up with no code
