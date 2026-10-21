@@ -11,7 +11,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import get_journa
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    generate_json_file, upload_json_file_to_s3, get_meta_data, get_reference_col_names, \
+    generate_json_file, upload_json_file_to_s3, get_meta_data, get_reference_col_sql, \
     generate_json_data
 from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -106,21 +106,21 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
 
     db_session = create_postgres_session(False)
 
-    rs = db_session.execute(text("SELECT mod_id FROM mod where abbreviation = '" + mod + "'"))
+    rs = db_session.execute(text("SELECT id FROM mod where abbreviation = '" + mod + "'"))
     rows = rs.fetchall()
     mod_id = rows[0][0]
 
-    refColNmList = ", ".join(get_reference_col_names())
+    refColNmList = get_reference_col_sql()
     rs = db_session.execute(text(f"SELECT {refColNmList} "
                                  f"FROM reference "
-                                 f"WHERE reference_id IN "
+                                 f"WHERE id IN "
                                  f"(select reference_id from mod_corpus_association "
                                  f"where mod_id = {mod_id} and corpus is True) "
-                                 f"AND reference_id IN "
+                                 f"AND id IN "
                                  f"(select reference_id from cross_reference "
                                  f"where curie_prefix = 'SGD' and curie like 'SGD:S1%' "
-                                 f"and is_obsolete is False) "
-                                 f"order by reference_id"))
+                                 f"and obsolete is False) "
+                                 f"order by id"))
 
     rows = rs.fetchall()
 

@@ -28,7 +28,7 @@ def reset_DOI_status():
                                    "where  curie_prefix = 'DOI' "
                                    "and    reference_id in "
                                    "(select reference_id from cross_reference "
-                                   "where curie_prefix = 'PMID' and is_obsolete is True)")).fetchall()
+                                   "where curie_prefix = 'PMID' and obsolete is True)")).fetchall()
 
     found = check_for_doi_in_doi_resolver(bad_doi)
     if found:
@@ -94,11 +94,11 @@ def check_for_doi_in_pubmed(doi): # noqa
 
 def check_for_valid_pmid(db_session: Session, reference_id):
 
-    rows = db_session.execute(text(f"SELECT cross_reference_id "
+    rows = db_session.execute(text(f"SELECT id AS cross_reference_id "
                                    f"FROM   cross_reference "
                                    f"WHERE  reference_id = {reference_id} "
                                    f"AND    curie_prefix = 'PMID' "
-                                   f"AND    is_obsolete is False")).fetchall()
+                                   f"AND    obsolete is False")).fetchall()
     if len(rows) > 0:
         return True
     return False

@@ -566,19 +566,19 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
 
     sql_query = """
     SELECT DISTINCT
-        wft.reference_workflow_tag_id,
+        wft.id AS reference_workflow_tag_id,
         m.abbreviation,
         wft.workflow_tag_id,
-        COALESCE(get_most_current_email(u.person_id), wft.updated_by) AS updated_by_email,
-        COALESCE(p.display_name, wft.updated_by) AS updated_by_name,
-        wft.updated_by,
+        COALESCE(get_most_current_email(u.person_id), u.automation_username, p.curie) AS updated_by_email,
+        COALESCE(p.display_name, u.automation_username, p.curie) AS updated_by_name,
+        COALESCE(u.automation_username, p.curie) AS updated_by,
         wft.date_updated AS date_updated,
         wft.curation_tag,
         wft.note
     FROM workflow_tag wft
-    JOIN mod m ON wft.mod_id = m.mod_id
-    LEFT JOIN users u ON wft.updated_by = u.id
-    LEFT JOIN person p ON p.person_id = u.person_id
+    JOIN mod m ON wft.mod_id = m.id
+    LEFT JOIN agent u ON wft.updated_by_id = u.id
+    LEFT JOIN person p ON p.id = u.person_id
     WHERE wft.reference_id = :reference_id
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
@@ -789,11 +789,11 @@ def add_email_and_name(db: Session, data: dict) -> dict:
         text("""
             SELECT
                 COALESCE(p.display_name, :user_id) AS display_name,
-                COALESCE(get_most_current_email(p.person_id), :user_id)
+                COALESCE(get_most_current_email(p.id), :user_id)
                     AS email_address
             FROM person p
-            JOIN users u ON u.person_id = p.person_id
-            WHERE u.id = :user_id
+            JOIN agent u ON u.person_id = p.id
+            WHERE p.curie = :user_id
             LIMIT 1
         """),
         {"user_id": user_id},
@@ -904,7 +904,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     query += """
         COUNT(*) AS tag_count
         FROM mod m
-        JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+        JOIN workflow_tag wt ON m.id = wt.mod_id
         """
     if mod_abbreviation:
         where_clauses.append("m.abbreviation = :mod_abbreviation")
@@ -929,7 +929,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         elif date_option == 'reference_created':
             date_column = "r.date_created"
             query += """
-              JOIN reference r ON wt.reference_id = r.reference_id
+              JOIN reference r ON wt.reference_id = r.id
               """
             where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
@@ -937,7 +937,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         elif date_option == 'reference_published':
             date_column = "r.date_published_start::DATE"
             query += """
-                JOIN reference r ON wt.reference_id = r.reference_id
+                JOIN reference r ON wt.reference_id = r.id
                 """
             where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
@@ -946,7 +946,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             date_column = "mca.date_updated"
             query += """
                 JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
-                AND mca.mod_id = m.mod_id
+                AND mca.mod_id = m.id
                 AND mca.corpus = TRUE
                 """
             where_clauses.append("mca.date_updated BETWEEN :start_date AND :end_date")
@@ -1049,12 +1049,12 @@ def _counters_total(db: Session, atp_curie_to_name: Dict[str, str], all_WF_tags_
             base_where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
         elif date_option == 'reference_created':
             query += """
-                            JOIN reference r ON wt.reference_id = r.reference_id
+                            JOIN reference r ON wt.reference_id = r.id
                             """
             base_where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
         elif date_option == 'reference_published':
             query += """
-                            JOIN reference r ON wt.reference_id = r.reference_id
+                            JOIN reference r ON wt.reference_id = r.id
                             """
             base_where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
         elif date_option == 'inside_corpus':
@@ -1127,9 +1127,9 @@ def get_reference_workflow_tags_by_mod(
         "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, "
         "       wft.date_updated, wft.curation_tag, wft.note "
         "FROM reference r "
-        "JOIN cross_reference cr ON r.reference_id = cr.reference_id "
+        "JOIN cross_reference cr ON r.id = cr.reference_id "
         "JOIN workflow_tag wft ON cr.reference_id = wft.reference_id "
-        "JOIN mod m ON wft.mod_id = m.mod_id "
+        "JOIN mod m ON wft.mod_id = m.id "
         "WHERE cr.curie_prefix = :curie_prefix "
         "AND m.abbreviation = :mod_abbreviation "
         "AND wft.workflow_tag_id = :workflow_tag_id "
@@ -1245,7 +1245,7 @@ def delete_workflow_tags(db: Session, curie_or_reference_id: str, mod_abbreviati
         db.commit()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"An error occurred when deleting WFTs for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+                            detail=f"An error occurred when deleting WFTs for mod_id = {mod.mod_id} and reference_id = {reference_id}. Error = {e}")
 
 
 def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_id: str, mod_abbreviation: str, change_file_status=False):
@@ -1286,7 +1286,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         db.commit()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"An error occurred when resetting text conversion/ref classication/entity extraction for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+                            detail=f"An error occurred when resetting text conversion/ref classication/entity extraction for mod_id = {mod.mod_id} and reference_id = {reference_id}. Error = {e}")
 
     if change_file_status is True:
         return
@@ -1295,7 +1295,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         sql_query = text("""
         SELECT count(*) FROM referencefile rf, referencefile_mod rfm
         WHERE rf.reference_id = :reference_id
-        AND rf.referencefile_id = rfm.referencefile_id
+        AND rf.id = rfm.referencefile_id
         AND (rfm.mod_id = :mod_id or rfm.mod_id is NULL)
         """)
         rows = db.execute(sql_query, {
@@ -1323,7 +1323,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         })
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+                            detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod.mod_id} and reference_id = {reference_id}. Error = {e}")
 
 
 def get_field_and_status(atp):

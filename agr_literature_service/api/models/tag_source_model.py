@@ -24,6 +24,7 @@ class TagSourceModel(AuditedModel, Base):
     __versioned__: Dict = {}
 
     tag_source_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -38,7 +39,7 @@ class TagSourceModel(AuditedModel, Base):
 
     secondary_data_provider_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

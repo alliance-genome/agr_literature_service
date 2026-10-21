@@ -12,11 +12,11 @@ class LaboratoryPersonModel(Base, AuditedModel):
     __tablename__ = "laboratory_person"
     __versioned__: Dict = {}
 
-    laboratory_person_id = Column(Integer, primary_key=True, autoincrement=True)
+    laboratory_person_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     laboratory_id = Column(
         Integer,
-        ForeignKey("laboratory.laboratory_id", ondelete="CASCADE"),
+        ForeignKey("laboratory.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -24,7 +24,7 @@ class LaboratoryPersonModel(Base, AuditedModel):
 
     person_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -43,7 +43,7 @@ class LaboratoryPersonModel(Base, AuditedModel):
     # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
     lab_position_vocab_term_abc_id = Column(
         Integer,
-        ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
+        ForeignKey("vocabulary_term_abc.id"),
         nullable=True,
         index=True,
     )

@@ -732,7 +732,7 @@ class TestTopicEntityTag:
             TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
         assert tag.note == "entity corrected again"
         assert tag.updated_by not in (cognito_sub, "nobody@example.org")
-        assert db.query(UserModel).filter_by(id=cognito_sub).one_or_none() is None
+        assert db.query(UserModel).filter_by(automation_username=cognito_sub).one_or_none() is None
 
     def test_patch_keeps_resolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
         """Counterpart to test_patch_drops_unresolvable_updated_by: an
@@ -742,10 +742,10 @@ class TestTopicEntityTag:
         time, so the audit listener would stamp the authenticated user and
         the assertion couldn't tell honored from dropped."""
         from agr_literature_service.api.models.user_model import UserModel
-        # users rows survive the per-test cleanup, so get-or-create this seed
+        # agents survive the per-test cleanup, so get-or-create this seed
         # user to keep the suite re-runnable against a persistent DB.
-        if db.query(UserModel).filter_by(id="WBPerson2").one_or_none() is None:
-            db.add(UserModel(id="WBPerson2", automation_username="WBPerson2"))
+        if db.query(UserModel).filter_by(automation_username="WBPerson2").one_or_none() is None:
+            db.add(UserModel(automation_username="WBPerson2"))
             db.commit()
         with TestClient(app) as client:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
@@ -3718,7 +3718,7 @@ class TestRevalidationInvariants:
         edges = set(session.execute(text(
             "SELECT v.validated_topic_entity_tag_id, v.validating_topic_entity_tag_id "
             "FROM topic_entity_tag_validation v "
-            "JOIN topic_entity_tag t ON t.topic_entity_tag_id = v.validated_topic_entity_tag_id "
+            "JOIN topic_entity_tag t ON t.id = v.validated_topic_entity_tag_id "
             "WHERE t.reference_id = :r"), {"r": reference_id}).all())
         return rollups, edges
 

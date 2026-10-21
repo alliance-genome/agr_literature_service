@@ -199,8 +199,8 @@ def test_corpus_entry_year_is_last_change_to_true_else_date_created():
     # latest version row where corpus changed to True, for the same association
     assert "max(mod_corpus_association_version.date_updated)" in sql
     assert "mod_corpus_association_version.corpus_mod IS true" in sql
-    assert ("mod_corpus_association_version.mod_corpus_association_id = "
-            "mod_corpus_association.mod_corpus_association_id") in sql
+    # both primary keys are column id (the models map mod_corpus_association_id onto it)
+    assert "mod_corpus_association_version.id = mod_corpus_association.id" in sql
     assert "mod_corpus_association.date_created)) IN (2025, 2026)" in sql
     assert "coalesce(" in sql
     assert "NOT IN ('RGD', 'AGR')" in sql

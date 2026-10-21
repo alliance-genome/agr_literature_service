@@ -12,11 +12,11 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
     __tablename__ = "laboratory_allele_designation"
     __versioned__: Dict = {}
 
-    laboratory_allele_designation_id = Column(Integer, primary_key=True, autoincrement=True)
+    laboratory_allele_designation_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     laboratory_id = Column(
         Integer,
-        ForeignKey("laboratory.laboratory_id", ondelete="CASCADE"),
+        ForeignKey("laboratory.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -24,7 +24,7 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -32,7 +32,9 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
 
     allele_designation = Column(String(), nullable=False)
 
-    is_obsolete = Column(Boolean, nullable=False, server_default=text("false"))
+    # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column
+    is_obsolete = Column('obsolete', Boolean, key='is_obsolete', nullable=False, default=False,
+                         server_default=text('false'))
 
     __table_args__ = (
         # One active allele designation per (laboratory, mod); obsolete rows are

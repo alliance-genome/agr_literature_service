@@ -8,32 +8,39 @@ from sqlalchemy.orm import Session
 # Pure-SQL helpers (no ORM imports)
 # ----------------------------
 
-# 1) textual users.id match (case-insensitive)
+# An agent's label is its automation_username, or the curie of its person (the
+# legacy users.id); it is what created_by / updated_by hold in the API.
+
+# 1) textual label match (case-insensitive)
 _SQL_MATCH_USERS_ID_TEXT = text(r"""
-SELECT id
-FROM users
-WHERE lower(id) = lower(:identifier)
+SELECT COALESCE(a.automation_username, p.curie)
+FROM agent a
+LEFT JOIN person p ON p.id = a.person_id
+WHERE lower(a.automation_username) = lower(:identifier)
+   OR lower(p.curie) = lower(:identifier)
+ORDER BY a.id
 LIMIT 1
 """)
 
-# 2) email -> users.id
+# 2) email -> label
 _SQL_MATCH_EMAIL = text(r"""
-SELECT u.id
-FROM users u
-JOIN person_email e ON e.person_id = u.person_id
+SELECT p.curie
+FROM agent a
+JOIN person p ON p.id = a.person_id
+JOIN person_email e ON e.person_id = p.id
 WHERE lower(e.email_address) = lower(:email)
 LIMIT 1
 """)
 
-# 3) name (display_name full or initials+last) -> users.id
+# 3) name (display_name full or initials+last) -> label
 _SQL_MATCH_NAME = text(r"""
 WITH parts AS (
   SELECT
-    u.id,
+    p.curie AS id,
     p.display_name,
     regexp_split_to_array(trim(p.display_name), '\s+') AS toks
-  FROM users u
-  JOIN person p ON p.person_id = u.person_id
+  FROM agent a
+  JOIN person p ON p.id = a.person_id
 ),
 name_forms AS (
   SELECT
@@ -102,14 +109,14 @@ LIMIT 1
 
 def map_to_user_id(identifier: str, db: Session) -> str:
     """
-    Resolve an external identifier to the canonical users.id (TEXT).
+    Resolve an external identifier to the label of an agent (automation name or person curie).
 
     Resolution order:
-      1) users.id (TEXT, case-insensitive)
-      2) if contains '@': person.email -> users.id
+      1) agent label (case-insensitive)
+      2) if contains '@': person.email -> label
       3) else: match normalized person.display_name (full or initials+last)
 
-    Returns: users.id (text)
+    Returns: the agent label (text)
     Raises:  HTTPException(422) if empty or not found.
     """
     if not identifier or not identifier.strip():

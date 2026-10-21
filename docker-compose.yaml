@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18.4-alpine
     hostname: postgres
     restart: always
     environment:
@@ -11,7 +11,9 @@ services:
       POSTGRES_DB: ${PSQL_DATABASE}
     shm_size: '1g'
     volumes:
-      - "agr-literature-pg-data:/var/lib/postgresql/data"
+      # postgres 18+ images keep PGDATA in a versioned subdirectory of /var/lib/postgresql,
+      # so the volume is mounted one level up and is new (the PG17 volume is left untouched)
+      - "agr-literature-pg18-data:/var/lib/postgresql"
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
@@ -19,7 +21,7 @@ services:
     ports:
       - "${PSQL_PORT}:${PSQL_PORT}"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME} -p ${PSQL_PORT}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -665,7 +667,7 @@ services:
       - /var/log/agr_literature_service:/var/log/agr_literature_service:ro
 
 volumes:
-  agr-literature-pg-data:
+  agr-literature-pg18-data:
   agr-literature-pgadmin-data:
   agr-literature-es-data:
   agr-logs:

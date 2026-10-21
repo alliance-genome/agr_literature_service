@@ -12,15 +12,17 @@ class PersonCrossReferenceModel(Base, AuditedModel):
     __tablename__ = "person_cross_reference"
     __versioned__: Dict = {}
 
-    person_cross_reference_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_cross_reference_id = Column('id', Integer, primary_key=True, autoincrement=True)
     curie = Column(String(), nullable=False, index=True)
     curie_prefix = Column(String(), nullable=False, index=True)
 
-    person_id = Column(Integer, ForeignKey("person.person_id", ondelete="CASCADE"), nullable=True, index=True)
+    person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=True, index=True)
     person = relationship("PersonModel", back_populates="cross_references")  # <-- match PersonModel name
 
     pages = Column(ARRAY(String), nullable=True)
-    is_obsolete = Column(Boolean, nullable=False, server_default=text("false"))
+    # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column
+    is_obsolete = Column('obsolete', Boolean, key='is_obsolete', nullable=False, default=False,
+                         server_default=text('false'))
 
     __table_args__ = (
         # Uniqueness is enforced only among non-obsolete rows (mirrors the Biblio

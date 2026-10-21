@@ -13,6 +13,7 @@ class MeshDetailModel(Base):
     __tablename__ = "mesh_detail"
 
     mesh_detail_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -20,7 +21,7 @@ class MeshDetailModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id",
+        ForeignKey("reference.id",
                    ondelete="CASCADE"),
         index=True
     )

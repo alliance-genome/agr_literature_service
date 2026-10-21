@@ -322,13 +322,13 @@ def get_mod_curators(db: Session, mod_abbreviation):
 
     sql_query_str = """
     SELECT DISTINCT
-        u.id,
+        COALESCE(u.automation_username, p.curie) AS id,
         get_most_current_email(u.person_id) AS email,
         p.display_name AS name
     FROM mod_corpus_association mca
-    JOIN mod m ON m.mod_id = mca.mod_id
-    LEFT JOIN users u ON u.id = mca.updated_by
-    LEFT JOIN person p ON p.person_id = u.person_id
+    JOIN mod m ON m.id = mca.mod_id
+    LEFT JOIN agent u ON u.id = mca.updated_by_id
+    LEFT JOIN person p ON p.id = u.person_id
     WHERE mca.corpus IS NOT NULL
     AND m.abbreviation = :mod_abbreviation
     AND mca.date_updated >= :one_month_ago
@@ -349,7 +349,7 @@ def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, cura
     sql_query_str = """
         SELECT DISTINCT mcav.reference_id, mcav.date_updated
         FROM mod_corpus_association_version mcav
-        INNER JOIN mod m ON m.mod_id = mcav.mod_id
+        INNER JOIN mod m ON m.id = mcav.mod_id
         WHERE m.abbreviation = :mod_abbreviation
           AND (mcav.corpus = TRUE or mcav.corpus = FALSE)
           AND mcav.corpus_mod = TRUE
@@ -365,7 +365,9 @@ def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, cura
     }
 
     if curator_id is not None:
-        sql_query_str += " AND mcav.updated_by = :curator_id"
+        sql_query_str += (" AND mcav.updated_by_id IN (SELECT a.id FROM agent a"
+                          " LEFT JOIN person p ON p.id = a.person_id"
+                          " WHERE COALESCE(a.automation_username, p.curie) = :curator_id)")
         params["curator_id"] = curator_id
 
     sql_query_str += " ORDER BY mcav.date_updated DESC"

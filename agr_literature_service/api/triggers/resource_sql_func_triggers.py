@@ -8,12 +8,12 @@ as $$
 DECLARE
   refs record;
 BEGIN
-  raise notice 'resource_update_citation: %', NEW.resource_id;
-  for refs in SELECT reference_id FROM reference
-      WHERE reference.resource_id = NEW.resource_id
+  raise notice 'resource_update_citation: %', NEW.id;
+  for refs in SELECT id FROM reference
+      WHERE reference.resource_id = NEW.id
     loop
       raise notice 'Record %', refs;
-      call update_citations(refs.reference_id);
+      call update_citations(refs.id);
     end loop;
   raise notice 'Exiting resource_update_citation';
   return NEW;

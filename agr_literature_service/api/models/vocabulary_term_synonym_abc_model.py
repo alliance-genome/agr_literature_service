@@ -16,10 +16,10 @@ class VocabularyTermSynonymAbcModel(Base, AuditedModel):
                          name="uq_vocabulary_term_synonym_abc_term_synonym"),
     )
 
-    vocabulary_term_synonym_abc_id = Column(Integer, primary_key=True, autoincrement=True)
+    vocabulary_term_synonym_abc_id = Column('id', Integer, primary_key=True, autoincrement=True)
     vocabulary_term_abc_id = Column(
         Integer,
-        ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id", ondelete="CASCADE"),
+        ForeignKey("vocabulary_term_abc.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

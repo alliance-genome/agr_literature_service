@@ -77,15 +77,15 @@ class TestModReferenceType:
                                   headers=auth_headers)
             transactions = response.json()
             assert transactions[0]['changeset']['reference_id'][1] == from_id
-            mod_referencetype_id_orig = db.execute(text("select mod_referencetype_id from mod_referencetype where mod_id = "
-                                                        "(select mod_id from mod where abbreviation = 'ZFIN') and "
-                                                        "referencetype_id = (select referencetype_id from referencetype "
+            mod_referencetype_id_orig = db.execute(text("select id from mod_referencetype where mod_id = "
+                                                        "(select id from mod where abbreviation = 'ZFIN') and "
+                                                        "referencetype_id = (select id from referencetype "
                                                         "where label = 'Journal')")).first()[0]
             assert transactions[0]['changeset']['mod_referencetype_id'][1] == mod_referencetype_id_orig
             assert transactions[1]['changeset']['reference_id'][1] == to_id
-            mod_referencetype_id_new = db.execute(text("select mod_referencetype_id from mod_referencetype where mod_id = "
-                                                       "(select mod_id from mod where abbreviation = 'ZFIN') and "
-                                                       "referencetype_id = (select referencetype_id from referencetype "
+            mod_referencetype_id_new = db.execute(text("select id from mod_referencetype where mod_id = "
+                                                       "(select id from mod where abbreviation = 'ZFIN') and "
+                                                       "referencetype_id = (select id from referencetype "
                                                        "where label = 'Review')")).first()[0]
             assert transactions[1]['changeset']['mod_referencetype_id'][1] == mod_referencetype_id_new
 

@@ -21,6 +21,7 @@ class AuthorModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     author_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -28,7 +29,7 @@ class AuthorModel(Base, AuditedModel):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -101,7 +102,7 @@ class AuthorModel(Base, AuditedModel):
 
     person_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="RESTRICT", name="author_person_id_fkey"),
+        ForeignKey("person.id", ondelete="RESTRICT", name="author_person_id_fkey"),
         index=True,
         nullable=True
     )

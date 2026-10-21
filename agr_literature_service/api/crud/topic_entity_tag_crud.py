@@ -36,6 +36,7 @@ from agr_literature_service.api.models.topic_entity_tag_model import topic_entit
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     get_current_workflow_status
 from agr_literature_service.api.models.audited_model import (
+    audited_columns_sql,
     get_default_user_value,
     impute_audit_user_ids,
     disable_set_updated_by_onupdate,
@@ -1557,17 +1558,19 @@ def apply_column_filters(query, column_filters: Dict[str, Any]):
             continue
         if column_name.startswith("tag_source."):
             attr = column_name.split(".", 1)[1]
-            # Only real table columns are addressable: a bare getattr would
+            # Only column attributes are addressable: a bare getattr would
             # also resolve relationships/methods (e.g. reference, metadata)
             # and 500 downstream instead of 422ing here (review hardening).
-            if attr not in TagSourceModel.__table__.columns:
+            # Mapper keys, not table column names: topic_entity_tag_id is
+            # column id, and created_by is the agent label.
+            if attr not in TagSourceModel.__mapper__.column_attrs:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"Unknown tag_source column '{attr}'")
             condition = _column_filter_condition(getattr(TagSourceModel, attr), spec, column_name)
             if condition is not None:
                 query = query.filter(TopicEntityTagModel.tag_source.has(condition))
             continue
-        if column_name not in TopicEntityTagModel.__table__.columns:
+        if column_name not in TopicEntityTagModel.__mapper__.column_attrs:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail=f"Unknown topic_entity_tag column '{column_name}'")
         condition = _column_filter_condition(getattr(TopicEntityTagModel, column_name), spec, column_name)
@@ -1715,7 +1718,9 @@ def _orm_column_keys(model) -> List[str]:
     """
     keys = _orm_column_keys_cache.get(model)
     if keys is None:
-        keys = [attr.key for attr in sa_inspect(model).mapper.column_attrs]
+        # deferred columns (the LinkML audit columns) are not part of the output and
+        # would each cost a query per object
+        keys = [attr.key for attr in sa_inspect(model).mapper.column_attrs if not attr.deferred]
         _orm_column_keys_cache[model] = keys
     return keys
 
@@ -2691,13 +2696,13 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     past_date = current_date - timedelta(days=int(days_updated))
     last_date_updated = past_date.strftime("%Y-%m-%d")
 
-    rows = db.execute(text("SELECT cr.curie, tet.*, "
+    rows = db.execute(text(f"SELECT cr.curie, {audited_columns_sql(TopicEntityTagModel, 'tet')}, "
                            "get_most_current_email(u.person_id) AS email "
                            "FROM cross_reference cr "
                            "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
-                           "JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id "
-                           "JOIN users u ON tet.updated_by = u.id "
-                           "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           "JOIN tag_source tets ON tet.tag_source_id = tets.id "
+                           "JOIN agent u ON tet.updated_by_id = u.id "
+                           "JOIN mod m ON tets.secondary_data_provider_id = m.id "
                            "WHERE m.abbreviation = :mod_abbreviation "
                            "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
@@ -2718,9 +2723,9 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
 
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
-    src_rows = db.execute(text("SELECT tets.* "
+    src_rows = db.execute(text(f"SELECT {audited_columns_sql(TagSourceModel, 'tets')} "
                                "FROM tag_source tets "
-                               "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                               "JOIN mod m ON tets.secondary_data_provider_id = m.id "
                                "WHERE m.abbreviation = :mod_abbreviation "
                                "AND tets.source_method = 'abc_literature_system'"),
                           {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
@@ -2735,8 +2740,8 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     rows = db.execute(text("SELECT DISTINCT tet.reference_id "
                            "FROM topic_entity_tag tet "
-                           "JOIN tag_source tets ON tet.tag_source_id = tets.tag_source_id "
-                           "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           "JOIN tag_source tets ON tet.tag_source_id = tets.id "
+                           "JOIN mod m ON tets.secondary_data_provider_id = m.id "
                            "WHERE m.abbreviation = :mod_abbreviation "
                            "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),

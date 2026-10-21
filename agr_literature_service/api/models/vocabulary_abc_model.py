@@ -15,7 +15,7 @@ class VocabularyAbcModel(Base, AuditedModel):
         UniqueConstraint("vocabulary", name="uq_vocabulary_abc_vocabulary"),
     )
 
-    vocabulary_abc_id = Column(Integer, primary_key=True, autoincrement=True)
+    vocabulary_abc_id = Column('id', Integer, primary_key=True, autoincrement=True)
     vocabulary = Column(String(), nullable=False)
 
     terms = relationship(

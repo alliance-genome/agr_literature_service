@@ -220,9 +220,9 @@ def mod_reftype_to_mods(db: Session):
             array_agg(DISTINCT m.abbreviation ORDER BY m.abbreviation) AS mods
         FROM referencetype AS rt
         JOIN mod_referencetype AS mrt
-          ON rt.referencetype_id = mrt.referencetype_id
+          ON rt.id = mrt.referencetype_id
         JOIN mod AS m
-          ON m.mod_id = mrt.mod_id
+          ON m.id = mrt.mod_id
         GROUP BY rt.label
         ORDER BY rt.label
     """)

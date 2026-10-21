@@ -223,21 +223,21 @@ def get_indexing_priority_tag(db: Session, curie: str):
 
     sql = """
     SELECT
-        ip.indexing_priority_id,
+        ip.id AS indexing_priority_id,
         ip.predicted_indexing_priority,
         ip.confidence_score,
         ip.curator_indexing_priority,
         ip.date_updated,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
-        COALESCE(get_most_current_email(u.person_id), ip.updated_by) AS updated_by_email,
-        COALESCE(p.display_name, ip.updated_by) AS updated_by_name,
-        ip.updated_by
+        COALESCE(get_most_current_email(u.person_id), u.automation_username, p.curie) AS updated_by_email,
+        COALESCE(p.display_name, u.automation_username, p.curie) AS updated_by_name,
+        COALESCE(u.automation_username, p.curie) AS updated_by
     FROM indexing_priority ip
-    JOIN reference r ON r.reference_id = ip.reference_id
-    JOIN mod m ON m.mod_id = ip.mod_id
-    LEFT JOIN users u  ON u.id = ip.updated_by
-    LEFT JOIN person p ON p.person_id = u.person_id
+    JOIN reference r ON r.id = ip.reference_id
+    JOIN mod m ON m.id = ip.mod_id
+    LEFT JOIN agent u  ON u.id = ip.updated_by_id
+    LEFT JOIN person p ON p.id = u.person_id
     WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()

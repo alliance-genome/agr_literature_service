@@ -86,7 +86,7 @@ def get_pmcids_without_main_pdf(db_session):
                                    "WHERE cr.curie_prefix = 'PMCID' "
                                    "AND cr.reference_id = rf.reference_id "
                                    "AND rf.file_class = 'supplement' "
-                                   "AND rf.referencefile_id = rfm.referencefile_id "
+                                   "AND rf.id = rfm.referencefile_id "
                                    "AND rfm.mod_id is NULL "
                                    "AND NOT EXISTS ( "
                                    "SELECT 1 "

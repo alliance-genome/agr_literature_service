@@ -15,7 +15,7 @@ class PersonModel(Base, AuditedModel):
     __tablename__ = "person"
     __versioned__: Dict = {}
 
-    person_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_id = Column('id', Integer, primary_key=True, autoincrement=True)
     display_name = Column(String(), nullable=False)
 
     curie = Column(String(), nullable=False, unique=True, index=True)    # required, server-generated

@@ -8,6 +8,7 @@ class MLModel(AuditedModel, Base):
     __tablename__ = 'ml_model'
 
     ml_model_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -27,7 +28,7 @@ class MLModel(AuditedModel, Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -58,7 +59,7 @@ class MLModel(AuditedModel, Base):
 
     dataset_id = Column(
         Integer,
-        ForeignKey('dataset.dataset_id', ondelete="CASCADE"),
+        ForeignKey('dataset.id', ondelete="CASCADE"),
         index=True,
         nullable=True
     )

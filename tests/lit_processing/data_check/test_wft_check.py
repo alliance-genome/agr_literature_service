@@ -73,7 +73,7 @@ class TestWorkflowTagCheck:
             # Need to edit the version table!!!
             sql = f"""update workflow_tag
                          set date_created = '2023-11-01'
-                         where reference_workflow_tag_id = {start_wft.reference_workflow_tag_id} """
+                         where id = {start_wft.reference_workflow_tag_id} """
             db.execute(text(sql))
             db.commit()
 

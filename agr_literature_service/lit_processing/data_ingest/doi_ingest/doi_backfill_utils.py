@@ -99,18 +99,18 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
     pmid_join = "JOIN" if require_pmid else "LEFT JOIN"
     limit_clause = f"LIMIT {int(limit)}" if limit else ""
     rows = db_session.execute(text(f"""
-        SELECT r.reference_id, r.curie, p.curie AS pmid_curie, r.title, r.volume,
+        SELECT r.id AS reference_id, r.curie, p.curie AS pmid_curie, r.title, r.volume,
                r.page_range, SUBSTRING(r.date_published, 1, 4) AS year
         FROM reference r
         {pmid_join} cross_reference p
-          ON p.reference_id = r.reference_id
-          AND p.curie_prefix = 'PMID' AND p.is_obsolete IS FALSE
+          ON p.reference_id = r.id
+          AND p.curie_prefix = 'PMID' AND p.obsolete IS FALSE
         WHERE NOT EXISTS (
             SELECT 1 FROM cross_reference d
-            WHERE d.reference_id = r.reference_id
-              AND d.curie_prefix = 'DOI' AND d.is_obsolete IS FALSE
+            WHERE d.reference_id = r.id
+              AND d.curie_prefix = 'DOI' AND d.obsolete IS FALSE
         )
-        ORDER BY r.reference_id
+        ORDER BY r.id
         {limit_clause}
     """)).fetchall()
     candidates = []
@@ -158,9 +158,9 @@ def _lookup_existing_dois(db_session: Session,
     doi_keys = list({_doi_key(f"DOI:{doi}") for _, doi in normalized})
     existing: Dict[str, List[Tuple[int, bool, str]]] = {}
     lookup_sql = text(
-        "SELECT cr.curie, cr.reference_id, cr.is_obsolete, r.curie "
+        "SELECT cr.curie, cr.reference_id, cr.obsolete AS is_obsolete, r.curie "
         "FROM cross_reference cr "
-        "JOIN reference r ON r.reference_id = cr.reference_id "
+        "JOIN reference r ON r.id = cr.reference_id "
         "WHERE cr.curie_prefix = 'DOI' AND lower(cr.curie) IN :curies"
     ).bindparams(bindparam("curies", expanding=True))
     for i in range(0, len(doi_keys), 1000):

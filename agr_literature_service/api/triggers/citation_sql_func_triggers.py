@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 citation_update = r"""
 CREATE OR REPLACE PROCEDURE update_citations(
-    ref_id reference.reference_id%type
+    ref_id reference.id%type
 )
 as $$
 DECLARE
@@ -61,13 +61,13 @@ BEGIN
     -- Get the resource abbr
     SELECT res.title_abbreviation, res.title into title_abbr, journal
       FROM reference ref, resource res
-      WHERE ref.resource_id = res.resource_id AND
-            ref.reference_id = ref_id;
+      WHERE ref.resource_id = res.id AND
+            ref.id = ref_id;
     -- Reference details
     SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id
            into title, volume, issue_name, page_range, ref_year, citation_identifier
       FROM reference ref
-      WHERE reference_id = ref_id;
+      WHERE ref.id = ref_id;
     title := coalesce(title, '');
     volume := coalesce(volume, '');
     issue_name := coalesce(issue_name, '');
@@ -135,19 +135,19 @@ BEGIN
     END IF;
     sht_citation := LTRIM(sht_citation);
     -- raise notice '%', sht_citation;
-    SELECT citation_id from reference where reference_id = ref_id into citation_identifier;
+    SELECT citation_id from reference where id = ref_id into citation_identifier;
     raise notice 'citation_id from reference is %', citation_identifier;
     IF citation_identifier is NULL THEN
       -- raise notice 'sh cit: %', sht_citation;
       -- raise notice 'cit: %', long_citation;
       INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation)
-             RETURNING citation_id into citation_identifier;
+             RETURNING id into citation_identifier;
       -- raise notice 'citation inserted new id is %', citation_identifier;
       -- raise notice 'citation_id %', citation_identifier;
-      UPDATE reference SET citation_id = citation_identifier WHERE reference.reference_id = ref_id;
+      UPDATE reference SET citation_id = citation_identifier WHERE reference.id = ref_id;
     ELSE
       UPDATE citation SET citation = long_citation, short_citation = sht_citation
-        WHERE citation.citation_id = citation_identifier;
+        WHERE citation.id = citation_identifier;
     END IF;
 END $$ language plpgsql;
 """
@@ -227,7 +227,8 @@ as $$
 DECLARE
   cit_id integer;
 BEGIN
-    SELECT into cit_id currval('citation_citation_id_seq');
+    -- the sequence is citation_citation_id_seq on a migrated database, citation_id_seq on a new one
+    SELECT into cit_id currval(pg_get_serial_sequence('citation', 'id'));
     return cit_id;
 END;
 $$;

@@ -143,6 +143,11 @@ def get_reference_col_names():
             'date_created']
 
 
+def get_reference_col_sql():
+    """get_reference_col_names() as a select list on reference: its key is reference.id."""
+    return ", ".join('id AS reference_id' if name == 'reference_id' else name for name in get_reference_col_names())
+
+
 def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, data):  # pragma: no cover
 
     i = 0
@@ -279,7 +284,7 @@ def dump_data(mod=None, email=None, ondemand=False, ui_root_url=None):  # noqa: 
     # ─── 3. gather all reference_ids in these MOD corpora ────────────────────
     db = create_postgres_session(False)
     mod_rows = db.execute(
-        text("SELECT mod_id FROM mod WHERE abbreviation = ANY(:mods)"),
+        text("SELECT id FROM mod WHERE abbreviation = ANY(:mods)"),
         {'mods': mods}
     ).fetchall()
     mod_ids = [r[0] for r in mod_rows]
@@ -305,9 +310,9 @@ def dump_data(mod=None, email=None, ondemand=False, ui_root_url=None):  # noqa: 
 
     for chunk in chunks(reference_ids, limit):
         db = create_postgres_session(False)
-        cols = ", ".join(get_reference_col_names())
+        cols = get_reference_col_sql()
         rows = db.execute(
-            text(f"SELECT {cols} FROM reference WHERE reference_id = ANY(:rids) ORDER BY reference_id"),
+            text(f"SELECT {cols} FROM reference WHERE id = ANY(:rids) ORDER BY id"),
             {'rids': chunk}
         ).fetchall()
 

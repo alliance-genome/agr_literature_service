@@ -13,7 +13,7 @@ db_session = create_postgres_session(False)
 query = """
     SELECT r.curie, count(c.reference_id) AS count
       FROM reference r
-      LEFT JOIN cross_reference c ON c.reference_id = r.reference_id
+      LEFT JOIN cross_reference c ON c.reference_id = r.id
     GROUP BY r.curie
     ORDER BY count;
 """

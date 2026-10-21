@@ -360,13 +360,13 @@ def get_email_extraction_mods(db) -> Dict[int, str]:
     rows = db.execute(
         text(
             """
-            SELECT DISTINCT m.mod_id, m.abbreviation
+            SELECT DISTINCT m.id AS mod_id, m.abbreviation
             FROM workflow_transition wt
-            JOIN mod m ON m.mod_id = wt.mod_id
+            JOIN mod m ON m.id = wt.mod_id
             WHERE wt.transition_from = ANY(:email_tags)
                OR wt.transition_to = ANY(:email_tags)
                OR array_to_string(wt.actions, ',') LIKE '%email extraction%'
-            ORDER BY m.mod_id
+            ORDER BY m.id
             """
         ),
         {"email_tags": EMAIL_TAGS},
@@ -390,24 +390,24 @@ def get_candidates(db, mod_ids: List[int], since: str, until: str,
     rows = db.execute(
         text(
             f"""
-            SELECT r.reference_id, r.curie, MIN(cr.curie) AS pmid_curie,
+            SELECT r.id AS reference_id, r.curie, MIN(cr.curie) AS pmid_curie,
                    mca.mod_id, m.abbreviation, st.has_needed, st.has_failed
             FROM mod_corpus_association mca
-            JOIN mod m ON m.mod_id = mca.mod_id
-            JOIN reference r ON r.reference_id = mca.reference_id
-            JOIN cross_reference cr ON cr.reference_id = r.reference_id
-                 AND cr.curie_prefix = 'PMID' AND cr.is_obsolete IS FALSE
+            JOIN mod m ON m.id = mca.mod_id
+            JOIN reference r ON r.id = mca.reference_id
+            JOIN cross_reference cr ON cr.reference_id = r.id
+                 AND cr.curie_prefix = 'PMID' AND cr.obsolete IS FALSE
             JOIN LATERAL (
                  SELECT EXISTS (SELECT 1 FROM workflow_tag wt
-                                WHERE wt.reference_id = r.reference_id
+                                WHERE wt.reference_id = r.id
                                   AND wt.mod_id = mca.mod_id
                                   AND wt.workflow_tag_id = :needed) AS has_needed,
                         EXISTS (SELECT 1 FROM workflow_tag wt
-                                WHERE wt.reference_id = r.reference_id
+                                WHERE wt.reference_id = r.id
                                   AND wt.mod_id = mca.mod_id
                                   AND wt.workflow_tag_id = :failed) AS has_failed,
                         EXISTS (SELECT 1 FROM workflow_tag wt
-                                WHERE wt.reference_id = r.reference_id
+                                WHERE wt.reference_id = r.id
                                   AND wt.mod_id = mca.mod_id
                                   AND wt.workflow_tag_id = ANY(:settled_tags)) AS is_settled
             ) st ON TRUE
@@ -417,12 +417,15 @@ def get_candidates(db, mod_ids: List[int], since: str, until: str,
               AND mca.date_created < :until
               AND NOT st.is_settled
               AND NOT EXISTS (SELECT 1 FROM reference_email re
-                              WHERE re.reference_id = r.reference_id
-                                AND (re.updated_by IS NULL
-                                     OR re.updated_by NOT LIKE :curator_like))
-            GROUP BY r.reference_id, r.curie, mca.mod_id, m.abbreviation,
+                              WHERE re.reference_id = r.id
+                                AND (re.updated_by_id IS NULL
+                                     OR re.updated_by_id NOT IN (
+                                         SELECT a.id FROM agent a
+                                         LEFT JOIN person p ON p.id = a.person_id
+                                         WHERE COALESCE(a.automation_username, p.curie) LIKE :curator_like)))
+            GROUP BY r.id, r.curie, mca.mod_id, m.abbreviation,
                      st.has_needed, st.has_failed
-            ORDER BY r.reference_id, mca.mod_id
+            ORDER BY r.id, mca.mod_id
             {limit_clause}
             """
         ),

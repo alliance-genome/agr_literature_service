@@ -18,25 +18,26 @@ class DatasetEntryModel(Base):
     __versioned__: Dict = {}
 
     dataset_entry_id: Mapped[int] = mapped_column(
+        'id',
         primary_key=True,
         autoincrement=True
     )
 
     dataset_id: Mapped[int] = mapped_column(
-        ForeignKey('dataset.dataset_id', ondelete='CASCADE')
+        ForeignKey('dataset.id', ondelete='CASCADE')
     )
 
     dataset: Mapped["DatasetModel"] = relationship(back_populates="dataset_entries")
 
     supporting_topic_entity_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('topic_entity_tag.topic_entity_tag_id', ondelete="SET NULL"),
+        ForeignKey('topic_entity_tag.id', ondelete="SET NULL"),
         nullable=True
     )
 
     supporting_topic_entity_tag: Mapped["TopicEntityTagModel"] = relationship(back_populates="dataset_entries")
 
     supporting_workflow_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('workflow_tag.reference_workflow_tag_id', ondelete="SET NULL"),
+        ForeignKey('workflow_tag.id', ondelete="SET NULL"),
         nullable=True
     )
 
@@ -93,6 +94,7 @@ class DatasetModel(AuditedModel, Base):
     __versioned__: Dict = {}
 
     dataset_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -106,7 +108,7 @@ class DatasetModel(AuditedModel, Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

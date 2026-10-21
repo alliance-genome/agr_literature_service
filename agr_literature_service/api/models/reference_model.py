@@ -24,6 +24,7 @@ class ReferenceModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     reference_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -62,7 +63,7 @@ class ReferenceModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id"),
+        ForeignKey("resource.id"),
         index=True,
         nullable=True
     )
@@ -239,7 +240,7 @@ class ReferenceModel(Base, AuditedModel):
 
     copyright_license_id = Column(
         Integer,
-        ForeignKey("copyright_license.copyright_license_id"),
+        ForeignKey("copyright_license.id"),
         nullable=True,
         index=True
     )
@@ -269,7 +270,7 @@ class ReferenceModel(Base, AuditedModel):
 
     citation_id = Column(
         Integer,
-        ForeignKey("citation.citation_id"),
+        ForeignKey("citation.id"),
         index=True,
         nullable=True
     )

@@ -12,11 +12,11 @@ class PersonNoteModel(Base, AuditedModel):
     __tablename__ = "person_note"
     __versioned__: Dict = {}
 
-    person_note_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_note_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     person_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

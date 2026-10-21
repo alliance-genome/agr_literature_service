@@ -25,14 +25,14 @@ topic_entity_tag_validation = Table(
     Base.metadata,
     Column(
         "validated_topic_entity_tag_id",
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        ForeignKey("topic_entity_tag.id", ondelete='CASCADE'),
         index=True,
         primary_key=True
     ),
 
     Column(
         "validating_topic_entity_tag_id",
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        ForeignKey("topic_entity_tag.id", ondelete='CASCADE'),
         index=True,
         primary_key=True,
     ),
@@ -49,6 +49,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     }
 
     topic_entity_tag_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -56,7 +57,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -69,7 +70,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     tag_source_id = Column(
         Integer,
-        ForeignKey("tag_source.tag_source_id", ondelete="CASCADE"),
+        ForeignKey("tag_source.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -191,7 +192,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     ml_model_id = Column(
         Integer,
-        ForeignKey("ml_model.ml_model_id", ondelete="SET NULL"),
+        ForeignKey("ml_model.id", ondelete="SET NULL"),
         index=True,
         nullable=True
     )

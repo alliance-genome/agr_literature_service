@@ -71,7 +71,7 @@ def associate_papers_with_alliance(db_session, all_pmids: Set[str],
         "SELECT cr.curie, cr.reference_id "
         "FROM cross_reference cr "
         "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
+        "AND cr.obsolete = False"
     )
     rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
 
@@ -193,7 +193,7 @@ def create_sgd_curies_for_references(db_session, reference_ids: Set[int]) -> int
         "SELECT DISTINCT reference_id FROM cross_reference "
         "WHERE reference_id = ANY(:ref_ids) "
         "AND curie_prefix = 'SGD' "
-        "AND is_obsolete = False"
+        "AND obsolete = False"
     )
     existing_sgd_refs = db_session.execute(
         existing_sgd_refs_query,
@@ -303,7 +303,7 @@ def update_sgd_corpus_flag_to_true(db_session,  # pragma: no cover
         "SELECT cr.curie, cr.reference_id "
         "FROM cross_reference cr "
         "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
+        "AND cr.obsolete = False"
     )
     rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
 
@@ -388,7 +388,7 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
         "SELECT cr.curie, cr.reference_id "
         "FROM cross_reference cr "
         "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
+        "AND cr.obsolete = False"
     )
     rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
 

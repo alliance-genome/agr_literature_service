@@ -41,6 +41,7 @@ class WorkflowTagModel(AuditedModel, Base):
     )
 
     reference_workflow_tag_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -48,7 +49,7 @@ class WorkflowTagModel(AuditedModel, Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -68,7 +69,7 @@ class WorkflowTagModel(AuditedModel, Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id"),
+        ForeignKey("mod.id"),
         index=True,
         nullable=True
     )

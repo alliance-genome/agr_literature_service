@@ -16,6 +16,7 @@ class ReferenceModMd5sumModel(Base):
     __tablename__ = "reference_mod_md5sum"
 
     reference_mod_md5sum_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
@@ -23,7 +24,7 @@ class ReferenceModMd5sumModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
@@ -34,7 +35,7 @@ class ReferenceModMd5sumModel(Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=True,
     )

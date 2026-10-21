@@ -35,6 +35,7 @@ class IndexingPriorityModel(Base, AuditedModel):
     )
 
     indexing_priority_id: Mapped[int] = mapped_column(
+        'id',
         Integer, primary_key=True, autoincrement=True
     )
 
@@ -43,7 +44,7 @@ class IndexingPriorityModel(Base, AuditedModel):
     )
 
     reference_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        Integer, ForeignKey("reference.id", ondelete="CASCADE"),
         index=True, nullable=False
     )
     reference: Mapped["ReferenceModel"] = relationship(
@@ -52,7 +53,7 @@ class IndexingPriorityModel(Base, AuditedModel):
     )
 
     mod_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        Integer, ForeignKey("mod.id", ondelete="CASCADE"),
         index=True, nullable=False
     )
     mod: Mapped["ModModel"] = relationship(

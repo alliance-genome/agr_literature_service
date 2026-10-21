@@ -120,7 +120,7 @@ class TestReferenceQuery:
     def test_scopes_to_one_mods_corpus_and_non_obsolete_geo_xrefs(self):
         sql = self._compiled_sql(mod_abbreviation="FB")
         assert "mod_corpus_association.corpus IS true" in sql
-        assert "cross_reference.is_obsolete IS false" in sql
+        assert "cross_reference.obsolete IS false" in sql
         assert "DISTINCT" in sql
 
 

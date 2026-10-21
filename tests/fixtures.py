@@ -25,21 +25,22 @@ def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
         with engine.begin() as conn:  # Use connection context
-            # Break the person<->users FK cycle before deleting person rows. The
-            # cleanup never deletes the "users" table (the default user is preserved
-            # below), so a curator (person-linked) users row would survive while its
-            # person is deleted -- firing author/users ON DELETE SET NULL on
-            # users.person_id and leaving the row violating the users
+            # Break the person<->agent FK cycle before deleting person rows. The
+            # cleanup never deletes the "agent" table (the default user is preserved
+            # below), so a curator (person-linked) agent row would survive while its
+            # person is deleted -- firing author/agent ON DELETE SET NULL on
+            # agent.person_id and leaving the row violating the agent
             # (person_id IS NULL) <> (automation_username IS NULL) check. Convert any
             # such row to an automation user first so the person delete is safe.
+            # Each gets its own name: automation_username is unique.
             conn.execute(text(
-                "UPDATE users "
-                "SET automation_username = COALESCE(automation_username, 'test_cleanup'), "
+                "UPDATE agent "
+                "SET automation_username = COALESCE(automation_username, 'test_cleanup_' || id), "
                 "person_id = NULL "
                 "WHERE person_id IS NOT NULL"
             ))
             for table in reversed(Base.metadata.sorted_tables):
-                if table.fullname != "users":
+                if table.fullname != "agent":
                     conn.execute(table.delete())  # Use connection for execution
         db_session.commit()  # Commit the transaction
 

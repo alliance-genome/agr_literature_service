@@ -43,8 +43,8 @@ logger.setLevel(logging.INFO)
 CURATION_COMPLETE_STATUS = "ATP:0000239"
 
 # Fallback created_by / updated_by when the interaction file carries no source
-# for a paper. Setting it here auto-creates the users row (AuditedModel
-# before_insert -> ensure_user_exists_on_connection), as do the per-source names.
+# for a paper. Setting it here auto-creates the agent (AuditedModel
+# before_insert -> resolve_agent_id), as do the per-source names.
 INTERACTION_LOAD_USER = "load_interactions"
 
 # Which interaction file type completes which curation topic.

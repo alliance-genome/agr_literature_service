@@ -18,17 +18,17 @@ class PersonLineageModel(Base, AuditedModel):
     __tablename__ = "person_lineage"
     __versioned__: Dict = {}
 
-    person_lineage_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_lineage_id = Column('id', Integer, primary_key=True, autoincrement=True)
 
     person_subject_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     person_object_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -38,7 +38,7 @@ class PersonLineageModel(Base, AuditedModel):
     # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
     relationship_vocab_term_abc_id = Column(
         Integer,
-        ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
+        ForeignKey("vocabulary_term_abc.id"),
         nullable=False,
         index=True,
     )

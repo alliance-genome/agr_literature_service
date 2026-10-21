@@ -20,6 +20,7 @@ class ModModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     mod_id = Column(
+        'id',
         Integer,
         primary_key=True,
         autoincrement=True
