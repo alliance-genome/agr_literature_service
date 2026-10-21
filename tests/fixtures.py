@@ -19,6 +19,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.api.config import config
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
+from .ateam_fixture_schema import create_ateam_fixture_tables, seed_ateam_fixture
 
 
 def delete_all_table_content(engine, db_session):
@@ -67,6 +68,11 @@ def _get_engine():
             max_overflow=20      # Max overflow connections
         )
         initialize()
+        # A-team tables of the merged database (SCRUM-6720), filled with the test ATP hierarchy
+        atp_to_name, _name_to_atp, children, _parent = atp_test_hierarchy()
+        with _engine.begin() as conn:
+            create_ateam_fixture_tables(conn)
+            seed_ateam_fixture(conn, children, atp_to_name)
     return _engine
 
 
@@ -164,6 +170,13 @@ def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants
 
 def load_name_to_atp_and_relationships_mock():
     print("### GLOBAL load_name_to_atp_and_relationships_mock ###")
+    set_globals(*atp_test_hierarchy())
+
+
+def atp_test_hierarchy():
+    """The test ATP hierarchy: (atp_to_name, name_to_atp, children, parent). The mock above puts
+    it in the ateam_db_helpers cache; _get_engine() writes the same data to the A-team fixture
+    tables (tests/ateam_fixture_schema.py), so both read paths see one hierarchy."""
     workflow_children = {
         'ATP:0000009': ['ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033'],
         'ATP:0000079': ['ATP:0000082', 'ATP:0000083', 'ATP:0000084'],
@@ -338,4 +351,4 @@ def load_name_to_atp_and_relationships_mock():
                 name_to_atp[atp2] = atp2
             if atp2 not in atp_to_name:
                 atp_to_name[atp2] = atp2
-    set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
+    return atp_to_name, name_to_atp, workflow_children, workflow_parent
