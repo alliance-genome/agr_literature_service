@@ -6,7 +6,7 @@ mod_reference_type_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, BigInteger, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -22,7 +22,7 @@ class ReferencetypeModel(Base):
 
     referencetype_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -41,7 +41,7 @@ class ModReferencetypeAssociationModel(Base):
 
     mod_referencetype_id = Column(
         'id',
-        Integer,
+        BigInteger,
         autoincrement=True,
         primary_key=True
     )
@@ -75,7 +75,7 @@ class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
 
     reference_mod_referencetype_id = Column(
         'id',
-        Integer,
+        BigInteger,
         autoincrement=True,
         primary_key=True
     )

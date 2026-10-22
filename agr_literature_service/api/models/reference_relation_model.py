@@ -6,7 +6,7 @@ reference_relation_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, Index, text
+from sqlalchemy import BigInteger, Column, Enum, ForeignKey, Index, text
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -30,13 +30,13 @@ class ReferenceRelationModel(Base):
 
     reference_relation_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id_from = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id"),
         index=True,
         nullable=False
@@ -49,7 +49,7 @@ class ReferenceRelationModel(Base):
     )
 
     reference_id_to = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id"),
         index=True,
         nullable=False

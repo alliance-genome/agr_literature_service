@@ -1,6 +1,6 @@
 from typing import Dict
 
-from sqlalchemy import Column, Integer, String, TEXT
+from sqlalchemy import BigInteger, Column, String, TEXT
 from sqlalchemy.sql.sqltypes import Boolean
 # from sqlalchemy.orm import relationship
 
@@ -16,7 +16,7 @@ class CopyrightLicenseModel(Base):
 
     copyright_license_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )

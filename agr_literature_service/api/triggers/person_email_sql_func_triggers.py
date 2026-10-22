@@ -2,7 +2,7 @@ from sqlalchemy import text
 
 
 get_most_current_email = r"""
-CREATE OR REPLACE FUNCTION get_most_current_email(p_person_id INTEGER)
+CREATE OR REPLACE FUNCTION get_most_current_email(p_person_id BIGINT)
 RETURNS TEXT AS $$
   SELECT email_address
   FROM person_email

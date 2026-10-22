@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Boolean, Index
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -12,10 +12,10 @@ class LaboratoryPersonModel(Base, AuditedModel):
     __tablename__ = "laboratory_person"
     __versioned__: Dict = {}
 
-    laboratory_person_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    laboratory_person_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
 
     laboratory_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("laboratory.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -23,7 +23,7 @@ class LaboratoryPersonModel(Base, AuditedModel):
     laboratory = relationship("LaboratoryModel", back_populates="lab_persons")
 
     person_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -42,7 +42,7 @@ class LaboratoryPersonModel(Base, AuditedModel):
     # FK to the vocabulary_term_abc table; 'vocab' abbreviates 'vocabulary' so the
     # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
     lab_position_vocab_term_abc_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("vocabulary_term_abc.id"),
         nullable=True,
         index=True,

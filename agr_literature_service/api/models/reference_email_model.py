@@ -1,13 +1,6 @@
 from typing import Dict
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    ForeignKey,
-    Index,
-    text,
-)
+from sqlalchemy import (BigInteger, Column, String, ForeignKey, Index, text)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,10 +14,10 @@ class ReferenceEmailModel(Base, AuditedModel):
     __tablename__ = "reference_email"
     __versioned__: Dict = {}
 
-    reference_email_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    reference_email_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -16,9 +16,9 @@ class VocabularyTermSynonymAbcModel(Base, AuditedModel):
                          name="uq_vocabulary_term_synonym_abc_term_synonym"),
     )
 
-    vocabulary_term_synonym_abc_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    vocabulary_term_synonym_abc_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
     vocabulary_term_abc_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("vocabulary_term_abc.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

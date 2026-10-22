@@ -6,8 +6,7 @@ reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer, Boolean,
-                        String)
+from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, BigInteger, Integer, Boolean, String)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -25,7 +24,7 @@ class ReferenceModel(Base, AuditedModel):
 
     reference_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -62,7 +61,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     resource_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("resource.id"),
         index=True,
         nullable=True
@@ -239,7 +238,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     copyright_license_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("copyright_license.id"),
         nullable=True,
         index=True
@@ -269,7 +268,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     citation_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("citation.id"),
         index=True,
         nullable=True
