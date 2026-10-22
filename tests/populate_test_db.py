@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import initialize
 from tests.fixtures import delete_all_table_content
+from tests.ateam_fixture_schema import add_ontology_terms
 
 # Add the project root to the path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -43,6 +44,13 @@ from agr_literature_service.api.models.manual_indexing_tag_model import ManualIn
 from agr_literature_service.api.models.curation_status_model import CurationStatusModel  # noqa: E402
 from agr_literature_service.api.models.curation_status_source_association_model import \
     CurationStatusSourceAssociationModel  # noqa: E402
+
+
+# Every ontology curie the factory below writes (SCRUM-6720: they must exist in ontologyterm)
+MOCK_ATP_TERMS = ("ATP:0000000", "ATP:0000002", "ATP:0000005", "ATP:0000009", "ATP:0000101", "ATP:0000102",
+                  "ATP:0000103", "ATP:0000104", "ATP:0000105", "ATP:0000106", "ATP:0000107", "ATP:0000201",
+                  "ATP:0000202", "ATP:0000237", "ATP:0000238", "ATP:0000239", "ATP:0000325", "ATP:0000334")
+MOCK_TAXON_TERMS = ("NCBITaxon:10090",)
 
 
 class MockDataFactory:
@@ -558,6 +566,10 @@ def populate_database():
     db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
     db_session.commit()
     delete_all_table_content(engine, db_session)
+    # SCRUM-6720: curie columns are foreign keys to ontologyterm; register every term written below
+    with engine.begin() as conn:
+        add_ontology_terms(conn, MOCK_ATP_TERMS)
+        add_ontology_terms(conn, MOCK_TAXON_TERMS, termtype="NCBITaxonTerm")
     # Initialize database connection
     db = next(get_db())
     factory = MockDataFactory()
