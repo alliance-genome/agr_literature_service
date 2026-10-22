@@ -52,21 +52,38 @@ def _term_id_select(condition):
     return select(_TERM.c.id).where(condition).scalar_subquery()
 
 
+def _curie_id_column_of(other):
+    """The (alias-adapted) id column behind another curie attribute, or None if other is not one."""
+    comparator = getattr(other, 'comparator', other)
+    if isinstance(comparator, CurieComparator):
+        return comparator._id_column
+    return None
+
+
 class CurieComparator(ColumnProperty.Comparator):
-    """Comparisons on the curie compare the id column, so they can use its index."""
+    """Comparisons on the curie compare the id column, so they can use its index. Two curie
+    attributes (a join such as WorkflowTagModel.workflow_tag_id == WorkflowTagTopicModel.workflow_tag)
+    compare their id columns directly."""
 
     @property
     def _id_column(self):
-        return self.prop.info['curie_id_column']
+        column = self.prop.info['curie_id_column']
+        return self.adapter(column) if self.adapter is not None else column
 
     def __eq__(self, other):
         if other is None:
             return self._id_column.is_(None)
+        other_id = _curie_id_column_of(other)
+        if other_id is not None:
+            return self._id_column == other_id
         return self._id_column == _term_id_select(_TERM.c.curie == other)
 
     def __ne__(self, other):
         if other is None:
             return self._id_column.is_not(None)
+        other_id = _curie_id_column_of(other)
+        if other_id is not None:
+            return self._id_column != other_id
         return self._id_column != _term_id_select(_TERM.c.curie == other)
 
     def in_(self, other):
