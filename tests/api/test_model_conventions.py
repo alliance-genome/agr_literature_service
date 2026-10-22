@@ -9,6 +9,8 @@ import importlib.util
 import re
 from pathlib import Path
 
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from sqlalchemy import BigInteger, Integer, text
 
 from agr_literature_service.api.database.base import Base
@@ -80,6 +82,18 @@ def test_no_integer_id_column_left():
             if isinstance(column.type, Integer) and not isinstance(column.type, BigInteger)
             and (column.primary_key or column.foreign_keys or re.search(r'(^id$|_id$)', column.name))]
     assert left == []
+
+
+def test_unlisted_integer_ids_skips_ateam_tables(db):  # noqa: F811
+    """In the database merged with the A-team (SCRUM-6720) Flyway's integer key is not an ABC id."""
+    connection = db.connection()
+    connection.execute(text("CREATE TABLE flyway_schema_history (installed_rank integer PRIMARY KEY)"))
+    connection.execute(text("CREATE TABLE not_listed_abc_table (id integer PRIMARY KEY)"))
+    try:
+        with Operations.context(MigrationContext.configure(connection)):
+            assert BIGINT_IDS._unlisted_integer_ids() == ['not_listed_abc_table.id']
+    finally:
+        db.rollback()
 
 
 def test_trigger_sources_match_bigint_revision():
