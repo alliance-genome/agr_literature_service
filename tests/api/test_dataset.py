@@ -8,6 +8,7 @@ from fastapi import status
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import DatasetModel, ReferenceModel
 from agr_literature_service.api.models.dataset_model import DatasetEntryModel
+from ..ateam_fixture_schema import add_ontology_terms
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod # noqa
@@ -20,6 +21,15 @@ DatasetTestData = namedtuple('DatasetTestData', ['response', 'mod_abbreviation',
 
 
 test_atp_id = "TEST_ATP_ID"
+
+
+@pytest.fixture(autouse=True)
+def dataset_data_type_term(db):  # noqa
+    """data_type is a foreign key to an ATP ontologyterm (SCRUM-6720): register the made-up one."""
+    add_ontology_terms(db.connection(), [test_atp_id])
+    db.commit()
+
+
 test_dataset_type = "document"
 
 
@@ -222,3 +232,14 @@ class TestDataset:
             # Verify the deletion in the database
             dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).first()
             assert dataset is None
+
+
+def test_dataset_history_records_data_type_id(db, test_dataset):  # noqa
+    """SCRUM-6720: dataset_version keeps the ontologyterm id (data_type_id) and its change flag."""
+    dataset = db.query(DatasetModel).filter(
+        DatasetModel.mod.has(abbreviation=test_dataset.mod_abbreviation),
+        DatasetModel.data_type == test_dataset.data_type).one()
+    versions = dataset.versions.all()
+    assert versions and versions[0].data_type_id == dataset.data_type_id
+    assert versions[0].data_type_id_mod is True
+    assert not hasattr(versions[0], 'data_type_mod')
