@@ -10,12 +10,13 @@ each other, and nothing is reconciled at write time.
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 enable_versioning()
 
@@ -63,15 +64,13 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
 
     # The values THIS source reports. All nullable: a source may assert only a
     # note, or only a status.
-    curation_status = Column(
-        String,
-        nullable=True
-    )
+    # SCRUM-6720: ATP ontologyterm ids; the attributes are their curies. curation_status is stored as
+    # curation_status_term_id, because curation_status_id is the FK to curation_status.
+    curation_status_term_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    curation_status = ontology_curie(curation_status_term_id)
 
-    curation_tag = Column(
-        String,
-        nullable=True
-    )
+    curation_tag_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    curation_tag = ontology_curie(curation_tag_id)
 
     note = Column(
         String,
@@ -87,3 +86,9 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
     def __str__(self):
         return (f"curation_status_id:{self.curation_status_id} "
                 f"tag_source_id:{self.tag_source_id} status:{self.curation_status}")
+
+
+register_curie_columns(CurationStatusSourceAssociationModel, {
+    "curation_status": ("curation_status_term_id", ("ATPTerm",)),
+    "curation_tag": ("curation_tag_id", ("ATPTerm",)),
+})

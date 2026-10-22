@@ -1,10 +1,11 @@
 from typing import Dict, List
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 enable_versioning()
 
@@ -21,11 +22,11 @@ class CurationStatusModel(Base, AuditedModel):
         autoincrement=True
     )
 
-    topic = Column(
-        String,
-        index=True,
-        nullable=False
-    )
+    # SCRUM-6720: topic, curation_status and curation_tag are ATP ontologyterm ids; the attributes
+    # are their curies. curation_status is stored as curation_status_term_id: curation_status_id is
+    # this table's key attribute and, on the source associations, the FK to this table.
+    topic_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=False)
+    topic = ontology_curie(topic_id)
 
     reference_id = Column(
         Integer,
@@ -51,15 +52,11 @@ class CurationStatusModel(Base, AuditedModel):
         foreign_keys="CurationStatusModel.mod_id"
     )
 
-    curation_status = Column(
-        String,
-        nullable=True
-    )
+    curation_status_term_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    curation_status = ontology_curie(curation_status_term_id)
 
-    curation_tag = Column(
-        String,
-        nullable=True
-    )
+    curation_tag_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    curation_tag = ontology_curie(curation_tag_id)
 
     note = Column(
         String,
@@ -75,7 +72,7 @@ class CurationStatusModel(Base, AuditedModel):
 
     __table_args__ = (
         UniqueConstraint(
-            'topic', 'reference_id', 'mod_id',
+            'topic_id', 'reference_id', 'mod_id',
             name='curation_status_unique'),
     )
 
@@ -84,3 +81,10 @@ class CurationStatusModel(Base, AuditedModel):
         Overwrite the default output.
         """
         return f"topic:{self.topic} mod:{self.mod} ref:{self.reference}"
+
+
+register_curie_columns(CurationStatusModel, {
+    "topic": ("topic_id", ("ATPTerm",)),
+    "curation_status": ("curation_status_term_id", ("ATPTerm",)),
+    "curation_tag": ("curation_tag_id", ("ATPTerm",)),
+})

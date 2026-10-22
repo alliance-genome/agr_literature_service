@@ -384,11 +384,15 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
         topic_tet_list_dict[tet.topic].append((tet, tet_source))
 
     query = (
-        f"SELECT cs.id AS curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, "
+        f"SELECT cs.id AS curation_status_id, tt.curie AS topic, st.curie AS curation_status, "
+        f"ct.curie AS curation_tag, cs.note, "
         f"COALESCE(u.automation_username, p.curie) AS updated_by, cs.date_updated, "
         f"get_most_current_email(u.person_id) AS updated_by_email, "
         f"p.display_name AS updated_by_name "
         f"FROM curation_status cs "
+        f"JOIN ontologyterm tt ON tt.id = cs.topic_id "
+        f"LEFT JOIN ontologyterm st ON st.id = cs.curation_status_term_id "
+        f"LEFT JOIN ontologyterm ct ON ct.id = cs.curation_tag_id "
         f"JOIN agent u ON cs.updated_by_id = u.id "
         f"LEFT JOIN person p ON u.person_id = p.id "
         f"WHERE cs.mod_id = {mod_id} AND cs.reference_id = {reference_id}"
