@@ -13,8 +13,8 @@ the version A-team runs. Step 2 is the work that needs the A-team tables in the 
 - the search pipeline keeps working.
 
 Per the ticket, its alembic revisions go on the `ateam_merge` branch and are applied only to the
-merged database. `alembic/env.py` on `main` already anticipates that branch, but no revisions are
-committed yet. The plan doc the tickets cite (`docs/plans/2026-10-15-ateam-merge-curie-to-fk-plan.md`)
+merged database. That is the long-lived git branch `ateam_merge` (see Phase 0); `alembic/env.py`
+on `main` already supports targeting another database with `-x db_url`. The plan doc the tickets cite (`docs/plans/2026-10-15-ateam-merge-curie-to-fk-plan.md`)
 is not in the repo. This plan is rebuilt from the code on `main` and the A-team code, and should
 become that doc.
 
@@ -42,15 +42,31 @@ Facts from the spike (SCRUM-6650):
 
 ## Phases
 
-### Phase 0 — Test bed and scaffolding
-- Rebuild the merged test DB from post-SCRUM-6719 ABC (stage dump) + the current A-team dump, both
-  on PG 18.4. Repeat the `ateam_person` / `ateam_reference` rename (Shuai's `~/merge_load.sh`).
-- Create the `ateam_merge` alembic branch (`branch_labels=('ateam_merge',)`) based on the main
-  head `80595e1e0d4d`. Document how to upgrade only the merged DB.
-- **Test suite:** add a minimal A-team fixture schema to the test DB: `ontologyterm`,
-  `ontologytermclosure`, `biologicalentity`, `species`. Seed the ATP/NCBITaxon/ECO terms and
-  closure rows the tests use. Replace `ateam_db_helpers.set_globals` seeding with SQL seeding.
-  Without this, nothing in Phases 1–4 can be tested.
+### Phase 0 — Test bed and scaffolding (done 2026-10-21, except recording the guard)
+- **Where the work lives:** a long-lived **git** branch `ateam_merge`, not an alembic branch label.
+  Deploys run a plain `alembic upgrade head` (`apply_alembic_migration.sh:129`), and a second head
+  would make it refuse. The Phase 1–4 code only works on the merged DB anyway, so it can't reach
+  `main` before cutover. The revisions chain after main's head `80595e1e0d4d` and are applied only to
+  the merged DB with `alembic -x db_url=… upgrade head`. `main` is merged in as it moves; the branch
+  goes to `main` at cutover.
+- **Guard revision** `c4a1e7b93d20`: changes nothing, but stops the chain on a database without the
+  A-team tables (`ontologyterm`, `ontologytermclosure`, `ontologyterm_subsets`, `biologicalentity`,
+  `ateam_reference`, `ateam_person`).
+- **Merged test DB rebuilt** with `ateam_merge_load.sh` (on the branch; a parameterised
+  `~shuai/merge_load.sh`). Inputs: the A-team dump `2026-10-13_21-00-27` and a fresh stage dump
+  (2026-10-21 19:00 UTC, PG 18.4, alembic `80595e1e0d4d`).
+  - **Result:** 41 min, no restore errors, 290 tables; 131 A-team FKs to `ateam_person`, 12 to
+    `ateam_reference`; 491,970 ontology terms; 1,300,446 ABC references.
+  - **A-team's person key** is `person_pkey1`, so it doesn't collide with ABC's `person_pkey`; only
+    the reference renames are needed.
+- **Test suite:** `tests/ateam_fixture_schema.py` creates the subset of `ontologyterm`,
+  `ontologytermclosure`, `ontologyterm_subsets` and `biologicalentity` that ABC reads. It fills them
+  from the same hierarchy as the in-memory mock (`fixtures.atp_test_hierarchy()`).
+  - **Checked against the merged DB:** every fixture column exists in the real tables.
+  - **Not needed yet:** `species`.
+  - **Still to replace:** the `set_globals` seeding, when Phase 3 moves the helpers to SQL.
+- **Left:** record the guard revision on the merged DB by running `alembic upgrade head` with the
+  container's Postgres credentials.
 
 ### Phase 1 — Ontology curie columns → FK `ontologyterm`
 These are the 29 columns plus `_version` twins, all ATP except where noted:
@@ -99,6 +115,20 @@ Then:
   - descendant = `closuresubject_id`, ancestor = `closureobject_id`;
   - parent / child = `distance = 1`; filter on `closuretypes` (is_a);
   - MOD subsets come from `ontologyterm_subsets`.
+- **What the real closure table looks like** (merged DB, 2026-10-22):
+  - **Every relationship is stored twice,** once with `closuretypes = ["is_a"]` and once with
+    `["is_a","part_of"]` (5.9M duplicate subject/object/distance triples in 12.6M rows). Queries need
+    `closuretypes ? 'is_a'` plus `DISTINCT`, or every parent and descendant comes back twice.
+  - **ATP terms have several `is_a` parents.** "file needed" (ATP:0000141) sits under "file upload"
+    (0000140), "not started" (0000155) and "automated workflow" (0000158). The current cache keeps
+    one parent per term (`atp_to_parent`), which comes from walking down from the four roots.
+    `atp_get_parent`, `atp_get_all_ancestors` and `get_workflow_process_from_tag` must keep that
+    meaning: take the parent that lies inside the same root subtree (e.g. under ATP:0000177 for
+    workflow tags), not just any distance-1 parent. Compare against the current cache output for
+    every ATP term before switching.
+  - **No `distance = 0` self rows for ontology terms.** The only subject = object rows are 698
+    ROTerm rows with a NULL distance.
+  - **Term counts:** 389 ATP, 1,943 NCBITaxon, 2,179 ECO; ATP:0000177 has 360 descendants.
 - Replace the BFS cache build (~305 API calls, roots ATP:0000002/0000323/0000177/0000335) with one
   closure query. Keep the in-process cache, now cheap to rebuild.
 - `map_curies_to_names` and `atp_return_invalid_ids` become SQL. `get_atp_id_by_name` and
@@ -146,7 +176,7 @@ Then:
 
 ### Phase 7 — Rollout
 Rehearse on the merged test DB, then stage, then prod. In order: A-team freeze; dump/load and
-rename; `alembic upgrade ateam_merge@head`; validation reports; Debezium rebuild and full reindex;
+rename (`ateam_merge_load.sh`); `alembic upgrade head` from the `ateam_merge` branch; validation reports; Debezium rebuild and full reindex;
 API and automated scripts back on; A-team app pointed at the shared DB. Measure downtime on the
 rehearsal, as SCRUM-6719 did. Keep a rollback (the pre-merge dumps).
 
