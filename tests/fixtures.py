@@ -19,7 +19,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.api.config import config
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
-from .ateam_fixture_schema import create_ateam_fixture_tables, seed_ateam_fixture
+from .ateam_fixture_schema import EXTRA_TEST_TERMS, create_ateam_fixture_tables, seed_ateam_fixture
 
 
 def delete_all_table_content(engine, db_session):
@@ -74,7 +74,7 @@ def _get_engine():
         atp_to_name, _name_to_atp, children, _parent = atp_test_hierarchy()
         with _engine.begin() as conn:
             create_ateam_fixture_tables(conn)
-            seed_ateam_fixture(conn, children, atp_to_name)
+            seed_ateam_fixture(conn, children, atp_to_name, extra_curies=EXTRA_TEST_TERMS)
         initialize()
     return _engine
 

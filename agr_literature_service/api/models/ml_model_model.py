@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
+from sqlalchemy import BigInteger, Column, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 
 class MLModel(AuditedModel, Base):
@@ -38,10 +39,10 @@ class MLModel(AuditedModel, Base):
         foreign_keys="MLModel.mod_id"
     )
 
-    topic = Column(
-        String,
-        index=True
-    )
+    # SCRUM-6720: the ontology terms are ontologyterm ids; topic, species, data_novelty and
+    # data_context are their curies (ontology_term_model.ontology_curie)
+    topic_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=True)
+    topic = ontology_curie(topic_id)
 
     version_num = Column(
         Integer,
@@ -69,11 +70,8 @@ class MLModel(AuditedModel, Base):
         foreign_keys="MLModel.dataset_id"
     )
 
-    species = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
+    species_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    species = ontology_curie(species_id)
 
     production: Mapped[bool] = mapped_column(
         Boolean,
@@ -87,18 +85,14 @@ class MLModel(AuditedModel, Base):
         default=True
     )
 
-    data_novelty = Column(
-        String,
-        nullable=True
-    )
+    data_novelty_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    data_novelty = ontology_curie(data_novelty_id)
 
     # SCRUM-5697. The data_context term the pipelines stamp onto every tag this
     # model creates, so the curation policy lives on the model row rather than
     # in pipeline code (same arrangement as data_novelty above).
-    data_context = Column(
-        String,
-        nullable=True
-    )
+    data_context_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    data_context = ontology_curie(data_context_id)
 
     file_classes = Column(
         ARRAY(String),
@@ -120,5 +114,13 @@ class MLModel(AuditedModel, Base):
     embedding_version = Column(Integer, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint('task_type', 'mod_id', 'topic', 'version_num', name='uq_ml_model_task_mod_topic_version'),
+        UniqueConstraint('task_type', 'mod_id', 'topic_id', 'version_num', name='uq_ml_model_task_mod_topic_version'),
     )
+
+
+register_curie_columns(MLModel, {
+    "topic": ("topic_id", ("ATPTerm",)),
+    "species": ("species_id", ("NCBITaxonTerm",)),
+    "data_novelty": ("data_novelty_id", ("ATPTerm",)),
+    "data_context": ("data_context_id", ("ATPTerm",)),
+})

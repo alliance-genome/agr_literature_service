@@ -51,6 +51,9 @@ ATEAM_FIXTURE_DDL = (
 ATEAM_FIXTURE_TABLES = ('ontologytermclosure', 'ontologyterm_subsets', 'biologicalentity', 'ontologyterm')
 
 TERM_TYPES = {'ATP': 'ATPTerm', 'NCBITaxon': 'NCBITaxonTerm', 'ECO': 'ECOTerm'}
+# Terms tests use as valid values that the ATP test hierarchy does not contain (made-up or
+# deliberately invalid curies, e.g. ATP:9999999, stay out so the tests that expect a 422 keep it)
+EXTRA_TEST_TERMS = ('ATP:0000061', 'ATP:0000062', 'ATP:0000110')
 ENTITY_TAXA = {'WB': 'NCBITaxon:6239', 'FB': 'NCBITaxon:7227', 'SGD': 'NCBITaxon:559292',
                'ZFIN': 'NCBITaxon:7955', 'MGI': 'NCBITaxon:10090', 'RGD': 'NCBITaxon:10116',
                'Xenbase': 'NCBITaxon:8355'}
