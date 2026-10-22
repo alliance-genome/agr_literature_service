@@ -707,15 +707,13 @@ def get_resource_titles_by_ids(resource_ids: Iterable[Union[int, str]],
     ids = sorted({int(rid) for rid in resource_ids if str(rid).isdigit()})
     if not ids:
         return {}
-    own_session = db_session is None
-    if own_session:
-        db_session = create_postgres_session(False)
+    session = db_session if db_session is not None else create_postgres_session(False)
     try:
-        rows = db_session.query(ResourceModel.resource_id, ResourceModel.title, ResourceModel.curie).filter(
+        rows = session.query(ResourceModel.resource_id, ResourceModel.title, ResourceModel.curie).filter(
             ResourceModel.resource_id.in_(ids)).all()
     finally:
-        if own_session:
-            db_session.close()
+        if db_session is None:
+            session.close()
     return {str(resource_id): {"title": title, "curie": curie} for resource_id, title, curie in rows}
 
 
