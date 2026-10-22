@@ -363,8 +363,10 @@ def get_email_extraction_mods(db) -> Dict[int, str]:
             SELECT DISTINCT m.id AS mod_id, m.abbreviation
             FROM workflow_transition wt
             JOIN mod m ON m.id = wt.mod_id
-            WHERE wt.transition_from = ANY(:email_tags)
-               OR wt.transition_to = ANY(:email_tags)
+            JOIN ontologyterm t_from ON t_from.id = wt.transition_from_id
+            JOIN ontologyterm t_to ON t_to.id = wt.transition_to_id
+            WHERE t_from.curie = ANY(:email_tags)
+               OR t_to.curie = ANY(:email_tags)
                OR array_to_string(wt.actions, ',') LIKE '%email extraction%'
             ORDER BY m.id
             """

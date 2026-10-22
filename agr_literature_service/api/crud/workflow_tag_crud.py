@@ -289,6 +289,9 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0,
                          WorkflowTransitionModel.condition,
                          ReferenceModel.curie,
                          WorkflowTagTopicModel.topic)
+                # explicit: with curie columns as ontologyterm ids (SCRUM-6720) the join conditions
+                # hold subqueries, from which SQLAlchemy cannot infer the left side
+                .select_from(WorkflowTagModel)
                 .join(WorkflowTransitionModel,
                       WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to)
                 .join(ReferenceModel,
