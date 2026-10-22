@@ -43,7 +43,7 @@ DATA_NOVELTY_NOT_NEW = "ATP:0000335"
 # ATP:0000325 = "experimentally studied data" (SCRUM-5697). A PDB entry is an
 # experimentally determined structure, so the paper studied it directly.
 DATA_CONTEXT_EXPERIMENTALLY_STUDIED = "ATP:0000325"
-ECO_AUTOMATIC_ASSERTION = "ECO_0006156"
+ECO_AUTOMATIC_ASSERTION = "ECO:0006156"  # was ECO_0006156, which is not a curie (SCRUM-6720)
 SOURCE_METHOD = "PDB association pipeline"
 SOURCE_DATA_PROVIDER = "PDB"
 SECONDARY_DATA_PROVIDER_ABBR = "AGR"

@@ -64,6 +64,7 @@ _CURIE_COLUMNS: Dict[str, Tuple[str, ...]] = {
     'workflow_tag': ('workflow_tag_id', 'curation_tag'),
     'curation_status': ('topic', 'curation_status', 'curation_tag'),
     'curation_status_source_association': ('curation_status', 'curation_tag'),
+    'tag_source': ('source_evidence_assertion',),
 }
 CURIE_COLUMNS: Dict[str, Tuple[str, ...]] = dict(
     _CURIE_COLUMNS, **{f'{table}_version': columns for table, columns in _CURIE_COLUMNS.items()})

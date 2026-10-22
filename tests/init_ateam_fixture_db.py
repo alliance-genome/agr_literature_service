@@ -7,13 +7,13 @@ instead, which runs this after creating the empty database:
 
     python3 -m tests.init_ateam_fixture_db
 
-Same DDL, ATP hierarchy and extra terms as the unit tests.
+Same DDL and seed (seed_test_terms) as the unit tests.
 """
 from sqlalchemy import create_engine
 
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 
-from .ateam_fixture_schema import EXTRA_TEST_TERMS, create_ateam_fixture_tables, seed_ateam_fixture
+from .ateam_fixture_schema import create_ateam_fixture_tables, seed_test_terms
 from .fixtures import atp_test_hierarchy
 
 
@@ -22,7 +22,7 @@ def main() -> None:
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     with engine.begin() as conn:
         create_ateam_fixture_tables(conn)
-        seed_ateam_fixture(conn, children, atp_to_name, extra_curies=EXTRA_TEST_TERMS)
+        seed_test_terms(conn, children, atp_to_name)
     engine.dispose()
     print("A-team fixture tables created and seeded")
 

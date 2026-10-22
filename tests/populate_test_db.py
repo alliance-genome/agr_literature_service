@@ -51,6 +51,8 @@ MOCK_ATP_TERMS = ("ATP:0000000", "ATP:0000002", "ATP:0000005", "ATP:0000009", "A
                   "ATP:0000103", "ATP:0000104", "ATP:0000105", "ATP:0000106", "ATP:0000107", "ATP:0000201",
                   "ATP:0000202", "ATP:0000237", "ATP:0000238", "ATP:0000239", "ATP:0000325", "ATP:0000334")
 MOCK_TAXON_TERMS = ("NCBITaxon:10090",)
+# the tag sources' source_evidence_assertion values (labels, not curies; registered as ECO terms)
+MOCK_ECO_TERMS = ("curator_judgement", "author_statement", "automated_inference", "computational_analysis")
 
 
 class MockDataFactory:
@@ -570,6 +572,7 @@ def populate_database():
     with engine.begin() as conn:
         add_ontology_terms(conn, MOCK_ATP_TERMS)
         add_ontology_terms(conn, MOCK_TAXON_TERMS, termtype="NCBITaxonTerm")
+        add_ontology_terms(conn, MOCK_ECO_TERMS, termtype="ECOTerm")
     # Initialize database connection
     db = next(get_db())
     factory = MockDataFactory()

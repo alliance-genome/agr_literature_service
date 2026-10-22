@@ -62,7 +62,10 @@ EXTRA_TEST_TERMS = ('ATP:0000061', 'ATP:0000062', 'ATP:0000110',
                     'ATP:0000237', 'ATP:0000299', 'ATP:curation_needed', 'ATP:curation_not_needed',
                     'ATP:curation_tag', 'ATP:curation_test', 'ATP:topic1', 'ATP:topic2', 'ATP:topic3',
                     # indexing priority process and priorities (set_priority uses them as workflow tags)
-                    'ATP:0000210', 'ATP:0000211', 'ATP:0000212', 'ATP:0000213')
+                    'ATP:0000210', 'ATP:0000211', 'ATP:0000212', 'ATP:0000213',
+                    # source_evidence_assertion values (SCRUM-6720 tag_source): ECO terms tests and code use
+                    'ECO:0000302', 'ECO:0006151', 'ECO:0006155', 'ECO:0006156', 'ECO:0007669', 'ECO:0008000',
+                    'ECO:0008004', 'ECO:0008019', 'ECO:0008021', 'ECO:0008025')
 ENTITY_TAXA = {'WB': 'NCBITaxon:6239', 'FB': 'NCBITaxon:7227', 'SGD': 'NCBITaxon:559292',
                'ZFIN': 'NCBITaxon:7955', 'MGI': 'NCBITaxon:10090', 'RGD': 'NCBITaxon:10116',
                'Xenbase': 'NCBITaxon:8355'}
@@ -87,6 +90,12 @@ def closure_rows(children: Dict[str, List[str]]) -> List[Tuple[str, str, int]]:
                 best[ancestor] = distance
         rows.extend((term, ancestor, d) for ancestor, d in best.items())
     return sorted(rows)
+
+
+# Made-up source_evidence_assertion labels tests use as valid values (not curies, so the prefix-typed
+# seed would skip them): registered as ECO terms (SCRUM-6720 tag_source)
+EXTRA_TEST_ECO_LABELS = ('automated_source', 'community curation', 'curator', 'manual', 'manual_curation',
+                         'professional_biocurator')
 
 
 def _prefix(curie: str) -> str:
@@ -152,3 +161,11 @@ def add_ontology_terms(conn, curies: Iterable[str], termtype: str = 'ATPTerm') -
             "INSERT INTO ontologyterm (id, curie, name, ontologytermtype) "
             "SELECT coalesce(max(id), 0) + 1, :c, :c, :t FROM ontologyterm "
             "ON CONFLICT (curie) DO NOTHING"), {"c": curie, "t": termtype})
+
+
+def seed_test_terms(conn, children: Dict[str, List[str]], names: Dict[str, str]) -> Set[str]:
+    """The test seed: the ATP hierarchy, EXTRA_TEST_TERMS and EXTRA_TEST_ECO_LABELS. Returns every seeded
+    curie (what prune_ontology_terms keeps)."""
+    seeded = seed_ateam_fixture(conn, children, names, extra_curies=EXTRA_TEST_TERMS)
+    add_ontology_terms(conn, EXTRA_TEST_ECO_LABELS, termtype='ECOTerm')
+    return seeded | set(EXTRA_TEST_ECO_LABELS)
