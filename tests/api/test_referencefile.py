@@ -1,6 +1,12 @@
+import asyncio
+import gzip
+import os
+
 import pytest
 from starlette.testclient import TestClient
 
+from agr_cognito_py import ModAccess
+from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.main import app
 from fastapi import status
 
@@ -329,3 +335,34 @@ class TestReferencefile:
             assert derived[0]["referencefile_id"] == converted_id
             assert derived[0]["file_class"] == "converted_merged_main"
             assert derived[0]["display_name"].startswith(test_referencefile.display_name)
+
+    def test_download_file_uses_per_request_paths(self, db, test_reference, test_reference2, monkeypatch):  # noqa
+        # two main files with the same display name must never share a temp path (SCRUM-6762)
+        file_ids = {}
+        for ref, md5sum in ((test_reference, "md5_download_a"), (test_reference2, "md5_download_b")):
+            file_ids[md5sum] = create_metadata(db, ReferencefileSchemaPost(
+                display_name="main_nxml", reference_curie=ref.new_ref_curie, file_class="main",
+                file_publication_status="final", file_extension="md", md5sum=md5sum))
+
+        def fake_download_file_from_s3(filepath, bucketname, s3_file_location):
+            with gzip.open(filepath, "wb") as f_out:
+                f_out.write(s3_file_location.encode())
+
+        monkeypatch.setattr(referencefile_crud, "download_file_from_s3", fake_download_file_from_s3)
+        responses = {md5sum: referencefile_crud.download_file(db, file_id, ModAccess.ALL_ACCESS)
+                     for md5sum, file_id in file_ids.items()}
+        paths = {md5sum: response.path for md5sum, response in responses.items()}
+        assert len(set(paths.values())) == 2
+        for md5sum, response in responses.items():
+            assert os.path.basename(response.path) == "main_nxml.md"
+            assert response.filename == "main_nxml.md"
+            with open(response.path) as f_in:
+                assert f_in.read().endswith(md5sum + ".gz")
+        for response in responses.values():
+            asyncio.run(response.background())
+        for path in paths.values():
+            assert not os.path.exists(os.path.dirname(path))
+
+        content = referencefile_crud.download_file(db, file_ids["md5_download_a"], ModAccess.ALL_ACCESS,
+                                                   use_in_api=False)
+        assert content.decode().endswith("md5_download_a.gz")
