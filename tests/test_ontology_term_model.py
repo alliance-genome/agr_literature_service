@@ -56,3 +56,8 @@ def test_workflow_tag_joins_its_topic_row(db):  # noqa: F811
                     WorkflowTagTopicModel.topic == 'ATP:0000009')
             .all())
     assert [(row.workflow_tag_id, row.topic) for row in rows] == [('ATP:0000141', 'ATP:0000009')]
+
+
+def test_notin_alias_compares_the_id_column():
+    sql = _sql(select(WorkflowTagTopicModel.workflow_tag_topic_id).where(WorkflowTagTopicModel.topic.notin_(['ATP:1'])))
+    assert 'workflow_tag_topic.topic_id NOT IN (SELECT ontologyterm.id' in sql

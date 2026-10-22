@@ -18,7 +18,7 @@ it (tests) or autogenerates migrations for it (alembic/env.py).
 from typing import Dict, Iterable, Optional, Tuple
 
 from sqlalchemy import BigInteger, Boolean, Column, String, event, select, inspect as sa_inspect
-from sqlalchemy.orm import ColumnProperty, column_property
+from sqlalchemy.orm import ColumnProperty, column_property, object_session
 
 from agr_literature_service.api.database.base import Base
 
@@ -92,6 +92,10 @@ class CurieComparator(ColumnProperty.Comparator):
     def not_in(self, other):
         return self._id_column.not_in(select(_TERM.c.id).where(_TERM.c.curie.in_(other)))
 
+    # SQLAlchemy defines notin_ as a class-level alias of the base not_in, which would bypass the
+    # override above (correct, but through the per-row subquery)
+    notin_ = not_in
+
     def is_(self, other):
         return self._id_column.is_(other)
 
@@ -118,11 +122,22 @@ def term_id_for_curie(connection, curie: Optional[str], types: Iterable[str]) ->
 
 
 def register_curie_columns(model, columns: Dict[str, Tuple[str, Tuple[str, ...]]]) -> None:
-    """Resolve curies assigned to model's curie attributes into their id columns at flush.
+    """Resolve curies assigned to model's curie attributes into their id columns.
 
     columns: {curie attribute: (id attribute, allowed ontologytermtypes)}
+
+    On an object that is already in a session the curie is resolved when it is assigned, so the id
+    column -- a real, versioned column -- has changed before the flush: SQLAlchemy-Continuum decides
+    which objects get a history row before flushing, and an object whose only change is the curie
+    attribute (a column_property) would otherwise get none. A new object, not yet in a session, is
+    resolved at insert.
+
+    The mapping is also kept on the model as __curie_columns__ ({curie attribute: id attribute}),
+    which continuum_plugins.CurieLabelPlugin uses to show history changesets as curies.
     """
-    def _resolve(mapper, connection, target):
+    model.__curie_columns__ = {curie_attr: id_attr for curie_attr, (id_attr, _types) in columns.items()}
+
+    def _resolve_at_flush(mapper, connection, target):
         state = sa_inspect(target)
         for curie_attr, (id_attr, types) in columns.items():
             history = state.attrs[curie_attr].history
@@ -131,5 +146,16 @@ def register_curie_columns(model, columns: Dict[str, Tuple[str, Tuple[str, ...]]
             elif history.deleted and not history.unchanged:
                 setattr(target, id_attr, None)
 
-    event.listen(model, 'before_insert', _resolve)
-    event.listen(model, 'before_update', _resolve)
+    event.listen(model, 'before_insert', _resolve_at_flush)
+    event.listen(model, 'before_update', _resolve_at_flush)
+
+    for curie_attr, (id_attr, types) in columns.items():
+        def _resolve_on_set(target, value, _oldvalue, _initiator, id_attr=id_attr, types=types):
+            session = object_session(target)
+            if session is None or sa_inspect(target).transient or sa_inspect(target).pending:
+                return value
+            with session.no_autoflush:
+                setattr(target, id_attr, term_id_for_curie(session.connection(), value, types))
+            return value
+
+        event.listen(getattr(model, curie_attr), 'set', _resolve_on_set, retval=True)

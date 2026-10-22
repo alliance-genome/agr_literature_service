@@ -236,7 +236,8 @@ class TestIndexingPriorityCRUD:
         assert row.curator_indexing_priority == "ATP:0000212" and isinstance(row.curator_indexing_priority_id, int)
         assert db.query(IndexingPriorityModel).filter(
             IndexingPriorityModel.curator_indexing_priority == "ATP:0000212").count() == 1
-        row.predicted_indexing_priority = "ATP:not_a_term"
+        # on an object already in the session the curie is resolved when assigned (so that
+        # SQLAlchemy-Continuum sees the id column change), so an unknown term is refused right there
         with pytest.raises(UnknownOntologyTermError):
-            db.commit()
+            row.predicted_indexing_priority = "ATP:not_a_term"
         db.rollback()
