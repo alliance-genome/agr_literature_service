@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, CheckConstraint, column, func, select, table
+from sqlalchemy import BigInteger, Column, String, ForeignKey, CheckConstraint, column, func, select, table
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 
@@ -15,10 +15,10 @@ class UserModel(Base):
     """
     __tablename__ = "agent"
 
-    user_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    user_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
     automation_username = Column(String, nullable=True, index=True, unique=True)
 
-    person_id = Column(Integer, ForeignKey("person.id", ondelete="SET NULL"), nullable=True, index=True)
+    person_id = Column(BigInteger, ForeignKey("person.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Relationship to PersonModel
     person = relationship(

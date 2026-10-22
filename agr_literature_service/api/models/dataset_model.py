@@ -20,6 +20,7 @@ class DatasetEntryModel(Base):
 
     dataset_entry_id: Mapped[int] = mapped_column(
         'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -96,7 +97,7 @@ class DatasetModel(AuditedModel, Base):
 
     dataset_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -108,7 +109,7 @@ class DatasetModel(AuditedModel, Base):
     )
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False

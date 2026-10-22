@@ -3,7 +3,7 @@ Citations are filled in via triggers and stored procedures.
 See api/triggers directory for more info.
 """
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import BigInteger, Column, String
 from agr_literature_service.api.database.base import Base
 
 
@@ -12,7 +12,7 @@ class CitationModel(Base):
 
     citation_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )

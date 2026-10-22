@@ -59,7 +59,7 @@ def test_fixture_tables_hold_the_test_hierarchy(db):  # noqa: F811
 
 def test_guard_refuses_a_database_without_the_ateam_tables(db):  # noqa: F811
     guard = _guard_revision()
-    assert guard.down_revision == '80595e1e0d4d'
+    assert guard.down_revision == '039dbc7de1ef'  # main's head: SCRUM-6761, id columns to bigint
     # the test database has the fixture tables but no renamed A-team person / reference
     assert guard.missing_ateam_tables(db.connection()) == ['ateam_reference', 'ateam_person']
 

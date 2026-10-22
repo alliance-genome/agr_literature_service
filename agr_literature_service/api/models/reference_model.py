@@ -26,7 +26,7 @@ class ReferenceModel(Base, AuditedModel):
 
     reference_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -63,7 +63,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     resource_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("resource.id"),
         index=True,
         nullable=True
@@ -238,7 +238,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     copyright_license_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("copyright_license.id"),
         nullable=True,
         index=True
@@ -268,7 +268,7 @@ class ReferenceModel(Base, AuditedModel):
     )
 
     citation_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("citation.id"),
         index=True,
         nullable=True

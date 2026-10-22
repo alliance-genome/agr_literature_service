@@ -32,8 +32,8 @@ def upgrade():
                            + ", ".join(f"{mod} {curie}" for mod, curie in unresolved))
 
     op.execute("""CREATE TABLE mod_taxon (
-        id serial PRIMARY KEY,
-        mod_id integer NOT NULL REFERENCES mod (id) ON DELETE CASCADE,
+        id bigserial PRIMARY KEY,
+        mod_id bigint NOT NULL REFERENCES mod (id) ON DELETE CASCADE,
         ordinal integer NOT NULL,
         ontologyterm_id bigint NOT NULL REFERENCES ontologyterm (id))""")
     op.execute("CREATE INDEX ix_mod_taxon_mod_id ON mod_taxon (mod_id)")

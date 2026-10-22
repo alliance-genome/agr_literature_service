@@ -24,7 +24,7 @@ class ModModel(Base, AuditedModel):
 
     mod_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -76,8 +76,8 @@ class ModTaxonModel(Base):
     taxa of a MOD are reference data that practically never change."""
     __tablename__ = "mod_taxon"
 
-    mod_taxon_id = Column('id', Integer, primary_key=True, autoincrement=True)
-    mod_id = Column(Integer, ForeignKey("mod.id", ondelete="CASCADE"), index=True, nullable=False)
+    mod_taxon_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
+    mod_id = Column(BigInteger, ForeignKey("mod.id", ondelete="CASCADE"), index=True, nullable=False)
     ordinal = Column(Integer, nullable=False)
     ontologyterm_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=False)
     taxon = ontology_curie(ontologyterm_id)

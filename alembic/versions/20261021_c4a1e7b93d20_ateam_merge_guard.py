@@ -1,7 +1,7 @@
 """ateam_merge: refuse to run on a database without the A-team tables
 
 Revision ID: c4a1e7b93d20
-Revises: 80595e1e0d4d
+Revises: 039dbc7de1ef
 Create Date: 2026-10-21 12:00:00.000000
 
 SCRUM-6720: step 2 of the shared database with the A-team persistent store. Its revisions live
@@ -10,6 +10,8 @@ database (ABC + A-team, with A-team's person and reference renamed ateam_person 
 ateam_reference):
 
   alembic -x db_url=postgresql://.../literature_ateam_merge_test upgrade head
+
+It follows main's 039dbc7de1ef (SCRUM-6761, id columns to bigint), merged in 2026-10-22.
 
 This first revision changes nothing. It stops the chain on a database that lacks the A-team
 tables the later revisions need, so the ateam_merge revisions cannot be applied to a plain ABC
@@ -20,7 +22,7 @@ from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = 'c4a1e7b93d20'
-down_revision = '80595e1e0d4d'
+down_revision = '039dbc7de1ef'
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 from typing import Optional
 
 # import sqlalchemy as sa
-from sqlalchemy import BigInteger, CheckConstraint, Column, ForeignKey, Integer, String, Float, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, Column, ForeignKey, String, Float, UniqueConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from agr_literature_service.api.database.base import Base
@@ -40,18 +40,18 @@ class ManualIndexingTagModel(Base, AuditedModel):
     # PK
     manual_indexing_tag_id: Mapped[int] = mapped_column(
         'id',
-        Integer, primary_key=True, autoincrement=True
+        BigInteger, primary_key=True, autoincrement=True
     )
 
     # Foreign keys
     reference_id: Mapped[int] = mapped_column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
     mod_id: Mapped[int] = mapped_column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False,

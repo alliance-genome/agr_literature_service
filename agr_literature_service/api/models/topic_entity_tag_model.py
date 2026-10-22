@@ -5,7 +5,7 @@ topic_entity_tag_model.py
 
 from typing import List
 
-from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String, Float, \
+from sqlalchemy import BigInteger, Column, ForeignKey, String, Float, \
     and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
 from sqlalchemy.orm import relationship, Mapped
 
@@ -52,13 +52,13 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     topic_entity_tag_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -71,7 +71,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     tag_source_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("tag_source.id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -173,7 +173,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     ml_model_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("ml_model.id", ondelete="SET NULL"),
         index=True,
         nullable=True

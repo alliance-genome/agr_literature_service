@@ -10,7 +10,7 @@ class MLModel(AuditedModel, Base):
 
     ml_model_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -28,7 +28,7 @@ class MLModel(AuditedModel, Base):
     file_extension = Column(String)
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -59,7 +59,7 @@ class MLModel(AuditedModel, Base):
     parameters = Column(String)
 
     dataset_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey('dataset.id', ondelete="CASCADE"),
         index=True,
         nullable=True

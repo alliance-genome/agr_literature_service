@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy import BigInteger, Column, UniqueConstraint, CheckConstraint, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import Integer, Float
+from sqlalchemy import Float
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models import ReferenceModel, ModModel
@@ -29,7 +29,7 @@ class IndexingPriorityModel(Base, AuditedModel):
 
     indexing_priority_id: Mapped[int] = mapped_column(
         'id',
-        Integer, primary_key=True, autoincrement=True
+        BigInteger, primary_key=True, autoincrement=True
     )
 
     # ATP terms (SCRUM-6720: ontologyterm ids; the *_indexing_priority attributes are their curies)
@@ -37,7 +37,7 @@ class IndexingPriorityModel(Base, AuditedModel):
     predicted_indexing_priority = ontology_curie(predicted_indexing_priority_id)
 
     reference_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("reference.id", ondelete="CASCADE"),
+        BigInteger, ForeignKey("reference.id", ondelete="CASCADE"),
         index=True, nullable=False
     )
     reference: Mapped["ReferenceModel"] = relationship(
@@ -46,7 +46,7 @@ class IndexingPriorityModel(Base, AuditedModel):
     )
 
     mod_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mod.id", ondelete="CASCADE"),
+        BigInteger, ForeignKey("mod.id", ondelete="CASCADE"),
         index=True, nullable=False
     )
     mod: Mapped["ModModel"] = relationship(

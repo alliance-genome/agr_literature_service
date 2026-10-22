@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, UniqueConstraint, text
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String, UniqueConstraint, text
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -15,9 +15,9 @@ class VocabularyTermAbcModel(Base, AuditedModel):
         UniqueConstraint("vocabulary_abc_id", "name", name="uq_vocabulary_term_abc_vocab_name"),
     )
 
-    vocabulary_term_abc_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    vocabulary_term_abc_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
     vocabulary_abc_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("vocabulary_abc.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

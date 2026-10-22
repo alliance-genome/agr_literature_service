@@ -8,7 +8,6 @@ from sqlalchemy import (
     BigInteger,
     Column,
     ForeignKey,
-    Integer,
     String,
     UniqueConstraint,
 )
@@ -38,13 +37,13 @@ class WorkflowTagModel(AuditedModel, Base):
 
     reference_workflow_tag_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -62,7 +61,7 @@ class WorkflowTagModel(AuditedModel, Base):
     workflow_tag_id = ontology_curie(workflow_tag_term_id)
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id"),
         index=True,
         nullable=True

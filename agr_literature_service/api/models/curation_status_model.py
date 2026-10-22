@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -18,6 +18,7 @@ class CurationStatusModel(Base, AuditedModel):
 
     curation_status_id: Mapped[int] = mapped_column(
         'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -29,7 +30,7 @@ class CurationStatusModel(Base, AuditedModel):
     topic = ontology_curie(topic_id)
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -41,7 +42,7 @@ class CurationStatusModel(Base, AuditedModel):
     )
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False

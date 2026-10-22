@@ -1,7 +1,7 @@
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
-from sqlalchemy import (BigInteger, Column, ForeignKey, Integer)
+from sqlalchemy import (BigInteger, Column, ForeignKey)
 
 
 class WorkflowTagTopicModel(AuditedModel, Base):
@@ -9,7 +9,7 @@ class WorkflowTagTopicModel(AuditedModel, Base):
 
     workflow_tag_topic_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
