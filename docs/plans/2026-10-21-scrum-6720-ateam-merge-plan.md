@@ -8,9 +8,14 @@ primary keys named `id`, `users` → `agent`, and LinkML audit columns. Docker P
 the version A-team runs. Step 2 is the work that needs the A-team tables in the same database:
 - ABC's ontology-curie strings become foreign keys to A-team `ontologyterm`;
 - `topic_entity_tag.entity` becomes a foreign key to `biologicalentity`;
-- A-team's foreign keys are repointed at ABC's `reference` / `person`;
+- A-team's foreign keys are repointed at ABC's `reference` / `person` (**the A-team's own work**,
+  see Phase 5);
 - `ateam_db_helpers` becomes direct SQL;
 - the search pipeline keeps working.
+
+**Status (2026-10-22):** Phases 0–4 are built on the `ateam_merge` branch (draft PR #1350), with
+every revision dry-run on the merged test DB. Phase 5 is the A-team's. Left for ABC: Phase 6 and
+the Phase 7 rollout.
 
 Per the ticket, its alembic revisions go on the `ateam_merge` branch and are applied only to the
 merged database. That is the long-lived git branch `ateam_merge` (see Phase 0); `alembic/env.py`
@@ -26,16 +31,15 @@ Facts from the spike (SCRUM-6650):
 - a dump is at `s3://agr-literature/build/database_dump/ondemand/literature_ateam_merge_test_2026-10-16_19-33-42.dump`.
   It predates SCRUM-6719, so it must be rebuilt.
 
-## Guiding decisions (recommended)
+## Guiding decisions
 1. **The API keeps speaking curies.** Follow the SCRUM-6719 pattern used for `created_by`:
    - the DB column becomes `<col>_id` (FK to `ontologyterm.id`);
    - the model keeps the attribute `<col>` as a `column_property` that selects `ontologyterm.curie`;
    - a write-side hook resolves curie → id.
    Schemas, routers and UI are unchanged.
 2. **Elasticsearch documents keep curie strings under the same field names,** so the ES mappings
-   and `search_crud` filters and facets don't change. ksqlDB gets an `ontologyterm` lookup table
-   (only the term types we use) and joins id → curie. The joins come before `tag_group_key`
-   (`ksql_queries.ksql:285`) and the curie `CASE`s (`:280`, `:452`, `:988`).
+   and `search_crud` filters and facets don't change. **Changed 2026-10-22:** ksqlDB reads
+   trigger-maintained `*_curie` mirror columns (Phase 4) instead of joining an `ontologyterm` table.
 3. **`biologicalentity` is not streamed** (too large a state store). `topic_entity_tag` gets
    `entity_id` (FK) and keeps `entity` (string) filled for every row: the curie for A-team
    entities, and the leftover WB/SGD-validated value otherwise. ksql keeps reading the string.
@@ -64,11 +68,12 @@ Facts from the spike (SCRUM-6650):
   from the same hierarchy as the in-memory mock (`fixtures.atp_test_hierarchy()`).
   - **Checked against the merged DB:** every fixture column exists in the real tables.
   - **Not needed yet:** `species`.
-  - **Still to replace:** the `set_globals` seeding, when Phase 3 moves the helpers to SQL.
+  - **`set_globals` seeding stays** for the mocked cache. Phase 3 added tests that build the cache
+    from the fixture tables with SQL and compare it with that mock.
 - **Left:** record the guard revision on the merged DB by running `alembic upgrade head` with the
   container's Postgres credentials.
 
-### Phase 1 — Ontology curie columns → FK `ontologyterm`
+### Phase 1 — Ontology curie columns → FK `ontologyterm` (done 2026-10-22)
 These are the 29 columns plus `_version` twins, all ATP except where noted:
 - `topic_entity_tag`: topic, entity_type, display_tag, data_novelty, data_context, species (NCBITaxon);
 - `workflow_tag`: workflow_tag_id, curation_tag; `workflow_tag_topic`: workflow_tag, topic;
@@ -98,18 +103,46 @@ Then:
   Extend `tests/test_legacy_schema_sql.py` with a rule that flags these column names in raw SQL
   when there's no `ontologyterm` join.
 
-### Phase 2 — Entities, species, MOD taxa
-- **TET:** add `entity_id` (FK `biologicalentity`), resolved through `primaryexternalid` (or `curie`
-  for AGRKB:), for `entity_id_validation='alliance'` rows. Keep the `entity` string as in
-  decision 3. Species entities: `entity_type` = species term → move them to `species`.
-- **CHECK `valid_entity_type_dependencies`:** recommend a relaxed CHECK plus CRUD enforcement:
-  `entity_type`, `entity` and `entity_id_validation` are all set or all NULL, and `entity_id` is
-  required when validation is `alliance`. Use a trigger only if the A-team writes TETs directly.
-- `dataset_entry.entity` gets the same treatment.
-- **`mod.taxon_ids`** → join table `mod_taxon (mod_id, ontologyterm_id, ordinal)`. The only reader
-  is `mod_crud.taxons()` (`mod_crud.py:104`); `mod_schemas` keep the list.
+**What was built:** 11 revisions, one per table: `b8d2f4e6a031` manual_indexing_tag, `d3f5a7c9e142`
+indexing_priority, `e6a8c0b2d453` ml_model, `f2b4d6e8a170` workflow_tag_topic, `a9c1e3f5b072` dataset,
+`c7e9a1b3d584` workflow_transition, `d8f0b2c4e695` workflow_tag, `e1a3c5d7f906` curation_status (and
+its source associations), `f4b6d8e0a217` tag_source, `a5c7e9f1b328` reference, `b7d9f1a3c540`
+topic_entity_tag.
+- **The pattern** (`api/models/ontology_term_model.py`): `ontology_curie()` column properties with a
+  comparator, so filters on the curie compare ids; `register_curie_columns()` resolves an assigned
+  curie, checking the term type, and an unknown curie is a 422. Persistent objects resolve on
+  assignment, so a curie-only change still gets a history row. `CurieLabelPlugin` shows history
+  changesets as curies.
+- **Two id columns got new names** because the obvious one was taken: `workflow_tag.workflow_tag_id`
+  is stored as `workflow_tag_term_id`, and `curation_status.curation_status` as
+  `curation_status_term_id`. The model attributes keep the old names.
+- **Unresolved values on the merged DB:** only `tag_source` row 227's `ECO_0006156`, corrected to
+  `ECO:0006156` in the migration (and in `load_pdb_associations`). There is no `START_STATE` in the data.
+  The `LIKE 'ATP:%'` CHECKs are gone; the FK plus the resolver's type check replace them.
+- **Large tables:** `topic_entity_tag` (4.2M live, 8.6M history rows) drops its old indexes first and
+  rewrites each table once: about 10.5 min. `reference_version` (15 GB) is not rewritten; only its
+  178,005 rows with a value are updated.
+- **Also fixed:** the weekly SGD/ZFIN entity-tag loaders in `data_ingest/for_migration/` still run from
+  cron, so their raw SQL was converted too.
 
-### Phase 3 — `ateam_db_helpers` → direct SQL
+### Phase 2 — Entities, species, MOD taxa (done 2026-10-22)
+- **TET** (`c2e4a6b8d051`): `entity_id`, an FK to `biologicalentity` matched on `primaryexternalid`,
+  `ON DELETE SET NULL`. It is reset from the `entity` string, which stays the source of truth, on
+  every write (`api/models/biological_entity_model.py`). An entity A-team doesn't hold leaves it NULL.
+  - **Merged DB:** 2,487,426 of 2,644,494 rows linked, 0 mismatched.
+  - **Unlinked:** species tags (133,559, whose entity is an NCBITaxon *term*: left as a string only),
+    SGD protein complexes and pathways (about 20,700), WB transgenes (2,061), about 285 deleted genes
+    and alleles, and 29 malformed values.
+  - **So `entity_id` can't be required** for `entity_id_validation = 'alliance'` (most SGD complexes
+    are marked so); `valid_entity_type_dependencies` only moved to `entity_type_id`.
+  - **History** gets `entity_id` / `entity_id_mod` without a backfill (no 15-minute rewrite); old
+    history rows keep their entity string.
+- **`dataset_entry.entity`** is NULL in all 100,211 rows, so it was left alone.
+- **`mod.taxon_ids`** (`d5f7b9c1e262`) → the ordered table `mod_taxon (mod_id, ordinal,
+  ontologyterm_id)`. `ModModel.taxon_ids` stays a list of curies (an association proxy), so the API
+  is unchanged, except that GO and AGR now return `[]`, not `null`. Not versioned.
+
+### Phase 3 — `ateam_db_helpers` → direct SQL (done 2026-10-22)
 - Keep every public signature in `api/crud/ateam_db_helpers.py`. Implement them on `ontologyterm`
   and `ontologytermclosure`:
   - descendant = `closuresubject_id`, ancestor = `closureobject_id`;
@@ -138,20 +171,51 @@ Then:
   `resource_descriptor_cache` unless A-team's descriptor table is adopted.
 - Drop the `PERSISTENT_STORE_DB_*` dependency from runtime paths.
 
-### Phase 4 — Search pipeline (Debezium / ksqlDB / ES)
-- Add `ontologyterm` to `postgres-source-unified.json` (`table.include.list`, the simple-table key
-  extractors) and to the publication in `setup.sh`.
-- ksql: an `ontologyterm` table keyed by id, then lookup joins for TET, tag_source,
-  curation_status, workflow_tag, indexing_priority, manual_indexing_tag and reference. These emit
-  the same curie field names, keeping the "narrow spine" join ordering (`ksql_queries.ksql:694-931`).
-- No ES mapping change. Full reindex, then compare a document sample against the pre-merge index,
-  as in the 2026-10-15 PG 18.4 test.
+**What was built:** every lookup that went through `agr_curation_api`'s DB methods is the same
+query on ABC's own engine; a failure still raises `AGRAPIError`, so callers still return a 502.
+- **The ATP cache** reads every parent→child edge in one query, then runs the unchanged BFS in
+  memory. That keeps `atp_to_parent`'s meaning without choosing parents by subtree: the client's
+  `DISTINCT` already sorted children by curie, and so does the new query. On the merged DB, 30 of the
+  314 cached terms have several parents, and only 2 (ATP:0000044, ATP:0000085) depend on child order.
+  Both keep ATP:0000150 as before.
+- **A bug fixed:** for non-ATP terms the client's "ancestors" query returned descendants.
+- **Stays on the A-team API:** `get_or_create_species`, resource descriptors and the missing-species
+  loader. `PERSISTENT_STORE_DB_*` is gone from `docker-compose.yaml`.
+- **Not done (optional):** collapsing the search and TET-grid name maps into one join. They already
+  go through the SQL `map_curies_to_names`.
 
-### Phase 5 — A-team foreign keys → ABC `reference` / `person`
+### Phase 4 — Search pipeline (Debezium / ksqlDB / ES) (done 2026-10-22)
+- **Decided 2026-10-22: trigger-maintained curie mirrors, not ksql lookup joins.** Streaming
+  `ontologyterm` would put A-team's whole ontology store through Kafka (491,973 rows, 266 MB, of which
+  ABC uses about 4,500). It would need a row-filtered publication and `REPLICA IDENTITY FULL` on
+  A-team's table. And because a ksql FK join re-emits every left row when the right row changes, any
+  A-team touch of ATP:0000005 would re-emit about 1.9M tags. TET alone needed 6 chained FK joins over
+  4.2M rows.
+- **What was built** (`api/triggers/curie_mirror_sql_func_triggers.py`, revision `e8a0c2d4f673`):
+  - **The mirrors:** each of the 14 streamed id columns on 7 tables has a read-only `<name>_curie`
+    column, filled by a BEFORE INSERT/UPDATE trigger from `ontologyterm`. A term's curie never
+    changes for its id, so a mirror can't go stale.
+  - **Hidden from the app:** the mirrors are not in the models, so the ORM, schemas and history never
+    see them, and `alembic/env.py` keeps them out of autogenerate.
+  - **Installation:** `create_all_triggers` installs them on start, creating only what is missing.
+  - **Backfill on the merged DB:** about 4 min 20 s for `topic_entity_tag` and 1 min 10 s for
+    `workflow_tag`.
+- **ksql** source tables declare the `*_curie` columns and alias them to the old names, so the tag
+  group key, the CASEs and the ES documents are unchanged. Nothing is added to the connector.
+- **`status_manager.sh`'s promotion gate** counted tags on the dropped columns. It would have failed
+  closed on every rebuild, so it now uses the mirrors.
+- **A Debezium CI test** checks that the indexed tags, workflow tags, priorities and manual tags carry
+  curies.
+- **Still to do at rollout:** a full reindex, then compare a document sample against the pre-merge
+  index, as in the 2026-10-15 PG 18.4 test.
+
+### Phase 5 — A-team foreign keys → ABC `reference` / `person` (the A-team's own work)
+**Decided 2026-10-22: the A-team does these FK changes separately.** What follows is kept as our
+reading of their schema, for reference.
 - **References:** repoint the 12 FKs (`*_reference.references_id`, `*.singlereference_id`,
   `reference_crossreference`) from `ateam_reference.id` to ABC `reference.id`, using the curie
   map (517,344/517,346; the 2 misses are resolved by hand).
-- **Blocker:** about 20 evidence FKs (disease, phenotype and expression annotations,
+- **Their decision:** about 20 evidence FKs (disease, phenotype and expression annotations,
   `*_informationcontententity.evidence_id`) point at A-team **`informationcontententity`**, the
   supertype of `reference`, not at `reference`. Options to agree with A-team:
   (a) keep `informationcontententity` and give each ABC reference a matching row with the same id
@@ -159,16 +223,15 @@ Then:
   (b) repoint the evidence FKs at `reference` and keep `informationcontententity` only for
   external database references.
 - **People:** 131 A-team `createdby_id` / `updatedby_id` FKs point at A-team `person`. ABC audits
-  through `agent` (SCRUM-6719). Recommend mapping A-team people to ABC `person` (and agent),
-  keyed on orcid / authemail / uniqueid, then repointing at `agent.id`. This needs A-team Java
-  changes (their `AuditedObject` uses `Person`).
+  through `agent` (SCRUM-6719); mapping their people to ABC `person` / `agent` is theirs to decide.
 - Then drop `ateam_reference` / `ateam_person`. Stop A-team's ES-based reference sync
   (`ReferenceSynchronisationHelper`); the table is shared now.
 
 ### Phase 6 — Merged references (decided in SCRUM-6742)
 - ABC-side changes can ship on `main` first. Option 1 (Blue Team preference) adds the losing curie
   as a cross reference, replaces `obsolete_reference_curie`, and repoints A-team FKs during
-  `merge_references` (`reference_crud.py:1090`).
+  `merge_references` (`reference_crud.py:1090`). Whether ABC may touch the A-team's FKs is one of the
+  open questions (Phase 5 is theirs).
 - **Fix while there:** today's merge copies only TETs. `workflow_tag`, `curation_status`,
   `indexing_priority` and `manual_indexing_tag` on the losing reference are lost by cascade.
   Decide what moves.
@@ -179,15 +242,25 @@ Rehearse on the merged test DB, then stage, then prod. In order: A-team freeze; 
 rename (`ateam_merge_load.sh`); `alembic upgrade head` from the `ateam_merge` branch; validation reports; Debezium rebuild and full reindex;
 API and automated scripts back on; A-team app pointed at the shared DB. Measure downtime on the
 rehearsal, as SCRUM-6719 did. Keep a rollback (the pre-merge dumps).
+- **ABC migration time measured so far:** roughly 25 min, mostly `topic_entity_tag`: about 10.5 min
+  for the id conversion, 4 min for `entity_id` and 4 min 20 s for the mirrors. These are upper
+  bounds, because the test DB is bloated by the rolled-back dry runs. The rehearsal should run the
+  whole chain once, after a `VACUUM`.
+- **Recording the guard revision** on the merged DB needs the container's Postgres credentials.
 
-## Open questions for the A-team (to settle before Phases 5–6)
-1. Option (a) or (b) for `informationcontententity` evidence FKs.
-2. Audit FKs: A-team → ABC `agent`, or keep a `person` mapping?
-3. Who owns `ontologyterm` writes (ontology loads) and the closure refresh, and when? ksql and the
-   ABC caches must see the changes.
-4. SCRUM-6742 option 1: may ABC's merge update A-team FKs? Plus the maintenance-banner API for
-   A-team deploys.
-5. `START_STATE` sentinel: is there an ATP term for it, or does it stay NULL?
+## Open questions for the A-team
+The current list is the questions comment on SCRUM-6720 (updated 2026-10-22). The questions on their
+own FKs (evidence and audit) are dropped, since Phase 5 is theirs. Debezium on `ontologyterm` and
+`START_STATE` are moot. Eight remain:
+1. Who owns the ontology loads and the closure refresh; are term ids stable across reloads.
+2. SCRUM-6742: may ABC's merge move their FKs to the surviving reference.
+3. How reloads treat obsolete terms, and whether a term's type or curie can change for its id
+   (the curie mirrors rely on it not changing).
+4. The closure table's duplicate `is_a` / `is_a,part_of` rows and multiple parents.
+5. Flyway and alembic in one database.
+6. Switching off their ES-based reference sync.
+7. Running the shared database (roles, backups, connection limits).
+8. Cutover freeze and testing against the merged test DB.
 
 ## Critical files
 - `alembic/versions/` (new revisions on the `ateam_merge` branch), `alembic/env.py`
@@ -197,7 +270,8 @@ rehearsal, as SCRUM-6719 did. Keep a rollback (the pre-merge dumps).
   `reference_crud.py`
 - `agr_literature_service/lit_processing/data_ingest/utils/db_write_utils.py`,
   `lit_processing/data_check/*`
-- `debezium/ksql_queries.ksql`, `debezium/postgres-source-unified.json`, `debezium/setup.sh`
+- `debezium/ksql_queries.ksql`, `debezium/status_manager.sh`,
+  `agr_literature_service/api/triggers/curie_mirror_sql_func_triggers.py`
 - `tests/test_legacy_schema_sql.py`, plus the test DB fixtures for the A-team tables
 
 ## Verification
