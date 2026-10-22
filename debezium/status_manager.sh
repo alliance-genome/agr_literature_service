@@ -498,7 +498,8 @@ indexed_tet_count() {
 # (reference, entity_type, topic, data_provider, SEA group, owning MOD) group above the
 # large-scale threshold collapses into ONE summary tag (SCRUM-6614). The grouping and the
 # threshold mirror topic_entity_tag_groups / topic_entity_tag_group_summary in
-# ksql_queries.ksql (LARGE_SCALE_THRESHOLD is defined above).
+# ksql_queries.ksql (LARGE_SCALE_THRESHOLD is defined above), on the same trigger-maintained
+# curie mirrors ksql reads (SCRUM-6720: topic / entity_type / source_evidence_assertion are ids).
 expected_tet_count() {
     local threshold="${LARGE_SCALE_THRESHOLD}"
     PGPASSWORD="${PSQL_PASSWORD}" psql -h "${PSQL_HOST}" -U "${PSQL_USERNAME}" -p "${PSQL_PORT}" -d "${PSQL_DATABASE}" -tAq -c "
@@ -506,9 +507,9 @@ expected_tet_count() {
             SELECT count(*) AS n
               FROM topic_entity_tag t
               JOIN tag_source s ON s.id = t.tag_source_id
-             GROUP BY t.reference_id, coalesce(t.entity_type, ''), coalesce(t.topic, ''),
+             GROUP BY t.reference_id, coalesce(t.entity_type_curie, ''), coalesce(t.topic_curie, ''),
                       coalesce(s.data_provider, ''),
-                      CASE WHEN s.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035')
+                      CASE WHEN s.source_evidence_assertion_curie IN ('ATP:0000036', 'ATP:0000035')
                            THEN 'ECO:0006155' ELSE 'ECO:0007669' END,
                       coalesce(s.secondary_data_provider_id, 0))
         SELECT coalesce(sum(CASE WHEN n > ${threshold} THEN 1 ELSE n END), 0) FROM g;" 2>/dev/null | tr -d '[:space:]'

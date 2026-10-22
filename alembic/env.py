@@ -7,6 +7,7 @@ from alembic import context
 from sqlalchemy_continuum.plugins import PropertyModTrackerPlugin
 from sqlalchemy_continuum import make_versioned
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.triggers.curie_mirror_sql_func_triggers import mirror_columns
 from sqlalchemy.orm import configure_mappers
 
 # from literature.database.versioning import enable_versioning
@@ -80,6 +81,9 @@ def include_object(obj, name, type_, reflected, compare_to):
             return False
         if reflected and compare_to is None:
             return False
+    # the trigger-maintained curie mirrors (SCRUM-6720 Phase 4) are deliberately not in the models
+    if type_ == 'column' and reflected and compare_to is None and name in mirror_columns(obj.table.name):
+        return False
     return True
 
 

@@ -29,7 +29,7 @@ CREATE TABLE reference (
     resource_id string,
     title string,
     volume string,
-    retraction_status string,
+    retraction_status_curie string,
     can_display_image boolean,
     image_count integer
   ) WITH (
@@ -70,7 +70,7 @@ CREATE TABLE normalized_copyright_reference AS
     END AS resource_id,
     title,
     volume,
-    retraction_status,
+    retraction_status_curie AS retraction_status,
     can_display_image,
     image_count
   FROM reference
@@ -172,7 +172,7 @@ CREATE TABLE tag_source(
     source_method string,
     data_provider string,
     secondary_data_provider_id string,
-    source_evidence_assertion string
+    source_evidence_assertion_curie string
   ) WITH (
     KAFKA_TOPIC='abc.public.tag_source',
     VALUE_FORMAT='json',
@@ -182,21 +182,21 @@ CREATE TABLE tag_source(
 CREATE TABLE topic_entity_tag(
     topic_entity_tag_id string PRIMARY KEY,
     reference_id string,
-    \"topic\" string,
-    entity_type string,
+    topic_curie string,
+    entity_type_curie string,
     date_created string,
     date_updated string,
     entity string,
     entity_published_as string,
-    species string,
-    display_tag string,
+    species_curie string,
+    display_tag_curie string,
     confidence_level string,
     confidence_score double,
     negated boolean,
     note string,
     tag_source_id string,
-    data_novelty string,
-    data_context string,
+    data_novelty_curie string,
+    data_context_curie string,
     validation_by_professional_biocurator string,
     entity_id_validation string
   ) WITH (
@@ -207,14 +207,13 @@ CREATE TABLE topic_entity_tag(
 
 CREATE TABLE curation_status(
     curation_status_id string PRIMARY KEY,
-    \"topic\" string,
+    topic_curie string,
     reference_id string,
     mod_id string,
-    curation_status string,
+    curation_status_curie string,
     note string,
     date_created string,
-    date_updated string,
-    curation_tag string
+    date_updated string
 ) WITH (
     KAFKA_TOPIC='abc.public.curation_status',
     VALUE_FORMAT='json',
@@ -224,9 +223,9 @@ CREATE TABLE curation_status(
 CREATE TABLE curation_status_with_mod AS
     SELECT
     curation_status.curation_status_id AS CURATION_STATUS_ID,
-    curation_status.\"topic\" \"TOPIC\",
+    curation_status.topic_curie \"TOPIC\",
     curation_status.reference_id,
-    curation_status.curation_status,
+    curation_status.curation_status_curie AS curation_status,
     mod.abbreviation
     FROM curation_status
     JOIN mod ON
@@ -244,7 +243,7 @@ CREATE TABLE tag_source_with_mod AS
     tag_source.tag_source_id AS TAG_SOURCE_ID,
     tag_source.source_method,
     tag_source.data_provider,
-    tag_source.source_evidence_assertion,
+    tag_source.source_evidence_assertion_curie AS source_evidence_assertion,
     mod.abbreviation AS secondary_data_provider
     FROM tag_source
     JOIN mod ON tag_source.secondary_data_provider_id = mod.mod_id
@@ -254,21 +253,21 @@ CREATE TABLE topic_entity_tag_with_source AS
     SELECT
     topic_entity_tag.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
     topic_entity_tag.reference_id,
-    topic_entity_tag.\"topic\" \"TOPIC\",
-    topic_entity_tag.entity_type,
+    topic_entity_tag.topic_curie \"TOPIC\",
+    topic_entity_tag.entity_type_curie AS entity_type,
     topic_entity_tag.date_created,
     topic_entity_tag.date_updated,
     topic_entity_tag.entity,
     topic_entity_tag.entity_published_as,
-    topic_entity_tag.species,
-    topic_entity_tag.display_tag,
+    topic_entity_tag.species_curie AS species,
+    topic_entity_tag.display_tag_curie AS display_tag,
     topic_entity_tag.confidence_level,
     topic_entity_tag.confidence_score,
     topic_entity_tag.negated,
     topic_entity_tag.note,
     topic_entity_tag.tag_source_id,
-    topic_entity_tag.data_novelty,
-    topic_entity_tag.data_context,
+    topic_entity_tag.data_novelty_curie AS data_novelty,
+    topic_entity_tag.data_context_curie AS data_context,
     topic_entity_tag.validation_by_professional_biocurator,
     topic_entity_tag.entity_id_validation,
     tag_source.source_method,
@@ -282,7 +281,7 @@ CREATE TABLE topic_entity_tag_with_source AS
       ELSE 'ECO:0007669'
     END AS source_evidence_assertion_group,
 
-    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END, '|', coalesce(tag_source.secondary_data_provider, '')) AS tag_group_key
+    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type_curie, ''), '|', coalesce(topic_entity_tag.topic_curie, ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END, '|', coalesce(tag_source.secondary_data_provider, '')) AS tag_group_key
 
     FROM topic_entity_tag topic_entity_tag
     JOIN tag_source_with_mod tag_source ON
@@ -465,7 +464,7 @@ CREATE TABLE reference_with_citation AS
 CREATE TABLE reference_workflow_tag(
     reference_workflow_tag_id string PRIMARY KEY,
     reference_id string,
-    workflow_tag_id string,
+    workflow_tag_curie string,
     mod_id string
   ) WITH (
     KAFKA_TOPIC='abc.public.workflow_tag',
@@ -477,7 +476,7 @@ CREATE TABLE reference_workflow_tag_with_mod AS
     SELECT
         reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
         reference_workflow_tag.reference_id,
-        reference_workflow_tag.workflow_tag_id,
+        reference_workflow_tag.workflow_tag_curie AS workflow_tag_id,
         mod.abbreviation AS mod_abbreviation
     FROM reference_workflow_tag
     JOIN mod
@@ -549,8 +548,8 @@ CREATE TABLE indexing_priority (
     indexing_priority_id string PRIMARY KEY,
     reference_id string,
     mod_id string,
-    predicted_indexing_priority string,
-    curator_indexing_priority string,
+    predicted_indexing_priority_curie string,
+    curator_indexing_priority_curie string,
     confidence_score double
   ) WITH (
     KAFKA_TOPIC='abc.public.indexing_priority',
@@ -561,7 +560,7 @@ CREATE TABLE manual_indexing_tag (
     manual_indexing_tag_id string PRIMARY KEY,
     reference_id string,
     mod_id string,
-    curation_tag string,
+    curation_tag_curie string,
     confidence_score double,
     validation_by_biocurator string,
     note string
@@ -624,8 +623,8 @@ CREATE TABLE indexing_priority_with_mod AS
     SELECT
         indexing_priority.indexing_priority_id AS INDEXING_PRIORITY_ID,
         indexing_priority.reference_id,
-        indexing_priority.predicted_indexing_priority,
-        indexing_priority.curator_indexing_priority,
+        indexing_priority.predicted_indexing_priority_curie AS predicted_indexing_priority,
+        indexing_priority.curator_indexing_priority_curie AS curator_indexing_priority,
         mod.abbreviation AS mod_abbreviation
     FROM indexing_priority
     JOIN mod
@@ -642,7 +641,7 @@ CREATE TABLE manual_indexing_tag_with_mod AS
     SELECT
         manual_indexing_tag.manual_indexing_tag_id AS MANUAL_INDEXING_TAG_ID,
         manual_indexing_tag.reference_id,
-        manual_indexing_tag.curation_tag,
+        manual_indexing_tag.curation_tag_curie AS curation_tag,
         mod.abbreviation AS mod_abbreviation
     FROM manual_indexing_tag
     JOIN mod
