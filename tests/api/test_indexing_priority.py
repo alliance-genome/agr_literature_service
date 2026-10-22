@@ -10,6 +10,7 @@ from agr_literature_service.api.crud import indexing_priority_crud as ip_crud
 from agr_literature_service.api.schemas.indexing_priority_schemas import (
     IndexingPrioritySchemaPost,
 )
+from ..ateam_fixture_schema import add_ontology_terms
 from ..fixtures import db as _db_fixture  # noqa: F401
 from .fixtures import auth_headers as _auth_headers_fixture  # noqa: F401
 from .test_reference import test_reference as _test_reference_fixture  # noqa: F401
@@ -19,6 +20,13 @@ auth_headers = _auth_headers_fixture
 test_reference = _test_reference_fixture
 
 # ---------- monkeypatch app dependencies so tests are self-contained ----------
+
+
+@pytest.fixture(autouse=True)
+def priority_terms(db):  # noqa
+    """The priorities are foreign keys to ontologyterm (SCRUM-6720): register the terms used here."""
+    add_ontology_terms(db.connection(), ["ATP:0000210", "ATP:0000211", "ATP:0000212"])
+    db.commit()
 
 
 @pytest.fixture(autouse=True)
@@ -208,3 +216,27 @@ class TestIndexingPriorityCRUD:
             assert key in row
 
         assert row["predicted_indexing_priority_name"]
+
+    def test_priority_curies_are_ontology_term_ids(self, db, test_reference):  # noqa
+        """SCRUM-6720: the priorities are stored as ontologyterm ids and read back as curies;
+        an ATP: curie that is not a term is refused; filters compare the id columns."""
+        from agr_literature_service.api.models.ontology_term_model import UnknownOntologyTermError
+        mod_id = _ensure_mod(db, "WB")
+        ref = db.query(ReferenceModel).filter_by(curie=test_reference.new_ref_curie).one()
+        row = IndexingPriorityModel(reference_id=ref.reference_id, mod_id=mod_id,
+                                    predicted_indexing_priority="ATP:0000211", curator_indexing_priority=None)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        assert row.predicted_indexing_priority == "ATP:0000211" and row.curator_indexing_priority is None
+        assert isinstance(row.predicted_indexing_priority_id, int) and row.curator_indexing_priority_id is None
+        row.curator_indexing_priority = "ATP:0000212"
+        db.commit()
+        db.refresh(row)
+        assert row.curator_indexing_priority == "ATP:0000212" and isinstance(row.curator_indexing_priority_id, int)
+        assert db.query(IndexingPriorityModel).filter(
+            IndexingPriorityModel.curator_indexing_priority == "ATP:0000212").count() == 1
+        row.predicted_indexing_priority = "ATP:not_a_term"
+        with pytest.raises(UnknownOntologyTermError):
+            db.commit()
+        db.rollback()
