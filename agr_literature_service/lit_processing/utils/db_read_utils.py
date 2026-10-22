@@ -697,6 +697,28 @@ def get_mod_reference_type_data_for_ref_ids(db_session: Session, ref_ids):
     return reference_id_to_mod_reference_types
 
 
+def get_resource_titles_by_ids(resource_ids: Iterable[Union[int, str]],
+                               db_session: Session = None) -> Dict[str, Dict[str, str]]:
+    """
+    Map resource ids (as strings, the way the search index stores them) to
+    {"title": ..., "curie": ...}. Ids that are not numeric or not found are
+    left out. Used to label the resource facet buckets in search.
+    """
+    ids = sorted({int(rid) for rid in resource_ids if str(rid).isdigit()})
+    if not ids:
+        return {}
+    own_session = db_session is None
+    if own_session:
+        db_session = create_postgres_session(False)
+    try:
+        rows = db_session.query(ResourceModel.resource_id, ResourceModel.title, ResourceModel.curie).filter(
+            ResourceModel.resource_id.in_(ids)).all()
+    finally:
+        if own_session:
+            db_session.close()
+    return {str(resource_id): {"title": title, "curie": curie} for resource_id, title, curie in rows}
+
+
 def get_mod_abbreviations(db_session: Session = None):
     if db_session is None:
         db_session = create_postgres_session(False)
