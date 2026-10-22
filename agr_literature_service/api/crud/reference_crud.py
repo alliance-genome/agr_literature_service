@@ -1404,7 +1404,8 @@ def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: s
     workflow_tag_id_clause: Optional[TextClause] = None
 
     if filter == 'default':
-        workflow_tag_id_clause = text("""WHERE (d.workflow_tag_id = 'ATP:0000139' OR d.workflow_tag_id = 'ATP:0000141')""")
+        workflow_tag_id_clause = text("""WHERE d.workflow_tag_term_id IN (SELECT id FROM ontologyterm
+                                                                            WHERE curie IN ('ATP:0000139', 'ATP:0000141'))""")
     elif filter in ['ATP:0000134', 'ATP:0000135']:
         workflow_tag_id_clause = text("""WHERE workflow_tag_id = :filter""")
     query_str = f"""

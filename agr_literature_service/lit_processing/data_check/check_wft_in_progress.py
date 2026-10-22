@@ -135,7 +135,7 @@ def process_no_parent(db_session, phase, slack_messages, counts, failed_refs, de
         sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
                         WHERE r.id = {wft.reference_id} AND
                               r.id = wft.reference_id AND
-                              wft.workflow_tag_id = '{phase['start of progress']}' AND
+                              wft.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = '{phase['start of progress']}') AND
                               wft.date_created >= '{start_date}'""")
         if debug:
             print(sql)
@@ -168,7 +168,7 @@ def process_no_parent(db_session, phase, slack_messages, counts, failed_refs, de
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
                             WHERE r.id = {wft.reference_id} AND
                                   r.id = wft.reference_id AND
-                                  wft.workflow_tag_id = '{wft.workflow_tag_id}' """)
+                                  wft.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = '{wft.workflow_tag_id}') """)
             if debug:
                 print(sql)
             reference = db_session.execute(sql).first()
@@ -205,7 +205,7 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
         sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
                         WHERE r.id = {wft.reference_id} AND
                               r.id = wft.reference_id AND
-                              wft.workflow_tag_id = '{phase['start of progress']}' AND
+                              wft.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = '{phase['start of progress']}') AND
                               wft.date_created >= '{start_date}'""")
         if debug:
             print(sql)
@@ -233,7 +233,7 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
                             WHERE r.id = {wft.reference_id} AND
                                   r.id = wft.reference_id AND
-                                  wft.workflow_tag_id = '{wft.workflow_tag_id}' """)
+                                  wft.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = '{wft.workflow_tag_id}') """)
             if debug:
                 print(sql)
             reference = db_session.execute(sql).first()

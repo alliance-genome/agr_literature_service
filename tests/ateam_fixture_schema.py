@@ -52,7 +52,12 @@ ATEAM_FIXTURE_DDL = (
 TERM_TYPES = {'ATP': 'ATPTerm', 'NCBITaxon': 'NCBITaxonTerm', 'ECO': 'ECOTerm'}
 # Terms tests use as valid values that the ATP test hierarchy does not contain (made-up or
 # deliberately invalid curies, e.g. ATP:9999999, stay out so the tests that expect a 422 keep it)
-EXTRA_TEST_TERMS = ('ATP:0000061', 'ATP:0000062', 'ATP:0000110')
+EXTRA_TEST_TERMS = ('ATP:0000061', 'ATP:0000062', 'ATP:0000110',
+                    # workflow tags tests set directly (SCRUM-6720 workflow_tag)
+                    'ATP:0000103', 'ATP:0000198', 'ATP:0000214', 'ATP:0000303', 'ATP:0000306', 'ATP:0000342',
+                    'ATP:0000380', 'ATP:0000383', 'ATP:0000387', 'ATP:0001111', 'ATP:0002222', 'ATP:0003333',
+                    'ATP:NEW', 'ATP:task4_needed',
+                    'ATP:0000344')  # retracted curation_tag written by the retraction cleanup
 ENTITY_TAXA = {'WB': 'NCBITaxon:6239', 'FB': 'NCBITaxon:7227', 'SGD': 'NCBITaxon:559292',
                'ZFIN': 'NCBITaxon:7955', 'MGI': 'NCBITaxon:10090', 'RGD': 'NCBITaxon:10116',
                'Xenbase': 'NCBITaxon:8355'}

@@ -571,19 +571,21 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     SELECT DISTINCT
         wft.id AS reference_workflow_tag_id,
         m.abbreviation,
-        wft.workflow_tag_id,
+        wtt.curie AS workflow_tag_id,
         COALESCE(get_most_current_email(u.person_id), u.automation_username, p.curie) AS updated_by_email,
         COALESCE(p.display_name, u.automation_username, p.curie) AS updated_by_name,
         COALESCE(u.automation_username, p.curie) AS updated_by,
         wft.date_updated AS date_updated,
-        wft.curation_tag,
+        ctt.curie AS curation_tag,
         wft.note
     FROM workflow_tag wft
+    JOIN ontologyterm wtt ON wtt.id = wft.workflow_tag_term_id
+    LEFT JOIN ontologyterm ctt ON ctt.id = wft.curation_tag_id
     JOIN mod m ON wft.mod_id = m.id
     LEFT JOIN agent u ON wft.updated_by_id = u.id
     LEFT JOIN person p ON p.id = u.person_id
     WHERE wft.reference_id = :reference_id
-    AND wft.workflow_tag_id IN :all_workflow_tags_for_process
+    AND wtt.curie IN :all_workflow_tags_for_process
     """
 
     rows = db.execute(text(sql_query), {
@@ -887,7 +889,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                                 detail=message)
         atp_curies = all_WF_tags_for_process
     else:
-        rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
+        rows = db.execute(text("SELECT curie FROM ontologyterm WHERE id IN (SELECT DISTINCT workflow_tag_term_id FROM workflow_tag)")).fetchall()
         atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=atp_curies)
 
@@ -895,7 +897,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
 
     where_clauses = []
     params = {}
-    query = "SELECT m.abbreviation, wt.workflow_tag_id,"
+    query = "SELECT m.abbreviation, wtt.curie AS workflow_tag_id,"
     if date_frequency is not None:
         if date_frequency == 'year':
             query += """year, """
@@ -908,13 +910,14 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         COUNT(*) AS tag_count
         FROM mod m
         JOIN workflow_tag wt ON m.id = wt.mod_id
+        JOIN ontologyterm wtt ON wtt.id = wt.workflow_tag_term_id
         """
     if mod_abbreviation:
         where_clauses.append("m.abbreviation = :mod_abbreviation")
         params["mod_abbreviation"] = mod_abbreviation
 
     if all_WF_tags_for_process:
-        where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
+        where_clauses.append("wtt.curie = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
     date_column = "wt.date_updated"  # default
@@ -970,29 +973,29 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     if date_frequency is None:
         query += f"""
             {where}
-            GROUP BY m.abbreviation, wt.workflow_tag_id
-            ORDER BY m.abbreviation, wt.workflow_tag_id
+            GROUP BY m.abbreviation, wtt.curie
+            ORDER BY m.abbreviation, wtt.curie
             """
     elif date_frequency == 'year':
         query += f"""
             {extract}
             {where}
-            GROUP BY m.abbreviation, wt.workflow_tag_id, year
-            ORDER BY m.abbreviation, wt.workflow_tag_id, year
+            GROUP BY m.abbreviation, wtt.curie, year
+            ORDER BY m.abbreviation, wtt.curie, year
             """
     elif date_frequency == 'month':
         query += f"""
             {extract}
             {where}
-            GROUP BY m.abbreviation, wt.workflow_tag_id, year, month
-            ORDER BY m.abbreviation, wt.workflow_tag_id, year, month
+            GROUP BY m.abbreviation, wtt.curie, year, month
+            ORDER BY m.abbreviation, wtt.curie, year, month
             """
     elif date_frequency == 'week':
         query += f"""
             {extract}
             {where}
-            GROUP BY m.abbreviation, wt.workflow_tag_id, year, week
-            ORDER BY m.abbreviation, wt.workflow_tag_id, year, week
+            GROUP BY m.abbreviation, wtt.curie, year, week
+            ORDER BY m.abbreviation, wtt.curie, year, week
             """
 
     try:
@@ -1077,7 +1080,7 @@ def _counters_total(db: Session, atp_curie_to_name: Dict[str, str], all_WF_tags_
             where_clauses = list(base_where_clauses)
             params = dict(base_params)
             # Add the condition for the single tag in this iteration
-            where_clauses.append("wt.workflow_tag_id = :WF_tags")
+            where_clauses.append("wt.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :WF_tags)")
             params["WF_tags"] = WF_tags
 
             where = ""
@@ -1128,14 +1131,15 @@ def get_reference_workflow_tags_by_mod(
     # endDate:   "2024-08-26"
     query = text(
         "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, "
-        "       wft.date_updated, wft.curation_tag, wft.note "
+        "       wft.date_updated, ctt.curie AS curation_tag, wft.note "
         "FROM reference r "
         "JOIN cross_reference cr ON r.id = cr.reference_id "
         "JOIN workflow_tag wft ON cr.reference_id = wft.reference_id "
+        "LEFT JOIN ontologyterm ctt ON ctt.id = wft.curation_tag_id "
         "JOIN mod m ON wft.mod_id = m.id "
         "WHERE cr.curie_prefix = :curie_prefix "
         "AND m.abbreviation = :mod_abbreviation "
-        "AND wft.workflow_tag_id = :workflow_tag_id "
+        "AND wft.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :workflow_tag_id) "
         "AND wft.date_updated BETWEEN :startDate AND :endDate"
     )
 
@@ -1279,7 +1283,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         DELETE FROM workflow_tag
         WHERE reference_id = :reference_id
         AND mod_id = :mod_id
-        AND workflow_tag_id IN :all_workflow_tags
+        AND workflow_tag_term_id IN (SELECT id FROM ontologyterm WHERE curie IN :all_workflow_tags)
         """)
         db.execute(sql_query, {
             'reference_id': reference_id,
@@ -1313,10 +1317,10 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         new_atp_id = file_upload_in_progress if rows[0][0] > 0 else file_needed
         sql_query = text("""
         UPDATE workflow_tag
-        SET workflow_tag_id = :new_atp_id
+        SET workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :new_atp_id)
         WHERE reference_id = :reference_id
         AND mod_id = :mod_id
-        AND workflow_tag_id = :curr_atp_id
+        AND workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :curr_atp_id)
         """)
         db.execute(sql_query, {
             'new_atp_id': new_atp_id,
@@ -1391,11 +1395,12 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     # get overall paper statuses
     atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
     sql_query = text(f"""
-    select workflow_tag_id, count(1) as count
-       from workflow_tag
-         where workflow_tag_id in ({atp_list}) and
-               mod_id = {mod.mod_id}
-             group by workflow_tag_id;
+    select wtt.curie as workflow_tag_id, count(1) as count
+       from workflow_tag wt
+         join ontologyterm wtt on wtt.id = wt.workflow_tag_term_id
+         where wtt.curie in ({atp_list}) and
+               wt.mod_id = {mod.mod_id}
+             group by wtt.curie;
     """)
     overall_total = 0
     overall_dict = {}
@@ -1416,11 +1421,12 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
 
     sql_query = text(f"""
-    select workflow_tag_id, count(1) as count
-       from workflow_tag
-         where workflow_tag_id in ({atp_list}) and
-               mod_id = {mod.mod_id}
-             group by workflow_tag_id;
+    select wtt.curie as workflow_tag_id, count(1) as count
+       from workflow_tag wt
+         join ontologyterm wtt on wtt.id = wt.workflow_tag_term_id
+         where wtt.curie in ({atp_list}) and
+               wt.mod_id = {mod.mod_id}
+             group by wtt.curie;
     """)
     rows = db.execute(sql_query).fetchall()
     for (atp, count) in rows:

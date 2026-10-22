@@ -412,7 +412,7 @@ def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[int, int, str]]:
             JOIN workflow_tag wft ON wft.reference_id = r.id
             JOIN mod m ON m.id = wft.mod_id
             JOIN referencefile rf ON rf.reference_id = r.id
-            WHERE wft.workflow_tag_id = :email_extraction_needed
+            WHERE wft.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :email_extraction_needed)
               AND rf.file_class = 'converted_merged_main'
               AND rf.file_extension = 'md'
             GROUP BY r.curie, r.id, m.abbreviation
