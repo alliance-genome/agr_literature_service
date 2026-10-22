@@ -3858,15 +3858,16 @@ class TestAtpChildrenCaching:
         saved = dict(helpers.atp_to_children)
         helpers.atp_to_children.clear()
         try:
-            with patch.object(helpers, "_get_client") as mock_client:
-                # A term with no children: the client must be consulted once, then never
-                # again, otherwise every rule evaluation pays a network round trip.
-                mock_client.return_value.get_atp_descendants.return_value = []
+            # SCRUM-6720: the per-term children query (no cache build has read every edge)
+            with patch.object(helpers, "_atp_edges", None), \
+                    patch.object(helpers, "_sql_atp_descendants", return_value=[]) as mock_query:
+                # A term with no children: the query must run once, then never again,
+                # otherwise every rule evaluation pays a round trip.
                 assert helpers._get_atp_children("ATP:leafterm") == []
                 assert helpers._get_atp_children("ATP:leafterm") == []
                 assert helpers._get_atp_children("ATP:leafterm") == []
-                assert mock_client.return_value.get_atp_descendants.call_count == 1, (
-                    "childless ATP terms are not being cached; every lookup re-hits the API")
+                assert mock_query.call_count == 1, (
+                    "childless ATP terms are not being cached; every lookup re-runs the query")
         finally:
             helpers.atp_to_children.clear()
             helpers.atp_to_children.update(saved)

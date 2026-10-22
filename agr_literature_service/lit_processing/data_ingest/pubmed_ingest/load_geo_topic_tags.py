@@ -85,8 +85,8 @@ DATA_CONTEXT_EXPERIMENTALLY_STUDIED = "ATP:0000325"
 SOURCE_METHOD = "GEO dataset association pipeline"
 SOURCE_DATA_PROVIDER = "GEO"
 # A run of failures this long means something systemic rather than a bad row --
-# most likely the A-team curation DB (PERSISTENT_STORE_DB_*) is unreachable, which
-# makes create_tag report every ATP id, even ones production uses constantly, as
+# most likely the A-team ontology tables (in the literature database since SCRUM-6720)
+# cannot be read, which makes create_tag report every ATP id, even ones production uses constantly, as
 # "is not valid". Stop there instead of repeating the same failure thousands of
 # times; 409 duplicate skips are not failures and never trip this.
 MAX_CONSECUTIVE_ERRORS = 5
@@ -275,9 +275,9 @@ def load(mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
                 logger.error(
                     "Giving up after %d consecutive failures with %d of %d references "
                     "processed. The same failure for every reference points at the "
-                    "environment rather than the data -- check that the A-team curation "
-                    "DB (PERSISTENT_STORE_DB_*) is reachable, since ATP validation "
-                    "reports every id invalid when it is not.",
+                    "environment rather than the data -- check that the A-team ontology "
+                    "tables (ontologyterm) are readable, since ATP validation "
+                    "reports every id invalid when they are not.",
                     consecutive_errors, counts["tet_created"] + counts["tet_skipped_duplicate"]
                     + counts["errors"], counts["refs_scanned"])
                 break
