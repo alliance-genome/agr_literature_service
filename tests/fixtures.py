@@ -41,7 +41,9 @@ def delete_all_table_content(engine, db_session):
                 "WHERE person_id IS NOT NULL"
             ))
             for table in reversed(Base.metadata.sorted_tables):
-                if table.fullname != "agent":
+                # agent keeps the default user; A-team tables (ontologyterm) hold the static
+                # fixture data seeded once in _get_engine()
+                if table.fullname != "agent" and not table.info.get('ateam'):
                     conn.execute(table.delete())  # Use connection for execution
         db_session.commit()  # Commit the transaction
 
@@ -67,12 +69,13 @@ def _get_engine():
             pool_size=10,        # Connection pool size
             max_overflow=20      # Max overflow connections
         )
-        initialize()
-        # A-team tables of the merged database (SCRUM-6720), filled with the test ATP hierarchy
+        # A-team tables of the merged database (SCRUM-6720), filled with the test ATP hierarchy.
+        # Created before initialize(): ABC tables have foreign keys to ontologyterm.
         atp_to_name, _name_to_atp, children, _parent = atp_test_hierarchy()
         with _engine.begin() as conn:
             create_ateam_fixture_tables(conn)
             seed_ateam_fixture(conn, children, atp_to_name)
+        initialize()
     return _engine
 
 

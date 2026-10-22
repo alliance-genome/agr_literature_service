@@ -6,6 +6,7 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
+from ..ateam_fixture_schema import add_ontology_terms
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod  # noqa
@@ -35,6 +36,15 @@ def _patch_get_name_to_atp_for_descendants(process_atp_id: str):
     name_to_atp = {"Tag One": "ATP:curation_tag1", "Tag Two": "ATP:curation_tag2"}
     atp_to_name = {"ATP:curation_tag1": "Tag One", "ATP:curation_tag2": "Tag Two"}
     return name_to_atp, atp_to_name
+
+
+@pytest.fixture(autouse=True)
+def curation_tag_terms(db):  # noqa
+    """curation_tag is a foreign key to ontologyterm (SCRUM-6720): register the made-up tags and
+    the process terms these tests use in the fixture ontologyterm table."""
+    add_ontology_terms(db.connection(), ["ATP:curation_tag1", "ATP:curation_tag2", "ATP:0000208", "ATP:0000227"])
+    add_ontology_terms(db.connection(), ["NCBITaxon:9999999"], termtype="NCBITaxonTerm")
+    db.commit()
 
 
 TEST_PMID_XREF = "PMID:88888888"
@@ -113,6 +123,36 @@ class TestManualIndexingTag:
             assert data["curation_tag"] == "ATP:curation_tag1"
             assert data["reference_curie"] == test_manual_indexing_tag.new_reference_curie
             assert data["mod_abbreviation"] == test_manual_indexing_tag.new_mod_abbreviation
+
+    def test_unknown_or_wrong_type_curation_tag_is_422(self, test_reference, test_mod, auth_headers):  # noqa
+        """SCRUM-6720: curation_tag must be an ATP term in ontologyterm. The schema rejects a
+        non-ATP: prefix itself; an ATP: curie that is not an ATP term gets past it and is refused
+        when curation_tag is resolved to ontologyterm.id."""
+        def post(client, tag):
+            return client.post("/manual_indexing_tag/", headers=auth_headers, json={
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "reference_curie": test_reference.new_ref_curie,
+                "curation_tag": tag})
+        with TestClient(app) as client:
+            r = post(client, "ATP:not_a_term")
+            assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
+            assert r.json()["detail"] == "ATP:not_a_term is not a known ATPTerm ontology term"
+            r = post(client, "NCBITaxon:9999999")
+            assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
+
+    def test_filter_on_curation_tag_curie(self, db, test_manual_indexing_tag):  # noqa
+        """Filters on the curie attribute compare curation_tag_id (SCRUM-6720)."""
+        from agr_literature_service.api.crud.manual_indexing_tag_crud import get_ref_ids_with_curation_tag
+        from agr_literature_service.api.models import ManualIndexingTagModel
+        ref = db.query(ReferenceModel).filter_by(curie=test_manual_indexing_tag.new_reference_curie).one()
+        assert ref.reference_id in get_ref_ids_with_curation_tag(db, "ATP:curation_tag1")
+        assert ref.reference_id not in get_ref_ids_with_curation_tag(db, "ATP:curation_tag2")
+        row = db.query(ManualIndexingTagModel).filter(
+            ManualIndexingTagModel.curation_tag.in_(["ATP:curation_tag1"])).one()
+        assert row.curation_tag == "ATP:curation_tag1" and isinstance(row.curation_tag_id, int)
+        sql = str(db.query(ManualIndexingTagModel.manual_indexing_tag_id).filter(
+            ManualIndexingTagModel.curation_tag == "ATP:curation_tag1").statement)
+        assert "curation_tag_id =" in sql
 
     def test_delete(self, test_manual_indexing_tag, auth_headers):  # noqa
         with TestClient(app) as client:

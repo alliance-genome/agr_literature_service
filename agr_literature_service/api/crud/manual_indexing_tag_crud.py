@@ -259,7 +259,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
     sql = """
     SELECT
         mit.id AS manual_indexing_tag_id,
-        mit.curation_tag,
+        ct.curie AS curation_tag,
         mit.confidence_score,
         mit.validation_by_biocurator,
         mit.date_updated,
@@ -272,6 +272,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
     FROM manual_indexing_tag mit
     JOIN reference r ON r.id = mit.reference_id
     JOIN mod m ON m.id = mit.mod_id
+    JOIN ontologyterm ct ON ct.id = mit.curation_tag_id
     LEFT JOIN agent u  ON u.id = mit.updated_by_id
     LEFT JOIN person p ON p.id = u.person_id
     WHERE r.curie = :ref_curie

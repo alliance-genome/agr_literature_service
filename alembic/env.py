@@ -71,6 +71,18 @@ def run_migrations_offline():
         context.run_migrations()
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    """Autogenerate only compares ABC's own tables (SCRUM-6720). A-team tables are left alone:
+    the ones ABC maps (ontologyterm, flagged info['ateam']), and in the merged database every table
+    that ABC's metadata does not have (the rest of A-team's, ateam_person, ateam_reference)."""
+    if type_ == 'table':
+        if obj.info.get('ateam'):
+            return False
+        if reflected and compare_to is None:
+            return False
+    return True
+
+
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -88,7 +100,8 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_type=True
+            compare_type=True,
+            include_object=include_object
         )
 
         with context.begin_transaction():

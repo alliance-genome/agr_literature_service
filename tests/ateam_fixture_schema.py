@@ -107,3 +107,13 @@ def seed_ateam_fixture(conn, children: Dict[str, List[str]], names: Dict[str, st
     for entity_id, curie in enumerate(entities, start=1):
         conn.execute(text("INSERT INTO biologicalentity (id, primaryexternalid, taxon_id) VALUES (:i, :c, :t)"),
                      {"i": entity_id, "c": curie, "t": term_ids[ENTITY_TAXA[_prefix(curie)]]})
+
+
+def add_ontology_terms(conn, curies: Iterable[str], termtype: str = 'ATPTerm') -> None:
+    """Add terms a test needs (e.g. made-up ATP:curation_tag1) to the fixture ontologyterm table.
+    Existing curies are left as they are."""
+    for curie in curies:
+        conn.execute(text(
+            "INSERT INTO ontologyterm (id, curie, name, ontologytermtype) "
+            "SELECT coalesce(max(id), 0) + 1, :c, :c, :t FROM ontologyterm "
+            "ON CONFLICT (curie) DO NOTHING"), {"c": curie, "t": termtype})
