@@ -32,6 +32,7 @@ from agr_literature_service.api.models import (
     ReferenceModel, TagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
+from agr_literature_service.api.models.ontology_term_model import OntologyTermModel
 from agr_literature_service.api.models.topic_entity_tag_model import topic_entity_tag_validation
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     get_current_workflow_status
@@ -1508,20 +1509,23 @@ def build_entity_counts_by_mod_query(reference_id):
     entity) and tags without an entity type are skipped, matching the Biblio
     EntityCountsByMod panel this replaces, which used to aggregate client-side
     over the 8,000-row capped fetch and undercounted large-scale papers.
+    The entity type is grouped by its ontologyterm join (SCRUM-6720), not the
+    entity_type curie property, which is a subquery per row.
     """
     return OrmQuery([
         ModModel.abbreviation.label("mod_abbreviation"),
-        TopicEntityTagModel.entity_type.label("entity_type"),
+        OntologyTermModel.curie.label("entity_type"),
         func.count(func.distinct(TopicEntityTagModel.entity)).label("entity_count"),
     ]).select_from(TopicEntityTagModel).join(
         TagSourceModel, TopicEntityTagModel.tag_source_id == TagSourceModel.tag_source_id
     ).join(
         ModModel, TagSourceModel.secondary_data_provider_id == ModModel.mod_id
+    ).join(
+        OntologyTermModel, TopicEntityTagModel.entity_type_id == OntologyTermModel.id
     ).filter(
         TopicEntityTagModel.reference_id == reference_id,
         TopicEntityTagModel.entity.isnot(None),
-        TopicEntityTagModel.entity_type.isnot(None),
-    ).group_by(ModModel.abbreviation, TopicEntityTagModel.entity_type)
+    ).group_by(ModModel.abbreviation, OntologyTermModel.curie)
 
 
 def get_entity_counts_by_mod(db: Session, curie_or_reference_id):

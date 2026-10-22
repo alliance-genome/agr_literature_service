@@ -23,11 +23,13 @@ class TestApplyColumnFilters:
 
     def test_values_filter_compiles_to_in(self):
         sql = compiled({"topic": {"values": ["ATP:0000005", "ATP:0000122"]}})
-        assert "topic_entity_tag.topic IN ('ATP:0000005', 'ATP:0000122')" in sql
+        # a curie column (SCRUM-6720) compares its ontologyterm id
+        assert "topic_entity_tag.topic_id IN (SELECT ontologyterm.id \nFROM ontologyterm \n" \
+               "WHERE ontologyterm.curie IN ('ATP:0000005', 'ATP:0000122'))" in sql
 
     def test_bare_list_is_values_shorthand(self):
         sql = compiled({"topic": ["ATP:0000005"]})
-        assert "topic_entity_tag.topic IN ('ATP:0000005')" in sql
+        assert "WHERE ontologyterm.curie IN ('ATP:0000005'))" in sql
 
     def test_null_in_values_matches_is_null(self):
         sql = compiled({"entity": {"values": ["SGD:S000001085", None]}})
@@ -63,7 +65,7 @@ class TestApplyColumnFilters:
             "topic": {"values": ["ATP:0000005"]},
             "confidence_level": {"values": ["High"]},
         })
-        assert "topic_entity_tag.topic IN ('ATP:0000005')" in sql
+        assert "WHERE ontologyterm.curie IN ('ATP:0000005'))" in sql
         assert "topic_entity_tag.confidence_level IN ('High')" in sql
         assert sql.count("AND") >= 1
 

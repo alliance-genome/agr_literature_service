@@ -27,7 +27,8 @@ class TestEntityCountsByModQuery:
 
     def test_groups_by_owning_mod_and_entity_type(self):
         sql = compiled_counts_sql()
-        assert "GROUP BY mod.abbreviation, topic_entity_tag.entity_type" in sql
+        assert "GROUP BY mod.abbreviation, ontologyterm.curie" in sql
+        assert "JOIN ontologyterm ON topic_entity_tag.entity_type_id = ontologyterm.id" in sql
 
     def test_joins_source_to_owning_mod(self):
         sql = compiled_counts_sql()
@@ -37,7 +38,8 @@ class TestEntityCountsByModQuery:
         sql = compiled_counts_sql(777)
         assert "topic_entity_tag.reference_id = 777" in sql
         assert "topic_entity_tag.entity IS NOT NULL" in sql
-        assert "topic_entity_tag.entity_type IS NOT NULL" in sql
+        # the inner join on entity_type_id drops tags without an entity type
+        assert "JOIN ontologyterm ON topic_entity_tag.entity_type_id = ontologyterm.id" in sql
 
 
 def _tag(validating_sources):

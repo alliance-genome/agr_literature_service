@@ -393,19 +393,19 @@ class MockDataFactory:
     def create_topic_entity_tag(self, db_session, reference: ReferenceModel,
                                 tag_id: int, source: TagSourceModel) -> TopicEntityTagModel:
         """Create a topic entity tag entry."""
-        # Use real topic values that would be found in the system
+        # Topics and entity types are ATP terms (SCRUM-6720: topic and entity_type
+        # reference ontologyterm ATP terms, so GO/DOID/HGNC/NCBITaxon curies or "gene"
+        # are rejected); all of them are in MOCK_ATP_TERMS
         topics = [
             "ATP:0000000",  # ATP root term
-            "GO:0008150",   # biological_process
-            "DOID:4",       # disease
-            "HGNC:5",       # gene symbol
-            "NCBITaxon:10090"  # species
+            "ATP:0000005",  # gene
+            "ATP:0000009",
         ]
 
         tag = TopicEntityTagModel(
             reference_id=reference.reference_id,
             topic=topics[tag_id % len(topics)],
-            entity_type="gene",
+            entity_type="ATP:0000005",
             entity="HGNC:12345",
             entity_id_validation="alliance",
             tag_source_id=source.tag_source_id,

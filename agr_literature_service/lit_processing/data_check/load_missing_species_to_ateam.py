@@ -48,13 +48,15 @@ def get_distinct_species_curies(db_session):
     curies = set()
 
     species_rows = db_session.execute(
-        text("SELECT DISTINCT species FROM topic_entity_tag")
+        text("SELECT ot.curie FROM ontologyterm ot "
+             "WHERE ot.id IN (SELECT DISTINCT species_id FROM topic_entity_tag)")
     ).fetchall()
     curies.update(row[0] for row in species_rows
                   if row[0] and row[0].startswith('NCBITaxon:'))
 
     entity_rows = db_session.execute(
-        text("SELECT DISTINCT entity FROM topic_entity_tag WHERE topic = :species_atp"),
+        text("SELECT DISTINCT entity FROM topic_entity_tag "
+             "WHERE topic_id = (SELECT id FROM ontologyterm WHERE curie = :species_atp)"),
         {"species_atp": species_atp}
     ).fetchall()
     curies.update(row[0] for row in entity_rows

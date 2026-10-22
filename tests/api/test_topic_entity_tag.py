@@ -18,6 +18,7 @@ from .test_mod import test_mod # noqa
 from .test_tag_source import test_tag_source # noqa
 from .test_ml_model import test_ml_model # noqa
 from ..fixtures import load_name_to_atp_and_relationships_mock
+from ..ateam_fixture_schema import add_ontology_terms
 
 test_reference2 = test_reference
 
@@ -686,7 +687,10 @@ class TestTopicEntityTag:
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_patch(self, db, test_topic_entity_tag, auth_headers): # noqa
+        # made-up terms: the curie columns only take ontologyterm curies (SCRUM-6720)
+        add_ontology_terms(db.connection(), ["new_topic", "new_type"])
+        db.commit()
         with TestClient(app) as client:
             patch_data = {
                 "topic": "new_topic",

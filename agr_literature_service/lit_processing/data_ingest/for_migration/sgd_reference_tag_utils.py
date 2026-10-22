@@ -361,16 +361,18 @@ def load_existing_entity_tags(db: Session, source_id: int,
     touches the papers in its API window, so it must not pull (and hold in
     memory) the whole historical tag set the way the one-off full load has
     to."""
-    sql = ("SELECT r.curie, tet.entity_type, tet.entity, "
-           "       tet.id AS topic_entity_tag_id, tet.display_tag, tet.date_created, "
+    sql = ("SELECT r.curie, entity_type.curie AS entity_type, tet.entity, "
+           "       tet.id AS topic_entity_tag_id, display_tag.curie AS display_tag, tet.date_created, "
            "       (SELECT COALESCE(a.automation_username, p.curie) FROM agent a "
            "        LEFT JOIN person p ON p.id = a.person_id WHERE a.id = tet.created_by_id) AS created_by "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.id "
+           "LEFT JOIN ontologyterm entity_type ON entity_type.id = tet.entity_type_id "
+           "LEFT JOIN ontologyterm display_tag ON display_tag.id = tet.display_tag_id "
            "WHERE  tet.tag_source_id = :sid "
-           "AND    ((tet.topic = tet.entity_type AND tet.entity_type = ANY(:atps)) "
-           "        OR (tet.topic = :root_topic AND tet.entity IS NULL "
-           "            AND tet.display_tag IS NOT NULL))")
+           "AND    ((tet.topic_id = tet.entity_type_id AND entity_type.curie = ANY(:atps)) "
+           "        OR (tet.topic_id = (SELECT id FROM ontologyterm WHERE curie = :root_topic) "
+           "            AND tet.entity IS NULL AND tet.display_tag_id IS NOT NULL))")
     params: Dict = {"sid": source_id, "atps": list(ENTITY_TYPE_TO_ATP.values()),
                     "root_topic": ROOT_TOPIC_ATP}
     if reference_curies is not None:
@@ -401,17 +403,19 @@ def load_abc_entity_tags(db: Session,
     source nor corrected in place (the ABC curator's tag wins over the SGD
     input). ``reference_curies`` limits the query to those references, as in
     load_existing_entity_tags."""
-    sql = ("SELECT r.curie, tet.entity_type, tet.entity, tet.display_tag "
+    sql = ("SELECT r.curie, entity_type.curie AS entity_type, tet.entity, display_tag.curie AS display_tag "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.id "
            "JOIN   tag_source tets "
            "       ON tet.tag_source_id = tets.id "
            "JOIN   mod m ON tets.secondary_data_provider_id = m.id "
+           "LEFT JOIN ontologyterm entity_type ON entity_type.id = tet.entity_type_id "
+           "LEFT JOIN ontologyterm display_tag ON display_tag.id = tet.display_tag_id "
            "WHERE  tets.source_method = :abc_method "
            "AND    m.abbreviation = :abbr "
-           "AND    tet.species = :species "
-           "AND    ((tet.entity_type = ANY(:atps) AND tet.entity IS NOT NULL) "
-           "        OR (tet.entity IS NULL AND tet.display_tag IS NOT NULL))")
+           "AND    tet.species_id = (SELECT id FROM ontologyterm WHERE curie = :species) "
+           "AND    ((entity_type.curie = ANY(:atps) AND tet.entity IS NOT NULL) "
+           "        OR (tet.entity IS NULL AND tet.display_tag_id IS NOT NULL))")
     params: Dict = {
         "abc_method": ABC_SOURCE_METHOD,
         "abbr": SECONDARY_DATA_PROVIDER_ABBR,

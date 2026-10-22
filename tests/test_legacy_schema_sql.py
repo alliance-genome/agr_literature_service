@@ -66,6 +66,7 @@ _CURIE_COLUMNS: Dict[str, Tuple[str, ...]] = {
     'curation_status_source_association': ('curation_status', 'curation_tag'),
     'tag_source': ('source_evidence_assertion',),
     'reference': ('retraction_status',),
+    'topic_entity_tag': ('topic', 'entity_type', 'display_tag', 'data_novelty', 'data_context', 'species'),
 }
 CURIE_COLUMNS: Dict[str, Tuple[str, ...]] = dict(
     _CURIE_COLUMNS, **{f'{table}_version': columns for table, columns in _CURIE_COLUMNS.items()})
