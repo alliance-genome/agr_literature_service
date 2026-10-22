@@ -6,12 +6,13 @@ reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import (ARRAY, Column, Enum, ForeignKey, Integer, Boolean,
+from sqlalchemy import (ARRAY, BigInteger, Column, Enum, ForeignKey, Integer, Boolean,
                         String)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 from agr_literature_service.api.schemas import PubMedPublicationStatus, ReferenceCategory
 from agr_literature_service.api.database.versioning import enable_versioning
 
@@ -196,13 +197,11 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
-    # ATP curies: ATP:0000346 (retracted), ATP:0000348 (fully retracted),
+    # ATP terms: ATP:0000346 (retracted), ATP:0000348 (fully retracted),
     # ATP:0000347 (partially retracted). NULL means not retracted.
-    retraction_status = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
+    # SCRUM-6720: stored as the ontologyterm id; retraction_status is its curie.
+    retraction_status_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    retraction_status = ontology_curie(retraction_status_id)
 
     mesh_term = relationship(
         "MeshDetailModel",
@@ -304,3 +303,6 @@ class ReferenceModel(Base, AuditedModel):
         peps = "\tauthors='{}'\n".format(auths)
         arrs = "\tmesh='{}'\n\tkeywords='{}'\n".format(str(mesh), self.keywords)
         return "{}{}{}{}{}".format(ids, dates, long, peps, arrs)
+
+
+register_curie_columns(ReferenceModel, {"retraction_status": ("retraction_status_id", ("ATPTerm",))})

@@ -58,6 +58,7 @@ EXTRA_TEST_TERMS = ('ATP:0000061', 'ATP:0000062', 'ATP:0000110',
                     'ATP:0000380', 'ATP:0000383', 'ATP:0000387', 'ATP:0001111', 'ATP:0002222', 'ATP:0003333',
                     'ATP:NEW', 'ATP:task4_needed',
                     'ATP:0000344',  # retracted curation_tag written by the retraction cleanup
+                    'ATP:0000346', 'ATP:0000347', 'ATP:0000348',  # reference.retraction_status values
                     # curation statuses and tags tests set directly (SCRUM-6720 curation_status)
                     'ATP:0000237', 'ATP:0000299', 'ATP:curation_needed', 'ATP:curation_not_needed',
                     'ATP:curation_tag', 'ATP:curation_test', 'ATP:topic1', 'ATP:topic2', 'ATP:topic3',
