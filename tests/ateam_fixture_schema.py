@@ -57,7 +57,12 @@ EXTRA_TEST_TERMS = ('ATP:0000061', 'ATP:0000062', 'ATP:0000110',
                     'ATP:0000103', 'ATP:0000198', 'ATP:0000214', 'ATP:0000303', 'ATP:0000306', 'ATP:0000342',
                     'ATP:0000380', 'ATP:0000383', 'ATP:0000387', 'ATP:0001111', 'ATP:0002222', 'ATP:0003333',
                     'ATP:NEW', 'ATP:task4_needed',
-                    'ATP:0000344')  # retracted curation_tag written by the retraction cleanup
+                    'ATP:0000344',  # retracted curation_tag written by the retraction cleanup
+                    # curation statuses and tags tests set directly (SCRUM-6720 curation_status)
+                    'ATP:0000237', 'ATP:0000299', 'ATP:curation_needed', 'ATP:curation_not_needed',
+                    'ATP:curation_tag', 'ATP:curation_test', 'ATP:topic1', 'ATP:topic2', 'ATP:topic3',
+                    # indexing priority process and priorities (set_priority uses them as workflow tags)
+                    'ATP:0000210', 'ATP:0000211', 'ATP:0000212', 'ATP:0000213')
 ENTITY_TAXA = {'WB': 'NCBITaxon:6239', 'FB': 'NCBITaxon:7227', 'SGD': 'NCBITaxon:559292',
                'ZFIN': 'NCBITaxon:7955', 'MGI': 'NCBITaxon:10090', 'RGD': 'NCBITaxon:10116',
                'Xenbase': 'NCBITaxon:8355'}
@@ -106,13 +111,13 @@ def _upsert(conn, table: str, key: str, key_value: str, values: Dict[str, object
 
 
 def seed_ateam_fixture(conn, children: Dict[str, List[str]], names: Dict[str, str],
-                       extra_curies: Iterable[str] = ()) -> None:
+                       extra_curies: Iterable[str] = ()) -> Set[str]:
     """Make the fixture tables hold the terms and entities of the given hierarchy and names.
 
     Idempotent and non-destructive for terms and entities: they are inserted or updated by curie,
     never deleted, because ABC rows may already reference them (the Debezium integration test seeds
     again after populate_test_db.py has written data). The closure, which nothing references, is
-    rebuilt."""
+    rebuilt. Returns the curies of the seeded terms."""
     curies = set(children) | {k for kids in children.values() for k in kids} | set(names) | set(extra_curies)
     terms = sorted(c for c in curies if _prefix(c) in TERM_TYPES)
     entities = sorted(c for c in curies if _prefix(c) in ENTITY_TAXA)
@@ -128,6 +133,15 @@ def seed_ateam_fixture(conn, children: Dict[str, List[str]], names: Dict[str, st
                      {"i": row_id, "s": term_ids[descendant], "o": term_ids[ancestor], "d": distance})
     for curie in entities:
         _upsert(conn, 'biologicalentity', 'primaryexternalid', curie, {'taxon_id': term_ids[ENTITY_TAXA[_prefix(curie)]]})
+    return set(term_ids)
+
+
+def prune_ontology_terms(conn, keep: Set[str]) -> None:
+    """Remove the terms tests added (add_ontology_terms) beyond the seeded ones, so every test starts
+    from the same terms: a test that uses a term without registering it fails in every run, not only
+    when an earlier test (in whatever order, e.g. per xdist worker) happened to register it. Run once
+    the ABC rows that reference terms are deleted."""
+    conn.execute(text("DELETE FROM ontologyterm WHERE curie <> ALL(:keep)"), {"keep": sorted(keep)})
 
 
 def add_ontology_terms(conn, curies: Iterable[str], termtype: str = 'ATPTerm') -> None:
