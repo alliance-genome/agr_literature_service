@@ -1,6 +1,6 @@
 import logging
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, \
-    ReferencefileModel, AuthorModel, MeshDetailModel, PersonModel
+    ReferencefileModel, AuthorModel, MeshDetailModel, PersonModel, ResourceModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, \
     get_pmid_list_without_pmc_package, get_pmid_to_reference_id_mapping, \
@@ -9,7 +9,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_doi_data, get_author_data, get_mesh_term_data, \
     get_mod_corpus_association_data_for_ref_ids, get_cross_reference_data_for_ref_ids, \
     get_author_data_for_ref_ids, get_mesh_term_data_for_ref_ids, \
-    get_mod_reference_type_data_for_ref_ids, get_mod_abbreviations
+    get_mod_reference_type_data_for_ref_ids, get_mod_abbreviations, get_resource_titles_by_ids
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     insert_referencefile, insert_referencefile_mod_for_pmc
 from ...fixtures import db, load_sanitized_references, populate_test_mod_reference_types # noqa
@@ -219,3 +219,15 @@ class TestDbReadUtils:
 
         pmid_to_reference_id = get_pmid_to_reference_id_mapping(db)
         assert pmid_to_reference_id.get(pmid) == reference_id
+
+    def test_get_resource_titles_by_ids(self, db): # noqa
+        resource = ResourceModel(curie="AGRKB:102000000099991", title="Journal of Facets")
+        db.add(resource)
+        db.commit()
+        rid = str(resource.resource_id)
+
+        # ids come from the search index as strings; the empty sentinel and
+        # unknown ids are dropped
+        result = get_resource_titles_by_ids([rid, "__EMPTY__", "999999999"], db_session=db)
+        assert result == {rid: {"title": "Journal of Facets", "curie": "AGRKB:102000000099991"}}
+        assert get_resource_titles_by_ids([], db_session=db) == {}
