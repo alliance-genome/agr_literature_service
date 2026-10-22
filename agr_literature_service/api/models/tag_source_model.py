@@ -9,7 +9,7 @@ topic_entity_tag_source.
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -25,7 +25,7 @@ class TagSourceModel(AuditedModel, Base):
 
     tag_source_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -38,7 +38,7 @@ class TagSourceModel(AuditedModel, Base):
     )
 
     secondary_data_provider_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False

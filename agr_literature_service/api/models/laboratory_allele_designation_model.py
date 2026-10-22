@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Index, text
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String, Index, text
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -12,10 +12,10 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
     __tablename__ = "laboratory_allele_designation"
     __versioned__: Dict = {}
 
-    laboratory_allele_designation_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    laboratory_allele_designation_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
 
     laboratory_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("laboratory.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -23,7 +23,7 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
     laboratory = relationship("LaboratoryModel", back_populates="allele_designations")
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

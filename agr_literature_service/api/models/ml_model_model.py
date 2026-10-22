@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
+from sqlalchemy import Column, BigInteger, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
@@ -9,7 +9,7 @@ class MLModel(AuditedModel, Base):
 
     ml_model_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -27,7 +27,7 @@ class MLModel(AuditedModel, Base):
     file_extension = Column(String)
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -58,7 +58,7 @@ class MLModel(AuditedModel, Base):
     parameters = Column(String)
 
     dataset_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey('dataset.id', ondelete="CASCADE"),
         index=True,
         nullable=True

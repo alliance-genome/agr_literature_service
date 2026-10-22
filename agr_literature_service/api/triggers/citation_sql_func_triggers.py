@@ -24,7 +24,7 @@ DECLARE
    volume reference.volume%type;
    issue_name reference.issue_name%type;
    page_range reference.page_range%type;
-   citation_identifier integer;
+   citation_identifier bigint;
    --- build <volume>(<issue>):<page(s)> into ref_details
    ref_details TEXT default '';
    -- used in queries for short
@@ -221,11 +221,11 @@ $$;
 
 citation_seq = r"""
 CREATE OR REPLACE FUNCTION get_next_citation_id()
-  RETURNS int
+  RETURNS bigint
   language plpgsql
 as $$
 DECLARE
-  cit_id integer;
+  cit_id bigint;
 BEGIN
     -- the sequence is citation_citation_id_seq on a migrated database, citation_id_seq on a new one
     SELECT into cit_id currval(pg_get_serial_sequence('citation', 'id'));

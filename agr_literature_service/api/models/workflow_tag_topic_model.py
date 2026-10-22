@@ -1,6 +1,6 @@
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
-from sqlalchemy import (Column, Integer, String)
+from sqlalchemy import (BigInteger, Column, String)
 
 
 class WorkflowTagTopicModel(AuditedModel, Base):
@@ -8,7 +8,7 @@ class WorkflowTagTopicModel(AuditedModel, Base):
 
     workflow_tag_topic_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )

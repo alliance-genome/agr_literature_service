@@ -58,8 +58,8 @@ $$;
 
 compute_can_display_image_function = """
 CREATE OR REPLACE FUNCTION compute_can_display_image(
-    p_copyright_license_id INTEGER,
-    p_resource_id INTEGER,
+    p_copyright_license_id BIGINT,
+    p_resource_id BIGINT,
     p_publication_year INTEGER)
 RETURNS BOOLEAN
 LANGUAGE plpgsql STABLE
@@ -127,7 +127,7 @@ $$;
 """
 
 compute_reference_can_display_image_function = """
-CREATE OR REPLACE FUNCTION compute_reference_can_display_image(p_reference_id INTEGER)
+CREATE OR REPLACE FUNCTION compute_reference_can_display_image(p_reference_id BIGINT)
 RETURNS BOOLEAN
 LANGUAGE SQL STABLE
 AS $$
@@ -141,7 +141,7 @@ $$;
 """
 
 compute_reference_image_count_function = """
-CREATE OR REPLACE FUNCTION compute_reference_image_count(p_reference_id INTEGER)
+CREATE OR REPLACE FUNCTION compute_reference_image_count(p_reference_id BIGINT)
 RETURNS INTEGER
 LANGUAGE SQL STABLE
 AS $$
@@ -154,7 +154,7 @@ $$;
 """
 
 refresh_can_display_image_for_resource_function = """
-CREATE OR REPLACE FUNCTION refresh_can_display_image_for_resource(p_resource_id INTEGER)
+CREATE OR REPLACE FUNCTION refresh_can_display_image_for_resource(p_resource_id BIGINT)
 RETURNS VOID
 LANGUAGE SQL
 AS $$

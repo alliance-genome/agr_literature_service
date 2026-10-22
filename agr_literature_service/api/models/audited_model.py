@@ -1,7 +1,7 @@
 from datetime import datetime
 import pytz
 
-from sqlalchemy import Boolean, Column, ForeignKey, DateTime, Integer, event, false, select
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, DateTime, event, false, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.inspection import inspect as sa_inspect
 from sqlalchemy.orm import Session, column_property, deferred
@@ -107,12 +107,12 @@ class AuditedModel(object):
 
     @declared_attr
     def created_by_id(cls):
-        return deferred(Column(Integer, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_created_by_id'[:63]),
+        return deferred(Column(BigInteger, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_created_by_id'[:63]),
                                nullable=True))
 
     @declared_attr
     def updated_by_id(cls):
-        return deferred(Column(Integer, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_updated_by_id'[:63]),
+        return deferred(Column(BigInteger, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_updated_by_id'[:63]),
                                nullable=True))
 
     @declared_attr

@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, text
+from sqlalchemy import BigInteger, ARRAY, Boolean, Column, ForeignKey, String, Index, and_, text
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -12,11 +12,11 @@ class PersonCrossReferenceModel(Base, AuditedModel):
     __tablename__ = "person_cross_reference"
     __versioned__: Dict = {}
 
-    person_cross_reference_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    person_cross_reference_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
     curie = Column(String(), nullable=False, index=True)
     curie_prefix = Column(String(), nullable=False, index=True)
 
-    person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=True, index=True)
+    person_id = Column(BigInteger, ForeignKey("person.id", ondelete="CASCADE"), nullable=True, index=True)
     person = relationship("PersonModel", back_populates="cross_references")  # <-- match PersonModel name
 
     pages = Column(ARRAY(String), nullable=True)

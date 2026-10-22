@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship as orm_relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -18,16 +18,16 @@ class PersonLineageModel(Base, AuditedModel):
     __tablename__ = "person_lineage"
     __versioned__: Dict = {}
 
-    person_lineage_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    person_lineage_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
 
     person_subject_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     person_object_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -37,7 +37,7 @@ class PersonLineageModel(Base, AuditedModel):
     # FK to the vocabulary_term_abc table; 'vocab' abbreviates 'vocabulary' so the
     # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
     relationship_vocab_term_abc_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("vocabulary_term_abc.id"),
         nullable=False,
         index=True,
