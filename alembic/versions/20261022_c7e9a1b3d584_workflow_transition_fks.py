@@ -11,8 +11,15 @@ SCRUM-6720 Phase 1, the history pattern of a9c1e3f5b072 on two NOT NULL columns:
 
 and in workflow_transition_version the same id columns plus <column>_id_mod flags copied from the
 <column>_mod flags. The upgrade stops, listing the values, if any live or history value is not an
-ATP term (none on the merged test DB, 2026-10-22: 543 live and 482 history rows; the START_STATE
-sentinel the ticket mentions no longer occurs). No constraints or indexes name these columns.
+ATP term (none on the merged test DB, 2026-10-22: 543 live and 482 history rows). No constraints or
+indexes name these columns.
+
+START_STATE: SCRUM-6754 (lit_processing/oneoff_scripts/SCRUM-6754_replace_start_state.py, run first)
+replaced the made-up transition_from value START_STATE with ATP:0000177 (workflow process) in the live rows
+(ZFIN rows 812 and 824), and left it in their history rows as the record of what was there. A
+history column cannot hold a value that is not a term, so the history rows are mapped to
+ATP:0000177 too (decided 2026-10-22); the downgrade does not restore START_STATE. A live
+START_STATE still stops the upgrade: run the script first.
 """
 from alembic import op
 from sqlalchemy import text
@@ -26,6 +33,7 @@ depends_on = None
 TABLE = 'workflow_transition'
 COLUMNS = ('transition_from', 'transition_to')
 TERM_TYPES = ('ATPTerm',)
+START_STATE, WORKFLOW_PROCESS = 'START_STATE', 'ATP:0000177'
 
 
 def _resolve(table: str, column: str, term_types) -> None:
@@ -51,6 +59,8 @@ def upgrade():
                    f"FOREIGN KEY ({column}_id) REFERENCES ontologyterm (id)")
         op.execute(f"ALTER TABLE {TABLE} DROP COLUMN {column}")
 
+        op.get_bind().execute(text(f"UPDATE {history} SET {column} = :process WHERE {column} = :start"),
+                              {"process": WORKFLOW_PROCESS, "start": START_STATE})
         _resolve(history, column, TERM_TYPES)
         op.execute(f"ALTER TABLE {history} ADD COLUMN {column}_id_mod BOOLEAN NOT NULL DEFAULT false")
         op.execute(f"UPDATE {history} SET {column}_id_mod = {column}_mod")
