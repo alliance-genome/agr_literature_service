@@ -12,6 +12,7 @@ from sqlalchemy.orm import relationship, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.biological_entity_model import register_entity_column
 from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 # TagSourceModel lived here until SCRUM-6518 made the source table shared with
 # curation_status. Imported so the "TagSourceModel" relationship target below
@@ -96,6 +97,10 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=True,
         index=True
     )
+
+    # SCRUM-6720 Phase 2: A-team's biologicalentity of entity, when it has one (set from entity on
+    # every write; NULL for entities A-team does not hold). entity stays the source of truth.
+    entity_id = Column(BigInteger, ForeignKey("biologicalentity.id", ondelete="SET NULL"), index=True, nullable=True)
 
     entity_id_validation = Column(
         String(),
@@ -206,3 +211,4 @@ register_curie_columns(TopicEntityTagModel, {
     "data_novelty": ("data_novelty_id", ("ATPTerm",)),
     "data_context": ("data_context_id", ("ATPTerm",)),
 })
+register_entity_column(TopicEntityTagModel)
