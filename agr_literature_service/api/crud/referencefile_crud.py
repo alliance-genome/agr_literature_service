@@ -904,7 +904,7 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
                     upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature",
                                           folder=folder, object_name=md5sum + ".gz", ExtraArgs=extra_args)
             finally:
-                cleanup(temp_dir)
+                cleanup_temp_dir(temp_dir)
     return referencefile_instance
 
 
@@ -941,19 +941,19 @@ def download_file(db: Session, referencefile_id: int, mod_access: ModAccess,  # 
             if use_in_api:
                 served_from_temp_dir = True
                 return FileResponse(path=file_path, filename=display_name, media_type="application/octet-stream",
-                                    background=BackgroundTask(cleanup, temp_dir))
+                                    background=BackgroundTask(cleanup_temp_dir, temp_dir))
             with open(file_path, 'rb') as file:
                 return file.read()
         finally:
             if not served_from_temp_dir:
-                cleanup(temp_dir)
+                cleanup_temp_dir(temp_dir)
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="The current user does not have permissions to get the requested file url. "
                                "The associated paper is not available for free access.")
 
 
-def cleanup(temp_dir):
+def cleanup_temp_dir(temp_dir):
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -1007,7 +1007,7 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Mod
                 os.remove(tmp_file_gz_path)
                 os.remove(tmp_file_path)
     except BaseException:
-        cleanup(temp_dir)
+        cleanup_temp_dir(temp_dir)
         raise
     return FileResponse(path=tar_file_path, filename=tar_file_name, media_type="application/gzip",
-                        background=BackgroundTask(cleanup, temp_dir))
+                        background=BackgroundTask(cleanup_temp_dir, temp_dir))
