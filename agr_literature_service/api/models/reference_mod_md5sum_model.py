@@ -6,7 +6,7 @@ reference_mod_md5sum_model.py
 
 from datetime import datetime
 import pytz
-from sqlalchemy import (Column, ForeignKey, Integer, String, DateTime)
+from sqlalchemy import (BigInteger, Column, ForeignKey, String, DateTime)
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from sqlalchemy.schema import Index
@@ -17,13 +17,13 @@ class ReferenceModMd5sumModel(Base):
 
     reference_mod_md5sum_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -34,7 +34,7 @@ class ReferenceModMd5sumModel(Base):
     )
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=True,

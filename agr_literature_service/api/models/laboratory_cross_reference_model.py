@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, text
+from sqlalchemy import BigInteger, ARRAY, Boolean, Column, ForeignKey, String, Index, and_, text
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -12,12 +12,12 @@ class LaboratoryCrossReferenceModel(Base, AuditedModel):
     __tablename__ = "laboratory_cross_reference"
     __versioned__: Dict = {}
 
-    laboratory_cross_reference_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    laboratory_cross_reference_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
     curie = Column(String(), nullable=False, index=True)
     curie_prefix = Column(String(), nullable=False, index=True)
 
     laboratory_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("laboratory.id", ondelete="CASCADE"),
         nullable=True,
         index=True,

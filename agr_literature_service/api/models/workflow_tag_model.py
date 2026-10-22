@@ -4,14 +4,7 @@ workflow_tag_model.py
 """
 
 from typing import Dict, List
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    Integer,
-    String,
-    UniqueConstraint,
-    CheckConstraint,
-)
+from sqlalchemy import (BigInteger, Column, ForeignKey, String, UniqueConstraint, CheckConstraint)
 from sqlalchemy.orm import relationship, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -42,13 +35,13 @@ class WorkflowTagModel(AuditedModel, Base):
 
     reference_workflow_tag_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -68,7 +61,7 @@ class WorkflowTagModel(AuditedModel, Base):
     )
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id"),
         index=True,
         nullable=True

@@ -6,7 +6,7 @@ referencefile_model.py
 
 from typing import Dict
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Index
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String, Index
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -28,7 +28,7 @@ class ReferencefileModel(Base, AuditedModel):
 
     referencefile_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -40,7 +40,7 @@ class ReferencefileModel(Base, AuditedModel):
     )
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         nullable=False,
         index=True
@@ -107,13 +107,13 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     referencefile_mod_id = Column(
         'id',
-        Integer,
+        BigInteger,
         autoincrement=True,
         primary_key=True
     )
 
     mod_id: Column = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=True
@@ -122,7 +122,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
     mod = relationship("ModModel")
 
     referencefile_id: Column = Column(
-        Integer,
+        BigInteger,
         ForeignKey("referencefile.id", ondelete="CASCADE"),
         index=True,
         nullable=False

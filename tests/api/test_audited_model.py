@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import Column, Integer, String, inspect, text
+from sqlalchemy import BigInteger, Column, String, inspect, text
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import PersonModel
 from agr_literature_service.api.models.audited_model import AuditedModel
@@ -17,7 +17,7 @@ from ..fixtures import db  # noqa: F401
 class AuditedDummy(Base, AuditedModel):
     __tablename__ = "audited_dummy"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
 
 
