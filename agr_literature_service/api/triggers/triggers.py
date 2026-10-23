@@ -4,7 +4,6 @@ from agr_literature_service.api.triggers.reference_sql_func_triggers import add_
 from agr_literature_service.api.triggers.reference_image_sql_func_triggers import add_reference_image_triggers
 from agr_literature_service.api.triggers.resource_sql_func_triggers import add_resource_triggers
 from agr_literature_service.api.triggers.person_email_sql_func_triggers import add_person_email_functions
-from agr_literature_service.api.triggers.curie_mirror_sql_func_triggers import add_curie_mirror_triggers
 
 
 def add_sql_triggers_functions(db_session):
@@ -14,5 +13,4 @@ def add_sql_triggers_functions(db_session):
     add_reference_image_triggers(db_session)
     add_resource_triggers(db_session)
     add_person_email_functions(db_session)
-    add_curie_mirror_triggers(db_session)
     db_session.commit()

@@ -10,7 +10,6 @@ from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
 
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants
 from agr_literature_service.lit_processing.utils.db_read_utils import (
     get_mod_abbreviations,
@@ -252,7 +251,8 @@ def search_references(
                     "field": "retraction_status",
                     "min_doc_count": 0,
                     "size": facets_limits.get("retraction_status.keyword", 10)
-                }
+                },
+                "aggs": {"label": label_aggregation("retraction_status_name")}
             },
             "resource_id.keyword": {
                 "terms": {
@@ -327,7 +327,8 @@ def search_references(
                                     # below 100 (SCRUM-6583).
                                     "size": get_workflow_tag_ids_agg_size(facets_limits)
                                 },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                                "aggs": {"reverse_docs": {"reverse_nested": {}},
+                                         "label": label_aggregation("workflow_tags.workflow_tag_name")}
                             }
                         }
                     }
@@ -349,7 +350,9 @@ def search_references(
                                     "min_doc_count": 0,
                                     "size": 100
                                 },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                                "aggs": {"reverse_docs": {"reverse_nested": {}},
+                                         "label": label_aggregation(
+                                             "indexing_priorities.predicted_indexing_priority_name")}
                             },
                             "curator": {
                                 "terms": {
@@ -357,7 +360,9 @@ def search_references(
                                     "min_doc_count": 0,
                                     "size": 100
                                 },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                                "aggs": {"reverse_docs": {"reverse_nested": {}},
+                                         "label": label_aggregation(
+                                             "indexing_priorities.curator_indexing_priority_name")}
                             }
                         }
                     }
@@ -379,7 +384,8 @@ def search_references(
                                     "min_doc_count": 0,
                                     "size": 100
                                 },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                                "aggs": {"reverse_docs": {"reverse_nested": {}},
+                                         "label": label_aggregation("manual_indexing_tags.curation_tag_name")}
                             }
                         }
                     }
@@ -779,30 +785,17 @@ def extract_large_scale_tags(source):
             if not isinstance(tag, dict) or tag.get("large_scale_tag") != "true":
                 continue
             count = tag.get("entity_count")
-            summaries.append({
+            summary = {
                 "topic": tag.get("topic"),
                 "entity_type": tag.get("entity_type"),
                 "entity_count": int(count) if str(count or "").isdigit() else None,
-            })
-    return summaries
-
-
-def add_names_to_large_scale_tags(hits):
-    """Resolve the ATP names for topic/entity_type on the hits'
-    large_scale_tags with one batched A-team lookup across all hits."""
-    curies = {value.upper()
-              for hit in hits for tag in hit.get("large_scale_tags", [])
-              for value in (tag.get("topic"), tag.get("entity_type"))
-              if value and value.upper().startswith("ATP:")}
-    if not curies:
-        return
-    name_map = get_map_ateam_curies_to_names(category="atpterm", curies=sorted(curies))
-    for hit in hits:
-        for tag in hit.get("large_scale_tags", []):
+            }
+            # the indexed tag carries each term's label (SCRUM-6720)
             for key in ("topic", "entity_type"):
-                value = tag.get(key)
-                if value:
-                    tag[f"{key}_name"] = name_map.get(value.upper(), value)
+                if summary[key]:
+                    summary[f"{key}_name"] = tag.get(f"{key}_name") or summary[key]
+            summaries.append(summary)
+    return summaries
 
 
 def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
@@ -828,7 +821,6 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "large_scale_tags": extract_large_scale_tags(ref["_source"]),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
-    add_names_to_large_scale_tags(hits)
 
     # extract topic entity tag aggregations.
     topic_aggs = process_topic_entity_tags_aggregations(res)
@@ -1008,7 +1000,7 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
                         grouped_workflow_tags[category][expected_upper] = {
                             "key": expected_upper,
                             "doc_count": 0,
-                            "name": bucket.get("name", expected_upper)
+                            "name": bucket_label(bucket) or bucket.get("name", expected_upper)
                         }
                     grouped_workflow_tags[category][expected_upper]["doc_count"] += count
 
@@ -1061,7 +1053,7 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
             if key:
                 count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
                 if key not in predicted_buckets:
-                    predicted_buckets[key] = {"key": key, "doc_count": 0}
+                    predicted_buckets[key] = {"key": key, "doc_count": 0, "name": bucket_label(bucket)}
                 predicted_buckets[key]["doc_count"] += count
 
         # Curator indexing priority
@@ -1070,7 +1062,7 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
             if key:
                 count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
                 if key not in curator_buckets:
-                    curator_buckets[key] = {"key": key, "doc_count": 0}
+                    curator_buckets[key] = {"key": key, "doc_count": 0, "name": bucket_label(bucket)}
                 curator_buckets[key]["doc_count"] += count
 
     predicted_filtered = [b for b in predicted_buckets.values() if b["doc_count"] > 0]
@@ -1107,7 +1099,7 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
             if key:
                 count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
                 if key not in curation_tag_buckets:
-                    curation_tag_buckets[key] = {"key": key, "doc_count": 0}
+                    curation_tag_buckets[key] = {"key": key, "doc_count": 0, "name": bucket_label(bucket)}
                 curation_tag_buckets[key]["doc_count"] += count
 
     curation_filtered = [b for b in curation_tag_buckets.values() if b["doc_count"] > 0]
@@ -1436,6 +1428,23 @@ def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, 
     }
 
 
+# The label field indexed next to each TET curie field (SCRUM-6720)
+TET_LABEL_FIELDS = {
+    "topic_entity_tags.topic.keyword": "topic_entity_tags.topic_name",
+    "topic_entity_tags.data_novelty.keyword": "topic_entity_tags.data_novelty_name",
+    "topic_entity_tags.data_context.keyword": "topic_entity_tags.data_context_name",
+    "topic_entity_tags.source_evidence_assertion.keyword": "topic_entity_tags.source_evidence_assertion_name",
+}
+
+
+def tet_term_aggs(term_field):
+    """Sub-aggregations of a TET terms bucket: the document count and, for a curie field, its label."""
+    aggs: Dict[str, Any] = {"docs_count": {"reverse_nested": {}}}
+    if term_field in TET_LABEL_FIELDS:
+        aggs["label"] = label_aggregation(TET_LABEL_FIELDS[term_field])
+    return aggs
+
+
 def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):  # pragma: no cover
     tet_agg: Dict[str, Any] = {"nested": {"path": path}}
 
@@ -1453,7 +1462,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 "aggs": {
                     term_key: {
                         "terms": {"field": term_field, "size": size},
-                        "aggs": {"docs_count": {"reverse_nested": {}}}
+                        "aggs": tet_term_aggs(term_field)
                     }
                 }
             }
@@ -1475,7 +1484,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
         tet_agg["aggs"] = {
             term_key: {
                 "terms": {"field": term_field, "size": size},
-                "aggs": {"docs_count": {"reverse_nested": {}}}
+                "aggs": tet_term_aggs(term_field)
             }
         }
 
@@ -1628,20 +1637,25 @@ def add_resource_titles_to_buckets(aggregation: Dict[str, Any]) -> None:
             bucket["curie"] = resource["curie"]
 
 
-def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
-    curie_keys = [bucket["key"] for bucket in aggregations.get("buckets", [])]
-    curie_to_name_map = get_map_ateam_curies_to_names(
-        category="atpterm",
-        curies=[c.upper() for c in curie_keys if c.upper().startswith("ATP:")]
-    )
-    curie_to_name_map.update(get_map_ateam_curies_to_names(
-        category="ecoterm",
-        curies=[c.upper() for c in curie_keys if c.upper().startswith("ECO:")]
-    ))
+def label_aggregation(label_field: str) -> Dict[str, Any]:
+    """The label of a curie bucket: ksql indexes each ontology term's name next to its curie
+    (SCRUM-6720), and every document in a curie bucket has the same label."""
+    return {"terms": {"field": label_field, "size": 1}}
 
+
+def bucket_label(bucket: Dict[str, Any]) -> Optional[str]:
+    """The label from a bucket's label sub-aggregation, if it has one."""
+    label_buckets = (bucket.get("label") or {}).get("buckets") or []
+    return label_buckets[0]["key"] if label_buckets else None
+
+
+def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
+    """Name each curie bucket from its label sub-aggregation (or a name already set by merging
+    buckets); a few curies get the shorter names the UI shows instead."""
     for bucket in aggregations.get("buckets", []):
         key_u = bucket["key"].upper()
-        curie_name = curie_to_name_map.get(key_u, "Unknown")
+        curie_name = bucket_label(bucket) or bucket.get("name") or "Unknown"
+        bucket.pop("label", None)
         if key_u == "ECO:0006155":
             curie_name = "manual"
         elif key_u == "ECO:0007669":

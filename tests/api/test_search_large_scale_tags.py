@@ -7,17 +7,15 @@ _source normally holds a flat list -- but the extractor must accept both
 shapes (a review found the original flat-only extractor silently returned []
 against the nested shape).
 """
-from unittest.mock import patch
+from agr_literature_service.api.crud.search_crud import extract_large_scale_tags
 
-from agr_literature_service.api.crud.search_crud import (
-    add_names_to_large_scale_tags,
-    extract_large_scale_tags,
-)
-
+# ksql indexes each term's label next to its curie (SCRUM-6720)
 SUMMARY = {
-    "topic": "ATP:0000005", "entity_type": "ATP:0000005", "entity": None,
-    "large_scale_tag": "true", "entity_count": "4460",
+    "topic": "ATP:0000005", "topic_name": "gene", "entity_type": "ATP:0000005", "entity_type_name": "gene",
+    "entity": None, "large_scale_tag": "true", "entity_count": "4460",
 }
+EXPECTED = {"topic": "ATP:0000005", "topic_name": "gene", "entity_type": "ATP:0000005", "entity_type_name": "gene",
+            "entity_count": 4460}
 NORMAL = {"topic": "ATP:0000005", "entity_type": "ATP:0000005", "entity": "ZFIN:ZDB-GENE-1"}
 
 
@@ -25,17 +23,13 @@ class TestExtractLargeScaleTags:
 
     def test_flat_source_extracts_summaries_only(self):
         source = {"topic_entity_tags": [NORMAL, SUMMARY, NORMAL]}
-        assert extract_large_scale_tags(source) == [
-            {"topic": "ATP:0000005", "entity_type": "ATP:0000005", "entity_count": 4460},
-        ]
+        assert extract_large_scale_tags(source) == [EXPECTED]
 
     def test_array_of_arrays_source_is_descended_one_level(self):
         # The shape ksql sends (one inner array per group) in case a document
         # was indexed without the flattening pipeline.
         source = {"topic_entity_tags": [[NORMAL, NORMAL], [SUMMARY]]}
-        assert extract_large_scale_tags(source) == [
-            {"topic": "ATP:0000005", "entity_type": "ATP:0000005", "entity_count": 4460},
-        ]
+        assert extract_large_scale_tags(source) == [EXPECTED]
 
     def test_mixed_shapes_during_resnapshot(self):
         source = {"topic_entity_tags": [NORMAL, [SUMMARY]]}
@@ -51,24 +45,13 @@ class TestExtractLargeScaleTags:
         assert extract_large_scale_tags(source)[0]["entity_count"] is None
 
 
-class TestAddNamesToLargeScaleTags:
+class TestLargeScaleTagNames:
 
-    @patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names",
-           return_value={"ATP:0000005": "gene"})
-    def test_names_resolved_in_one_batched_lookup(self, mock_map):
-        hits = [
-            {"large_scale_tags": [{"topic": "ATP:0000005", "entity_type": "ATP:0000005",
-                                   "entity_count": 4460}]},
-            {"large_scale_tags": []},
-        ]
-        add_names_to_large_scale_tags(hits)
-        tag = hits[0]["large_scale_tags"][0]
-        assert tag["topic_name"] == "gene"
-        assert tag["entity_type_name"] == "gene"
-        mock_map.assert_called_once_with(category="atpterm", curies=["ATP:0000005"])
+    def test_names_come_from_the_indexed_labels(self):
+        tag = extract_large_scale_tags({"topic_entity_tags": [SUMMARY]})[0]
+        assert (tag["topic_name"], tag["entity_type_name"]) == ("gene", "gene")
 
-    @patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names")
-    def test_no_lookup_when_no_summaries(self, mock_map):
-        hits = [{"large_scale_tags": []}]
-        add_names_to_large_scale_tags(hits)
-        mock_map.assert_not_called()
+    def test_a_tag_indexed_without_labels_falls_back_to_the_curie(self):
+        unlabelled = {k: v for k, v in SUMMARY.items() if not k.endswith("_name")}
+        tag = extract_large_scale_tags({"topic_entity_tags": [unlabelled]})[0]
+        assert (tag["topic_name"], tag["entity_type_name"]) == ("ATP:0000005", "ATP:0000005")
