@@ -4,10 +4,11 @@ reference_crud.py
 """
 import json
 import logging
+import os
 import re
+import tempfile
 from collections import defaultdict
 from datetime import datetime, date, timedelta
-from os import getcwd
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
@@ -28,7 +29,7 @@ from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_r
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation, \
     normalize_reference_curie
-from agr_literature_service.api.crud.referencefile_crud import cleanup
+from agr_literature_service.api.crud.referencefile_crud import cleanup_temp_dir
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
 from agr_literature_service.api.crud.workflow_tag_crud import (
@@ -1514,6 +1515,8 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
+    # per-request temp dir: the file name only depends on mod and tag, so concurrent requests must not share it
+    temp_dir = tempfile.mkdtemp()
     try:
         query = sql_query_for_workflow_files(db, mod_abbreviation, order_by, filter)
         rows = db.execute(query).fetchall()
@@ -1525,7 +1528,7 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
 
         tmp_file = f"{mod_abbreviation}_file_{tag}.tsv"
         workflowtag = f"file {tag}"
-        tmp_file_with_path = f"{getcwd()}/{tmp_file}"
+        tmp_file_with_path = os.path.join(temp_dir, tmp_file)
         fw = open(tmp_file_with_path, "w")
         fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
@@ -1537,12 +1540,13 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
 
         fw.close()
     except Exception as e:
+        cleanup_temp_dir(temp_dir)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"The download file for the tracker table can not be created. {e}")
 
     # return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain')
     return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain',
-                        background=BackgroundTask(cleanup, tmp_file_with_path))
+                        background=BackgroundTask(cleanup_temp_dir, temp_dir))
 
 
 def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):

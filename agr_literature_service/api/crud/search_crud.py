@@ -15,6 +15,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descen
 from agr_literature_service.lit_processing.utils.db_read_utils import (
     get_mod_abbreviations,
     get_cross_reference_curie_prefixes,
+    get_resource_titles_by_ids,
 )
 
 from agr_literature_service.api.crud.search_ranking import (
@@ -37,6 +38,9 @@ from agr_literature_service.api.crud.search_filters import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ksqlDB indexes a reference with no resource as resource_id "__EMPTY__"
+RESOURCE_EMPTY_SENTINEL = "__EMPTY__"
 
 file_workflow_root_ids = ["ATP:0000140", "ATP:0000161"]
 reference_classification_root_ids = ["ATP:0000165"]
@@ -248,6 +252,14 @@ def search_references(
                     "field": "retraction_status",
                     "min_doc_count": 0,
                     "size": facets_limits.get("retraction_status.keyword", 10)
+                }
+            },
+            "resource_id.keyword": {
+                "terms": {
+                    "field": "resource_id.keyword",
+                    # references without a resource are indexed as '__EMPTY__'
+                    "exclude": [RESOURCE_EMPTY_SENTINEL],
+                    "size": facets_limits.get("resource_id.keyword", 10)
                 }
             },
             "can_display_image": {
@@ -843,6 +855,11 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
     if retraction_status_agg:
         add_curie_to_name_values(retraction_status_agg)
+
+    # label resource facet buckets (keyed by resource_id) with the resource title
+    resource_agg = res["aggregations"].get("resource_id.keyword")
+    if resource_agg:
+        add_resource_titles_to_buckets(resource_agg)
 
     # normalize image facets to the standard terms-bucket shape (string true/false keys)
     can_display_agg = res["aggregations"].get("can_display_image")
@@ -1591,6 +1608,24 @@ def ensure_structure(es_body: Dict[str, Any]) -> None:
         es_body["query"]["bool"]["filter"] = {"bool": {}}
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+
+
+def add_resource_titles_to_buckets(aggregation: Dict[str, Any]) -> None:
+    """Set name (resource title) and curie on each resource_id facet bucket. A
+    failed lookup leaves the buckets keyed by id only, so search still works."""
+    buckets = aggregation.get("buckets", [])
+    if not buckets:
+        return
+    try:
+        resources = get_resource_titles_by_ids([bucket["key"] for bucket in buckets])
+    except Exception as e:
+        logger.warning(f"Could not look up resource titles for the resource facet: {e}")
+        return
+    for bucket in buckets:
+        resource = resources.get(str(bucket["key"]))
+        if resource:
+            bucket["name"] = resource["title"]
+            bucket["curie"] = resource["curie"]
 
 
 def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:

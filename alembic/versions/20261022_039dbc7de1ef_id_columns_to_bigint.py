@@ -19,6 +19,11 @@ would make Postgres check or rebuild something twice, or refuse:
   - every trigger whose WHEN clause names a listed column (ALTER TYPE refuses to run under it).
 A view or rule on a listed column stops the migration instead: none exists today.
 
+Any other integer id column stops the migration too, except in NOT_ABC_TABLES: in the database
+merged with the A-team persistent store (SCRUM-6720) A-team's own tables sit next to ABC's, and
+Flyway's bookkeeping table has an integer primary key (flyway_schema_history.installed_rank) that
+is not an ABC id and is left alone. A-team's own ids are bigint already.
+
 Function signatures do not follow a column type, and CREATE OR REPLACE with other argument
 types adds an overload instead of replacing the function (and a new return type is an error),
 so the functions in FUNCTION_TYPE_EDITS are dropped and re-created here from exact edits of
@@ -133,6 +138,10 @@ FUNCTION_TYPE_EDITS: Dict[str, List[Tuple[str, str]]] = {
 }
 
 
+# Tables that are not ABC's and keep their integer keys (see the docstring)
+NOT_ABC_TABLES = ('flyway_schema_history',)
+
+
 def _rows(statement: str, **params) -> List[tuple]:
     return [tuple(row) for row in op.get_bind().execute(text(statement), params)]
 
@@ -164,7 +173,8 @@ def _unlisted_integer_ids() -> List[str]:
         "AND a.attnum > 0 AND NOT a.attisdropped AND a.atttypid = 'int4'::regtype "
         "AND (a.attname ~ '(^id$|_id$)' OR EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid "
         "AND k.contype IN ('p', 'f') AND a.attnum = ANY (k.conkey)))")
-    return sorted(f'{table}.{name}' for table, name in found if (table, name) not in listed)
+    return sorted(f'{table}.{name}' for table, name in found
+                  if (table, name) not in listed and table not in NOT_ABC_TABLES)
 
 
 def _drop_dependents(columns: List[Tuple[str, str]]) -> Tuple[List[Tuple[str, str]], List[str]]:
