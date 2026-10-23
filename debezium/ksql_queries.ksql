@@ -15,9 +15,12 @@ CREATE TABLE ontologyterm (
     KEY_FORMAT='json'
   );
 
--- ksqlDB 0.26 (Kafka Streams 3.2) drops a row whose foreign key is NULL from a foreign-key LEFT JOIN
--- instead of emitting it with NULLs. So a NULL term id is turned into '__EMPTY__' before each join,
--- and this row, with a NULL curie and label, is what it joins (as resource does below).
+-- ksqlDB 0.26 (Kafka Streams 3.2) drops a row whose foreign key is NULL from any foreign-key join
+-- (LEFT included) instead of emitting it with NULLs. So a NULL term id in a nullable column is turned
+-- into '__EMPTY__' before its join, and this row, with a NULL curie and label, is what it joins (as
+-- resource and copyright_license do below). Every term id then has a matching row (the DB foreign keys
+-- guarantee it for real ids), so the joins are INNER: a row waits for its term instead of being emitted
+-- first with NULL curies and again once the term arrives, which doubled the TET chain during a reindex.
 INSERT INTO ontologyterm (ontologyterm_id, curie, name) VALUES ('__EMPTY__', NULL, NULL);
 
 CREATE TABLE reference (
@@ -67,7 +70,7 @@ CREATE TABLE reference_retraction AS
     retraction_term.curie AS retraction_status,
     retraction_term.name AS retraction_status_name
   FROM reference_retraction_ids
-  LEFT JOIN ontologyterm retraction_term ON reference_retraction_ids.retraction_status_id = retraction_term.ontologyterm_id
+  JOIN ontologyterm retraction_term ON reference_retraction_ids.retraction_status_id = retraction_term.ontologyterm_id
   EMIT CHANGES;
 
 CREATE TABLE normalized_copyright_reference AS
@@ -264,7 +267,7 @@ CREATE TABLE curation_status_term_1 AS
     term.curie AS topic_term,
     term.name AS topic_term_name
     FROM curation_status
-    LEFT JOIN ontologyterm term ON curation_status.topic_id = term.ontologyterm_id
+    JOIN ontologyterm term ON curation_status.topic_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE curation_status_term_2 AS
@@ -277,7 +280,7 @@ CREATE TABLE curation_status_term_2 AS
     term.curie AS curation_status_term,
     term.name AS curation_status_term_name
     FROM curation_status_term_1 curation_status
-    LEFT JOIN ontologyterm term ON curation_status.curation_status_term_id = term.ontologyterm_id
+    JOIN ontologyterm term ON curation_status.curation_status_term_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE curation_status_with_mod AS
@@ -309,7 +312,7 @@ CREATE TABLE tag_source_terms AS
     sea_term.curie AS source_evidence_assertion,
     sea_term.name AS source_evidence_assertion_name
     FROM tag_source
-    LEFT JOIN ontologyterm sea_term ON tag_source.source_evidence_assertion_id = sea_term.ontologyterm_id
+    JOIN ontologyterm sea_term ON tag_source.source_evidence_assertion_id = sea_term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE tag_source_with_mod AS
@@ -345,12 +348,12 @@ CREATE TABLE topic_entity_tag_term_1 AS
     CASE WHEN tet.entity_type_id IS NULL THEN '__EMPTY__' ELSE tet.entity_type_id END AS entity_type_id,
     CASE WHEN tet.species_id IS NULL THEN '__EMPTY__' ELSE tet.species_id END AS species_id,
     CASE WHEN tet.display_tag_id IS NULL THEN '__EMPTY__' ELSE tet.display_tag_id END AS display_tag_id,
-    CASE WHEN tet.data_novelty_id IS NULL THEN '__EMPTY__' ELSE tet.data_novelty_id END AS data_novelty_id,
-    CASE WHEN tet.data_context_id IS NULL THEN '__EMPTY__' ELSE tet.data_context_id END AS data_context_id,
+    tet.data_novelty_id,
+    tet.data_context_id,
     term.curie AS topic_term,
     term.name AS topic_term_name
     FROM topic_entity_tag tet
-    LEFT JOIN ontologyterm term ON tet.topic_id = term.ontologyterm_id
+    JOIN ontologyterm term ON tet.topic_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_term_2 AS
@@ -376,7 +379,7 @@ CREATE TABLE topic_entity_tag_term_2 AS
     term.curie AS entity_type_term,
     term.name AS entity_type_term_name
     FROM topic_entity_tag_term_1 tet
-    LEFT JOIN ontologyterm term ON tet.entity_type_id = term.ontologyterm_id
+    JOIN ontologyterm term ON tet.entity_type_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_term_3 AS
@@ -402,7 +405,7 @@ CREATE TABLE topic_entity_tag_term_3 AS
     term.curie AS species_term,
     term.name AS species_term_name
     FROM topic_entity_tag_term_2 tet
-    LEFT JOIN ontologyterm term ON tet.species_id = term.ontologyterm_id
+    JOIN ontologyterm term ON tet.species_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_term_4 AS
@@ -428,7 +431,7 @@ CREATE TABLE topic_entity_tag_term_4 AS
     term.curie AS display_tag_term,
     term.name AS display_tag_term_name
     FROM topic_entity_tag_term_3 tet
-    LEFT JOIN ontologyterm term ON tet.display_tag_id = term.ontologyterm_id
+    JOIN ontologyterm term ON tet.display_tag_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_term_5 AS
@@ -454,7 +457,7 @@ CREATE TABLE topic_entity_tag_term_5 AS
     term.curie AS data_novelty_term,
     term.name AS data_novelty_term_name
     FROM topic_entity_tag_term_4 tet
-    LEFT JOIN ontologyterm term ON tet.data_novelty_id = term.ontologyterm_id
+    JOIN ontologyterm term ON tet.data_novelty_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_term_6 AS
@@ -480,7 +483,7 @@ CREATE TABLE topic_entity_tag_term_6 AS
     term.curie AS data_context_term,
     term.name AS data_context_term_name
     FROM topic_entity_tag_term_5 tet
-    LEFT JOIN ontologyterm term ON tet.data_context_id = term.ontologyterm_id
+    JOIN ontologyterm term ON tet.data_context_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_with_source AS
@@ -716,7 +719,7 @@ CREATE TABLE reference_workflow_tag_terms AS
         term.curie AS workflow_tag_id,
         term.name AS workflow_tag_name
     FROM reference_workflow_tag
-    LEFT JOIN ontologyterm term ON reference_workflow_tag.workflow_tag_term_id = term.ontologyterm_id
+    JOIN ontologyterm term ON reference_workflow_tag.workflow_tag_term_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE reference_workflow_tag_with_mod AS
@@ -886,7 +889,7 @@ CREATE TABLE indexing_priority_term_1 AS
         term.curie AS predicted_indexing_priority,
         term.name AS predicted_indexing_priority_name
     FROM indexing_priority_ids indexing_priority
-    LEFT JOIN ontologyterm term ON indexing_priority.predicted_indexing_priority_id = term.ontologyterm_id
+    JOIN ontologyterm term ON indexing_priority.predicted_indexing_priority_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE indexing_priority_term_2 AS
@@ -899,7 +902,7 @@ CREATE TABLE indexing_priority_term_2 AS
         term.curie AS curator_indexing_priority,
         term.name AS curator_indexing_priority_name
     FROM indexing_priority_term_1 indexing_priority
-    LEFT JOIN ontologyterm term ON indexing_priority.curator_indexing_priority_id = term.ontologyterm_id
+    JOIN ontologyterm term ON indexing_priority.curator_indexing_priority_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE indexing_priority_with_mod AS
@@ -930,7 +933,7 @@ CREATE TABLE manual_indexing_tag_terms AS
         term.curie AS curation_tag,
         term.name AS curation_tag_name
     FROM manual_indexing_tag
-    LEFT JOIN ontologyterm term ON manual_indexing_tag.curation_tag_id = term.ontologyterm_id
+    JOIN ontologyterm term ON manual_indexing_tag.curation_tag_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE manual_indexing_tag_with_mod AS
@@ -983,7 +986,7 @@ CREATE TABLE reference_with_resource AS
     reference_with_citation.SHORT_CITATION,
     resource.title \"RESOURCE_TITLE\"
     FROM reference_with_citation reference_with_citation
-    LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
+    JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
     EMIT CHANGES;
 
 -- ==================================================================================================
@@ -1329,7 +1332,7 @@ CREATE TABLE reference_with_copyright AS
     copyright_license.open_access,
     copyright_license.name \"copyright_license\"
     FROM reference_with_resource reference_with_resource
-    LEFT OUTER JOIN copyright_license copyright_license ON reference_with_resource.copyright_license_id = copyright_license.copyright_license_id
+    JOIN copyright_license copyright_license ON reference_with_resource.copyright_license_id = copyright_license.copyright_license_id
     EMIT CHANGES;
 
 CREATE TABLE public_reference_joined WITH (
