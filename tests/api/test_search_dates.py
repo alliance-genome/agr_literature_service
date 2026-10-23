@@ -3,6 +3,7 @@ import datetime
 
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
+from unittest.mock import patch
 
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
@@ -29,6 +30,13 @@ from .fixtures import auth_headers # noqa
 # Need to check date SE before PS and SS after PE for NO results.
 # lets call these case 5 (before) and 6 (after).
 #########################################################################
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_get_map_ateam_curies_to_names():
+    with patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names") as mock_func:
+        mock_func.return_value = {'ATP:0000196': 'antibody extraction complete'}
+        yield
 
 
 @pytest.fixture(scope='module')
@@ -102,7 +110,6 @@ def initialize_elasticsearch():
                 "workflow_tags": {
                     "type": "nested",
                     "properties": {
-                        "workflow_tag_name": {"type": "keyword"},
                         "workflow_tag_id": {
                             "type": "text",
                             "analyzer": "autocompleteAnalyzer",
@@ -177,7 +184,7 @@ def initialize_elasticsearch():
         "date_published_end": date5,
         "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -194,7 +201,7 @@ def initialize_elasticsearch():
         "date_published_end": date1,
         "authors": [{"name": "Jane Doe", "orcid": "null"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -211,7 +218,7 @@ def initialize_elasticsearch():
         "date_published_end": date2,
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["note"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -228,7 +235,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date4,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -245,7 +252,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["Journal"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -262,7 +269,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -279,7 +286,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date6,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -296,7 +303,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date7,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "date_created": "1636139454923830"
     }
@@ -312,7 +319,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date8,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "workflow_tag_name": "antibody extraction complete", "mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"

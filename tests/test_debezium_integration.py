@@ -657,7 +657,7 @@ class TestDebeziumIntegration:
     @pytest.mark.webtest
     def test_ontology_term_fields_are_curies(self, elasticsearch_config):
         """SCRUM-6720: ABC stores ontologyterm ids; ksql joins ontologyterm and must still index curies
-        under the old field names (populate_test_db.py writes them), each with its label."""
+        under the old field names (populate_test_db.py writes them)."""
         es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
         response = requests.get(f"{es_url}/{elasticsearch_config['private_index']}/_search?size=100")
         assert response.status_code == 200
@@ -683,23 +683,6 @@ class TestDebeziumIntegration:
         for field, key in (('indexing_priorities', 'predicted_indexing_priority'),
                            ('manual_indexing_tags', 'curation_tag')):
             assert all(str(item.get(key)).startswith('ATP:') for item in items(field) if item.get(key)), field
-
-        # every curie comes with its ontologyterm label; these are the seeded names (tests/fixtures.py).
-        # The db fixture cannot be used here: it empties the tables, and the ES documents with them.
-        known = {'ATP:0000005': 'gene', 'ATP:0000009': 'phenotype', 'ATP:0000334': 'existing data',
-                 'ATP:0000325': 'experimentally studied data'}
-        labelled = [('topic_entity_tags', ('topic', 'entity_type', 'species', 'data_novelty', 'data_context',
-                                           'source_evidence_assertion')),
-                    ('workflow_tags', ('workflow_tag_id',)),
-                    ('indexing_priorities', ('predicted_indexing_priority',)),
-                    ('manual_indexing_tags', ('curation_tag',))]
-        for field, keys in labelled:
-            for item in items(field):
-                for key in keys:
-                    label_key = 'workflow_tag_name' if key == 'workflow_tag_id' else f'{key}_name'
-                    if item.get(key):
-                        assert item.get(label_key), (field, key, item)
-                        assert item[label_key] == known.get(item[key], item[label_key]), (field, key, item)
 
     @pytest.mark.debezium
     @pytest.mark.webtest
