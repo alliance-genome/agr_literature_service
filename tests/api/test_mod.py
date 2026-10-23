@@ -60,6 +60,29 @@ class TestMod:
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["full_name"] == "Test genome database"
 
+    def test_taxon_ids(self, db, test_mod, auth_headers):  # noqa
+        # SCRUM-6720: taxon_ids are mod_taxon rows, kept in order (the first is the MOD's taxon)
+        with TestClient(app) as client:
+            url = f"/mod/{test_mod.new_mod_abbreviation}"
+            assert client.get(url=url, headers=auth_headers).json()["taxon_ids"] == []
+            for taxon_ids in (["NCBITaxon:8355", "NCBITaxon:6239"], ["NCBITaxon:6239", "NCBITaxon:8355"]):
+                response = client.patch(url=f"/mod/{test_mod.new_mod_id}", json={"taxon_ids": taxon_ids},
+                                        headers=auth_headers)
+                assert response.status_code == status.HTTP_200_OK
+                assert client.get(url=url, headers=auth_headers).json()["taxon_ids"] == taxon_ids
+            taxons = client.get(url="/mod/taxons/default", headers=auth_headers).json()
+            assert {"mod_abbreviation": test_mod.new_mod_abbreviation, "taxon_id": "NCBITaxon:6239"} in taxons
+            taxons = client.get(url="/mod/taxons/all", headers=auth_headers).json()
+            assert {"mod_abbreviation": test_mod.new_mod_abbreviation,
+                    "taxon_ids": ["NCBITaxon:6239", "NCBITaxon:8355"]} in taxons
+            response = client.patch(url=f"/mod/{test_mod.new_mod_id}", json={"taxon_ids": ["NCBITaxon:0"]},
+                                    headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+            response = client.patch(url=f"/mod/{test_mod.new_mod_id}", json={"taxon_ids": None},
+                                    headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert client.get(url=url, headers=auth_headers).json()["taxon_ids"] == []
+
     def test_destroy_mod(self, db, test_mod): # noqa
         mod = db.query(ModModel).filter_by(abbreviation=test_mod.new_mod_abbreviation).one()
         destroy_mod(db, mod.mod_id)

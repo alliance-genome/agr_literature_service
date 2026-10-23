@@ -12,6 +12,8 @@ from sqlalchemy.orm import relationship, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.biological_entity_model import register_entity_column
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 # TagSourceModel lived here until SCRUM-6518 made the source table shared with
 # curation_status. Imported so the "TagSourceModel" relationship target below
 # resolves wherever this module is imported on its own.
@@ -80,21 +82,14 @@ class TopicEntityTagModel(AuditedModel, Base):
         foreign_keys="TopicEntityTagModel.tag_source_id"
     )
 
-    # Obtained from A-Team ontology node term-id
-    topic = Column(
-        String(),
-        unique=False,
-        nullable=False,
-        index=True
-    )
+    # SCRUM-6720: the ontology term columns hold A-team ontologyterm ids; topic,
+    # entity_type, species, display_tag, data_novelty and data_context are their
+    # curies (ontology_term_model.ontology_curie)
+    topic_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=False)
+    topic = ontology_curie(topic_id)
 
-    # Obtained from A-Team ontology node term-id
-    entity_type = Column(
-        String(),
-        unique=False,
-        nullable=True,
-        index=True
-    )
+    entity_type_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=True)
+    entity_type = ontology_curie(entity_type_id)
 
     entity = Column(
         String(),
@@ -103,23 +98,21 @@ class TopicEntityTagModel(AuditedModel, Base):
         index=True
     )
 
+    # SCRUM-6720 Phase 2: A-team's biologicalentity of entity, when it has one (set from entity on
+    # every write; NULL for entities A-team does not hold). entity stays the source of truth.
+    entity_id = Column(BigInteger, ForeignKey("biologicalentity.id", ondelete="SET NULL"), index=True, nullable=True)
+
     entity_id_validation = Column(
         String(),
         unique=False,
         nullable=True
     )
 
-    species = Column(
-        String(),
-        unique=False,
-        nullable=True,
-        index=True
-    )
+    species_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=True)
+    species = ontology_curie(species_id)
 
-    display_tag = Column(
-        String(),
-        nullable=True
-    )
+    display_tag_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    display_tag = ontology_curie(display_tag_id)
 
     negated = Column(
         Boolean,
@@ -146,12 +139,8 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
-    data_novelty = Column(
-        String(),
-        nullable=False,
-        unique=False,
-        index=True
-    )
+    data_novelty_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=False)
+    data_novelty = ontology_curie(data_novelty_id)
 
     # SCRUM-5697. What kind of data the tag represents, as an ATP term drawn
     # from a hierarchy rather than a flat set: the ATP:0000323 "data context"
@@ -159,15 +148,8 @@ class TopicEntityTagModel(AuditedModel, Base):
     # ATP:0000325 experimentally studied data) and ATP:0000326 marker data
     # (ATP:0000328 expression marker, ATP:0000327 genetic marker). The four
     # leaves are the editor's curation choices; WB topic tags store the root.
-    # Declared non-null to match data_novelty; the database constraint lands in
-    # a follow-up revision once every producer sends a value and the existing
-    # rows have been backfilled.
-    data_context = Column(
-        String(),
-        nullable=False,
-        unique=False,
-        index=True
-    )
+    data_context_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=False)
+    data_context = ontology_curie(data_context_id)
 
     validated_by = relationship(
         "TopicEntityTagModel",
@@ -213,9 +195,20 @@ class TopicEntityTagModel(AuditedModel, Base):
     __table_args__ = (
         CheckConstraint(
             or_(
-                and_(entity_type.isnot(None), entity.isnot(None), entity_id_validation.isnot(None)),
-                and_(entity_type.is_(None), entity.is_(None), entity_id_validation.is_(None))
+                and_(entity_type_id.isnot(None), entity.isnot(None), entity_id_validation.isnot(None)),
+                and_(entity_type_id.is_(None), entity.is_(None), entity_id_validation.is_(None))
             ),
             name="valid_entity_type_dependencies"
         ),
     )
+
+
+register_curie_columns(TopicEntityTagModel, {
+    "topic": ("topic_id", ("ATPTerm",)),
+    "entity_type": ("entity_type_id", ("ATPTerm",)),
+    "species": ("species_id", ("NCBITaxonTerm",)),
+    "display_tag": ("display_tag_id", ("ATPTerm",)),
+    "data_novelty": ("data_novelty_id", ("ATPTerm",)),
+    "data_context": ("data_context_id", ("ATPTerm",)),
+})
+register_entity_column(TopicEntityTagModel)

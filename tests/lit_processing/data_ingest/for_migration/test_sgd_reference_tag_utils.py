@@ -122,10 +122,10 @@ class TestLoadExistingEntityTags:
         # tags (which must carry a display_tag, so the key can never be None).
         sql, params = db.execute.call_args[0]
         sql = str(sql)
-        assert "tet.topic = tet.entity_type" in sql
-        assert "tet.topic = :root_topic" in sql
+        assert "tet.topic_id = tet.entity_type_id" in sql
+        assert "tet.topic_id = (SELECT id FROM ontologyterm WHERE curie = :root_topic)" in sql
         assert "tet.entity IS NULL" in sql
-        assert "tet.display_tag IS NOT NULL" in sql
+        assert "tet.display_tag_id IS NOT NULL" in sql
         assert params["sid"] == 230
         assert params["root_topic"] == util.ROOT_TOPIC_ATP
         assert set(params["atps"]) == set(util.ENTITY_TYPE_TO_ATP.values())
@@ -156,7 +156,7 @@ class TestLoadAbcEntityTags:
         }
         sql, params = db.execute.call_args[0]
         sql = str(sql)
-        assert "tet.entity IS NULL AND tet.display_tag IS NOT NULL" in sql
+        assert "tet.entity IS NULL AND tet.display_tag_id IS NOT NULL" in sql
         assert params["species"] == util.SACCHAROMYCES_CEREVISIAE_TAXON
         assert params["abc_method"] == util.ABC_SOURCE_METHOD
 

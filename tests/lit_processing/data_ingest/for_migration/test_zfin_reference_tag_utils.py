@@ -50,8 +50,9 @@ class TestLoadExistingEntityPairs:
         # Pin the topic + entity_type scoping so the skip set is exactly this
         # loader's pure entity tags (not any mixed tag on the shared source).
         sql, params = db.execute.call_args[0]
-        assert "tet.topic = :atp" in str(sql)
-        assert "tet.entity_type = :atp" in str(sql)
+        assert "ontologyterm atp ON atp.curie = :atp" in str(sql)
+        assert "tet.topic_id = atp.id" in str(sql)
+        assert "tet.entity_type_id = atp.id" in str(sql)
         assert params == {"sid": 229, "atp": "ATP:0000005"}
 
 

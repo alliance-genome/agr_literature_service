@@ -15,6 +15,7 @@ from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 enable_versioning()
 
@@ -49,12 +50,10 @@ class TagSourceModel(AuditedModel, Base):
         foreign_keys="TagSourceModel.secondary_data_provider_id"
     )
 
-    source_evidence_assertion = Column(
-        String(),
-        unique=False,
-        nullable=False,
-        index=True
-    )
+    # SCRUM-6720: an ECO term or, for manual assertions (ATP:0000035 / ATP:0000036), an ATP term,
+    # stored as its ontologyterm id; source_evidence_assertion is its curie
+    source_evidence_assertion_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=False, index=True)
+    source_evidence_assertion = ontology_curie(source_evidence_assertion_id)
 
     source_method = Column(
         String(),
@@ -78,6 +77,11 @@ class TagSourceModel(AuditedModel, Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'source_evidence_assertion', 'source_method', 'data_provider', 'secondary_data_provider_id',
+            'source_evidence_assertion_id', 'source_method', 'data_provider', 'secondary_data_provider_id',
             name='tag_source_unique'),
     )
+
+
+register_curie_columns(TagSourceModel, {
+    "source_evidence_assertion": ("source_evidence_assertion_id", ("ECOTerm", "ATPTerm")),
+})

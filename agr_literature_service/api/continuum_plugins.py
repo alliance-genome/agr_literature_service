@@ -48,3 +48,26 @@ class AuditLabelPlugin(Plugin):
         for id_key, label_key in self.LABELS:
             if id_key in changeset:
                 changeset[label_key] = [labels.get(value) for value in changeset.pop(id_key)]
+
+
+class CurieLabelPlugin(Plugin):
+    """
+    Keep history changesets in the API's terms (SCRUM-6720): an ontology curie column
+    stored as an ontologyterm id (register_curie_columns) shows as its curie attribute
+    with curies -- workflow_tag_id: ['ATP:...', 'ATP:...'] -- not as the id column with
+    integers.
+    """
+    _SQL_CURIES = text("SELECT id, curie FROM ontologyterm WHERE id = ANY(:ids)")
+
+    def after_construct_changeset(self, version_obj, changeset):
+        from sqlalchemy_continuum import parent_class
+        curie_columns = getattr(parent_class(type(version_obj)), '__curie_columns__', {})
+        present = [(curie_attr, id_attr) for curie_attr, id_attr in curie_columns.items() if id_attr in changeset]
+        if not present:
+            return
+        ids = sorted({value for _curie_attr, id_attr in present for value in changeset[id_attr] if value is not None})
+        curies = {}
+        if ids:
+            curies = dict(object_session(version_obj).execute(self._SQL_CURIES, {"ids": ids}).all())
+        for curie_attr, id_attr in present:
+            changeset[curie_attr] = [curies.get(value) for value in changeset.pop(id_attr)]

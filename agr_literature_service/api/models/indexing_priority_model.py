@@ -1,10 +1,11 @@
 from typing import Optional
-from sqlalchemy import UniqueConstraint, CheckConstraint, ForeignKey
+from sqlalchemy import BigInteger, Column, UniqueConstraint, CheckConstraint, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import BigInteger, String, Float
+from sqlalchemy import Float
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models import ReferenceModel, ModModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 
 class IndexingPriorityModel(Base, AuditedModel):
@@ -17,19 +18,11 @@ class IndexingPriorityModel(Base, AuditedModel):
             name="uq_indexing_priority_mod_ref",
         ),
         CheckConstraint(
-            "predicted_indexing_priority IS NULL OR predicted_indexing_priority LIKE 'ATP:%'",
-            name="ck_predicted_indexing_priority_prefix",
-        ),
-        CheckConstraint(
             "(confidence_score IS NULL) OR (confidence_score >= 0.0 AND confidence_score <= 1.0)",
             name="ck_indexing_priority_confidence_range",
         ),
         CheckConstraint(
-            "curator_indexing_priority IS NULL OR curator_indexing_priority LIKE 'ATP:%'",
-            name="ck_curator_indexing_priority_prefix",
-        ),
-        CheckConstraint(
-            "predicted_indexing_priority IS NOT NULL OR curator_indexing_priority IS NOT NULL",
+            "predicted_indexing_priority_id IS NOT NULL OR curator_indexing_priority_id IS NOT NULL",
             name="ck_at_least_one_priority",
         ),
     )
@@ -39,9 +32,9 @@ class IndexingPriorityModel(Base, AuditedModel):
         BigInteger, primary_key=True, autoincrement=True
     )
 
-    predicted_indexing_priority: Mapped[Optional[str]] = mapped_column(
-        String, index=True, nullable=True
-    )
+    # ATP terms (SCRUM-6720: ontologyterm ids; the *_indexing_priority attributes are their curies)
+    predicted_indexing_priority_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=True)
+    predicted_indexing_priority = ontology_curie(predicted_indexing_priority_id)
 
     reference_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("reference.id", ondelete="CASCADE"),
@@ -65,9 +58,8 @@ class IndexingPriorityModel(Base, AuditedModel):
         Float, nullable=True
     )
 
-    curator_indexing_priority: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True
-    )
+    curator_indexing_priority_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=True)
+    curator_indexing_priority = ontology_curie(curator_indexing_priority_id)
 
     def __str__(self) -> str:
         return (
@@ -75,3 +67,9 @@ class IndexingPriorityModel(Base, AuditedModel):
             f"curator_indexing_priority:{self.curator_indexing_priority} "
             f"mod_id:{self.mod_id} ref_id:{self.reference_id}"
         )
+
+
+register_curie_columns(IndexingPriorityModel, {
+    "predicted_indexing_priority": ("predicted_indexing_priority_id", ("ATPTerm",)),
+    "curator_indexing_priority": ("curator_indexing_priority_id", ("ATPTerm",)),
+})

@@ -8,13 +8,15 @@ from typing import Any, Dict
 
 import uvicorn
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
 
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_NOPASS
 from agr_literature_service.api.database.main import is_database_online
+from agr_literature_service.api.models.ontology_term_model import UnknownOntologyTermError
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
                                                 cross_reference_router, curation_status_router,
                                                 database_router, editor_router,
@@ -68,6 +70,12 @@ app.add_middleware(CORSMiddleware,
                    allow_origins=["*"],
                    allow_methods=["*"],
                    allow_headers=["*"])
+
+
+@app.exception_handler(UnknownOntologyTermError)
+async def unknown_ontology_term_handler(request: Request, exc: UnknownOntologyTermError):
+    # a curie column (SCRUM-6720) was given a curie that is not an ontology term of the right type
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": str(exc)})
 
 
 # Add request logging middleware

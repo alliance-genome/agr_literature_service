@@ -18,6 +18,7 @@ from .test_mod import test_mod # noqa
 from .test_tag_source import test_tag_source # noqa
 from .test_ml_model import test_ml_model # noqa
 from ..fixtures import load_name_to_atp_and_relationships_mock
+from ..ateam_fixture_schema import add_ontology_terms
 
 test_reference2 = test_reference
 
@@ -686,7 +687,10 @@ class TestTopicEntityTag:
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_patch(self, db, test_topic_entity_tag, auth_headers): # noqa
+        # made-up terms: the curie columns only take ontologyterm curies (SCRUM-6720)
+        add_ontology_terms(db.connection(), ["new_topic", "new_type"])
+        db.commit()
         with TestClient(app) as client:
             patch_data = {
                 "topic": "new_topic",
@@ -3854,15 +3858,16 @@ class TestAtpChildrenCaching:
         saved = dict(helpers.atp_to_children)
         helpers.atp_to_children.clear()
         try:
-            with patch.object(helpers, "_get_client") as mock_client:
-                # A term with no children: the client must be consulted once, then never
-                # again, otherwise every rule evaluation pays a network round trip.
-                mock_client.return_value.get_atp_descendants.return_value = []
+            # SCRUM-6720: the per-term children query (no cache build has read every edge)
+            with patch.object(helpers, "_atp_edges", None), \
+                    patch.object(helpers, "_sql_atp_descendants", return_value=[]) as mock_query:
+                # A term with no children: the query must run once, then never again,
+                # otherwise every rule evaluation pays a round trip.
                 assert helpers._get_atp_children("ATP:leafterm") == []
                 assert helpers._get_atp_children("ATP:leafterm") == []
                 assert helpers._get_atp_children("ATP:leafterm") == []
-                assert mock_client.return_value.get_atp_descendants.call_count == 1, (
-                    "childless ATP terms are not being cached; every lookup re-hits the API")
+                assert mock_query.call_count == 1, (
+                    "childless ATP terms are not being cached; every lookup re-runs the query")
         finally:
             helpers.atp_to_children.clear()
             helpers.atp_to_children.update(saved)

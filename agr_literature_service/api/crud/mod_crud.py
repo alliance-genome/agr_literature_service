@@ -28,6 +28,9 @@ def create(db: Session, mod: ModSchemaPost) -> ModModel:
     if "updated_by" in mod_data and mod_data["updated_by"] is not None:
         mod_data["updated_by"] = map_to_user_id(mod_data["updated_by"], db)
 
+    # taxon_ids is a list of mod_taxon rows (SCRUM-6720), assigned as a list, never None
+    if mod_data.get("taxon_ids") is None:
+        mod_data.pop("taxon_ids", None)
     mod_db_obj = ModModel(**mod_data)
     db.add(mod_db_obj)
     db.commit()
@@ -76,6 +79,8 @@ def patch(db: Session, mod_id: int, mod_update) -> ModModel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with mod_id {mod_id} not found")
     for field, value in mod_data.items():
+        if field == "taxon_ids" and value is None:
+            value = []
         setattr(mod_db_obj, field, value)
 
     mod_db_obj.dateUpdated = datetime.utcnow()
@@ -98,6 +103,10 @@ def show(db: Session, abbreviation: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod with the abbreviation {abbreviation} is not available")
     mod_data = jsonable_encoder(mod)
+    # taxon_ids is an association proxy over the mod_taxon rows (SCRUM-6720): it is not in the
+    # encoded attributes, while the loaded rows (taxons) are
+    mod_data.pop("taxons", None)
+    mod_data["taxon_ids"] = list(mod.taxon_ids)
     return mod_data
 
 
@@ -108,7 +117,7 @@ def taxons(db: Session, type='default'):
         if mod.abbreviation not in ['GO', 'AGR']:
             if type == 'all':
                 taxons.append({'mod_abbreviation': mod.abbreviation,
-                               'taxon_ids': mod.taxon_ids})
+                               'taxon_ids': list(mod.taxon_ids)})
             else:
                 taxon_ids_list = list(mod.taxon_ids)
                 first_taxon_id = taxon_ids_list[0] if taxon_ids_list else None

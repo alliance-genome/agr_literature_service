@@ -107,11 +107,6 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
-      PERSISTENT_STORE_DB_USERNAME: "${PERSISTENT_STORE_DB_USERNAME}"
-      PERSISTENT_STORE_DB_PASSWORD: "${PERSISTENT_STORE_DB_PASSWORD}"
-      PERSISTENT_STORE_DB_HOST: "${PERSISTENT_STORE_DB_HOST}"
-      PERSISTENT_STORE_DB_PORT: "${PERSISTENT_STORE_DB_PORT}"
-      PERSISTENT_STORE_DB_NAME: "${PERSISTENT_STORE_DB_NAME}"
       HOST: "${HOST}"
       COGNITO_REGION: "${COGNITO_REGION}"
       COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
@@ -258,11 +253,6 @@ services:
       PDFX_API_URL: "${PDFX_API_URL}"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       SGD_API_URL: "${SGD_API_URL}"
-      PERSISTENT_STORE_DB_USERNAME: "${PERSISTENT_STORE_DB_USERNAME}"
-      PERSISTENT_STORE_DB_PASSWORD: "${PERSISTENT_STORE_DB_PASSWORD}"
-      PERSISTENT_STORE_DB_HOST: "${PERSISTENT_STORE_DB_HOST}"
-      PERSISTENT_STORE_DB_PORT: "${PERSISTENT_STORE_DB_PORT}"
-      PERSISTENT_STORE_DB_NAME: "${PERSISTENT_STORE_DB_NAME}"
     volumes:
       - "${LOG_PATH:-.}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro
@@ -488,17 +478,18 @@ services:
       # --- SCRUM-6231: reindex was disk-write-bound (ksqlDB RocksDB ~405 MB/s saturating EBS) ---
       # cache.max.bytes.buffering=0 forced ksqlDB to flush every record straight to RocksDB.
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
-      # NOTE: this cache is PER persistent query (41 CTAS in ksql_queries.ksql -- was 34 before the
-      # SCRUM-6519 spine split the private chain into 14 narrow links), so total on-heap cache
-      # ~= 41 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
-      #   150 MB/query x 41 ~= 6.2 GB of the 16 GB ksqlDB heap (bumped below).
+      # NOTE: this cache is PER persistent query (60 CTAS in ksql_queries.ksql -- 34 before the
+      # SCRUM-6519 spine split the private chain into 14 narrow links, 44 before SCRUM-6720 added the
+      # ontologyterm joins), so total on-heap cache ~= 60 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
+      #   150 MB/query x 60 ~= 9 GB of the 16 GB ksqlDB heap (bumped below).
       # Raised 100->150 MB to coalesce/dedupe more state-store updates in memory during the
       # ramp-up rebuild before they reach RocksDB (fewer SST writes). Steady-state latency is
       # unaffected: the 3s commit interval still bounds flush staleness. Can push toward 200 MB
       # (and heap to 24 GB) IF `free -g` shows headroom alongside Kafka/ES/connector on the box.
       # Env-overridable (default = dev m5.4xlarge sizing). Scale DOWN with the heap on smaller boxes:
-      # the cache is PER persistent query (41), so total on-heap cache ~= 41 x this value. Prod
-      # m5.2xlarge (8g heap) uses DBZ_KSQL_CACHE_MAX_BYTES=78643200 (75 MiB -> ~3.0 GB across queries).
+      # the cache is PER persistent query (60), so total on-heap cache ~= 60 x this value. Prod
+      # m5.2xlarge (8g heap) uses DBZ_KSQL_CACHE_MAX_BYTES=78643200 (75 MiB -> ~4.4 GB across queries;
+      # ~3.3 GB before SCRUM-6720 -- check heap headroom there before the cutover rebuild).
       - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=${DBZ_KSQL_CACHE_MAX_BYTES:-157286400}
       # Commit/flush interval, balancing two MEASURED constraints from the dev reindex:
       #   - 10s added too much per-hop latency -> real-time CDC sync took >30s to reach ES and

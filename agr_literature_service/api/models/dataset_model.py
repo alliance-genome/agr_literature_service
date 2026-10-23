@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from sqlalchemy import Column, ForeignKey, BigInteger, Integer, String, UniqueConstraint, Boolean, Enum
+from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -8,6 +8,7 @@ from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 enable_versioning()
 
@@ -119,11 +120,9 @@ class DatasetModel(AuditedModel, Base):
         foreign_keys="DatasetModel.mod_id"
     )
 
-    data_type = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
+    # SCRUM-6720: an ATP ontologyterm id (a topic); data_type is its curie
+    data_type_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=False)
+    data_type = ontology_curie(data_type_id)
 
     dataset_type = Column(
         String(),
@@ -156,5 +155,8 @@ class DatasetModel(AuditedModel, Base):
     )
 
     __table_args__ = (
-        UniqueConstraint('mod_id', 'data_type', 'dataset_type', 'version', name='unique_dataset'),
+        UniqueConstraint('mod_id', 'data_type_id', 'dataset_type', 'version', name='unique_dataset'),
     )
+
+
+register_curie_columns(DatasetModel, {"data_type": ("data_type_id", ("ATPTerm",))})

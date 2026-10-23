@@ -196,9 +196,10 @@ def load_existing_entity_pairs(db: Session, source_id: int,
         "SELECT r.curie, tet.entity "
         "FROM   topic_entity_tag tet "
         "JOIN   reference r ON tet.reference_id = r.id "
+        "JOIN   ontologyterm atp ON atp.curie = :atp "
         "WHERE  tet.tag_source_id = :sid "
-        "AND    tet.topic = :atp "
-        "AND    tet.entity_type = :atp"
+        "AND    tet.topic_id = atp.id "
+        "AND    tet.entity_type_id = atp.id"
     ), {"sid": source_id, "atp": entity_atp}).fetchall()
     return {(row[0], row[1]) for row in rows}
 
