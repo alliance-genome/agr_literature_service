@@ -741,6 +741,25 @@ optimize_and_warm_index() {
         -H "Content-Type: application/json" -d '{"size":0,"query":{"match_all":{}}}' >/dev/null
 }
 
+# The build slot is created with bulk-load settings (elasticsearch-settings*.json): refresh every
+# 30s and an async translog, so the CPU-bound rebuild does not spend it on per-second refreshes, the
+# merges of the small segments they leave and an fsync per bulk request. Before the force-merge and
+# the flip, reset them to the defaults the live index runs with (1s refresh, fsync per request),
+# since the sinks keep writing to this slot once it serves search. Best-effort like the optimize:
+# a failure leaves the slot on the bulk settings (searches see writes up to 30s late) but correct.
+restore_serving_settings() {
+    local es_host=$1 es_port=$2 index=$3
+    local resp
+    resp=$(curl -s -m 30 -X PUT "http://${es_host}:${es_port}/${index}/_settings" \
+        -H "Content-Type: application/json" \
+        -d '{"index": {"refresh_interval": null, "translog.durability": null, "translog.flush_threshold_size": null}}')
+    if printf '%s' "$resp" | jq -e '.acknowledged == true' >/dev/null 2>&1; then
+        echo "Serving settings restored on ${index} (refresh 1s, translog fsync per request)."
+    else
+        echo "WARNING: could not restore serving settings on ${index}: ${resp}"
+    fi
+}
+
 # Atomically point <alias> at <new_index> in a SINGLE _aliases call (zero-downtime cutover):
 # remove the alias from any stale slot, and on first-run bootstrap atomically DELETE a legacy
 # CONCRETE index of the same name via `remove_index` -- in the SAME call as the add, so the name

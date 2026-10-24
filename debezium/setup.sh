@@ -275,6 +275,8 @@ if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]] && [[
     # Optimize + warm OFF the serving path (the alias still points at the old slot here). These are
     # best-effort: a failed optimize leaves the index unoptimized but still correct, so it does not
     # block the flip.
+    restore_serving_settings "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}"
+    restore_serving_settings "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_NAME_CURRENT}"
     optimize_and_warm_index "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}"
     optimize_and_warm_index "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_NAME_CURRENT}"
 

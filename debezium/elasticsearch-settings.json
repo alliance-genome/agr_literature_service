@@ -2,6 +2,11 @@
   "settings": {
     "number_of_shards": "1",
     "number_of_replicas": "0",
+    "refresh_interval": "30s",
+    "translog": {
+      "durability": "async",
+      "flush_threshold_size": "2gb"
+    },
     "max_ngram_diff": "20",
     "max_result_window": 5000000,
     "default_pipeline": "sort_authors_by_order",
