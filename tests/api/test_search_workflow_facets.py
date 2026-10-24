@@ -21,17 +21,15 @@ def _get_atp_ids(root_atp_ids):
 
 
 def _search_response(mod_to_tag_counts):
-    # each tag bucket carries the label sub-aggregation over workflow_tag_name (SCRUM-6720)
     return {"aggregations": {"workflow_tags": {"by_mod_abbreviation": {"buckets": [
         {"key": mod, "workflow_tag_ids": {"buckets": [
-            {"key": tag, "doc_count": count,
-             "label": {"buckets": [{"key": NAMES[tag], "doc_count": count}] if tag in NAMES else []}}
-            for tag, count in tag_counts.items()]}}
+            {"key": tag, "doc_count": count} for tag, count in tag_counts.items()]}}
         for mod, tag_counts in mod_to_tag_counts.items()]}}}}
 
 
 def _group(res, wft_mod_abbreviations):
-    with patch.object(search_crud, "get_atp_ids", side_effect=_get_atp_ids):
+    with patch.object(search_crud, "get_atp_ids", side_effect=_get_atp_ids), \
+            patch.object(search_crud, "get_map_ateam_curies_to_names", return_value=NAMES):
         return search_crud.process_workflow_tags_aggregations(res, wft_mod_abbreviations)
 
 

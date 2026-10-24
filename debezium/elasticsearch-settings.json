@@ -2,6 +2,11 @@
   "settings": {
     "number_of_shards": "1",
     "number_of_replicas": "0",
+    "refresh_interval": "30s",
+    "translog": {
+      "durability": "async",
+      "flush_threshold_size": "2gb"
+    },
     "max_ngram_diff": "20",
     "max_result_window": 5000000,
     "default_pipeline": "sort_authors_by_order",
@@ -434,9 +439,6 @@
       "workflow_tags": {
         "type": "nested",
         "properties": {
-          "workflow_tag_name": {
-            "type": "keyword"
-          },
           "workflow_tag_id": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
@@ -458,27 +460,6 @@
       "topic_entity_tags": {
         "type": "nested",
         "properties": {
-          "topic_name": {
-            "type": "keyword"
-          },
-          "entity_type_name": {
-            "type": "keyword"
-          },
-          "species_name": {
-            "type": "keyword"
-          },
-          "display_tag_name": {
-            "type": "keyword"
-          },
-          "data_novelty_name": {
-            "type": "keyword"
-          },
-          "data_context_name": {
-            "type": "keyword"
-          },
-          "source_evidence_assertion_name": {
-            "type": "keyword"
-          },
           "topic": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
@@ -624,12 +605,6 @@
       "indexing_priorities": {
         "type": "nested",
         "properties": {
-          "predicted_indexing_priority_name": {
-            "type": "keyword"
-          },
-          "curator_indexing_priority_name": {
-            "type": "keyword"
-          },
           "predicted_indexing_priority": {
             "type": "keyword",
             "normalizer": "sortNormalizer"
@@ -647,9 +622,6 @@
       "manual_indexing_tags": {
         "type": "nested",
         "properties": {
-          "curation_tag_name": {
-            "type": "keyword"
-          },
           "curation_tag": {
             "type": "keyword",
             "normalizer": "sortNormalizer"
