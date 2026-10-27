@@ -210,6 +210,7 @@ def search_references(
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
+                {"resource_title": {"type": "unified"}},
                 {"authors.name": {"type": "unified"}},
                 {"authors.orcid": {"type": "unified"}}
             ]
@@ -809,6 +810,8 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     hits = [{
         "curie": ref["_source"]["curie"],
         "citation": ref["_source"]["citation"],
+        "resource_id": ref["_source"].get("resource_id"),
+        "resource_title": ref["_source"].get("resource_title"),
         "title": ref["_source"]["title"],
         "date_published": ref["_source"]["date_published"],
         "date_published_start": ref["_source"]["date_published_start"],
@@ -829,6 +832,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
     add_names_to_large_scale_tags(hits)
+    add_resource_titles_to_hits(hits)
 
     # extract topic entity tag aggregations.
     topic_aggs = process_topic_entity_tags_aggregations(res)
@@ -1129,7 +1133,7 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
 def remap_highlights(highlights):  # pragma: no cover
     remapped = {}
     for key, value in highlights.items():
-        new_key = key.replace("authors.name", "authors")
+        new_key = key.replace("authors.name", "authors").replace("resource_title", "resource")
         remapped[new_key] = value
     return remapped
 
@@ -1626,6 +1630,24 @@ def add_resource_titles_to_buckets(aggregation: Dict[str, Any]) -> None:
         if resource:
             bucket["name"] = resource["title"]
             bucket["curie"] = resource["curie"]
+
+
+def add_resource_titles_to_hits(hits: List[Dict[str, Any]]) -> None:
+    """Fill resource_title from the database for hits whose index document has none yet
+    (indexed before resource_title was added to the private index). A failed lookup leaves
+    the title empty; the UI then falls back to the journal text in the citation."""
+    missing = [hit for hit in hits if not hit.get("resource_title") and str(hit.get("resource_id") or "").isdigit()]
+    if not missing:
+        return
+    try:
+        resources = get_resource_titles_by_ids([hit["resource_id"] for hit in missing])
+    except Exception as e:
+        logger.warning(f"Could not look up resource titles for search hits: {e}")
+        return
+    for hit in missing:
+        resource = resources.get(str(hit["resource_id"]))
+        if resource:
+            hit["resource_title"] = resource["title"]
 
 
 def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:

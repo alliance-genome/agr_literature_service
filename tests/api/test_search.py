@@ -167,7 +167,8 @@ def initialize_elasticsearch():
     doc1 = {
         "curie": "AGRKB:101000000000001",
         "resource_id": "9001",
-        "citation": "citation1",
+        "resource_title": "Genetics",
+        "citation": "citation1 Genetics 12:34",
         "title": "superlongword super super super super test test test",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
@@ -587,6 +588,42 @@ class TestSearch:
         buckets = res["aggregations"]["resource_id.keyword"]["buckets"]
         assert {b["key"] for b in buckets} == {"9001", "9002"}
         assert all("name" not in b for b in buckets)
+
+    def test_search_hit_resource_title_and_highlight(self, initialize_elasticsearch, auth_headers):  # noqa
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   return_value={}) as lookup:
+            with TestClient(app) as client:
+                payload = {"query": "Genetics", "return_facets_only": False}
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        hits = {h["curie"]: h for h in res["hits"]}
+        doc1 = hits["AGRKB:101000000000001"]
+        # the indexed journal title is returned and highlighted as "resource"
+        assert doc1["resource_title"] == "Genetics"
+        assert "<em>Genetics</em>" in doc1["highlight"]["resource"][0]
+        assert "resource_title" not in doc1["highlight"]
+        # a hit that already has its title is not looked up
+        assert all("9001" not in call[0][0] for call in lookup.call_args_list)
+
+    def test_search_hit_resource_title_from_database(self, initialize_elasticsearch, auth_headers):  # noqa
+        payload = {
+            "query": None,
+            "return_facets_only": False,
+            "facets_values": {"resource_id.keyword": ["9002"]},
+        }
+        titles = {"9002": {"title": "Cell", "curie": "AGRKB:102000000009002"}}
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   return_value=titles):
+            with TestClient(app) as client:
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        # doc4 was indexed without resource_title: it is filled from the database
+        assert [(h["curie"], h["resource_title"]) for h in res["hits"]] == [("AGRKB:101000000000004", "Cell")]
+
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   side_effect=RuntimeError("db down")):
+            with TestClient(app) as client:
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        # a failed lookup leaves the title empty rather than failing the search
+        assert [h["resource_title"] for h in res["hits"]] == [None]
 
     def test_search_resource_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
         with TestClient(app) as client:
