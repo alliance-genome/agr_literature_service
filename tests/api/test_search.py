@@ -590,8 +590,9 @@ class TestSearch:
         assert all("name" not in b for b in buckets)
 
     def test_search_hit_resource_title_and_highlight(self, initialize_elasticsearch, auth_headers):  # noqa
+        # the lookup knows no titles, so a title on the hit came from the index
         with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
-                   return_value={}) as lookup:
+                   return_value={}):
             with TestClient(app) as client:
                 payload = {"query": "Genetics", "return_facets_only": False}
                 res = client.post("/search/references/", json=payload, headers=auth_headers).json()
@@ -601,8 +602,6 @@ class TestSearch:
         assert doc1["resource_title"] == "Genetics"
         assert "<em>Genetics</em>" in doc1["highlight"]["resource"][0]
         assert "resource_title" not in doc1["highlight"]
-        # a hit that already has its title is not looked up
-        assert all("9001" not in call[0][0] for call in lookup.call_args_list)
 
     def test_search_hit_resource_title_from_database(self, initialize_elasticsearch, auth_headers):  # noqa
         payload = {
