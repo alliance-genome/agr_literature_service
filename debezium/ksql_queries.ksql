@@ -952,8 +952,9 @@ CREATE TABLE spine_tet AS
     spine_auth.REFERENCE_ID = topic_entity_tags.REFERENCE_ID
     EMIT CHANGES;
 
--- Journal title for the private index (SCRUM-1463): searched, highlighted as resource in the
--- matching text, and shown on the search card. A narrow reference_id -> title table joined only in
+-- Journal title for the private index (SCRUM-1463): highlighted as resource in the
+-- matching text and shown on the search card. Not a query field: a journal match is found through
+-- the citation, which carries the journal name. A narrow reference_id -> title table joined only in
 -- reference_joined, so the title is not carried through the spine. A reference without a resource
 -- has resource_id '__EMPTY__', whose resource row has a NULL title.
 CREATE TABLE reference_resource_title AS
