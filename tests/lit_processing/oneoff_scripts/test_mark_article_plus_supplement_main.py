@@ -20,6 +20,7 @@ mark_article_plus_supplement_main = importlib.util.module_from_spec(_spec)
 cast(Any, _spec.loader).exec_module(mark_article_plus_supplement_main)
 
 get_candidates = cast(Any, mark_article_plus_supplement_main).get_candidates
+get_article_xml = cast(Any, mark_article_plus_supplement_main).get_article_xml
 
 
 def _reference(db, n):  # noqa
@@ -31,10 +32,11 @@ def _reference(db, n):  # noqa
     return ref.reference_id
 
 
-def _file(db, reference_id, name, file_class, mod_id=None):  # noqa
+def _file(db, reference_id, name, file_class, mod_id=None, extension="pdf"):  # noqa
     row = ReferencefileModel(reference_id=reference_id, display_name=name, file_class=file_class,
-                             file_publication_status="final", file_extension="pdf", pdf_type="pdf",
-                             md5sum=f"md5-{reference_id}-{name}")
+                             file_publication_status="final", file_extension=extension,
+                             pdf_type="pdf" if extension == "pdf" else None,
+                             md5sum=f"md5-{reference_id}-{name}.{extension}")
     db.add(row)
     db.flush()
     db.add(ReferencefileModAssociationModel(referencefile_id=row.referencefile_id, mod_id=mod_id))
@@ -71,3 +73,18 @@ def test_candidates(db):  # noqa
     assert [row.display_name for row in candidates[mod_main][1]] == ["mmc5"]
     assert pmc_main not in candidates
     assert mod_suppl not in candidates
+
+
+def test_article_xml(db):  # noqa
+    fb = db.query(ModModel).filter_by(abbreviation="FB").one_or_none()
+    if fb is None:
+        fb = ModModel(abbreviation="FB", short_name="FB", full_name="FlyBase")
+        db.add(fb)
+        db.flush()
+    reference_id = _reference(db, 5)
+    article = _file(db, reference_id, "PMC995.1", "supplement", extension="xml")
+    _file(db, reference_id, "mmc3", "supplement", extension="xml")      # a supplementary XML
+    _file(db, reference_id, "PMC995", "supplement", mod_id=fb.mod_id, extension="xml")  # not from PMC
+    db.commit()
+
+    assert [row.referencefile_id for row in get_article_xml(db, reference_id, "PMC995")] == [article]

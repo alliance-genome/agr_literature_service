@@ -13,10 +13,14 @@ fixes the papers loaded before that.
 
 For each reference with a PMC supplement PDF and no PMC main file, it reads
 the supplement captions from the Europe PMC article XML and turns the
-captioned PDF from 'supplement' into 'main'. A row last edited by someone
-other than load_pmc_metadata is reported and skipped, so a curator's
-decision stands. It then moves the reference's file workflow tag to "file
-uploaded" for its corpus MODs.
+captioned PDF from 'supplement' into 'main'. Like the loader, it also turns
+the article XML (the PMC .xml named after the PMCID, e.g. PMC5823974.1.xml)
+from 'supplement' into 'nXML', so these papers convert from the nXML just
+as newly loaded ones do. A row last edited by someone other than
+load_pmc_metadata is reported and skipped, so a curator's decision stands.
+After each committed batch it moves the batch's file workflow tag to "file
+uploaded" for their corpus MODs, so a run that stops partway leaves no
+committed paper without its workflow change.
 
     python SCRUM-6753_mark_article_plus_supplement_main.py          # dry run
     python SCRUM-6753_mark_article_plus_supplement_main.py --apply
@@ -80,6 +84,22 @@ def get_candidates(db):
     return candidates
 
 
+def get_article_xml(db, reference_id, pmcid):
+    """The reference's PMC article XML still classed 'supplement': the .xml named
+    after the PMCID (PMC packages name it <PMCID>.<version>.xml)."""
+    name = pmcid.lower()
+    return [row for row in db.query(ReferencefileModel).filter(
+        ReferencefileModel.reference_id == reference_id,
+        ReferencefileModel.file_class == "supplement",
+        ReferencefileModel.file_extension == "xml",
+        pmc_file()).all()
+        if row.display_name.lower() == name or row.display_name.lower().startswith(name + ".")]
+
+
+def edited_by_someone_else(row):
+    return bool(row.updated_by) and row.updated_by != LOADER_USER
+
+
 def fetch_article_pdf_root(session, pmcid) -> Optional[str]:
     for attempt in range(3):
         try:
@@ -105,6 +125,8 @@ def main() -> None:
     set_global_user_id(db, SCRIPT_USER)
     http = requests.Session()
     marked = set()
+    pending_workflow = set()
+    xml_marked = 0
     skipped_edited = 0
     no_article_pdf = 0
     since_commit = 0
@@ -120,7 +142,7 @@ def main() -> None:
             if row is None:
                 no_article_pdf += 1
                 continue
-            if row.updated_by and row.updated_by != LOADER_USER:
+            if edited_by_someone_else(row):
                 skipped_edited += 1
                 logger.info(f"skip {pmcid} referencefile {row.referencefile_id} "
                             f"'{row.display_name}.pdf': last edited by {row.updated_by}")
@@ -128,19 +150,32 @@ def main() -> None:
             logger.info(f"{pmcid} reference_id {reference_id}: "
                         f"'{row.display_name}.pdf' supplement -> main")
             marked.add(reference_id)
+            for xml in get_article_xml(db, reference_id, pmcid):
+                if edited_by_someone_else(xml):
+                    logger.info(f"skip {pmcid} referencefile {xml.referencefile_id} "
+                                f"'{xml.display_name}.xml': last edited by {xml.updated_by}")
+                    continue
+                logger.info(f"{pmcid} reference_id {reference_id}: "
+                            f"'{xml.display_name}.xml' supplement -> nXML")
+                xml_marked += 1
+                if args.apply:
+                    xml.file_class = "nXML"
             if args.apply:
                 row.file_class = "main"
+                pending_workflow.add(reference_id)
                 since_commit += 1
                 if since_commit >= BATCH_COMMIT_SIZE:
                     db.commit()
+                    transition_workflow_for_uploaded_pdfs(db, pending_workflow)
+                    pending_workflow = set()
                     since_commit = 0
 
-        logger.info(f"summary: {len(marked)} PDF(s) marked main; {skipped_edited} skipped as "
-                    f"manually edited; {no_article_pdf} reference(s) without an "
-                    f"'Article plus Supplemental Information' PDF")
+        logger.info(f"summary: {len(marked)} PDF(s) marked main and {xml_marked} XML(s) marked "
+                    f"nXML; {skipped_edited} PDF(s) skipped as manually edited; {no_article_pdf} "
+                    f"reference(s) without an 'Article plus Supplemental Information' PDF")
         if args.apply:
             db.commit()
-            transition_workflow_for_uploaded_pdfs(db, marked)
+            transition_workflow_for_uploaded_pdfs(db, pending_workflow)
             logger.info("[APPLY] committed")
         else:
             db.rollback()
