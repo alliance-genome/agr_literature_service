@@ -2,7 +2,7 @@ import logging
 import re
 from os import path
 from sqlalchemy import text
-from typing import AbstractSet, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -273,15 +273,13 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
     db_session.close()
 
 
-def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int],
-                                          skip_mods: AbstractSet[str] = frozenset()):  # pragma: no cover
+def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]):  # pragma: no cover
     """
     Transition workflow tags to 'file uploaded' for references that received a new main PDF.
 
     Args:
         db_session: Database session
         reference_ids: Set of reference_ids that have new main PDFs
-        skip_mods: MOD abbreviations whose workflow tags are left alone
     """
     if not reference_ids:
         return
@@ -301,7 +299,7 @@ def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int],
     for row in rows:
         ref_id = row[0]
         mod_abbr = row[1]
-        if mod_abbr == 'AGR' or mod_abbr in skip_mods:
+        if mod_abbr == 'AGR':
             continue  # Skip AGR - no file upload workflow transitions
         if ref_id not in ref_to_mods:
             ref_to_mods[ref_id] = []

@@ -16,8 +16,7 @@ the supplement captions from the Europe PMC article XML and turns the
 captioned PDF from 'supplement' into 'main'. A row last edited by someone
 other than load_pmc_metadata is reported and skipped, so a curator's
 decision stands. It then moves the reference's file workflow tag to "file
-uploaded" for its corpus MODs, except WB, whose in-progress papers are
-being uploaded separately.
+uploaded" for its corpus MODs.
 
     python SCRUM-6753_mark_article_plus_supplement_main.py          # dry run
     python SCRUM-6753_mark_article_plus_supplement_main.py --apply
@@ -46,7 +45,6 @@ logger.setLevel(logging.INFO)
 SCRIPT_USER = path.basename(__file__).replace(".py", "")
 LOADER_USER = "load_pmc_metadata"
 EUROPEPMC_XML_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
-SKIP_WORKFLOW_MODS = {"WB"}
 BATCH_COMMIT_SIZE = 100
 
 
@@ -142,7 +140,7 @@ def main() -> None:
                     f"'Article plus Supplemental Information' PDF")
         if args.apply:
             db.commit()
-            transition_workflow_for_uploaded_pdfs(db, marked, skip_mods=SKIP_WORKFLOW_MODS)
+            transition_workflow_for_uploaded_pdfs(db, marked)
             logger.info("[APPLY] committed")
         else:
             db.rollback()
