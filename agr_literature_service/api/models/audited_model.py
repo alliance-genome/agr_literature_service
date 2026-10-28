@@ -49,6 +49,8 @@ def disable_set_updated_by_onupdate(target):
     """
     Disable automatic update of updated_by field for the target object.
     Used during validation to prevent changing the updated_by field.
+    Applies to the next flush of the object only: _clear_skip_auto_update
+    lifts it once the row is written.
     """
     setattr(target, _SKIP_AUTO_UPDATE_FLAG, True)
 
@@ -222,6 +224,19 @@ def _set_updated(mapper, connection, target):
     created_by = _assigned(target, 'created_by')
     if created_by is not None:
         target.created_by_id = agent_id_for_label(connection, created_by)
+
+
+@event.listens_for(AuditedModel, "after_insert", propagate=True)
+@event.listens_for(AuditedModel, "after_update", propagate=True)
+def _clear_skip_auto_update(mapper, connection, target):
+    """
+    The skip flag covers only the flush that writes the change it was set for.
+    Nothing else clears it, and the instance stays in the identity map across
+    commits, so a later edit of the same object in the same session would
+    otherwise lose its updated_by / date_updated stamping (SCRUM-6470).
+    """
+    if hasattr(target, _SKIP_AUTO_UPDATE_FLAG):
+        delattr(target, _SKIP_AUTO_UPDATE_FLAG)
 
 
 @event.listens_for(Session, "before_flush")
