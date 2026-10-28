@@ -16,8 +16,10 @@ the version A-team runs. Step 2 is the work that needs the A-team tables in the 
 **Status (2026-10-23):** Phases 0–4 are built on the `ateam_merge` branch (draft PR #1350), with
 every revision dry-run on the merged test DB. The whole chain, including main's bigint revision
 (#1352, fixed for the merged DB in #1353), was rehearsed there on 2026-10-22 (Phase 7). Phase 4 was
-reworked on 2026-10-23 to stream `ontologyterm` and join it in ksql, with labels in ES. Phase 5 is
-the A-team's. Left for ABC: Phase 6 and the Phase 7 rollout.
+reworked on 2026-10-23 to stream `ontologyterm` and join it in ksql; Valerio's #1356 (merged into
+the branch) made the joins INNER, dropped the ES labels and added bulk-load settings. Phase 5 is
+the A-team's. Left for ABC: Phase 6 and the Phase 7 rollout. On 2026-10-28 the merged test DB was
+rebuilt from fresh dumps and the ateam_merge chain rehearsed again: about 73 min end to end (Phase 7).
 
 Per the ticket, its alembic revisions go on the `ateam_merge` branch and are applied only to the
 merged database. That is the long-lived git branch `ateam_merge` (see Phase 0); `alembic/env.py`
@@ -41,7 +43,8 @@ Facts from the spike (SCRUM-6650):
    Schemas, routers and UI are unchanged.
 2. **Elasticsearch documents keep curie strings under the same field names,** so the ES mappings
    and `search_crud` filters and facets don't change. ksqlDB joins a streamed `ontologyterm` table
-   (Phase 4), and the documents also carry each term's label (decided with Valerio, 2026-10-23).
+   (Phase 4) and emits only the curies; the API names them with one SQL lookup (labels in ES were
+   tried on 2026-10-23 and removed in #1356).
 3. **`biologicalentity` is not streamed** (too large a state store). `topic_entity_tag` gets
    `entity_id` (FK) and keeps `entity` (string) filled for every row: the curie for A-team
    entities, and the leftover WB/SGD-validated value otherwise. ksql keeps reading the string.
@@ -120,6 +123,9 @@ topic_entity_tag.
   `curation_status_term_id`. The model attributes keep the old names.
 - **Unresolved values on the merged DB:** only `tag_source` row 227's `ECO_0006156`, corrected to
   `ECO:0006156` in the migration (and in `load_pdb_associations`). There is no `START_STATE` in the data.
+  The 2026-10-28 rehearsal from a fresh restore also found 55,389 `workflow_tag_version` rows with
+  `ATP:0000182proceed_on_value` (2024 inserts of since-deleted tags; earlier dry-run downgrades had
+  hidden them). `d8f0b2c4e695` maps them to ATP:0000182 (2ed2bc8b).
   The `LIKE 'ATP:%'` CHECKs are gone; the FK plus the resolver's type check replace them.
 - **Large tables:** `topic_entity_tag` (4.2M live, 8.6M history rows) drops its old indexes first and
   rewrites each table once: about 10.5 min. `reference_version` (15 GB) is not rewritten; only its
@@ -186,17 +192,18 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
 - **Not done (optional):** collapsing the search and TET-grid name maps into one join. They already
   go through the SQL `map_curies_to_names`.
 
-### Phase 4 — Search pipeline (Debezium / ksqlDB / ES) (done 2026-10-23)
+### Phase 4 — Search pipeline (Debezium / ksqlDB / ES) (done 2026-10-23, revised in #1356)
 - **How it was decided:**
   - **2026-10-22, interim:** trigger-maintained `*_curie` mirror columns next to each streamed id
     column (revision `e8a0c2d4f673`). They worked, but left ATP strings in ABC's tables and cost about
     22 min of backfill in the rehearsal.
   - **2026-10-23:** replaced, on Valerio's advice (SCRUM-6720 comment 98866), by streaming
-    `ontologyterm` and joining it in ksql, with labels in ES next to the curies.
+    `ontologyterm` and joining it in ksql, at first with labels in ES next to the curies.
   - **Re-emit risk, measured:** A-team's loads touch only the terms that change (1–20 ATP terms per
-    load date; ATP:0000005 was last updated 2024-04). So the 1.9M-tag re-emit is rare, and with labels
-    in ES a real change needs that reindex anyway. The mirror revision and trigger module were removed,
-    and the rehearsal DB was downgraded off them.
+    load date; ATP:0000005 was last updated 2024-04). So the 1.9M-tag re-emit is rare. The mirror
+    revision and trigger module were removed, and the rehearsal DB was downgraded off them.
+  - **#1356 (Valerio, merged into `ateam_merge`):** INNER joins, curies only in ES, and bulk-load
+    settings on the build slot. Details below; the label design it replaced is not in the code.
 - **Connector** (`postgres-source-unified.json`, `heal_publication.sh`):
   - `public.ontologyterm` is streamed as a *simple* table (`ExtractField` key `id`), like `mod`. Its
     key must be the bare id for the foreign-key joins to match; a joined table's `{"id": …}` key never
@@ -204,41 +211,52 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
   - `column.exclude.list` leaves only `id, curie, name, ontologytermtype, obsolete`.
   - No row filter, so no `REPLICA IDENTITY FULL` on A-team's table.
 - **ksql** (`ksql_queries.ksql`):
-  - An `ontologyterm` table and 14 foreign-key `LEFT JOIN`s, placed before `tag_group_key` and the
-    curie CASEs. The six TET terms are chained (`topic_entity_tag_term_1..6`) before the `tag_source`
-    join, since ksqlDB 0.26 does one foreign-key join per query.
-  - Each curie keeps its field name and gets a `<field>_name` label: topic, entity type, species,
-    display tag, novelty, context, source evidence, workflow tag, curation topic and status, both
-    indexing priorities, and the manual indexing tag.
-  - `retraction_status_name` now comes from the label, which matches the old hard-coded CASE values.
+  - An `ontologyterm` table and 14 foreign-key joins, placed before `tag_group_key` and the curie
+    CASEs. The six TET terms are chained (`topic_entity_tag_term_1..6`) before the `tag_source` join,
+    since ksqlDB 0.26 does one foreign-key join per query.
+  - Each curie keeps its field name; no label fields. `retraction_status_name` stays (the index
+    already carried it) and now comes from the term name, matching the old hard-coded CASE values.
 - **NULL foreign keys** (found in a local ksqlDB run): ksqlDB 0.26 (Kafka Streams 3.2) drops a row
-  whose foreign key is NULL from a foreign-key `LEFT JOIN` instead of emitting it with NULLs.
+  whose foreign key is NULL from any foreign-key join, `LEFT` included, instead of emitting it with
+  NULLs.
   - **Effect without a fix:** every reference without a retraction status, and every tag or priority
     with an unset term, would have vanished from the index.
   - **Fix:** NULL ids become `'__EMPTY__'` before each join, and ksql inserts an `'__EMPTY__'`
     `ontologyterm` row with a NULL curie and name, following the existing `resource` pattern.
+    `data_novelty_id` and `data_context_id` are NOT NULL, so they have no sentinel CASE.
+  - **INNER joins (#1356):** with the sentinel and the DB foreign keys every lookup has a matching
+    row, so the 14 `ontologyterm` joins and the `resource` / `copyright_license` joins are INNER. A row
+    waits for its term instead of being emitted first with NULL curies and again once the term
+    arrives, which had doubled the `topic_entity_tag` chain during a reindex.
   - **References:** they use two narrow tables (`reference_retraction_ids`, `reference_retraction`)
     joined on the primary key, so the full reference row isn't copied again.
-- **Elasticsearch** (`elasticsearch-settings.json`): the `*_name` fields are plain `keyword`. The curie
-  fields' `sortNormalizer` lowercases, and labels must keep their case.
-- **Search:**
-  - `search_crud` names every curie facet from a `label` sub-aggregation on its `*_name` field.
-  - The backend name lookups for search are gone, including the large-scale tag summaries. The UI
-    display names (manual, automated, author, …) stay, and the facet API response is unchanged.
-  - Entity names (gene symbols, …) still come from the backend, since `biologicalentity` isn't streamed.
+- **Elasticsearch:** no mapping change; the curie fields are as before. The `*_name` label fields
+  were removed in #1356: they added 21% to the average document (41% on references with tags), and
+  Valerio measured the dev reindex 43–56 min longer, spent in the ES sink. (On stage, a like-for-like
+  comparison showed the labelled build at 4 h 41 against 4 h 40 for `main`'s ksql.)
+- **Search:** `search_crud` is back to its pre-label version. Facet buckets and the large-scale tag
+  summaries are named by `add_curie_to_name_values`, which now goes through the SQL
+  `map_curies_to_names` (one batched `ontologyterm` lookup), not an A-team API call. Entity names
+  (gene symbols, …) still come from the backend, since `biologicalentity` isn't streamed.
+- **Bulk-load settings (#1356):** the rebuild is bound by Elasticsearch CPU, and the build slot ran
+  with live-search defaults (1 s refresh, an fsync per bulk request). Both slots are now created with
+  a 30 s refresh, an async translog and a 2 GB flush threshold; `status_manager.sh` resets them to the
+  defaults just before the force-merge and alias flip (best effort, like the optimize).
 - **`status_manager.sh`'s promotion gate** counted tags on the dropped columns and would have failed
   closed on every rebuild. It now groups by the term ids (one-to-one with curies) and joins
   `ontologyterm` for the source-evidence group.
 - **Verified** end to end in a local Kafka plus ksqlDB (`cp-ksqldb-server:7.2.15`, arm64) with
   Debezium-shaped records: references with and without a retraction status, and tags with and
-  without NULL term ids, came out in both the private and public topics with curies, labels and NULLs.
-  The Debezium CI test now checks that every indexed curie has its label.
+  without NULL term ids, came out in both the private and public topics with curies and NULLs.
+- **Test build (Valerio, 2026-10-23, labelled ksql, 8 GB heap):** 4 h 41 min; peaks Kafka 58.7 GB,
+  ksql state 53.0 GB (12 GB more than `main`), ksql memory 16 GB; indexes 4.43 / 3.69 GB with all
+  1,300,446 references and 3,458,332 TETs. The curies-only build after #1356 has not been timed on
+  stage yet.
 - **Operations:**
   - Persistent queries go from 44 to 60, and ksqlDB's record cache is allocated per query. On prod
     (75 MiB × 60) that's about 4.4 GB of the 8 GB heap, up from about 3.3 GB. Check the headroom
     before the cutover rebuild (sizing note updated in `docker-compose.yaml`).
   - Tell the A-team that a replication publication now covers `ontologyterm`.
-  - Labels only appear after the full reindex that the cutover includes.
 - **Still to do at rollout:** a full reindex, then compare a document sample against the pre-merge
   index, as in the 2026-10-15 PG 18.4 test.
 
@@ -288,6 +306,34 @@ rehearsal, as SCRUM-6719 did. Keep a rollback (the pre-merge dumps).
   - **Without the mirrors** the chain is about 57 min, or about 40 if #1352 reaches prod before the
     cutover. Add the 41-min load for the A-team freeze.
   - **The rehearsal DB is now at `d5f7b9c1e262`,** downgraded off the mirror revision.
+- **Rehearsal, 2026-10-28,** from fresh dumps: `literature_ateam_merge_test` rebuilt with
+  `ateam_merge_load.sh` from the A-team dump `2026-10-20_21-00-36` and the stage dump of 2026-10-23
+  (already bigint, alembic `039dbc7de1ef`), then `ANALYZE` and `alembic upgrade head` in one
+  transaction. Only the ateam_merge revisions ran; no mirrors.
+
+  | Step | Time |
+  |---|---|
+  | Drop/recreate DB | 5 s |
+  | Restore A-team dump (incl. 19 s copy) | 17 min 24 s |
+  | Rename `person`/`reference` | < 1 s |
+  | Restore ABC stage dump (incl. 53 s copy) | 20 min 48 s |
+  | **Load total** | **38 min 18 s** |
+  | `ANALYZE` (a fresh restore has no planner statistics) | 3 min 41 s |
+  | **`alembic upgrade`** (`039dbc7de1ef` → `d5f7b9c1e262`) | **31 min 5 s** |
+  | **End to end** | **about 73 min** |
+
+  - **Run 1 stopped after 4 min** in `d8f0b2c4e695` on the `ATP:0000182proceed_on_value` history rows
+    (Phase 1) and rolled back cleanly; fixed in 2ed2bc8b. A scan of every Phase 1 curie column, live
+    and history, then found nothing else unresolved. **Rehearse only on a fresh restore:** dry-run
+    downgrades rewrite history strings from ids and hide bad values.
+  - **Alembic took 31 min,** under the ~40-min estimate above. No per-revision breakdown this time
+    (alembic logs no revision lines in the rehearsal container; sample `pg_stat_activity` for one).
+  - **Checks:** 291 tables, 0 invalid indexes, 28 ABC FKs to `ontologyterm`; A-team tables untouched
+    (131 FKs to `ateam_person`, 12 to `ateam_reference`); `workflow_tag` 2,156,586 live and 5,191,462
+    history rows; `topic_entity_tag` 4,158,547 rows, 2,487,426 of the 2,644,494 with an entity string
+    linked by `entity_id`; DB 124 GB.
+  - **Downtime estimate for the A-team freeze:** about 73 min for load plus migration, before the
+    Debezium rebuild (about 4 h 40 on stage).
 - **Still possible:** fold Phase 2's `entity_id` fill into Phase 1's `topic_entity_tag` rewrite, so the
   4.2M rows are rewritten once (about 10 min less).
 - **Before `alembic upgrade`:** run `oneoff_scripts/SCRUM-6754_replace_start_state.py`. Revision
