@@ -635,6 +635,35 @@ class TestPreCurationWorkflowOverview:
             assert mod in data["workflows"]
             assert "file_upload" in data["workflows"][mod]
 
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_overview_abstract_classification_and_community_curation(self, db, test_workflow_tag):  # noqa
+        """SCRUM-6775: abstract classification (including a classifier's own states,
+        e.g. ZFIN molecular probe) and community curation are in the overview."""
+        from agr_literature_service.api.crud import workflow_tag_crud
+        load_name_to_atp_and_relationships_mock()
+        workflow_tag_crud._pre_curation_status_cache = None
+        workflow_tag_crud._pre_curation_process_cache = None
+        try:
+            reference_id = db.query(ReferenceModel.reference_id).filter_by(
+                curie=test_workflow_tag.related_ref_curie).scalar()
+            mod_id = db.query(ModModel.mod_id).filter_by(
+                abbreviation=test_workflow_tag.related_mod_abbreviation).scalar()
+            for atp_id in ("ATP:0000383", "ATP:0000233"):
+                db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id, workflow_tag_id=atp_id))
+            db.commit()
+
+            workflows = workflow_tag_crud.get_pre_curation_workflow_overview(
+                db, test_workflow_tag.related_ref_curie)["workflows"]
+            mod_workflows = workflows[test_workflow_tag.related_mod_abbreviation]
+            assert mod_workflows["abstract_classification"] == {
+                "status": "in_progress", "workflow_tag_id": "ATP:0000383"}
+            assert mod_workflows["community_curation"] == {
+                "status": "failed", "workflow_tag_id": "ATP:0000233"}
+        finally:
+            workflow_tag_crud._pre_curation_status_cache = None
+            workflow_tag_crud._pre_curation_process_cache = None
+
 
 class TestWorkflowTagReportsAndPriority:
     """Cover diagram 404 and set_priority paths in workflow_tag_crud (SCRUM-6298)."""

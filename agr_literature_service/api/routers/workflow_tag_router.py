@@ -344,7 +344,8 @@ def get_pre_curation_workflow_overview(
 ):
     """
     Get pre-curation workflow status overview for a reference across all MODs.
-    Returns workflow statuses for file upload, text conversion, email extraction,
-    topic classification, entity extraction, and curation classification.
+    Returns workflow statuses for abstract classification, file upload, text conversion,
+    email extraction, topic classification, entity extraction, community curation,
+    and curation classification.
     """
     return workflow_tag_crud.get_pre_curation_workflow_overview(db, reference_curie)
