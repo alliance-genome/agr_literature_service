@@ -952,6 +952,19 @@ CREATE TABLE spine_tet AS
     spine_auth.REFERENCE_ID = topic_entity_tags.REFERENCE_ID
     EMIT CHANGES;
 
+-- Journal title for the private index (SCRUM-1463): highlighted as resource in the
+-- matching text and shown on the search card. Not a query field: a journal match is found through
+-- the citation, which carries the journal name. A narrow reference_id -> title table joined only in
+-- reference_joined, so the title is not carried through the spine. A reference without a resource
+-- has resource_id '__EMPTY__', whose resource row has a NULL title.
+CREATE TABLE reference_resource_title AS
+    SELECT
+    normalized_copyright_reference.reference_id \"REFERENCE_ID\",
+    resource.title \"RESOURCE_TITLE\"
+    FROM normalized_copyright_reference normalized_copyright_reference
+    LEFT OUTER JOIN resource resource ON normalized_copyright_reference.resource_id = resource.resource_id
+    EMIT CHANGES;
+
 -- Wide reference columns attached ONCE here instead of being dragged through 13 links.
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
@@ -980,6 +993,7 @@ CREATE TABLE reference_joined WITH (
     normalized_copyright_reference.pubmed_publication_status \"pubmed_publication_status\",
     normalized_copyright_reference.pubmed_types \"pubmed_types\",
     normalized_copyright_reference.resource_id \"resource_id\",
+    reference_resource_title.RESOURCE_TITLE \"resource_title\",
     normalized_copyright_reference.title \"title\",
     normalized_copyright_reference.volume \"volume\",
     normalized_copyright_reference.retraction_status \"retraction_status\",
@@ -1009,6 +1023,8 @@ CREATE TABLE reference_joined WITH (
     FROM spine_tet spine_tet
     JOIN normalized_copyright_reference normalized_copyright_reference ON
     spine_tet.REFERENCE_ID = normalized_copyright_reference.reference_id
+    LEFT OUTER JOIN reference_resource_title reference_resource_title ON
+    spine_tet.REFERENCE_ID = reference_resource_title.REFERENCE_ID
     EMIT CHANGES;
 
 CREATE TABLE reference_with_copyright AS

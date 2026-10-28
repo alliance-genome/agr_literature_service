@@ -266,6 +266,16 @@
           }
         }
       },
+      "resource_title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
       "volume": {
         "type": "text",
         "fields": {
