@@ -1,7 +1,8 @@
 import logging
+import re
 from os import path
 from sqlalchemy import text
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -18,6 +19,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 infile = "data/pmc_oa_files_uploaded.txt"
+# where pubmed_download_pmc_files unpacks the packages: <pmid>/<pmcid>/<file>
+package_dir = "pubmed_pmc_download/"
 
 # file_class = "supplement"
 file_publication_status = "final"
@@ -49,6 +52,54 @@ def build_file_root_mappings(input_file):
     return pmcid_to_xml_root, pmcid_to_pdf_roots
 
 
+SUPPLEMENTARY_MATERIAL = re.compile(r'<supplementary-material\b.*?</supplementary-material>', re.S | re.I)
+SUPPLEMENT_PDF_HREF = re.compile(r'xlink:href\s*=\s*"([^"]+?)\.pdf"', re.I)
+# Cell Press and other Elsevier author manuscripts have no PDF of the article
+# in PMC; the full article ships as a supplement captioned "Document S2.
+# Article plus Supplemental Information".
+ARTICLE_PLUS_SUPPLEMENT = re.compile(r'\barticle\s+plus\s+supplement', re.I)
+
+
+def find_article_pdf_root(xml_text: str) -> Optional[str]:
+    """Return the lower-cased root name of the supplement PDF that holds the
+    whole article ("Article plus Supplemental Information"), or None."""
+    for block in SUPPLEMENTARY_MATERIAL.finditer(xml_text):
+        href = SUPPLEMENT_PDF_HREF.search(block.group(0))
+        if not href:
+            continue
+        caption = re.sub(r'<[^>]+>', ' ', block.group(0))
+        if ARTICLE_PLUS_SUPPLEMENT.search(caption):
+            return path.basename(href.group(1)).lower()
+    return None
+
+
+def build_article_pdf_roots(input_file, pmc_package_dir=package_dir):
+    """Map PMCID -> root name of its article-plus-supplement PDF, read from
+    the article XML of each package that has no PDF named like the XML."""
+    pmcid_to_xml_root, pmcid_to_pdf_roots = build_file_root_mappings(input_file)
+    pmcid_to_article_pdf_root = {}
+    with open(input_file) as f:
+        for line in f:
+            pieces = line.strip().split("\t")
+            if len(pieces) < 4 or not pieces[2].lower().endswith('.xml'):
+                continue
+            pmid, pmcid, file_name = pieces[0], pieces[1], pieces[2]
+            if file_name.rsplit('.', 1)[0].lower() != pmcid_to_xml_root.get(pmcid):
+                continue
+            if pmcid_to_xml_root[pmcid] in pmcid_to_pdf_roots.get(pmcid, set()):
+                continue
+            xml_file = path.join(pmc_package_dir, pmid, pmcid, file_name)
+            try:
+                with open(xml_file, encoding='utf-8', errors='replace') as xml:
+                    article_pdf_root = find_article_pdf_root(xml.read())
+            except OSError as e:
+                logger.warning(f"{pmcid}: cannot read {xml_file} to find the article PDF: {e}")
+                continue
+            if article_pdf_root and article_pdf_root in pmcid_to_pdf_roots.get(pmcid, set()):
+                pmcid_to_article_pdf_root[pmcid] = article_pdf_root
+    return pmcid_to_article_pdf_root
+
+
 def build_sibling_image_sizes(input_file):
     """Map (pmcid, base_file_name) -> {file_extension: file_size} for image files.
 
@@ -77,16 +128,24 @@ def build_sibling_image_sizes(input_file):
 
 
 def determine_file_class(file_name, file_extension, pmcid, pmcid_to_xml_root, pmcid_to_pdf_roots,
-                         file_size=None, sibling_sizes=None, sibling_display_names=None):
-    """Determine the file_class for a PMC file based on extension and root name matching."""
+                         file_size=None, sibling_sizes=None, sibling_display_names=None,
+                         pmcid_to_article_pdf_root=None):
+    """Determine the file_class for a PMC file based on extension and root name matching.
+
+    pmcid_to_article_pdf_root (from build_article_pdf_roots): for a package
+    without a PDF named like its XML, the supplement PDF the XML captions as
+    the whole article, which is then the main PDF and the XML its nXML."""
     file_class = classify_pmc_file(file_name, file_extension, file_size, sibling_sizes,
                                    sibling_display_names)
     file_root = file_name.lower()
+    article_pdf_root = (pmcid_to_article_pdf_root or {}).get(pmcid)
 
     # Check if this PDF is the main PDF (matches XML root name)
     if file_extension == 'pdf' and pmcid in pmcid_to_xml_root:
         if file_root == pmcid_to_xml_root[pmcid]:
             return 'main'
+    if file_extension == 'pdf' and file_root == article_pdf_root:
+        return 'main'
 
     # Check if this TXT matches XML root name
     if file_extension == 'txt' and pmcid in pmcid_to_xml_root:
@@ -96,6 +155,8 @@ def determine_file_class(file_name, file_extension, pmcid, pmcid_to_xml_root, pm
     # Only set nXML for .xml files if there's a matching PDF
     if file_extension == 'xml' and pmcid in pmcid_to_pdf_roots:
         if file_root in pmcid_to_pdf_roots[pmcid]:
+            return 'nXML'
+        if article_pdf_root and file_root == pmcid_to_xml_root.get(pmcid):
             return 'nXML'
         else:
             return 'supplement'
@@ -127,6 +188,9 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
     # First pass: Build mappings to identify main files
     pmcid_to_xml_root, pmcid_to_pdf_roots = build_file_root_mappings(infile)
     logger.info(f"Found {len(pmcid_to_xml_root)} PMCIDs with XML files for main PDF identification")
+    pmcid_to_article_pdf_root = build_article_pdf_roots(infile)
+    logger.info(f"Found {len(pmcid_to_article_pdf_root)} PMCIDs whose main PDF is an "
+                f"'Article plus Supplemental Information' supplement")
 
     # Build same-named image size map so gif/jpg pairs can be classified, plus a
     # per-PMCID set of image display names for color/B&W (_OC/_PB) twins (SCRUM-6095)
@@ -180,7 +244,8 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 sibling_names = pmc_image_display_names.get(pmcid, set())
                 file_class = determine_file_class(file_name, file_extension, pmcid,
                                                   pmcid_to_xml_root, pmcid_to_pdf_roots,
-                                                  file_size, sibling_sizes, sibling_names)
+                                                  file_size, sibling_sizes, sibling_names,
+                                                  pmcid_to_article_pdf_root)
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,

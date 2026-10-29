@@ -727,7 +727,23 @@ def looks_like_multiple_authors_in_one_name(name: str) -> bool:
     return len(pairs) >= 2
 
 
+def delete_automated_author_history(db_session, reference_id: int) -> int:
+    """SCRUM-6753: before a drop-and-reload, delete this reference's author
+    history written by automation (PubMed/DQM loads, ORCID/email linking),
+    so author_version keeps only the reload's own INSERT rows instead of a
+    copy of every previous load. History written by a person (a transaction
+    whose agent is person-backed) is kept. Returns the rows deleted."""
+    result = db_session.execute(text(
+        "DELETE FROM author_version av USING transaction t "
+        "WHERE av.reference_id = :reference_id AND t.id = av.transaction_id "
+        "AND NOT EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.person_id IS NOT NULL)"),
+        {"reference_id": reference_id})
+    return result.rowcount
+
+
 def replace_authors_from_json(db_session, reference_id: int, authors_from_json: List[Author]):
+
+    delete_automated_author_history(db_session, reference_id)
 
     # delete existing authors
     db_session.query(AuthorModel)\
