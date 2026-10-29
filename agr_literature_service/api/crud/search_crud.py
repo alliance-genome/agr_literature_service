@@ -15,6 +15,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descen
 from agr_literature_service.lit_processing.utils.db_read_utils import (
     get_mod_abbreviations,
     get_cross_reference_curie_prefixes,
+    get_resource_titles_by_ids,
 )
 
 from agr_literature_service.api.crud.search_ranking import (
@@ -37,6 +38,9 @@ from agr_literature_service.api.crud.search_filters import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ksqlDB indexes a reference with no resource as resource_id "__EMPTY__"
+RESOURCE_EMPTY_SENTINEL = "__EMPTY__"
 
 file_workflow_root_ids = ["ATP:0000140", "ATP:0000161"]
 reference_classification_root_ids = ["ATP:0000165"]
@@ -206,6 +210,7 @@ def search_references(
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
+                {"resource_title": {"type": "unified"}},
                 {"authors.name": {"type": "unified"}},
                 {"authors.orcid": {"type": "unified"}}
             ]
@@ -248,6 +253,14 @@ def search_references(
                     "field": "retraction_status",
                     "min_doc_count": 0,
                     "size": facets_limits.get("retraction_status.keyword", 10)
+                }
+            },
+            "resource_id.keyword": {
+                "terms": {
+                    "field": "resource_id.keyword",
+                    # references without a resource are indexed as '__EMPTY__'
+                    "exclude": [RESOURCE_EMPTY_SENTINEL],
+                    "size": facets_limits.get("resource_id.keyword", 10)
                 }
             },
             "can_display_image": {
@@ -797,6 +810,8 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     hits = [{
         "curie": ref["_source"]["curie"],
         "citation": ref["_source"]["citation"],
+        "resource_id": ref["_source"].get("resource_id"),
+        "resource_title": ref["_source"].get("resource_title"),
         "title": ref["_source"]["title"],
         "date_published": ref["_source"]["date_published"],
         "date_published_start": ref["_source"]["date_published_start"],
@@ -817,6 +832,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
     add_names_to_large_scale_tags(hits)
+    add_resource_titles_to_hits(hits)
 
     # extract topic entity tag aggregations.
     topic_aggs = process_topic_entity_tags_aggregations(res)
@@ -843,6 +859,11 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
     if retraction_status_agg:
         add_curie_to_name_values(retraction_status_agg)
+
+    # label resource facet buckets (keyed by resource_id) with the resource title
+    resource_agg = res["aggregations"].get("resource_id.keyword")
+    if resource_agg:
+        add_resource_titles_to_buckets(resource_agg)
 
     # normalize image facets to the standard terms-bucket shape (string true/false keys)
     can_display_agg = res["aggregations"].get("can_display_image")
@@ -1112,7 +1133,7 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
 def remap_highlights(highlights):  # pragma: no cover
     remapped = {}
     for key, value in highlights.items():
-        new_key = key.replace("authors.name", "authors")
+        new_key = key.replace("authors.name", "authors").replace("resource_title", "resource")
         remapped[new_key] = value
     return remapped
 
@@ -1591,6 +1612,42 @@ def ensure_structure(es_body: Dict[str, Any]) -> None:
         es_body["query"]["bool"]["filter"] = {"bool": {}}
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+
+
+def add_resource_titles_to_buckets(aggregation: Dict[str, Any]) -> None:
+    """Set name (resource title) and curie on each resource_id facet bucket. A
+    failed lookup leaves the buckets keyed by id only, so search still works."""
+    buckets = aggregation.get("buckets", [])
+    if not buckets:
+        return
+    try:
+        resources = get_resource_titles_by_ids([bucket["key"] for bucket in buckets])
+    except Exception as e:
+        logger.warning(f"Could not look up resource titles for the resource facet: {e}")
+        return
+    for bucket in buckets:
+        resource = resources.get(str(bucket["key"]))
+        if resource:
+            bucket["name"] = resource["title"]
+            bucket["curie"] = resource["curie"]
+
+
+def add_resource_titles_to_hits(hits: List[Dict[str, Any]]) -> None:
+    """Fill resource_title from the database for hits whose index document has none yet
+    (indexed before resource_title was added to the private index). A failed lookup leaves
+    the title empty; the UI then falls back to the journal text in the citation."""
+    missing = [hit for hit in hits if not hit.get("resource_title") and str(hit.get("resource_id") or "").isdigit()]
+    if not missing:
+        return
+    try:
+        resources = get_resource_titles_by_ids([hit["resource_id"] for hit in missing])
+    except Exception as e:
+        logger.warning(f"Could not look up resource titles for search hits: {e}")
+        return
+    for hit in missing:
+        resource = resources.get(str(hit["resource_id"]))
+        if resource:
+            hit["resource_title"] = resource["title"]
 
 
 def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:

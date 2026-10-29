@@ -1,8 +1,5 @@
 from typing import Dict
-from sqlalchemy import (
-    Column, DateTime, Integer, String, ARRAY, Boolean,
-    Index,
-)
+from sqlalchemy import (BigInteger, Column, DateTime, String, ARRAY, Boolean, Index)
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -15,7 +12,7 @@ class PersonModel(Base, AuditedModel):
     __tablename__ = "person"
     __versioned__: Dict = {}
 
-    person_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    person_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
     display_name = Column(String(), nullable=False)
 
     curie = Column(String(), nullable=False, unique=True, index=True)    # required, server-generated

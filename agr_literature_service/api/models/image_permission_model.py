@@ -5,7 +5,7 @@ image_permission_model.py
 
 from typing import Dict
 
-from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, String, TEXT, func
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, BigInteger, Integer, String, TEXT, func
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,7 +21,7 @@ class ImagePermissionModel(Base, AuditedModel):
 
     image_permission_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -79,20 +79,20 @@ class ResourceImagePermissionModel(Base, AuditedModel):
 
     resource_image_permission_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     resource_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("resource.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
 
     image_permission_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("image_permission.id", ondelete="CASCADE"),
         nullable=False,
         index=True

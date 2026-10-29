@@ -3,10 +3,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import Column, Integer, String, inspect, text
+from sqlalchemy import BigInteger, Column, String, inspect, text
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models import PersonModel
-from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.audited_model import (
+    AuditedModel,
+    disable_set_date_updated_onupdate,
+    disable_set_updated_by_onupdate
+)
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.crud import user_crud
 from agr_literature_service.api.user import get_current_agent_id, link_user_to_person, set_global_user_id
@@ -17,7 +21,7 @@ from ..fixtures import db  # noqa: F401
 class AuditedDummy(Base, AuditedModel):
     __tablename__ = "audited_dummy"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
 
 
@@ -314,6 +318,51 @@ def test_update_stamps_current_agent_and_db_date(db): # noqa
     assert obj.updated_by == "OTTO"
     assert obj.updated_by_id == get_current_agent_id()
     assert obj.db_date_updated > created
+
+
+def test_skip_auto_update_covers_only_the_next_flush(db): # noqa
+    """SCRUM-6470: validation suppresses audit stamping for its own write only; a
+    later edit of the same instance in the same session is stamped again. The flag
+    lives on the Python object, so this must keep one instance (no _reload)."""
+    obj = AuditedDummy(name="quebec", created_by="MANUAL_CREATOR")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    original_date_updated = obj.date_updated
+    set_global_user_id(db, "OTTO")
+
+    disable_set_updated_by_onupdate(obj)
+    disable_set_date_updated_onupdate(obj)
+    obj.name = "quebec-validated"
+    db.commit()
+    db.refresh(obj)
+    assert obj.updated_by == "MANUAL_CREATOR"
+    assert obj.date_updated == original_date_updated
+
+    obj.name = "quebec-edited"
+    db.commit()
+    db.refresh(obj)
+    assert obj.updated_by == "OTTO"
+    assert obj.date_updated > original_date_updated
+
+
+def test_skip_auto_update_cleared_by_flush_without_net_change(db): # noqa
+    """Validation that recomputes the value a column already has still goes through a
+    flush that clears the flag, so it cannot leak into the next real edit."""
+    obj = AuditedDummy(name="romeo", created_by="MANUAL_CREATOR")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    set_global_user_id(db, "OTTO")
+
+    disable_set_updated_by_onupdate(obj)
+    obj.name = "romeo"
+    db.commit()
+
+    obj.name = "romeo-edited"
+    db.commit()
+    db.refresh(obj)
+    assert obj.updated_by == "OTTO"
 
 
 def test_filter_by_audit_label(db): # noqa

@@ -7,7 +7,7 @@ If a reference is made obsolete and not merged then the new_id will be null.
 """
 
 from typing import Dict
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, ForeignKey, String
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -30,7 +30,7 @@ class ObsoleteReferenceModel(Base):
 
     obsolete_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -42,7 +42,7 @@ class ObsoleteReferenceModel(Base):
     )
 
     new_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id", ondelete="CASCADE"),
         index=True
     )

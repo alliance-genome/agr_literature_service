@@ -7,8 +7,7 @@ See docs/source/workflow_automation.rst for detailed description.
 
 from typing import Dict
 
-from sqlalchemy import (Column, ForeignKey, Integer,
-                        String, ARRAY)
+from sqlalchemy import (BigInteger, Column, ForeignKey, String, ARRAY)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -24,14 +23,14 @@ class WorkflowTransitionModel(AuditedModel, Base):
 
     workflow_transition_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     # mod id
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False

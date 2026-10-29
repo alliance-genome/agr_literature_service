@@ -445,6 +445,23 @@ class TestWorkflowTagAutomation:
                 WorkflowTagModel.workflow_tag_id == 'ATP:0000332'
             ).first()
 
+    def test_entry_transition_from_workflow_process_exposes_a_directly_set_tag(self, db, auth_headers, test_mod,  # noqa
+                                                                              test_reference):  # noqa
+        """SCRUM-6754: a tag the corpus code sets directly has no real incoming transition; an entry row from
+        ATP:0000177 (workflow process, held by no reference) carries its job condition so get_jobs sees it."""
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000177', transition_to='ATP:0000306',
+                                       condition='indexing_priority_job', transition_type='any'))
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000306'))
+        db.commit()
+        with TestClient(app) as client:
+            response = client.get(url="/workflow_tag/jobs/indexing_priority_job", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            jobs = response.json()
+            assert [(job['job_name'], job['reference_curie'], job['workflow_tag_id']) for job in jobs] == [
+                ('indexing_priority_job', reference.curie, 'ATP:0000306')]
+
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     def test_first_pass_curation_tbd_set_on_entity_extraction_rollup(self, db, auth_headers, test_reference):  # noqa

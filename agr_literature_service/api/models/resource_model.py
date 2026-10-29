@@ -5,7 +5,7 @@ resource_model.py
 
 from typing import Dict
 
-from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, BigInteger, Integer, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,7 +21,7 @@ class ResourceModel(Base, AuditedModel):
 
     resource_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -98,7 +98,7 @@ class ResourceModel(Base, AuditedModel):
     )
 
     copyright_license_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("copyright_license.id", ondelete="SET NULL"),
         nullable=True,
         index=True

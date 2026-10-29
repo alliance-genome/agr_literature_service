@@ -1,13 +1,5 @@
 from typing import Dict
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    ForeignKey,
-    Index,
-    text,
-)
+from sqlalchemy import (BigInteger, Column, String, DateTime, ForeignKey, Index, text)
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -20,10 +12,10 @@ class PersonEmailModel(Base, AuditedModel):
     __tablename__ = "person_email"
     __versioned__: Dict = {}
 
-    person_email_id = Column('id', Integer, primary_key=True, autoincrement=True)
+    person_email_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
 
     person_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("person.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

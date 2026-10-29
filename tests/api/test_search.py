@@ -166,7 +166,9 @@ def initialize_elasticsearch():
     es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
     doc1 = {
         "curie": "AGRKB:101000000000001",
-        "citation": "citation1",
+        "resource_id": "9001",
+        "resource_title": "Genetics",
+        "citation": "citation1 Genetics 12:34",
         "title": "superlongword super super super super test test test",
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
@@ -187,6 +189,7 @@ def initialize_elasticsearch():
     }
     doc2 = {
         "curie": "AGRKB:101000000000002",
+        "resource_id": "9001",
         "citation": "citation2",
         "title": "cell title",
         "pubmed_types": ["Book"],
@@ -205,6 +208,7 @@ def initialize_elasticsearch():
     }
     doc3 = {
         "curie": "AGRKB:101000000000003",
+        "resource_id": "__EMPTY__",
         "citation": "citation3",
         "title": "Book 1",
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
@@ -223,6 +227,7 @@ def initialize_elasticsearch():
     }
     doc4 = {
         "curie": "AGRKB:101000000000004",
+        "resource_id": "9002",
         "citation": "citation4",
         "title": "Book 2",
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
@@ -555,3 +560,88 @@ class TestSearch:
             curies = {h["curie"] for h in res["hits"]}
             # doc1 and doc2 have image permission
             assert curies == {"AGRKB:101000000000001", "AGRKB:101000000000002"}
+
+
+    def test_search_resource_facet_aggregations(self, initialize_elasticsearch, auth_headers):  # noqa
+        titles = {"9001": {"title": "Genetics", "curie": "AGRKB:102000000009001"}}
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   return_value=titles) as lookup:
+            with TestClient(app) as client:
+                payload = {"query": None, "return_facets_only": True}
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        buckets = {b["key"]: b for b in res["aggregations"]["resource_id.keyword"]["buckets"]}
+
+        # doc1 + doc2 share resource 9001, doc4 is 9002, doc3 has no resource
+        assert {k: b["doc_count"] for k, b in buckets.items()} == {"9001": 2, "9002": 1}
+        assert buckets["9001"]["name"] == "Genetics"
+        assert buckets["9001"]["curie"] == "AGRKB:102000000009001"
+        # a resource the lookup does not know stays keyed by id only
+        assert "name" not in buckets["9002"]
+        assert sorted(lookup.call_args[0][0]) == ["9001", "9002"]
+
+    def test_search_resource_facet_survives_title_lookup_failure(self, initialize_elasticsearch, auth_headers):  # noqa
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   side_effect=RuntimeError("db down")):
+            with TestClient(app) as client:
+                payload = {"query": None, "return_facets_only": True}
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        buckets = res["aggregations"]["resource_id.keyword"]["buckets"]
+        assert {b["key"] for b in buckets} == {"9001", "9002"}
+        assert all("name" not in b for b in buckets)
+
+    def test_search_hit_resource_title_and_highlight(self, initialize_elasticsearch, auth_headers):  # noqa
+        # the lookup knows no titles, so a title on the hit came from the index
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   return_value={}):
+            with TestClient(app) as client:
+                payload = {"query": "Genetics", "return_facets_only": False}
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        hits = {h["curie"]: h for h in res["hits"]}
+        doc1 = hits["AGRKB:101000000000001"]
+        # the indexed journal title is returned and highlighted as "resource"
+        assert doc1["resource_title"] == "Genetics"
+        assert "<em>Genetics</em>" in doc1["highlight"]["resource"][0]
+        assert "resource_title" not in doc1["highlight"]
+
+    def test_search_hit_resource_title_from_database(self, initialize_elasticsearch, auth_headers):  # noqa
+        payload = {
+            "query": None,
+            "return_facets_only": False,
+            "facets_values": {"resource_id.keyword": ["9002"]},
+        }
+        titles = {"9002": {"title": "Cell", "curie": "AGRKB:102000000009002"}}
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   return_value=titles):
+            with TestClient(app) as client:
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        # doc4 was indexed without resource_title: it is filled from the database
+        assert [(h["curie"], h["resource_title"]) for h in res["hits"]] == [("AGRKB:101000000000004", "Cell")]
+
+        with patch("agr_literature_service.api.crud.search_crud.get_resource_titles_by_ids",
+                   side_effect=RuntimeError("db down")):
+            with TestClient(app) as client:
+                res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        # a failed lookup leaves the title empty rather than failing the search
+        assert [h["resource_title"] for h in res["hits"]] == [None]
+
+    def test_search_resource_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"resource_id.keyword": ["9001"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert {h["curie"] for h in res["hits"]} == {"AGRKB:101000000000001", "AGRKB:101000000000002"}
+
+    def test_search_resource_facet_negated_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                # Book matches doc2, doc3 and doc4; a negated facet alone is not a search
+                "facets_values": {"pubmed_types.keyword": ["Book"]},
+                "negated_facets_values": {"resource_id.keyword": ["9001"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert {h["curie"] for h in res["hits"]} == {"AGRKB:101000000000003", "AGRKB:101000000000004"}

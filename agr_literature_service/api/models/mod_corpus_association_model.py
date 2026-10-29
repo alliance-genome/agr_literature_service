@@ -6,7 +6,7 @@ mod_corpus_association_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, Enum, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
@@ -24,13 +24,13 @@ class ModCorpusAssociationModel(AuditedModel, Base):
 
     mod_corpus_association_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("reference.id",
                    ondelete="CASCADE"),
         index=True
@@ -42,7 +42,7 @@ class ModCorpusAssociationModel(AuditedModel, Base):
     )
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True
     )

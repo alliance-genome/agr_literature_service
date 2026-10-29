@@ -5,7 +5,7 @@ mod_model.py
 
 
 from typing import Dict
-from sqlalchemy import ARRAY, Column, Integer, String
+from sqlalchemy import BigInteger, ARRAY, Column, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,7 +21,7 @@ class ModModel(Base, AuditedModel):
 
     mod_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )

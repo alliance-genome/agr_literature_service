@@ -1609,6 +1609,10 @@ _pre_curation_status_cache: Optional[Dict[str, Dict[str, list]]] = None
 _pre_curation_process_cache: Optional[Dict[str, str]] = None
 
 
+def _with_descendants(atp_id: str) -> list:
+    return [atp_id] + list(get_workflow_tags_from_process(atp_id) or [])
+
+
 def _get_pre_curation_status_atp_mapping() -> Dict[str, Dict[str, list]]:
     """Build status ATP mapping for pre-curation workflow overview dynamically."""
     global _pre_curation_status_cache
@@ -1616,6 +1620,17 @@ def _get_pre_curation_status_atp_mapping() -> Dict[str, Dict[str, list]]:
         return _pre_curation_status_cache
 
     _pre_curation_status_cache = {
+        # SCRUM-6775: abstract classification runs on the abstract, before file upload.
+        # Each classifier's states (e.g. ZFIN molecular probe) are children of the
+        # generic ones, so each status takes the generic state and its descendants.
+        "abstract_classification": {
+            check_status: _with_descendants(get_atp_id_by_name(f'abstract classification {name}',
+                                                               fallback=fallback))
+            for check_status, name, fallback in (("complete", "complete", "ATP:0000386"),
+                                                 ("failed", "failed", "ATP:0000384"),
+                                                 ("in_progress", "in progress", "ATP:0000382"),
+                                                 ("needed", "needed", "ATP:0000381"))
+        },
         "file_upload": {
             "complete": [get_atp_id_by_name('files uploaded', fallback='ATP:0000134')],
             "failed": [get_atp_id_by_name('file unobtainable', fallback='ATP:0000135')],
@@ -1646,6 +1661,17 @@ def _get_pre_curation_status_atp_mapping() -> Dict[str, Dict[str, list]]:
             "in_progress": [get_atp_id_by_name('entity extraction in progress', fallback='ATP:0000190')],
             "needed": [get_atp_id_by_name('entity extraction needed', fallback='ATP:0000173')]
         },
+        # SCRUM-6775: community curation follows entity extraction. Blocked and
+        # terminated (no author response) show as failed; "won't community curate"
+        # is left blank.
+        "community_curation": {
+            "complete": [get_atp_id_by_name('community curation complete, author reply', fallback='ATP:0000234')],
+            "failed": [get_atp_id_by_name('community curation blocked', fallback='ATP:0000233'),
+                       get_atp_id_by_name('community curation terminated-no author response',
+                                          fallback='ATP:0000394')],
+            "in_progress": [get_atp_id_by_name('community curation in progress', fallback='ATP:0000232')],
+            "needed": [get_atp_id_by_name('community curation needed', fallback='ATP:0000231')]
+        },
         "curation_classification": {
             "complete": [get_atp_id_by_name('curation classification complete', fallback='ATP:0000312')],
             "failed": [get_atp_id_by_name('curation classification failed', fallback='ATP:0000315')],
@@ -1663,11 +1689,13 @@ def _get_pre_curation_process_atp_ids() -> Dict[str, str]:
         return _pre_curation_process_cache
 
     _pre_curation_process_cache = {
+        "abstract_classification": get_atp_id_by_name('abstract classification', fallback='ATP:0000379'),
         "file_upload": get_atp_id_by_name('file upload', fallback='ATP:0000140'),
         "text_conversion": get_atp_id_by_name('text conversion', fallback='ATP:0000161'),
         "email_extraction": get_atp_id_by_name('email extraction', fallback='ATP:0000354'),
         "topic_classification": get_atp_id_by_name('reference classification', fallback='ATP:0000165'),
         "entity_extraction": get_atp_id_by_name('entity extraction', fallback='ATP:0000172'),
+        "community_curation": get_atp_id_by_name('community curation', fallback='ATP:0000235'),
         "curation_classification": get_atp_id_by_name('curation classification', fallback='ATP:0000311')
     }
     return _pre_curation_process_cache

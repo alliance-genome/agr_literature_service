@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
+from sqlalchemy import Column, ForeignKey, BigInteger, Integer, String, UniqueConstraint, Boolean, Enum
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -19,6 +19,7 @@ class DatasetEntryModel(Base):
 
     dataset_entry_id: Mapped[int] = mapped_column(
         'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -95,7 +96,7 @@ class DatasetModel(AuditedModel, Base):
 
     dataset_id = Column(
         'id',
-        Integer,
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -107,7 +108,7 @@ class DatasetModel(AuditedModel, Base):
     )
 
     mod_id = Column(
-        Integer,
+        BigInteger,
         ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
