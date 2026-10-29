@@ -722,8 +722,10 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     reference_id = topic_entity_tag.reference_id
     db.delete(topic_entity_tag)
     db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False,
-                        validation_values_only=False, db=db)
+    # A single-reference revalidation always deletes and rebuilds all of that
+    # reference's edges in one transaction (see run_revalidation), so there is no
+    # cheaper per-tag path to ask for here (SCRUM-6472).
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
 
 
 # SCRUM-6474: ATP:0000002 "topic tag", and ATP:0000001 above it, are containers rather
@@ -1150,10 +1152,15 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
 
 
 def set_validation_values_to_tag(tag: TopicEntityTagModel):
+    # Both values first: each walk lazy-loads `validated_by` and can autoflush, and the
+    # skip flag is cleared by the first flush that writes the tag (SCRUM-6470), so it
+    # must be set only once nothing else can flush before both columns are assigned.
+    curator_value = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_CURATOR)
+    author_value = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_AUTHOR)
     disable_set_updated_by_onupdate(tag)
     disable_set_date_updated_onupdate(tag)
-    tag.validation_by_professional_biocurator = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_CURATOR)
-    tag.validation_by_author = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_AUTHOR)
+    tag.validation_by_professional_biocurator = curator_value
+    tag.validation_by_author = author_value
 
 
 def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
@@ -1164,6 +1171,9 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     destroy_tag, validate_topic and the reference merge all call it synchronously. Omit it
     for the background sweep, which the router runs inside a forked Process: a forked child
     must never reuse the parent's pooled connections, so that path gets a private engine.
+
+    ``delete_all_first`` only matters for the full sweep. With ``curie_or_reference_id``
+    the reference's edges are always deleted and rebuilt in one transaction (SCRUM-6472).
     """
     # SCRUM-6474: report a crash rather than going silent. The `if email:` block below sits
     # after the call, so an exception used to skip it entirely -- in the forked-process
