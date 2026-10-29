@@ -52,11 +52,14 @@ def test_update_dates(db):  # noqa
                     curie="SGD:Lab_9100001"))
     membership = _audited(LaboratoryPersonModel, laboratory_id=lab.laboratory_id, person_id=member)
     db.add(membership)
+    # an obsolete colleague xref of the member (e.g. after a merge) is ignored
+    db.add(_audited(PersonCrossReferenceModel, person_id=member, curie_prefix="SGD",
+                    curie="SGD:Colleague_9100004", is_obsolete=True))
     db.flush()
     pre_existing_dates = _dates(db, "person", pre_existing)
     name_updated = _dates(db, "person_name", edited_name.person_name_id)[2:]
 
-    counts = update_dates(db, [(9100001, D1), (9100002, D1), (9100003, D2), (9199999, D1)],
+    counts = update_dates(db, [(9100001, D1), (9100002, D1), (9100003, D2), (9100004, D1), (9199999, D1)],
                           loader_user=LOADER)
 
     assert _dates(db, "person", loaded) == (D1, D1, D1, D1)
@@ -71,6 +74,7 @@ def test_update_dates(db):  # noqa
     assert _dates(db, "laboratory", lab.laboratory_id) == (D1, D1, D1, D1)
     # the later of the member's (D2) and the lab head's (D1) dates
     assert _dates(db, "laboratory_person", membership.laboratory_person_id) == (D2, D2, D2, D2)
+    assert _dates(db, "person", member) == (D2, D2, D2, D2)
     assert counts["unmatched colleague_ids"] == 1
     assert counts["person"] == 3
     assert counts["person (date_created only)"] == 1

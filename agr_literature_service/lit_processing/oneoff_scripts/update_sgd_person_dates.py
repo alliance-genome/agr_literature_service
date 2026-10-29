@@ -75,6 +75,18 @@ def loader_conditions(db, columns, loader_user):
     return f"t.created_by_id = {agent}", f"t.updated_by_id = {agent}"
 
 
+def table_columns(db, table):
+    return set(db.execute(text(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = :t"), {"t": table}).scalars())
+
+
+def active(db, xref_table) -> str:
+    """Condition on alias x for a non-obsolete xref: the column is obsolete since
+    SCRUM-6719 and is_obsolete before it (prod for now)."""
+    return "NOT x.obsolete" if "obsolete" in table_columns(db, xref_table) else "NOT x.is_obsolete"
+
+
 def set_dates(columns, loader_row) -> str:
     """date_created (and the LinkML db_date_created where the table has it)
     always; the update dates only for a row the loader created and is still
@@ -104,12 +116,18 @@ def update_dates(db, colleague_dates: List[Tuple[int, datetime]], loader_user=LO
         "CREATE TEMP TABLE sgd_person_date ON COMMIT DROP AS "
         "SELECT x.person_id, c.sgd_date FROM person_cross_reference x "
         "JOIN sgd_colleague_date c ON x.curie = 'SGD:Colleague_' || c.colleague_id "
-        "WHERE x.curie_prefix = 'SGD' AND x.person_id IS NOT NULL"))
+        f"WHERE x.curie_prefix = 'SGD' AND x.person_id IS NOT NULL AND {active(db, 'person_cross_reference')}"))
     db.execute(text(
         "CREATE TEMP TABLE sgd_lab_date ON COMMIT DROP AS "
         "SELECT x.laboratory_id, c.sgd_date FROM laboratory_cross_reference x "
         "JOIN sgd_colleague_date c ON x.curie = 'SGD:Lab_' || c.colleague_id "
-        "WHERE x.laboratory_id IS NOT NULL"))
+        f"WHERE x.laboratory_id IS NOT NULL AND {active(db, 'laboratory_cross_reference')}"))
+    # UPDATE ... FROM takes an arbitrary row when one matches several
+    for temp_table, key in (("sgd_person_date", "person_id"), ("sgd_lab_date", "laboratory_id")):
+        duplicates = db.execute(text(
+            f"SELECT {key} FROM {temp_table} GROUP BY {key} HAVING count(*) > 1")).scalars().all()
+        if duplicates:
+            raise SystemExit(f"{key}(s) with more than one SGD colleague: {duplicates}")
     # table -> (the date each row gets, as d(id, sgd_date), and its key column);
     # {pk} is the table's primary key
     sources = {table: ("SELECT person_id AS id, sgd_date FROM sgd_person_date", column)
@@ -130,9 +148,7 @@ def update_dates(db, colleague_dates: List[Tuple[int, datetime]], loader_user=LO
         "WHERE s.sgd_date IS NOT NULL OR o.sgd_date IS NOT NULL", "{pk}")
     counts = {}
     for table, (source, key) in sources.items():
-        columns = set(db.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_schema = current_schema() AND table_name = :t"), {"t": table}).scalars())
+        columns = table_columns(db, table)
         pk = "id" if "id" in columns else f"{table}_id"
         created_by_loader, updated_by_loader = loader_conditions(db, columns, loader_user)
         loader_row = f"{created_by_loader} AND {updated_by_loader}"
@@ -141,7 +157,7 @@ def update_dates(db, colleague_dates: List[Tuple[int, datetime]], loader_user=LO
         updated = db.execute(text(
             f"UPDATE {table} t SET {set_dates(columns, loader_row)} "
             f"FROM ({source.format(pk=pk)}) d WHERE t.{key.format(pk=pk)} = d.id{only_created_by_loader} "
-            f"RETURNING {loader_row}"), {"loader": loader_user}).scalars().all()
+            f"RETURNING COALESCE({loader_row}, FALSE)"), {"loader": loader_user}).scalars().all()
         counts[table] = len(updated)
         counts[f"{table} (date_created only)"] = updated.count(False)
     counts["unmatched colleague_ids"] = db.execute(text(
