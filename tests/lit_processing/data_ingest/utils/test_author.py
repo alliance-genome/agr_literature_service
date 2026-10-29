@@ -1,6 +1,8 @@
 """Unit tests for the pure Author value object and helpers in
 ``agr_literature_service.lit_processing.data_ingest.utils.author``.
 """
+from sqlalchemy import text
+
 from agr_literature_service.api.crud.utils.author_review import (
     AUTHOR_REVIEW_BLOCKED,
     AUTHOR_REVIEW_COMPLETE,
@@ -16,6 +18,12 @@ from agr_literature_service.api.models import (
     ReferenceModel,
     UserModel,
     WorkflowTagModel,
+)
+from agr_literature_service.api.user import (
+    _set_current_user,
+    get_current_agent_id,
+    get_global_user_id,
+    set_global_user_id,
 )
 from agr_literature_service.lit_processing.data_ingest.utils.author import (
     Author,
@@ -355,6 +363,74 @@ class TestUpdateAuthorsSync:
         # old rows gone, fresh reload with clean sequential 1..N order
         assert [r.author_order for r in rows] == [1, 2]
         assert [r.name for r in rows] == ["Xx X", "Yy Y"]
+
+
+def _json_authors(*names):
+    return [{"name": name, "firstname": name.split()[0], "lastname": name.split()[1],
+             "firstinit": name[0], "authorRank": rank} for rank, name in enumerate(names, start=1)]
+
+
+def _db_authors(db, reference_id):  # noqa
+    return [{"name": row.name, "first_name": row.first_name, "last_name": row.last_name,
+             "first_initial": row.first_initial, "author_order": row.author_order}
+            for row in db.query(AuthorModel).filter_by(reference_id=reference_id)
+            .order_by(AuthorModel.author_order)]
+
+
+def _author_history(db, reference_id):  # noqa
+    """(author_id, operation_type) of every author_version row of the reference."""
+    return sorted(db.execute(text(
+        "SELECT id, operation_type FROM author_version WHERE reference_id = :r"),
+        {"r": reference_id}).all())
+
+
+class TestUpdateAuthorsHistory:
+    """SCRUM-6753: a PubMed/DQM author reload replaces the reference's automated
+    author history instead of adding to it; history written by a person stays."""
+
+    def setup_method(self):
+        self._user = (get_global_user_id(), get_current_agent_id())
+
+    def teardown_method(self):
+        _set_current_user(*self._user)
+
+    def _reload(self, db, ref, *names):  # noqa
+        update_authors(db, ref.reference_id, _db_authors(db, ref.reference_id),
+                       _json_authors(*names), "x", {}, None, None, None, None)
+        db.commit()
+
+    def test_reload_keeps_only_the_new_authors_history(self, db):  # noqa
+        ref = _make_reference(db, "AGRKB:HIST-TEST-1")
+        set_global_user_id(db, "pubmed_history_test")
+        self._reload(db, ref, "Aa A", "Bb B", "Cc C")
+        self._reload(db, ref, "Xx X", "Yy Y")
+        self._reload(db, ref, "Xx X", "Zz Z")
+
+        author_ids = [row.author_id for row in db.query(AuthorModel).filter_by(reference_id=ref.reference_id)]
+        # one INSERT row per current author, none left from the earlier loads
+        assert _author_history(db, ref.reference_id) == sorted((author_id, 0) for author_id in author_ids)
+
+    def test_reload_keeps_history_written_by_a_curator(self, db):  # noqa
+        ref = _make_reference(db, "AGRKB:HIST-TEST-2")
+        set_global_user_id(db, "pubmed_history_test")
+        self._reload(db, ref, "Aa A", "Bb B")
+        removed = db.query(AuthorModel).filter_by(reference_id=ref.reference_id, author_order=2).one()
+        removed_id = removed.author_id
+        # a curator deletes the second author; the first is still automation-owned,
+        # so the next PubMed update reloads the reference
+        curator = _make_curator_user(db, "AGR:HISTLINK-2")
+        _set_current_user(curator, db.query(UserModel).join(
+            PersonModel, PersonModel.person_id == UserModel.person_id).filter(
+            PersonModel.curie == curator).one().user_id)
+        db.delete(removed)
+        db.commit()
+
+        set_global_user_id(db, "pubmed_history_test")
+        self._reload(db, ref, "Aa A", "Cc C")
+
+        author_ids = [row.author_id for row in db.query(AuthorModel).filter_by(reference_id=ref.reference_id)]
+        assert _author_history(db, ref.reference_id) == sorted(
+            [(author_id, 0) for author_id in author_ids] + [(removed_id, 2)])
 
 
 def _get_or_create_mod(db, abbreviation):  # noqa

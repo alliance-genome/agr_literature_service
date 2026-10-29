@@ -181,6 +181,13 @@ def load_name_to_atp_and_relationships_mock():
         # WB author-person curation (SCRUM-6487) and author review (SCRUM-6448)
         'ATP:0000375': ['ATP:0000109', 'ATP:0000377', 'ATP:0000376', 'ATP:0000378'],
         'ATP:0000388': ['ATP:0000389', 'ATP:0000390', 'ATP:0000391', 'ATP:0000392'],
+        # abstract classification, with the ZFIN molecular probe states under the generic
+        # ones, and community curation (SCRUM-6775 pre-curation overview)
+        'ATP:0000379': ['ATP:0000381', 'ATP:0000382', 'ATP:0000384', 'ATP:0000386'],
+        'ATP:0000381': ['ATP:0000380'], 'ATP:0000382': ['ATP:0000383'],
+        'ATP:0000384': ['ATP:0000385'], 'ATP:0000386': ['ATP:0000387'],
+        'ATP:0000235': ['ATP:0000231', 'ATP:0000232', 'ATP:0000233', 'ATP:0000234', 'ATP:0000342',
+                        'ATP:0000394'],
 
         'ATP:0000001': ['ATP:0000002'],
         'ATP:0000002': ['ATP:0000015', 'ATP:0000142'],
@@ -209,6 +216,9 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000331': [], 'ATP:0000332': [], 'ATP:0000333': [], 'ATP:0000371': [], 'ATP:0000330': [],
         'ATP:0000109': [], 'ATP:0000377': [], 'ATP:0000376': [], 'ATP:0000378': [],
         'ATP:0000389': [], 'ATP:0000390': [], 'ATP:0000391': [], 'ATP:0000392': [],
+        'ATP:0000380': [], 'ATP:0000383': [], 'ATP:0000385': [], 'ATP:0000387': [],
+        'ATP:0000231': [], 'ATP:0000232': [], 'ATP:0000233': [], 'ATP:0000234': [], 'ATP:0000342': [],
+        'ATP:0000394': [],
         'ATP:0000123': [],
         'ATP:0000069': [], 'ATP:0000070': [], 'ATP:0000071': [],
         'ATP:fileuploadinprogress': [], 'ATP:fileuploadcomplete': [], 'ATP:fileuploadfailed': [],
