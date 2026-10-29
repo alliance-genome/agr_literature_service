@@ -6,7 +6,8 @@ engine. These queries are the ones agr_curation_api's db_methods ran against the
 database (agr-curation-api-client 0.13.0), so results are unchanged; PERSISTENT_STORE_DB_* is no
 longer needed. A failed query still raises AGRAPIError, which callers already turn into a 502.
 
-The only A-team API call left is get_or_create_species: it imports a taxon from NCBI into A-team.
+The only A-team API call left is in get_or_create_species, and only for a taxon the ontologyterm table
+does not have yet: the API imports it from NCBI into A-team.
 """
 import logging
 import threading
@@ -54,7 +55,7 @@ _client: Optional[AGRCurationAPIClient] = None
 
 
 def _get_client() -> AGRCurationAPIClient:
-    """The A-team API client, now only for get_or_create_species."""
+    """The A-team API client, now only for get_or_create_species when a taxon is not in ontologyterm."""
     global _client
     if _client is None:
         _client = AGRCurationAPIClient()
@@ -300,6 +301,13 @@ def _sql_search_species(species: str, limit: int) -> List[Dict[str, str]]:
     return [{"curie": row[0], "name": row[1]} for row in rows]
 
 
+def _sql_species(curie: str) -> Optional[Dict[str, str]]:
+    """The NCBITaxon term for curie, obsolete or not (the A-team API returns an existing term either way)."""
+    rows = _rows("SELECT curie, name FROM ontologyterm WHERE curie = :curie AND ontologytermtype = 'NCBITaxonTerm'",
+                 {"curie": curie})
+    return {"curie": rows[0][0], "name": rows[0][1]} if rows else None
+
+
 def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONResponse:
     """
     Map pipe-delimited entity identifiers to CURIEs using the shared client.
@@ -430,12 +438,20 @@ def get_or_create_species(taxon_id: str) -> JSONResponse:
         taxon_id: Numeric NCBI Taxon ID (e.g., '6239') or full CURIE
                   (e.g., 'NCBITaxon:6239')
     """
-    cli = _get_client()
+    # Look in ontologyterm first; only a taxon A-team does not have yet needs the A-team API, which
+    # imports it from NCBI (SCRUM-6791). A failed query also falls back to the API.
+    curie = taxon_id if taxon_id.startswith("NCBITaxon:") else f"NCBITaxon:{taxon_id}"
     try:
-        term = cli.get_or_create_species(taxon_id)
+        data = _sql_species(curie)
     except AGRAPIError as e:
-        raise HTTPException(status_code=502, detail=f"Get or create species failed: {e}")
-    data = {"curie": term.curie, "name": term.name}
+        logger.warning("Species lookup for %s failed, asking the A-team API: %s", curie, e)
+        data = None
+    if data is None:
+        try:
+            term = _get_client().get_or_create_species(curie)
+        except AGRAPIError as e:
+            raise HTTPException(status_code=502, detail=f"Get or create species failed: {e}")
+        data = {"curie": term.curie, "name": term.name}
     return JSONResponse(content=jsonable_encoder(data))
 
 

@@ -3,7 +3,10 @@
 These run the real queries against the fixture tables (tests/ateam_fixture_schema.py), which hold the
 same ATP hierarchy the in-memory mock injects (tests/fixtures.atp_test_hierarchy).
 """
+import json
+
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import text
 
 from agr_literature_service.api.crud import ateam_db_helpers as helpers
@@ -95,6 +98,60 @@ def test_species_search_and_names(db):  # noqa: F811
         'ncbitaxon:623', 10)
     assert helpers.map_curies_to_names('species', ['NCBITaxon:6239']) == {'NCBITaxon:6239': 'Caenorhabditis elegans'}
     assert helpers.map_curies_to_names('unknown category', ['X:1']) == {'X:1': 'X:1'}
+
+
+class _FakeClient:
+    """Stands in for the A-team API client: records the calls, returns an imported term."""
+    def __init__(self, error=None):
+        self.calls, self.error = [], error
+
+    def get_or_create_species(self, curie):
+        self.calls.append(curie)
+        if self.error:
+            raise self.error
+        return type("Term", (), {"curie": curie, "name": "imported from NCBI"})()
+
+
+def _species(response):
+    return json.loads(response.body)
+
+
+def test_get_or_create_species_reads_an_existing_taxon_without_the_api(db, monkeypatch):  # noqa: F811
+    add_ontology_terms(db.connection(), ['NCBITaxon:6239'], termtype='NCBITaxonTerm')
+    db.execute(text("UPDATE ontologyterm SET name = 'Caenorhabditis elegans' WHERE curie = 'NCBITaxon:6239'"))
+    db.commit()
+    client = _FakeClient()
+    monkeypatch.setattr(helpers, "_get_client", lambda: client)
+    expected = {"curie": "NCBITaxon:6239", "name": "Caenorhabditis elegans"}
+    assert _species(helpers.get_or_create_species('6239')) == expected
+    assert _species(helpers.get_or_create_species('NCBITaxon:6239')) == expected
+    assert client.calls == []
+
+
+def test_get_or_create_species_asks_the_api_for_a_missing_taxon(db, monkeypatch):  # noqa: F811
+    client = _FakeClient()
+    monkeypatch.setattr(helpers, "_get_client", lambda: client)
+    assert _species(helpers.get_or_create_species('999999999')) == {
+        "curie": "NCBITaxon:999999999", "name": "imported from NCBI"}
+    assert client.calls == ['NCBITaxon:999999999']
+
+
+def test_get_or_create_species_asks_the_api_when_the_query_fails(monkeypatch):
+    def broken(curie):
+        raise helpers.AGRAPIError("Database query failed")
+
+    client = _FakeClient()
+    monkeypatch.setattr(helpers, "_sql_species", broken)
+    monkeypatch.setattr(helpers, "_get_client", lambda: client)
+    assert _species(helpers.get_or_create_species('6239'))["curie"] == "NCBITaxon:6239"
+    assert client.calls == ['NCBITaxon:6239']
+
+
+def test_get_or_create_species_api_failure_is_a_502(db, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(helpers, "_get_client", lambda: _FakeClient(helpers.AGRAPIError("A-team down")))
+    with pytest.raises(HTTPException) as exc_info:
+        helpers.get_or_create_species('999999999')
+    assert exc_info.value.status_code == 502
 
 
 def test_a_failed_query_is_an_agr_api_error(db):  # noqa: F811
