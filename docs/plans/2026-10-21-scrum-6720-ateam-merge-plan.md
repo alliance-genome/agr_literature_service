@@ -60,6 +60,12 @@ Facts from the spike (SCRUM-6650):
   `main` before cutover. The revisions chain after main's head `80595e1e0d4d` and are applied only to
   the merged DB with `alembic -x db_url=… upgrade head`. `main` is merged in as it moves; the branch
   goes to `main` at cutover.
+  - **Latest main merge, 2026-10-28** (dbbd5148): #1357 (SCRUM-1463, journal title indexed and
+    highlighted), #1358 (SCRUM-6470/6472, TET audit skip flag) and #1360 (SCRUM-6787,
+    `agr-curation-api-client` 0.15.2). No conflicts and no alembic changes, so the rehearsals stand.
+    Main's `reference_resource_title` joins `resource` on `resource_id`, which on this branch is
+    always a real id or the `'__EMPTY__'` sentinel; the ES settings carry both `resource_title` and
+    the build-slot bulk-load settings. CI green on 67a6ea85.
 - **Guard revision** `c4a1e7b93d20`: changes nothing, but stops the chain on a database without the
   A-team tables (`ontologyterm`, `ontologytermclosure`, `ontologyterm_subsets`, `biologicalentity`,
   `ateam_reference`, `ateam_person`).
@@ -255,10 +261,12 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
   1,300,446 references and 3,458,332 TETs. The curies-only build after #1356 has not been timed on
   stage yet.
 - **Operations:**
-  - Persistent queries go from 44 to 60, and ksqlDB's record cache is allocated per query. On prod
-    (75 MiB × 60) that's about 4.4 GB of the 8 GB heap, up from about 3.3 GB. Check the headroom
-    before the cutover rebuild (sizing note updated in `docker-compose.yaml`).
-  - Tell the A-team that a replication publication now covers `ontologyterm`.
+  - Persistent queries go from 44 to 60 with the ontologyterm joins, and to 61 with main's
+    SCRUM-1463 journal-title query. ksqlDB's record cache is allocated per query: on prod
+    (75 MiB × 61) that's about 4.5 GB of the 8 GB heap, up from about 3.3 GB. Check the headroom
+    before the cutover rebuild (sizing note updated in `docker-compose.yaml`, 67a6ea85).
+  - The A-team has been told that a replication publication now covers `ontologyterm` (SCRUM-6720
+    comment 98820, question 3).
 - **Still to do at rollout:** a full reindex, then compare a document sample against the pre-merge
   index, as in the 2026-10-15 PG 18.4 test.
 
