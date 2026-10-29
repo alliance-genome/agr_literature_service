@@ -183,8 +183,8 @@ topic_entity_tag.
 - `map_curies_to_names` and `atp_return_invalid_ids` become SQL. `get_atp_id_by_name` and
   `get_workflow_tags_from_process` (in `workflow_tag_crud.py`) follow automatically.
 - `search_crud.add_curie_to_name_values` and the TET grid name maps become one join.
-- **Stays HTTP:** `get_or_create_species` (it writes to A-team), the WB/SGD entity APIs, and
-  `resource_descriptor_cache` unless A-team's descriptor table is adopted.
+- **Stays HTTP:** `get_or_create_species` (it writes to A-team) and the WB/SGD entity APIs.
+  `resource_descriptor_cache` was moved to A-team's descriptor tables on 2026-10-29 (below).
 - Drop the `PERSISTENT_STORE_DB_*` dependency from runtime paths.
 
 **What was built:** every lookup that went through `agr_curation_api`'s DB methods is the same
@@ -195,8 +195,23 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
   314 cached terms have several parents, and only 2 (ATP:0000044, ATP:0000085) depend on child order.
   Both keep ATP:0000150 as before.
 - **A bug fixed:** for non-ATP terms the client's "ancestors" query returned descendants.
-- **Stays on the A-team API:** `get_or_create_species`, resource descriptors and the missing-species
-  loader. `PERSISTENT_STORE_DB_*` is gone from `docker-compose.yaml`.
+- **Resource descriptors (2026-10-29, 79f17799 and 87db4a04):** `resource_descriptor_cache` reads
+  `resourcedescriptor`, `resourcedescriptor_synonyms` and `resourcedescriptorpage` with SQL instead of
+  the A-team API, skipping obsolete and internal rows as the API's `findForPublic` did.
+  - **Parity with the live API:** 122/122 descriptors, no differences in names, synonyms, URL
+    templates or pages. 27 list their pages in a different order (by id); URLs are looked up by page
+    name, so none change.
+  - A failed forced refresh (`PUT /resource_descriptor`) returns 503 instead of 502;
+    `ATEAM_FETCH_TIMEOUT_SECONDS` (HTTP only) is gone.
+  - **Empty cache:** every read retries the load and logs an ERROR at most once a minute per worker,
+    since no descriptors means no cross reference URLs. With descriptors loaded, a failed refresh
+    keeps them and logs a WARNING.
+  - **Coupling:** ABC now depends on those three tables' names and their `internal` / `obsolete`
+    columns, so the A-team needs to coordinate changes to them with us.
+- **Stays on the A-team API:** the two species writes, `get_or_create_species` (SCRUM-6791) and the
+  missing-species loader cron (SCRUM-6792), whose tickets decide SQL or the API; and the
+  `/check/ateam_api` health check, kept because those writes still need the API.
+  `PERSISTENT_STORE_DB_*` is gone from `docker-compose.yaml`.
 - **Not done (optional):** collapsing the search and TET-grid name maps into one join. They already
   go through the SQL `map_curies_to_names`.
 
@@ -258,8 +273,9 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
   without NULL term ids, came out in both the private and public topics with curies and NULLs.
 - **Test build (Valerio, 2026-10-23, labelled ksql, 8 GB heap):** 4 h 41 min; peaks Kafka 58.7 GB,
   ksql state 53.0 GB (12 GB more than `main`), ksql memory 16 GB; indexes 4.43 / 3.69 GB with all
-  1,300,446 references and 3,458,332 TETs. The curies-only build after #1356 has not been timed on
-  stage yet.
+  1,300,446 references and 3,458,332 TETs.
+- **Curies-only build on the merged DB (2026-10-29, dev box):** 4 h 51 min, with all 1,301,188
+  references and 3,473,607 TETs. Details under Phase 7.
 - **Operations:**
   - Persistent queries go from 44 to 60 with the ontologyterm joins, and to 61 with main's
     SCRUM-1463 journal-title query. ksqlDB's record cache is allocated per query: on prod
@@ -267,8 +283,8 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
     before the cutover rebuild (sizing note updated in `docker-compose.yaml`, 67a6ea85).
   - The A-team has been told that a replication publication now covers `ontologyterm` (SCRUM-6720
     comment 98820, question 3).
-- **Still to do at rollout:** a full reindex, then compare a document sample against the pre-merge
-  index, as in the 2026-10-15 PG 18.4 test.
+- **Still to do:** compare a document sample and facet counts from the 2026-10-29 build against the
+  pre-merge index, as in the 2026-10-15 PG 18.4 test; at rollout, the full reindex.
 
 ### Phase 5 — A-team foreign keys → ABC `reference` / `person` (the A-team's own work)
 **Decided 2026-10-22: the A-team does these FK changes separately.** What follows is kept as our
@@ -381,6 +397,33 @@ rehearsal, as SCRUM-6719 did. Keep a rollback (the pre-merge dumps).
     ateam_merge ≈ **1 h 20**; all in one go ≈ **4 h 40**. Both are before the Debezium rebuild.
     **Recommendation:** deploy SCRUM-6719 and #1352 to prod in an earlier, separate release (its
     backfill commits in batches and needs the API and automated scripts stopped).
+- **Debezium build on the merged DB, 2026-10-29** (SCRUM-6720 comment 99005): a full build from the
+  prod-dump rehearsal DB above, with the ateam_merge code (61 persistent queries, curies only, #1356
+  bulk-load settings). It ran as an isolated stack on the dev box (`COMPOSE_PROJECT_NAME`
+  `agr-literature-mergedb4006`, index `references_index_ateam_merge`) next to the dev 4001 stack, so
+  its Kafka, ZooKeeper, connector and ksql ports are not published (`ports: !reset []` override).
+  No errors; both indexes promoted.
+
+  | | Result |
+  |---|---|
+  | Wall time | **4 h 51 min** (9:32 AM → 2:23 PM ET); Valerio's labelled build on 10-23: 4 h 41 |
+  | References, private / public index | 1,301,188 (every reference) / 1,118,529 |
+  | References with tags | 263,048 |
+  | TETs indexed | 3,473,607 of 3,473,607 (gate 3 needs ≥ 97%) |
+  | ES documents incl. nested, private / public | 14,849,312 / 17,031,716 |
+  | Kafka / ksql state on disk | 58.4 GB / 52.4 GB |
+  | ksql memory at the end | 16.3 GiB (8 GB heap, 75 MiB cache) |
+
+  - **Gates:** both indexes stable for 10 min with healthy sinks; every TET indexed; both
+    force-merged to one segment (ES < 7.16, so `status_manager.sh` polled merge stats instead of
+    `wait_for_completion`, as designed).
+  - **About 10 min longer than Valerio's build,** on different data and load, so the Phase 4 joins
+    add little if anything. Plan on about 5 h for the cutover rebuild, after the ≈ 1 h 20 merge.
+  - **The 8 GB ksql heap is enough** for the 61 queries at prod size.
+  - **Setup gotcha:** `ELASTICSEARCH_HOST` must be a bare host; with `http://` the setup's curls get
+    HTTP 000.
+  - **When the stack is stopped,** drop its `debezium_unified` replication slot in the merged DB, or
+    WAL piles up.
 - **Still possible:** fold Phase 2's `entity_id` fill into Phase 1's `topic_entity_tag` rewrite, so the
   4.2M rows are rewritten once (about 10 min less).
 - **Before `alembic upgrade`:** run `oneoff_scripts/SCRUM-6754_replace_start_state.py`. Revision
