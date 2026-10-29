@@ -183,7 +183,8 @@ topic_entity_tag.
 - `map_curies_to_names` and `atp_return_invalid_ids` become SQL. `get_atp_id_by_name` and
   `get_workflow_tags_from_process` (in `workflow_tag_crud.py`) follow automatically.
 - `search_crud.add_curie_to_name_values` and the TET grid name maps become one join.
-- **Stays HTTP:** `get_or_create_species` (it writes to A-team) and the WB/SGD entity APIs.
+- **Stays HTTP:** importing a taxon that is new to A-team (`get_or_create_species` looks in
+  `ontologyterm` first since 2026-10-29, below) and the WB/SGD entity APIs.
   `resource_descriptor_cache` was moved to A-team's descriptor tables on 2026-10-29 (below).
 - Drop the `PERSISTENT_STORE_DB_*` dependency from runtime paths.
 
@@ -208,10 +209,18 @@ query on ABC's own engine; a failure still raises `AGRAPIError`, so callers stil
     keeps them and logs a WARNING.
   - **Coupling:** ABC now depends on those three tables' names and their `internal` / `obsolete`
     columns, so the A-team needs to coordinate changes to them with us.
-- **Stays on the A-team API:** the two species writes, `get_or_create_species` (SCRUM-6791) and the
-  missing-species loader cron (SCRUM-6792), whose tickets decide SQL or the API; and the
-  `/check/ateam_api` health check, kept because those writes still need the API.
-  `PERSISTENT_STORE_DB_*` is gone from `docker-compose.yaml`.
+- **Species (2026-10-29, 7edd51c5; decided in SCRUM-6791, comment 99006):** `get_or_create_species`
+  normalises `6239` to `NCBITaxon:6239` and reads the `NCBITaxonTerm` from `ontologyterm` (obsolete
+  included, as the API returned an existing term either way). Only a taxon that isn't there yet goes to
+  the A-team API, which imports it from NCBI; a failed query also falls back to the API. Same response,
+  still a 502 if the API fails. Not SQL only: importing from NCBI is the A-team's write path, so ABC
+  doesn't create `ontologyterm` rows. The missing-species cron (SCRUM-6792) already worked this way
+  (SQL read, API only for missing taxa).
+- **Health check (1e870c3c):** `/check/ateamapi` now reports "No species can be created until the
+  ATeam API is back up" when the A-team API is down, instead of the old Cognito message, and no longer
+  returns a 500 when `ATEAM_API_URL` is unset or the token fetch fails.
+- **Stays on the A-team API:** only importing a taxon that is new to A-team. Everything else ABC reads
+  comes from the shared database. `PERSISTENT_STORE_DB_*` is gone from `docker-compose.yaml`.
 - **Not done (optional):** collapsing the search and TET-grid name maps into one join. They already
   go through the SQL `map_curies_to_names`.
 
