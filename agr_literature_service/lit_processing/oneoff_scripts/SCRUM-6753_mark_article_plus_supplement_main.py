@@ -18,9 +18,15 @@ the article XML (the PMC .xml named after the PMCID, e.g. PMC5823974.1.xml)
 from 'supplement' into 'nXML', so these papers convert from the nXML just
 as newly loaded ones do. A row last edited by someone other than
 load_pmc_metadata is reported and skipped, so a curator's decision stands.
-After each committed batch it moves the batch's file workflow tag to "file
-uploaded" for their corpus MODs, so a run that stops partway leaves no
-committed paper without its workflow change.
+Right after each paper is committed it moves the paper's file workflow tag
+to "file uploaded" for its corpus MODs, so a run that stops partway leaves
+no committed paper without its workflow change.
+
+No transaction is open while Europe PMC is called: each paper is read,
+updated and committed in its own short transaction. A transaction held
+across the HTTP calls kept row locks on referencefile for minutes, and on
+stage it deadlocked with the API's startup, which reinstalls the reference
+and referencefile triggers (DROP/CREATE TRIGGER takes an exclusive lock).
 
     python SCRUM-6753_mark_article_plus_supplement_main.py          # dry run
     python SCRUM-6753_mark_article_plus_supplement_main.py --apply
@@ -49,7 +55,6 @@ logger.setLevel(logging.INFO)
 SCRIPT_USER = path.basename(__file__).replace(".py", "")
 LOADER_USER = "load_pmc_metadata"
 EUROPEPMC_XML_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
-BATCH_COMMIT_SIZE = 100
 
 
 def pmc_file():
@@ -60,8 +65,9 @@ def pmc_file():
 
 
 def get_candidates(db):
-    """{reference_id: (pmcid, [PMC supplement PDF rows])} for references
-    without a PMC main file."""
+    """{reference_id: (pmcid, [(referencefile_id, display_name)])} of the PMC
+    supplement PDFs of references without a PMC main file. Plain values, so
+    the caller can end the read transaction before the Europe PMC calls."""
     PmcMain = ReferencefileModel.__table__.alias("pmc_main")
     has_pmc_main = exists().where(and_(
         PmcMain.c.reference_id == ReferencefileModel.reference_id,
@@ -80,7 +86,8 @@ def get_candidates(db):
             .order_by(ReferencefileModel.reference_id).all())
     candidates: dict = {}
     for row, pmcid in rows:
-        candidates.setdefault(row.reference_id, (pmcid.replace("PMCID:", ""), []))[1].append(row)
+        candidates.setdefault(row.reference_id, (pmcid.replace("PMCID:", ""), []))[1].append(
+            (row.referencefile_id, row.display_name))
     return candidates
 
 
@@ -125,27 +132,31 @@ def main() -> None:
     set_global_user_id(db, SCRIPT_USER)
     http = requests.Session()
     marked = set()
-    pending_workflow = set()
     xml_marked = 0
     skipped_edited = 0
     no_article_pdf = 0
-    since_commit = 0
     try:
         candidates = get_candidates(db)
+        db.rollback()  # end the read transaction: none may be open during the HTTP calls
         logger.info(f"{len(candidates)} reference(s) with a PMC supplement PDF and no PMC main file")
         for count, (reference_id, (pmcid, pdfs)) in enumerate(candidates.items(), start=1):
             if count % 500 == 0:
                 logger.info(f"progress: {count}/{len(candidates)}, {len(marked)} marked")
             article_pdf_root = fetch_article_pdf_root(http, pmcid)
             time.sleep(0.1)
-            row = next((pdf for pdf in pdfs if pdf.display_name.lower() == article_pdf_root), None)
-            if row is None:
+            referencefile_id = next((rf_id for rf_id, name in pdfs if name.lower() == article_pdf_root), None)
+            if referencefile_id is None:
                 no_article_pdf += 1
+                continue
+            row = db.get(ReferencefileModel, referencefile_id)
+            if row is None or row.file_class != "supplement":
+                db.rollback()
                 continue
             if edited_by_someone_else(row):
                 skipped_edited += 1
                 logger.info(f"skip {pmcid} referencefile {row.referencefile_id} "
                             f"'{row.display_name}.pdf': last edited by {row.updated_by}")
+                db.rollback()
                 continue
             logger.info(f"{pmcid} reference_id {reference_id}: "
                         f"'{row.display_name}.pdf' supplement -> main")
@@ -162,20 +173,15 @@ def main() -> None:
                     xml.file_class = "nXML"
             if args.apply:
                 row.file_class = "main"
-                pending_workflow.add(reference_id)
-                since_commit += 1
-                if since_commit >= BATCH_COMMIT_SIZE:
-                    db.commit()
-                    transition_workflow_for_uploaded_pdfs(db, pending_workflow)
-                    pending_workflow = set()
-                    since_commit = 0
+                db.commit()
+                transition_workflow_for_uploaded_pdfs(db, {reference_id})
+            else:
+                db.rollback()
 
         logger.info(f"summary: {len(marked)} PDF(s) marked main and {xml_marked} XML(s) marked "
                     f"nXML; {skipped_edited} PDF(s) skipped as manually edited; {no_article_pdf} "
                     f"reference(s) without an 'Article plus Supplemental Information' PDF")
         if args.apply:
-            db.commit()
-            transition_workflow_for_uploaded_pdfs(db, pending_workflow)
             logger.info("[APPLY] committed")
         else:
             db.rollback()

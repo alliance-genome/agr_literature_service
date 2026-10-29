@@ -69,8 +69,8 @@ def test_candidates(db):  # noqa
     candidates = get_candidates(db)
 
     assert candidates[no_main][0] == "PMC991"
-    assert sorted(row.display_name for row in candidates[no_main][1]) == ["mmc1", "mmc2"]
-    assert [row.display_name for row in candidates[mod_main][1]] == ["mmc5"]
+    assert sorted(name for _, name in candidates[no_main][1]) == ["mmc1", "mmc2"]
+    assert [name for _, name in candidates[mod_main][1]] == ["mmc5"]
     assert pmc_main not in candidates
     assert mod_suppl not in candidates
 
