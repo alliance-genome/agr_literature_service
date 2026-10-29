@@ -569,7 +569,7 @@ class TestRetractedPaperFunctions:
         """Test cleanup when there are no retracted papers."""
         mock_get_workflow_tags.return_value = ['ATP:0000162', 'ATP:0000163']
 
-        db.query(ReferenceModel).update({'retraction_status': None})
+        db.query(ReferenceModel).update({'retraction_status_id': None})
         db.commit()
 
         cleanup_tags_for_retracted_papers(db, logger)

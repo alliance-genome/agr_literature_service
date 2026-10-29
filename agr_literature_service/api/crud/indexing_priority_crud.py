@@ -224,9 +224,9 @@ def get_indexing_priority_tag(db: Session, curie: str):
     sql = """
     SELECT
         ip.id AS indexing_priority_id,
-        ip.predicted_indexing_priority,
+        pip.curie AS predicted_indexing_priority,
         ip.confidence_score,
-        ip.curator_indexing_priority,
+        cip.curie AS curator_indexing_priority,
         ip.date_updated,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
@@ -236,6 +236,8 @@ def get_indexing_priority_tag(db: Session, curie: str):
     FROM indexing_priority ip
     JOIN reference r ON r.id = ip.reference_id
     JOIN mod m ON m.id = ip.mod_id
+    LEFT JOIN ontologyterm pip ON pip.id = ip.predicted_indexing_priority_id
+    LEFT JOIN ontologyterm cip ON cip.id = ip.curator_indexing_priority_id
     LEFT JOIN agent u  ON u.id = ip.updated_by_id
     LEFT JOIN person p ON p.id = u.person_id
     WHERE r.curie = :ref_curie

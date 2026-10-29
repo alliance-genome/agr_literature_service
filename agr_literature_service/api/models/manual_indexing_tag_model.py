@@ -1,12 +1,13 @@
 from typing import Optional
 
 # import sqlalchemy as sa
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, String, Float, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, Column, ForeignKey, String, Float, UniqueConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models import ReferenceModel, ModModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 
 class ManualIndexingTagModel(Base, AuditedModel):
@@ -20,13 +21,8 @@ class ManualIndexingTagModel(Base, AuditedModel):
         UniqueConstraint(
             "mod_id",
             "reference_id",
-            "curation_tag",
+            "curation_tag_id",
             name="uq_mod_ref_tag",
-        ),
-        # ATP id format (curation_tag)
-        CheckConstraint(
-            "curation_tag LIKE 'ATP:%'",
-            name="ck_confval_curation_tag_prefix",
         ),
         # confidence_score in [0, 1]
         CheckConstraint(
@@ -72,10 +68,9 @@ class ManualIndexingTagModel(Base, AuditedModel):
     )
 
     # Fields per acceptance criteria
-    # Controlled note (ATP IDs)
-    curation_tag: Mapped[Optional[str]] = mapped_column(
-        String(64), index=True, nullable=False
-    )
+    # Controlled note: an ATP term (SCRUM-6720: the ontologyterm id; curation_tag is its curie)
+    curation_tag_id = Column(BigInteger, ForeignKey("ontologyterm.id"), index=True, nullable=False)
+    curation_tag = ontology_curie(curation_tag_id)
 
     confidence_score: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True
@@ -96,3 +91,6 @@ class ManualIndexingTagModel(Base, AuditedModel):
             f"mod_id:{self.mod_id} "
             f"ref_id:{self.reference_id} "
         )
+
+
+register_curie_columns(ManualIndexingTagModel, {"curation_tag": ("curation_tag_id", ("ATPTerm",))})

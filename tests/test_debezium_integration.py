@@ -655,6 +655,37 @@ class TestDebeziumIntegration:
 
     @pytest.mark.debezium
     @pytest.mark.webtest
+    def test_ontology_term_fields_are_curies(self, elasticsearch_config):
+        """SCRUM-6720: ABC stores ontologyterm ids; ksql joins ontologyterm and must still index curies
+        under the old field names (populate_test_db.py writes them)."""
+        es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
+        response = requests.get(f"{es_url}/{elasticsearch_config['private_index']}/_search?size=100")
+        assert response.status_code == 200
+        docs = [hit['_source'] for hit in response.json()['hits']['hits']]
+
+        def items(field):
+            for doc in docs:
+                for item in doc.get(field) or []:
+                    # topic_entity_tags is a list of group lists before the ingest pipeline flattens it
+                    yield from (item if isinstance(item, list) else [item])
+
+        tags = list(items('topic_entity_tags'))
+        assert tags, "no topic entity tags indexed"
+        assert {tag.get('topic') for tag in tags} <= {'ATP:0000000', 'ATP:0000005', 'ATP:0000009'}
+        assert all(tag.get('entity_type') == 'ATP:0000005' for tag in tags)
+        assert all(tag.get('species') == 'NCBITaxon:10090' for tag in tags)
+        assert all(tag.get('data_novelty') == 'ATP:0000334' for tag in tags)
+        assert all(tag.get('data_context') == 'ATP:0000325' for tag in tags)
+        assert all(tag.get('source_evidence_assertion') for tag in tags)
+        workflow_tags = list(items('workflow_tags'))
+        assert workflow_tags, "no workflow tags indexed"
+        assert all(str(tag.get('workflow_tag_id', '')).startswith('ATP:') for tag in workflow_tags)
+        for field, key in (('indexing_priorities', 'predicted_indexing_priority'),
+                           ('manual_indexing_tags', 'curation_tag')):
+            assert all(str(item.get(key)).startswith('ATP:') for item in items(field) if item.get(key)), field
+
+    @pytest.mark.debezium
+    @pytest.mark.webtest
     def test_new_fields_present_in_public_index(self, elasticsearch_config):
         """Test that new fields (relations, copyright_license, mesh_terms) are present in public index."""
         es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"

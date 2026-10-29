@@ -29,7 +29,10 @@ SessionLocal = sessionmaker(engine, autoflush=True)
 def create_all_tables():
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-    Base.metadata.create_all(engine)
+    # A-team tables (ontologyterm) are mapped so ABC can join and reference them, but they belong
+    # to the A-team: they already exist in the merged database and are never created here.
+    Base.metadata.create_all(engine, tables=[table for table in Base.metadata.sorted_tables
+                                             if not table.info.get('ateam')])
 
 
 def create_default_user():

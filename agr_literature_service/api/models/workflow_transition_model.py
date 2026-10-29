@@ -13,6 +13,7 @@ from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models.ontology_term_model import ontology_curie, register_curie_columns
 
 enable_versioning()
 
@@ -41,19 +42,13 @@ class WorkflowTransitionModel(AuditedModel, Base):
         foreign_keys="WorkflowTransitionModel.mod_id"
     )
 
-    # workflow transitions from this workflow_tag, String from A-Team api.
-    transition_from = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
+    # workflow transitions from / to these workflow tags: ATP ontologyterm ids (SCRUM-6720);
+    # transition_from and transition_to are their curies
+    transition_from_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=False)
+    transition_from = ontology_curie(transition_from_id)
 
-    # workflow transitions to this workflow_tag, String from A-Team api.
-    transition_to = Column(
-        String(),
-        unique=False,
-        nullable=False
-    )
+    transition_to_id = Column(BigInteger, ForeignKey("ontologyterm.id"), nullable=False)
+    transition_to = ontology_curie(transition_to_id)
 
     # Correct type annotations
     requirements: Column = Column(ARRAY(String), unique=False, nullable=True)
@@ -80,3 +75,9 @@ class WorkflowTransitionModel(AuditedModel, Base):
         """
         return f"mod: {self.mod_id}, from: {self.transition_from}  to: {self.transition_to}\n\t"\
             f"actions: {self.actions}, condition: {self.condition}, req: {self.requirements}"
+
+
+register_curie_columns(WorkflowTransitionModel, {
+    "transition_from": ("transition_from_id", ("ATPTerm",)),
+    "transition_to": ("transition_to_id", ("ATPTerm",)),
+})

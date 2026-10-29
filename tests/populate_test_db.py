@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import initialize
 from tests.fixtures import delete_all_table_content
+from tests.ateam_fixture_schema import add_ontology_terms
 
 # Add the project root to the path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -43,6 +44,16 @@ from agr_literature_service.api.models.manual_indexing_tag_model import ManualIn
 from agr_literature_service.api.models.curation_status_model import CurationStatusModel  # noqa: E402
 from agr_literature_service.api.models.curation_status_source_association_model import \
     CurationStatusSourceAssociationModel  # noqa: E402
+
+
+# Every ontology curie the factory below writes (SCRUM-6720: they must exist in ontologyterm)
+MOCK_ATP_TERMS = ("ATP:0000000", "ATP:0000002", "ATP:0000005", "ATP:0000009", "ATP:0000101", "ATP:0000102",
+                  "ATP:0000103", "ATP:0000104", "ATP:0000105", "ATP:0000106", "ATP:0000107", "ATP:0000201",
+                  "ATP:0000202", "ATP:0000237", "ATP:0000238", "ATP:0000239", "ATP:0000325", "ATP:0000334")
+MOCK_TAXON_TERMS = ("NCBITaxon:10090", "NCBITaxon:6239", "NCBITaxon:7227", "NCBITaxon:559292", "NCBITaxon:10116",
+                    "NCBITaxon:7955", "NCBITaxon:8355")
+# the tag sources' source_evidence_assertion values (labels, not curies; registered as ECO terms)
+MOCK_ECO_TERMS = ("curator_judgement", "author_statement", "automated_inference", "computational_analysis")
 
 
 class MockDataFactory:
@@ -273,14 +284,15 @@ class MockDataFactory:
 
     def create_mod(self, db_session, mod_id: int) -> ModModel:
         """Create a MOD (Model Organism Database) entry."""
+        # taxa are NCBITaxon curies, as on real MODs (SCRUM-6720: mod_taxon rows reference ontologyterm)
         mod_data = [
-            ("WB", "WB", "WormBase", ["6239"]),
-            ("FB", "FB", "FlyBase", ["7227"]),
-            ("SGD", "SGD", "Saccharomyces Genome Database", ["559292"]),
-            ("RGD", "RGD", "Rat Genome Database", ["10116"]),
-            ("MGI", "MGI", "Mouse Genome Informatics", ["10090"]),
-            ("ZFIN", "ZFIN", "Zebrafish Information Network", ["7955"]),
-            ("XB", "XB", "Xenbase", ["8355"])
+            ("WB", "WB", "WormBase", ["NCBITaxon:6239"]),
+            ("FB", "FB", "FlyBase", ["NCBITaxon:7227"]),
+            ("SGD", "SGD", "Saccharomyces Genome Database", ["NCBITaxon:559292"]),
+            ("RGD", "RGD", "Rat Genome Database", ["NCBITaxon:10116"]),
+            ("MGI", "MGI", "Mouse Genome Informatics", ["NCBITaxon:10090"]),
+            ("ZFIN", "ZFIN", "Zebrafish Information Network", ["NCBITaxon:7955"]),
+            ("XB", "XB", "Xenbase", ["NCBITaxon:8355"])
         ]
 
         abbrev, short, full, taxons = mod_data[mod_id % len(mod_data)]
@@ -383,19 +395,19 @@ class MockDataFactory:
     def create_topic_entity_tag(self, db_session, reference: ReferenceModel,
                                 tag_id: int, source: TagSourceModel) -> TopicEntityTagModel:
         """Create a topic entity tag entry."""
-        # Use real topic values that would be found in the system
+        # Topics and entity types are ATP terms (SCRUM-6720: topic and entity_type
+        # reference ontologyterm ATP terms, so GO/DOID/HGNC/NCBITaxon curies or "gene"
+        # are rejected); all of them are in MOCK_ATP_TERMS
         topics = [
             "ATP:0000000",  # ATP root term
-            "GO:0008150",   # biological_process
-            "DOID:4",       # disease
-            "HGNC:5",       # gene symbol
-            "NCBITaxon:10090"  # species
+            "ATP:0000005",  # gene
+            "ATP:0000009",
         ]
 
         tag = TopicEntityTagModel(
             reference_id=reference.reference_id,
             topic=topics[tag_id % len(topics)],
-            entity_type="gene",
+            entity_type="ATP:0000005",
             entity="HGNC:12345",
             entity_id_validation="alliance",
             tag_source_id=source.tag_source_id,
@@ -558,6 +570,11 @@ def populate_database():
     db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
     db_session.commit()
     delete_all_table_content(engine, db_session)
+    # SCRUM-6720: curie columns are foreign keys to ontologyterm; register every term written below
+    with engine.begin() as conn:
+        add_ontology_terms(conn, MOCK_ATP_TERMS)
+        add_ontology_terms(conn, MOCK_TAXON_TERMS, termtype="NCBITaxonTerm")
+        add_ontology_terms(conn, MOCK_ECO_TERMS, termtype="ECOTerm")
     # Initialize database connection
     db = next(get_db())
     factory = MockDataFactory()

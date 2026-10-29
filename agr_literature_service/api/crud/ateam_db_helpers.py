@@ -1,13 +1,25 @@
+"""A-team ontology terms, their hierarchy, MOD subsets and biological entities (SCRUM-6720 Phase 3).
+
+In the merged database the A-team tables (ontologyterm, ontologytermclosure, ontologyterm_subsets,
+biologicalentity, slotannotation, ...) are ABC tables too, so every lookup here is SQL on ABC's own
+engine. These queries are the ones agr_curation_api's db_methods ran against the separate A-team
+database (agr-curation-api-client 0.13.0), so results are unchanged; PERSISTENT_STORE_DB_* is no
+longer needed. A failed query still raises AGRAPIError, which callers already turn into a 502.
+
+The only A-team API call left is in get_or_create_species, and only for a taxon the ontologyterm table
+does not have yet: the API imports it from NCBI into A-team.
+"""
 import logging
 import threading
 
-from agr_curation_api.models import OntologyTermResult
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
-from typing import Dict, List, Optional, Iterable, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Iterable, Sequence, Tuple, Union, cast
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
+
+from agr_literature_service.api.database.main import SessionLocal, engine
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +46,266 @@ _atp_cache_lock = threading.RLock()
 _atp_cache_ready = False
 _atp_cache_building_thread: Optional[int] = None
 
+# SCRUM-6720 Phase 3: every ATP term's direct children, read in one query at the start of a cache
+# build (_sql_atp_children_of_all). The build's BFS walks it in memory instead of asking for each
+# term's children (~305 A-team API calls), so the maps come out as before.
+_atp_edges: Optional[Dict[str, List[Dict[str, str]]]] = None
+
 _client: Optional[AGRCurationAPIClient] = None
 
 
 def _get_client() -> AGRCurationAPIClient:
+    """The A-team API client, now only for get_or_create_species when a taxon is not in ontologyterm."""
     global _client
     if _client is None:
         _client = AGRCurationAPIClient()
     return _client
+
+
+# -----------------------------
+# SQL on the merged database
+# -----------------------------
+
+def _rows(sql, params: Optional[Dict[str, Any]] = None) -> Sequence[Any]:
+    """Run a read query on ABC's engine; a database error becomes AGRAPIError, as from the client."""
+    statement = text(sql) if isinstance(sql, str) else sql
+    try:
+        with engine.connect() as connection:
+            return connection.execute(statement, params or {}).fetchall()
+    except Exception as e:
+        raise AGRAPIError(f"Database query failed: {e}")
+
+
+def _sql_map_entity_curies_to_info(entity_type: str, entity_curies: List[str]) -> List[Dict[str, Any]]:
+    if not entity_curies:
+        return []
+    entity_type = entity_type.lower()
+    if entity_type in ["gene", "allele"]:
+        sql = f"""SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+                  FROM biologicalentity be, {entity_type} ent_tbl
+                  WHERE be.id = ent_tbl.id AND UPPER(be.primaryexternalid) IN :curies"""
+    elif entity_type == "construct":
+        sql = """SELECT DISTINCT r.primaryexternalid, r.obsolete, r.primaryexternalid
+                 FROM reagent r, construct c
+                 WHERE r.id = c.id AND UPPER(r.primaryexternalid) IN :curies"""
+    elif entity_type in ["agm", "agms", "strain", "genotype", "fish"]:
+        sql = """SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+                 FROM biologicalentity be, affectedgenomicmodel agm
+                 WHERE be.id = agm.id AND UPPER(be.primaryexternalid) IN :curies"""
+    elif "targeting reagent" in entity_type:
+        sql = """SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+                 FROM biologicalentity be, sequencetargetingreagent str
+                 WHERE be.id = str.id AND UPPER(be.primaryexternalid) IN :curies"""
+    else:
+        raise AGRAPIError(f"Unknown entity_type '{entity_type}'")
+    rows = _rows(text(sql).bindparams(bindparam("curies", expanding=True)),
+                 {"curies": [curie.upper() for curie in entity_curies]})
+    return [{"entity_curie": row[0], "is_obsolete": row[1], "entity": row[2]} for row in rows]
+
+
+_ENTITY_NAME_SLOTS = {
+    "gene": ("singlegene_id", ("GeneSymbolSlotAnnotation", "GeneSystematicNameSlotAnnotation",
+                               "GeneFullNameSlotAnnotation")),
+    "allele": ("singleallele_id", ("AlleleSymbolSlotAnnotation",)),
+    "agm": ("singleagm_id", ("AgmFullNameSlotAnnotation", "AgmSecondaryIdSlotAnnotation",
+                             "AgmSynonymSlotAnnotation")),
+}
+
+
+def _sql_map_entity_names_to_curies(entity_type: str, entity_names: List[str],
+                                    taxon: Optional[str]) -> List[Dict[str, Any]]:
+    if not entity_names:
+        return []
+    entity_type = entity_type.lower()
+    params: Dict[str, Any] = {"names": [name.upper() for name in entity_names], "taxon": taxon}
+    if entity_type in ["agms", "strain", "genotype", "fish"]:
+        entity_type = "agm"
+    if entity_type in _ENTITY_NAME_SLOTS:
+        slot_column, slot_types = _ENTITY_NAME_SLOTS[entity_type]
+        sql = f"""SELECT DISTINCT be.primaryexternalid, sa.obsolete, sa.displaytext
+                  FROM biologicalentity be
+                  JOIN slotannotation sa ON be.id = sa.{slot_column}
+                  JOIN ontologyterm ot ON be.taxon_id = ot.id
+                  WHERE sa.slotannotationtype IN :slot_types
+                  AND UPPER(sa.displaytext) IN :names
+                  AND ot.curie = :taxon"""
+        params["slot_types"] = list(slot_types)
+        statement = text(sql).bindparams(bindparam("names", expanding=True), bindparam("slot_types", expanding=True))
+    elif "targeting reagent" in entity_type:
+        statement = text("""SELECT DISTINCT be.primaryexternalid, be.obsolete, str.name
+                            FROM biologicalentity be
+                            JOIN sequencetargetingreagent str ON be.id = str.id
+                            JOIN ontologyterm ot ON be.taxon_id = ot.id
+                            WHERE UPPER(str.name) IN :names AND ot.curie = :taxon""").bindparams(
+            bindparam("names", expanding=True))
+    elif entity_type == "construct":
+        statement = text("""SELECT DISTINCT r.primaryexternalid, sa.obsolete, sa.displaytext
+                            FROM reagent r
+                            JOIN slotannotation sa ON r.id = sa.singleconstruct_id
+                            WHERE sa.slotannotationtype IN ('ConstructFullNameSlotAnnotation',
+                                                            'ConstructSymbolSlotAnnotation')
+                            AND UPPER(sa.displaytext) IN :names""").bindparams(bindparam("names", expanding=True))
+    else:
+        raise AGRAPIError(f"Unknown entity_type '{entity_type}'")
+    rows = _rows(statement, params)
+    return [{"entity_curie": row[0], "is_obsolete": row[1], "entity": row[2]} for row in rows]
+
+
+def _sql_map_curies_to_names(category: str, curies: List[str]) -> Dict[str, str]:
+    """Display names of entity or ontology curies (unknown categories map to themselves)."""
+    category = category.lower()
+    if category == "gene":
+        sql = """SELECT be.primaryexternalid, sa.displaytext FROM biologicalentity be
+                 JOIN slotannotation sa ON be.id = sa.singlegene_id
+                 WHERE be.primaryexternalid IN :curies AND sa.slotannotationtype = 'GeneSymbolSlotAnnotation'"""
+    elif "allele" in category:
+        sql = """SELECT be.primaryexternalid, sa.displaytext FROM biologicalentity be
+                 JOIN slotannotation sa ON be.id = sa.singleallele_id
+                 WHERE be.primaryexternalid IN :curies AND sa.slotannotationtype = 'AlleleSymbolSlotAnnotation'"""
+    elif category in ["affected genome model", "agm", "strain", "genotype", "fish"]:
+        sql = """SELECT DISTINCT be.primaryexternalid, sa.displaytext FROM biologicalentity be
+                 JOIN slotannotation sa ON be.id = sa.singleagm_id
+                 WHERE be.primaryexternalid IN :curies AND sa.slotannotationtype = 'AgmFullNameSlotAnnotation'"""
+    elif "construct" in category:
+        sql = """SELECT r.primaryexternalid, sa.displaytext FROM reagent r
+                 JOIN slotannotation sa ON r.id = sa.singleconstruct_id
+                 WHERE r.primaryexternalid IN :curies AND sa.slotannotationtype = 'ConstructSymbolSlotAnnotation'"""
+    elif category in ["species", "ecoterm"]:
+        rows = _rows(text("SELECT curie, name FROM ontologyterm WHERE UPPER(curie) IN :curies").bindparams(
+            bindparam("curies", expanding=True)), {"curies": [curie.upper() for curie in curies]})
+        return {row[0]: row[1] for row in rows}
+    else:
+        return {curie: curie for curie in curies}
+    rows = _rows(text(sql).bindparams(bindparam("curies", expanding=True)), {"curies": list(curies)})
+    return {row[0]: row[1] for row in rows}
+
+
+def _sql_search_atp_topics(topic: Optional[str], mod_abbr: Optional[str], limit: Optional[int]) -> List[dict]:
+    """ATP topics (descendants of topic_category_atp) by name substring and/or MOD subset. As in the
+    client, a MOD-only search is not limited."""
+    if not topic and not mod_abbr:
+        return []
+    conditions = ["ot.ontologytermtype = 'ATPTerm'", "ancestor.curie = :root"]
+    params: Dict[str, Any] = {"root": topic_category_atp}
+    subset_join = ""
+    if topic:
+        conditions += ["UPPER(ot.name) LIKE :name", "ot.obsolete = false"]
+        params["name"] = f"%{topic.upper()}%"
+    if mod_abbr:
+        subset_join = "JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id"
+        conditions.append("s.subsets = :subset")
+        params["subset"] = f"{mod_abbr}_tag"
+    limit_clause = ""
+    if topic:
+        limit_clause = "LIMIT :limit"
+        params["limit"] = limit
+    rows = _rows(f"""SELECT DISTINCT ot.curie, ot.name
+                     FROM ontologyterm ot
+                     JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+                     JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
+                     {subset_join}
+                     WHERE {" AND ".join(conditions)}
+                     {limit_clause}""", params)
+    return [{"curie": row[0], "name": row[1]} for row in rows]
+
+
+def _sql_filter_atp_by_mod_subset(curies: List[str], mod_abbr: str) -> List[str]:
+    if not curies or not mod_abbr:
+        return []
+    rows = _rows(text("""SELECT DISTINCT ot.curie FROM ontologyterm ot
+                         JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
+                         WHERE ot.ontologytermtype = 'ATPTerm' AND UPPER(ot.curie) IN :curies
+                         AND s.subsets = :subset""").bindparams(bindparam("curies", expanding=True)),
+                 {"curies": [curie.upper() for curie in curies], "subset": f"{mod_abbr}_tag"})
+    return [row[0] for row in rows]
+
+
+def _sql_atp_descendants(ancestor_curie: str, direct_children_only: bool = False) -> List[Dict[str, str]]:
+    """(curie, name) of the non-obsolete ATP descendants (or direct children) of ancestor_curie,
+    ordered by curie so the cache build is deterministic."""
+    distance = "AND otc.distance = 1" if direct_children_only else ""
+    rows = _rows(f"""SELECT DISTINCT ot.curie, ot.name
+                     FROM ontologyterm ot
+                     JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+                     JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
+                     WHERE ot.ontologytermtype = 'ATPTerm' AND ot.obsolete = false
+                     AND ancestor.curie = :ancestor {distance}
+                     ORDER BY ot.curie""", {"ancestor": ancestor_curie})
+    return [{"curie": row[0], "name": row[1]} for row in rows]
+
+
+def _sql_atp_children_of_all() -> Dict[str, List[Dict[str, str]]]:
+    """Every ATP parent's non-obsolete direct ATP children, in one query: what _sql_atp_descendants
+    (direct_children_only=True) returns for each parent."""
+    rows = _rows("""SELECT DISTINCT parent.curie, ot.curie, ot.name
+                    FROM ontologyterm ot
+                    JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+                    JOIN ontologyterm parent ON parent.id = otc.closureobject_id
+                    WHERE ot.ontologytermtype = 'ATPTerm' AND ot.obsolete = false
+                    AND parent.ontologytermtype = 'ATPTerm' AND otc.distance = 1
+                    ORDER BY parent.curie, ot.curie""")
+    children: Dict[str, List[Dict[str, str]]] = {}
+    for parent, curie, name in rows:
+        children.setdefault(parent, []).append({"curie": curie, "name": name})
+    return children
+
+
+def _sql_ontology_ancestors_or_descendants(ontology_node: str, direction: str) -> List[str]:
+    if direction == "descendants":
+        sql = """SELECT DISTINCT ot.curie FROM ontologyterm ot
+                 JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+                 JOIN ontologyterm node ON node.id = otc.closureobject_id
+                 WHERE node.curie = :node AND ot.obsolete = false"""
+    else:
+        sql = """SELECT DISTINCT ot.curie FROM ontologyterm ot
+                 JOIN ontologytermclosure otc ON ot.id = otc.closureobject_id
+                 JOIN ontologyterm node ON node.id = otc.closuresubject_id
+                 WHERE node.curie = :node AND ot.obsolete = false"""
+    return [row[0] for row in _rows(sql, {"node": ontology_node})]
+
+
+def _sql_ontology_terms(curies: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
+    """name, definition and synonyms of the non-obsolete terms among curies (None for the others)."""
+    results: Dict[str, Optional[Dict[str, Any]]] = {curie: None for curie in curies}
+    if not curies:
+        return results
+    rows = _rows("""SELECT ot.curie, ot.name, ot.definition,
+                           ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL)
+                    FROM ontologyterm ot
+                    LEFT JOIN ontologyterm_synonym ots ON ot.id = ots.ontologyterm_id
+                    LEFT JOIN synonym s ON ots.synonyms_id = s.id
+                    WHERE ot.curie = ANY(:curies) AND ot.obsolete = false
+                    GROUP BY ot.curie, ot.name, ot.definition""", {"curies": list(curies)})
+    for curie, name, definition, synonyms in rows:
+        results[curie] = {"curie": curie, "name": name, "definition": definition, "synonyms": synonyms or []}
+    return results
+
+
+def _sql_atp_names(curies: List[str]) -> Dict[str, str]:
+    """Names of the given (non-obsolete) terms, the part of _sql_ontology_terms the ATP cache uses."""
+    if not curies:
+        return {}
+    rows = _rows("SELECT curie, name FROM ontologyterm WHERE curie = ANY(:curies) AND obsolete = false",
+                 {"curies": list(curies)})
+    return {row[0]: row[1] for row in rows}
+
+
+def _sql_search_species(species: str, limit: int) -> List[Dict[str, str]]:
+    if species.upper().startswith("NCBITAXON"):
+        column, pattern = "curie", f"{species.upper()}%"
+    else:
+        column, pattern = "name", f"%{species.upper()}%"
+    rows = _rows(f"""SELECT curie, name FROM ontologyterm
+                     WHERE ontologytermtype = 'NCBITaxonTerm' AND UPPER({column}) LIKE :pattern
+                     LIMIT :limit""", {"pattern": pattern, "limit": limit})
+    return [{"curie": row[0], "name": row[1]} for row in rows]
+
+
+def _sql_species(curie: str) -> Optional[Dict[str, str]]:
+    """The NCBITaxon term for curie, obsolete or not (the A-team API returns an existing term either way)."""
+    rows = _rows("SELECT curie, name FROM ontologyterm WHERE curie = :curie AND ontologytermtype = 'NCBITaxonTerm'",
+                 {"curie": curie})
+    return {"curie": rows[0][0], "name": rows[0][1]} if rows else None
 
 
 def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONResponse:
@@ -54,18 +318,17 @@ def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONR
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Missing entity_type")
 
     name_list, curie_list = classify_entity_list(entity_list)
-    cli = _get_client()
 
     try:
         data: List[Dict[str, object]] = []
         if curie_list:
-            curie_rows = cli.map_entity_curies_to_info(entity_type=entity_type_lc, entity_curies=curie_list)
+            curie_rows = _sql_map_entity_curies_to_info(entity_type_lc, curie_list)
             data.extend(
                 {"entity_curie": r["entity_curie"], "is_obsolete": r["is_obsolete"], "entity": r["entity"]}
                 for r in curie_rows
             )
         if name_list:
-            name_rows = cli.map_entity_names_to_curies(entity_type=entity_type_lc, entity_names=name_list, taxon=taxon)
+            name_rows = _sql_map_entity_names_to_curies(entity_type_lc, name_list, taxon)
             data.extend(
                 {"entity_curie": r["entity_curie"], "is_obsolete": r["is_obsolete"], "entity": r["entity"]}
                 for r in name_rows
@@ -98,10 +361,9 @@ def classify_entity_list(entity_list: str) -> Tuple[List[str], List[str]]:
 
 
 def search_topic(topic: Optional[str] = None, mod_abbr: Optional[str] = None) -> JSONResponse:
-    """Search ATP ontology via client (supports MOD subset filter)."""
-    cli = _get_client()
+    """Search ATP topics (supports MOD subset filter)."""
     try:
-        rows = cli.search_atp_topics(topic=topic, mod_abbr=mod_abbr, limit=10)
+        rows = _sql_search_atp_topics(topic, mod_abbr, 10)
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"ATP topic search failed: {e}")
 
@@ -111,19 +373,17 @@ def search_topic(topic: Optional[str] = None, mod_abbr: Optional[str] = None) ->
 
 def search_topic_list(topic: Optional[str] = None, mod_abbr: Optional[str] = None, limit: int = 10) -> List[dict]:
     """Return [{'curie':..., 'name':...}, ...] instead of a JSONResponse (for internal callers)."""
-    cli = _get_client()
     try:
-        rows = cli.search_atp_topics(topic=topic, mod_abbr=mod_abbr, limit=limit) or []
+        rows = _sql_search_atp_topics(topic, mod_abbr, limit)
         return [{"curie": r["curie"], "name": r["name"]} for r in rows]
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"ATP topic search failed: {e}")
 
 
 def search_atp_descendants(ancestor_curie: str) -> JSONResponse:
-    """Return descendants (curie, name) of an ATP node via client."""
-    cli = _get_client()
+    """Return descendants (curie, name) of an ATP node."""
     try:
-        rows = cli.get_atp_descendants(ancestor_curie=ancestor_curie)
+        rows = _sql_atp_descendants(ancestor_curie)
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"ATP descendants failed: {e}")
     data = [{"curie": r["curie"], "name": r["name"]} for r in (rows or [])]
@@ -150,29 +410,18 @@ def get_topic_term_details(curies: List[str]) -> JSONResponse:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"too many curies: {len(curies)} > {MAX_TERM_DETAILS_CURIES}",
         )
-    cli = _get_client()
     try:
-        terms = cli.get_ontology_terms(curies) or {}
+        terms = _sql_ontology_terms(curies)
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"Ontology term lookup failed: {e}")
-    data: Dict[str, dict] = {}
-    for curie, term in terms.items():
-        if term is None:
-            continue
-        data[curie] = {
-            "curie": term.curie,
-            "name": term.name,
-            "definition": term.definition,
-            "synonyms": term.synonyms or [],
-        }
+    data = {curie: term for curie, term in terms.items() if term is not None}
     return JSONResponse(content=jsonable_encoder(data))
 
 
 def search_species(species: str) -> JSONResponse:
-    """Search NCBITaxonTerm via client (by name or CURIE)."""
-    cli = _get_client()
+    """Search NCBITaxonTerm (by name or CURIE)."""
     try:
-        rows = cli.search_species(species=species, limit=10)
+        rows = _sql_search_species(species, 10)
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"Species search failed: {e}")
     data = [{"curie": r["curie"], "name": r["name"]} for r in (rows or [])]
@@ -189,12 +438,20 @@ def get_or_create_species(taxon_id: str) -> JSONResponse:
         taxon_id: Numeric NCBI Taxon ID (e.g., '6239') or full CURIE
                   (e.g., 'NCBITaxon:6239')
     """
-    cli = _get_client()
+    # Look in ontologyterm first; only a taxon A-team does not have yet needs the A-team API, which
+    # imports it from NCBI (SCRUM-6791). A failed query also falls back to the API.
+    curie = taxon_id if taxon_id.startswith("NCBITaxon:") else f"NCBITaxon:{taxon_id}"
     try:
-        term = cli.get_or_create_species(taxon_id)
+        data = _sql_species(curie)
     except AGRAPIError as e:
-        raise HTTPException(status_code=502, detail=f"Get or create species failed: {e}")
-    data = {"curie": term.curie, "name": term.name}
+        logger.warning("Species lookup for %s failed, asking the A-team API: %s", curie, e)
+        data = None
+    if data is None:
+        try:
+            term = _get_client().get_or_create_species(curie)
+        except AGRAPIError as e:
+            raise HTTPException(status_code=502, detail=f"Get or create species failed: {e}")
+        data = {"curie": term.curie, "name": term.name}
     return JSONResponse(content=jsonable_encoder(data))
 
 
@@ -202,8 +459,7 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
     """
     Return a list of ancestor or descendant curies for the given ontology node.
 
-    Uses cached ATP ontology data when available (ATP: terms),
-    otherwise calls client.search_ontology_ancestors_or_descendants().
+    Uses cached ATP ontology data when available (ATP: terms), otherwise the closure table.
     """
     # ATPs are cached locally, so skip client call if applicable
     if ontology_node.startswith("ATP:"):
@@ -212,14 +468,9 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
             return cast(List[str], atp_get_all_descendants(ontology_node))
         return atp_get_all_ancestors(ontology_node)
 
-    # For non-ATP ontology nodes, use the client API
-    cli = _get_client()
     direction = "descendants" if ancestors_or_descendants == "descendants" else "ancestors"
     try:
-        return cli.search_ontology_ancestors_or_descendants(
-            ontology_node=ontology_node,
-            direction=direction
-        )
+        return _sql_ontology_ancestors_or_descendants(ontology_node, direction)
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"Ontology traversal failed: {e}")
 
@@ -227,22 +478,15 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
 # ---------- ATP name fetching helpers ----------
 
 def _fetch_atp_names(missing_curies: List[str]) -> None:
-    """
-    Populate atp_to_name and name_to_atp for any uncached ATP curses by querying the client
-    (if possible). Before the client provides a direct method, use this fallback approach.
-    """
+    """Populate atp_to_name and name_to_atp for uncached (non-obsolete) terms."""
     if not missing_curies:
         return
-    cli = _get_client()
     try:
-        # If the client provides a helper, call it; otherwise silently skip.
-        curie_to_name = cli.get_ontology_terms(missing_curies)
-        ontology_term: OntologyTermResult
-        for curie, ontology_term in (curie_to_name or {}).items():
-            atp_to_name[curie] = ontology_term.name
-            name_to_atp[ontology_term.name] = curie
+        for curie, name in _sql_atp_names(missing_curies).items():
+            atp_to_name[curie] = name
+            name_to_atp[name] = curie
     except Exception as e:
-        logger.debug("ATP name fetching via client helper failed for %s: %s", missing_curies, e)
+        logger.debug("ATP name fetching failed for %s: %s", missing_curies, e)
 
 
 def _fetch_atp_names_for_curie_list(curies: List[str]) -> None:
@@ -252,29 +496,18 @@ def _fetch_atp_names_for_curie_list(curies: List[str]) -> None:
     missing = [c for c in curies if c and c not in atp_to_name]
     if not missing:
         return
-    # Try through the client's DB session (if available)
     try:
-        cli = _get_client()
-        dbm = cli._get_db_methods()
-        session = dbm._create_session()
-    except Exception as e:
-        logger.debug("ATP fetching: DB session unavailable: %s", e)
-        return
-    try:
-        sql = text("""
+        rows = _rows(text("""
             SELECT curie, name
             FROM ontologyterm
             WHERE ontologytermtype = 'ATPTerm'
               AND UPPER(curie) IN :curies
-        """).bindparams(bindparam("curies", expanding=True))
-        rows = session.execute(sql, {"curies": [c.upper() for c in missing]}).fetchall()
+        """).bindparams(bindparam("curies", expanding=True)), {"curies": [c.upper() for c in missing]})
         for curie, name in rows:
             atp_to_name[curie] = name
             name_to_atp[name] = curie
     except Exception as e:
         logger.debug("ATP fetching query failed: %s", e)
-    finally:
-        session.close()
 
 
 def map_curies_to_names(category: str, curies: Iterable[str]) -> Dict[str, str]:
@@ -291,9 +524,8 @@ def map_curies_to_names(category: str, curies: Iterable[str]) -> Dict[str, str]:
         return {c: atp_to_name.get(c, c) for c in curie_list}
 
     # Non-ATP
-    cli = _get_client()
     try:
-        result = cli.map_curies_to_names(category=cat_raw, curies=curie_list)
+        result = _sql_map_curies_to_names(cat_raw, curie_list)
         if result:
             return result
     except AGRAPIError as e:
@@ -305,14 +537,10 @@ def map_curies_to_names(category: str, curies: Iterable[str]) -> Dict[str, str]:
 
 def create_ateam_db_session():
     """
-    provide this so lit-processing programs can still use this function.
+    A session on the database holding the A-team tables: since the merge, ABC's own (kept so
+    lit-processing programs can still use this function).
     """
-    try:
-        cli = _get_client()
-        dbm = cli._get_db_methods()
-        return dbm._create_session()
-    except Exception as e:
-        raise RuntimeError("DB session unavailable via client") from e
+    return SessionLocal()
 
 
 def search_for_entity_curies(
@@ -325,19 +553,18 @@ def search_for_entity_curies(
     """
     entity_type_lc = (entity_type or "").lower()
     names, curies = classify_entity_list(entity_list)
-    cli = _get_client()
     out: List[str] = []
     if curies:
-        rows = cli.map_entity_curies_to_info(entity_type=entity_type_lc, entity_curies=curies) or []
+        rows = _sql_map_entity_curies_to_info(entity_type_lc, curies)
         out.extend([r["entity_curie"] for r in rows])
     if names:
-        rows = cli.map_entity_names_to_curies(entity_type=entity_type_lc, entity_names=names, taxon=taxon) or []
+        rows = _sql_map_entity_names_to_curies(entity_type_lc, names, taxon)
         out.extend([r["entity_curie"] for r in rows])
     return out
 
 
 # -----------------------------
-# Jobs/subset logic (uses client)
+# Jobs/subset logic
 # -----------------------------
 
 def get_workflow_tags_for_mod(name: str, mod_abbreviation: str) -> List[str]:
@@ -375,11 +602,8 @@ def get_workflow_tags_for_mod(name: str, mod_abbreviation: str) -> List[str]:
 
     # Filter descendants by MOD subset (e.g., FB_tag) in A-Team ontology
     children = candidates - {atp_parent_id}
-    cli = _get_client()
     try:
-        allowed = set(cli.filter_atp_by_mod_subset(
-            list(children), mod_abbreviation
-        ))
+        allowed = set(_sql_filter_atp_by_mod_subset(list(children), mod_abbreviation))
     except AGRAPIError as e:
         raise HTTPException(
             status_code=502,
@@ -392,11 +616,12 @@ def get_workflow_tags_for_mod(name: str, mod_abbreviation: str) -> List[str]:
 
 
 # -----------------------------
-# ATP caching and traversal (client-powered)
+# ATP caching and traversal
 # -----------------------------
 
 def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
-    global atp_to_name, name_to_atp, atp_to_children, atp_to_parent, _atp_cache_ready
+    global atp_to_name, name_to_atp, atp_to_children, atp_to_parent, _atp_cache_ready, _atp_edges
+    _atp_edges = None
     atp_to_name = atp_to_name_init.copy()
     name_to_atp = name_to_atp_init.copy()
     atp_to_children = atp_to_children_init.copy()
@@ -464,7 +689,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # front, leaving the pre-existing precedence between 335 and 177 untouched.
         start_terms = ['ATP:0000002', 'ATP:0000323', 'ATP:0000177', 'ATP:0000335']
 
-    global _atp_cache_ready, _atp_cache_building_thread
+    global _atp_cache_ready, _atp_cache_building_thread, _atp_edges
     # SCRUM-6474: the whole clear-and-refill runs under the lock, and _atp_cache_ready
     # stays False throughout, so a concurrent caller blocks in _ensure_atp_loaded rather
     # than reading the maps mid-flight. Adding ATP:0000002 took this window from ~180
@@ -478,6 +703,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
             name_to_atp.clear()
             atp_to_children.clear()
             atp_to_parent.clear()
+            _atp_edges = _sql_atp_children_of_all()
 
             # Fetch root names
             _fetch_atp_names(start_terms)
@@ -496,6 +722,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
             # Leave the maps empty rather than half-built: _ensure_atp_loaded's emptiness
             # test then forces a genuine retry on the next call instead of pinning a
             # partial hierarchy for the life of the worker.
+            _atp_edges = None
             atp_to_name.clear()
             name_to_atp.clear()
             atp_to_children.clear()
@@ -505,7 +732,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
             _atp_cache_building_thread = None
         _atp_cache_ready = True
 
-    logger.debug("ATP global vars successfully loaded via client traversal")
+    logger.debug("ATP global vars successfully loaded from the ontology tables")
 
 
 def atp_get_parent(child_id: str):
@@ -561,7 +788,7 @@ def atp_get_all_ancestors(curie: str) -> List[str]:
     _ensure_atp_loaded()
     if not atp_to_parent:
         try:
-            return _get_client().search_ontology_ancestors_or_descendants(ontology_node=curie, direction="ancestors")
+            return _sql_ontology_ancestors_or_descendants(curie, "ancestors")
         except AGRAPIError:
             pass
 
@@ -603,12 +830,14 @@ def _get_atp_children(parent_curie: str) -> List[str]:
     """Fetch and cache direct children for an ATP term. Returns list of child curies."""
     if parent_curie in atp_to_children:
         return atp_to_children[parent_curie]
-    try:
-        children = _get_client().get_atp_descendants(
-            ancestor_curie=parent_curie, direct_children_only=True
-        )
-    except AGRAPIError:
-        return []
+    if _atp_edges is not None:
+        # every ATP term's children were read at the cache build; a term absent there is a leaf
+        children: Optional[List[Dict[str, str]]] = _atp_edges.get(parent_curie, [])
+    else:
+        try:
+            children = _sql_atp_descendants(parent_curie, direct_children_only=True)
+        except AGRAPIError:
+            return []
 
     if children is None:
         # SCRUM-6474: a null payload is a degraded response, not a leaf term, and the two

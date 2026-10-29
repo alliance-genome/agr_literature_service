@@ -363,8 +363,10 @@ def get_email_extraction_mods(db) -> Dict[int, str]:
             SELECT DISTINCT m.id AS mod_id, m.abbreviation
             FROM workflow_transition wt
             JOIN mod m ON m.id = wt.mod_id
-            WHERE wt.transition_from = ANY(:email_tags)
-               OR wt.transition_to = ANY(:email_tags)
+            JOIN ontologyterm t_from ON t_from.id = wt.transition_from_id
+            JOIN ontologyterm t_to ON t_to.id = wt.transition_to_id
+            WHERE t_from.curie = ANY(:email_tags)
+               OR t_to.curie = ANY(:email_tags)
                OR array_to_string(wt.actions, ',') LIKE '%email extraction%'
             ORDER BY m.id
             """
@@ -401,15 +403,16 @@ def get_candidates(db, mod_ids: List[int], since: str, until: str,
                  SELECT EXISTS (SELECT 1 FROM workflow_tag wt
                                 WHERE wt.reference_id = r.id
                                   AND wt.mod_id = mca.mod_id
-                                  AND wt.workflow_tag_id = :needed) AS has_needed,
+                                  AND wt.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :needed)) AS has_needed,
                         EXISTS (SELECT 1 FROM workflow_tag wt
                                 WHERE wt.reference_id = r.id
                                   AND wt.mod_id = mca.mod_id
-                                  AND wt.workflow_tag_id = :failed) AS has_failed,
+                                  AND wt.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = :failed)) AS has_failed,
                         EXISTS (SELECT 1 FROM workflow_tag wt
                                 WHERE wt.reference_id = r.id
                                   AND wt.mod_id = mca.mod_id
-                                  AND wt.workflow_tag_id = ANY(:settled_tags)) AS is_settled
+                                  AND wt.workflow_tag_term_id IN (SELECT id FROM ontologyterm
+                                                                  WHERE curie = ANY(:settled_tags))) AS is_settled
             ) st ON TRUE
             WHERE mca.corpus IS TRUE
               AND mca.mod_id = ANY(:mod_ids)

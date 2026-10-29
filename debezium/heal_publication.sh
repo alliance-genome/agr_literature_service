@@ -47,7 +47,7 @@ BEGIN
     'mod_referencetype','mod','referencetype','copyright_license','cross_reference','author',
     'obsolete_reference_curie','reference_mod_referencetype','topic_entity_tag','workflow_tag',
     'reference_relation','mesh_detail','reference_email','indexing_priority','manual_indexing_tag',
-    'curation_status'
+    'curation_status','ontologyterm'
   ]
   LOOP
     IF NOT EXISTS (

@@ -311,7 +311,7 @@ def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]): 
         FROM workflow_tag wt
         JOIN mod m ON wt.mod_id = m.id
         WHERE wt.reference_id IN ({ref_id_list})
-        AND wt.workflow_tag_id = '{FILE_UPLOADED_TAG_ATP_ID}'
+        AND wt.workflow_tag_term_id = (SELECT id FROM ontologyterm WHERE curie = '{FILE_UPLOADED_TAG_ATP_ID}')
     """)).fetchall()
 
     already_transitioned = {(row[0], row[1]) for row in rows}

@@ -498,7 +498,8 @@ indexed_tet_count() {
 # (reference, entity_type, topic, data_provider, SEA group, owning MOD) group above the
 # large-scale threshold collapses into ONE summary tag (SCRUM-6614). The grouping and the
 # threshold mirror topic_entity_tag_groups / topic_entity_tag_group_summary in
-# ksql_queries.ksql (LARGE_SCALE_THRESHOLD is defined above).
+# ksql_queries.ksql (LARGE_SCALE_THRESHOLD is defined above). SCRUM-6720: topic and entity_type
+# are ontologyterm ids, which group exactly as their curies do; the SEA group needs the curie.
 expected_tet_count() {
     local threshold="${LARGE_SCALE_THRESHOLD}"
     PGPASSWORD="${PSQL_PASSWORD}" psql -h "${PSQL_HOST}" -U "${PSQL_USERNAME}" -p "${PSQL_PORT}" -d "${PSQL_DATABASE}" -tAq -c "
@@ -506,9 +507,10 @@ expected_tet_count() {
             SELECT count(*) AS n
               FROM topic_entity_tag t
               JOIN tag_source s ON s.id = t.tag_source_id
-             GROUP BY t.reference_id, coalesce(t.entity_type, ''), coalesce(t.topic, ''),
+              LEFT JOIN ontologyterm sea ON sea.id = s.source_evidence_assertion_id
+             GROUP BY t.reference_id, coalesce(t.entity_type_id, 0), t.topic_id,
                       coalesce(s.data_provider, ''),
-                      CASE WHEN s.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035')
+                      CASE WHEN sea.curie IN ('ATP:0000036', 'ATP:0000035')
                            THEN 'ECO:0006155' ELSE 'ECO:0007669' END,
                       coalesce(s.secondary_data_provider_id, 0))
         SELECT coalesce(sum(CASE WHEN n > ${threshold} THEN 1 ELSE n END), 0) FROM g;" 2>/dev/null | tr -d '[:space:]'
@@ -737,6 +739,25 @@ optimize_and_warm_index() {
     echo "Warming ${index} (match_all to page in caches)..."
     curl -s -m 30 -X POST "${base}/${index}/_search" \
         -H "Content-Type: application/json" -d '{"size":0,"query":{"match_all":{}}}' >/dev/null
+}
+
+# The build slot is created with bulk-load settings (elasticsearch-settings*.json): refresh every
+# 30s and an async translog, so the CPU-bound rebuild does not spend it on per-second refreshes, the
+# merges of the small segments they leave and an fsync per bulk request. Before the force-merge and
+# the flip, reset them to the defaults the live index runs with (1s refresh, fsync per request),
+# since the sinks keep writing to this slot once it serves search. Best-effort like the optimize:
+# a failure leaves the slot on the bulk settings (searches see writes up to 30s late) but correct.
+restore_serving_settings() {
+    local es_host=$1 es_port=$2 index=$3
+    local resp
+    resp=$(curl -s -m 30 -X PUT "http://${es_host}:${es_port}/${index}/_settings" \
+        -H "Content-Type: application/json" \
+        -d '{"index": {"refresh_interval": null, "translog.durability": null, "translog.flush_threshold_size": null}}')
+    if printf '%s' "$resp" | jq -e '.acknowledged == true' >/dev/null 2>&1; then
+        echo "Serving settings restored on ${index} (refresh 1s, translog fsync per request)."
+    else
+        echo "WARNING: could not restore serving settings on ${index}: ${resp}"
+    fi
 }
 
 # Atomically point <alias> at <new_index> in a SINGLE _aliases call (zero-downtime cutover):

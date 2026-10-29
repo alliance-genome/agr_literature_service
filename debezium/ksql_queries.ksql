@@ -3,6 +3,28 @@
 "
 SET 'auto.offset.reset' = 'earliest';
 
+-- SCRUM-6720: ABC's ontology term columns are ids of A-team's ontologyterm. Debezium streams
+-- id, curie and name, and the source tables below join it to emit curies under their old field
+-- names. Labels are not indexed (the API maps curies to names with one ontologyterm query), except
+-- retraction_status_name, which the index already carried.
+CREATE TABLE ontologyterm (
+    ontologyterm_id string PRIMARY KEY,
+    curie string,
+    name string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.ontologyterm',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+  );
+
+-- ksqlDB 0.26 (Kafka Streams 3.2) drops a row whose foreign key is NULL from any foreign-key join
+-- (LEFT included) instead of emitting it with NULLs. So a NULL term id in a nullable column is turned
+-- into '__EMPTY__' before its join, and this row, with a NULL curie and label, is what it joins (as
+-- resource and copyright_license do below). Every term id then has a matching row (the DB foreign keys
+-- guarantee it for real ids), so the joins are INNER: a row waits for its term instead of being emitted
+-- first with NULL curies and again once the term arrives, which doubled the TET chain during a reindex.
+INSERT INTO ontologyterm (ontologyterm_id, curie, name) VALUES ('__EMPTY__', NULL, NULL);
+
 CREATE TABLE reference (
     reference_id string PRIMARY KEY,
     curie string,
@@ -29,7 +51,7 @@ CREATE TABLE reference (
     resource_id string,
     title string,
     volume string,
-    retraction_status string,
+    retraction_status_id string,
     can_display_image boolean,
     image_count integer
   ) WITH (
@@ -37,10 +59,26 @@ CREATE TABLE reference (
     VALUE_FORMAT='json'
   );
 
-CREATE TABLE normalized_copyright_reference AS
+CREATE TABLE reference_retraction_ids AS
   SELECT
     reference_id,
-    curie,
+    CASE WHEN retraction_status_id IS NULL THEN '__EMPTY__' ELSE retraction_status_id END AS retraction_status_id
+  FROM reference
+  EMIT CHANGES;
+
+CREATE TABLE reference_retraction AS
+  SELECT
+    reference_retraction_ids.reference_id AS REFERENCE_ID,
+    retraction_term.curie AS retraction_status,
+    retraction_term.name AS retraction_status_name
+  FROM reference_retraction_ids
+  JOIN ontologyterm retraction_term ON reference_retraction_ids.retraction_status_id = retraction_term.ontologyterm_id
+  EMIT CHANGES;
+
+CREATE TABLE normalized_copyright_reference AS
+  SELECT
+    reference.reference_id AS REFERENCE_ID,
+    reference.curie AS curie,
     abstract,
     category,
     citation_id,
@@ -70,10 +108,12 @@ CREATE TABLE normalized_copyright_reference AS
     END AS resource_id,
     title,
     volume,
-    retraction_status,
+    reference_retraction.retraction_status,
+    reference_retraction.retraction_status_name,
     can_display_image,
     image_count
   FROM reference
+  JOIN reference_retraction ON reference.reference_id = reference_retraction.REFERENCE_ID
   EMIT CHANGES;
 
 CREATE TABLE cross_reference (
@@ -172,7 +212,7 @@ CREATE TABLE tag_source(
     source_method string,
     data_provider string,
     secondary_data_provider_id string,
-    source_evidence_assertion string
+    source_evidence_assertion_id string
   ) WITH (
     KAFKA_TOPIC='abc.public.tag_source',
     VALUE_FORMAT='json',
@@ -182,21 +222,21 @@ CREATE TABLE tag_source(
 CREATE TABLE topic_entity_tag(
     topic_entity_tag_id string PRIMARY KEY,
     reference_id string,
-    \"topic\" string,
-    entity_type string,
+    topic_id string,
+    entity_type_id string,
     date_created string,
     date_updated string,
     entity string,
     entity_published_as string,
-    species string,
-    display_tag string,
+    species_id string,
+    display_tag_id string,
     confidence_level string,
     confidence_score double,
     negated boolean,
     note string,
     tag_source_id string,
-    data_novelty string,
-    data_context string,
+    data_novelty_id string,
+    data_context_id string,
     validation_by_professional_biocurator string,
     entity_id_validation string
   ) WITH (
@@ -207,28 +247,49 @@ CREATE TABLE topic_entity_tag(
 
 CREATE TABLE curation_status(
     curation_status_id string PRIMARY KEY,
-    \"topic\" string,
+    topic_id string,
     reference_id string,
     mod_id string,
-    curation_status string,
+    curation_status_term_id string,
     note string,
     date_created string,
-    date_updated string,
-    curation_tag string
+    date_updated string
 ) WITH (
     KAFKA_TOPIC='abc.public.curation_status',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
 
-CREATE TABLE curation_status_with_mod AS
+CREATE TABLE curation_status_term_1 AS
     SELECT
     curation_status.curation_status_id AS CURATION_STATUS_ID,
-    curation_status.\"topic\" \"TOPIC\",
     curation_status.reference_id,
-    curation_status.curation_status,
-    mod.abbreviation
+    curation_status.mod_id,
+    CASE WHEN curation_status.curation_status_term_id IS NULL THEN '__EMPTY__' ELSE curation_status.curation_status_term_id END AS curation_status_term_id,
+    term.curie AS topic_term
     FROM curation_status
+    JOIN ontologyterm term ON curation_status.topic_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE curation_status_term_2 AS
+    SELECT
+    curation_status.CURATION_STATUS_ID AS CURATION_STATUS_ID,
+    curation_status.reference_id,
+    curation_status.mod_id,
+    curation_status.topic_term,
+    term.curie AS curation_status_term
+    FROM curation_status_term_1 curation_status
+    JOIN ontologyterm term ON curation_status.curation_status_term_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE curation_status_with_mod AS
+    SELECT
+    curation_status.CURATION_STATUS_ID AS CURATION_STATUS_ID,
+    curation_status.topic_term \"TOPIC\",
+    curation_status.reference_id,
+    curation_status.curation_status_term AS curation_status,
+    mod.abbreviation
+    FROM curation_status_term_2 curation_status
     JOIN mod ON
     curation_status.mod_id = mod.mod_id;
 
@@ -239,6 +300,17 @@ CREATE TABLE curation_tags AS
     GROUP BY reference_id
     EMIT CHANGES;
 
+CREATE TABLE tag_source_terms AS
+    SELECT
+    tag_source.tag_source_id AS TAG_SOURCE_ID,
+    tag_source.source_method,
+    tag_source.data_provider,
+    tag_source.secondary_data_provider_id,
+    sea_term.curie AS source_evidence_assertion
+    FROM tag_source
+    JOIN ontologyterm sea_term ON tag_source.source_evidence_assertion_id = sea_term.ontologyterm_id
+    EMIT CHANGES;
+
 CREATE TABLE tag_source_with_mod AS
     SELECT
     tag_source.tag_source_id AS TAG_SOURCE_ID,
@@ -246,29 +318,182 @@ CREATE TABLE tag_source_with_mod AS
     tag_source.data_provider,
     tag_source.source_evidence_assertion,
     mod.abbreviation AS secondary_data_provider
-    FROM tag_source
+    FROM tag_source_terms tag_source
     JOIN mod ON tag_source.secondary_data_provider_id = mod.mod_id
+    EMIT CHANGES;
+
+-- SCRUM-6720: the six ontology term ids of a tag become curie + label, one foreign-key
+-- join per table (ksqlDB joins one foreign key per query). The term tables come before
+-- the tag_source join, so tag_group_key and the CASEs below see curies as before.
+CREATE TABLE topic_entity_tag_term_1 AS
+    SELECT
+    tet.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    tet.reference_id,
+    tet.date_created,
+    tet.date_updated,
+    tet.entity,
+    tet.entity_published_as,
+    tet.confidence_level,
+    tet.confidence_score,
+    tet.negated,
+    tet.note,
+    tet.tag_source_id,
+    tet.validation_by_professional_biocurator,
+    tet.entity_id_validation,
+    CASE WHEN tet.entity_type_id IS NULL THEN '__EMPTY__' ELSE tet.entity_type_id END AS entity_type_id,
+    CASE WHEN tet.species_id IS NULL THEN '__EMPTY__' ELSE tet.species_id END AS species_id,
+    CASE WHEN tet.display_tag_id IS NULL THEN '__EMPTY__' ELSE tet.display_tag_id END AS display_tag_id,
+    tet.data_novelty_id,
+    tet.data_context_id,
+    term.curie AS topic_term
+    FROM topic_entity_tag tet
+    JOIN ontologyterm term ON tet.topic_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE topic_entity_tag_term_2 AS
+    SELECT
+    tet.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    tet.reference_id,
+    tet.date_created,
+    tet.date_updated,
+    tet.entity,
+    tet.entity_published_as,
+    tet.confidence_level,
+    tet.confidence_score,
+    tet.negated,
+    tet.note,
+    tet.tag_source_id,
+    tet.validation_by_professional_biocurator,
+    tet.entity_id_validation,
+    tet.topic_term,
+    tet.species_id,
+    tet.display_tag_id,
+    tet.data_novelty_id,
+    tet.data_context_id,
+    term.curie AS entity_type_term
+    FROM topic_entity_tag_term_1 tet
+    JOIN ontologyterm term ON tet.entity_type_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE topic_entity_tag_term_3 AS
+    SELECT
+    tet.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    tet.reference_id,
+    tet.date_created,
+    tet.date_updated,
+    tet.entity,
+    tet.entity_published_as,
+    tet.confidence_level,
+    tet.confidence_score,
+    tet.negated,
+    tet.note,
+    tet.tag_source_id,
+    tet.validation_by_professional_biocurator,
+    tet.entity_id_validation,
+    tet.topic_term,
+    tet.entity_type_term,
+    tet.display_tag_id,
+    tet.data_novelty_id,
+    tet.data_context_id,
+    term.curie AS species_term
+    FROM topic_entity_tag_term_2 tet
+    JOIN ontologyterm term ON tet.species_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE topic_entity_tag_term_4 AS
+    SELECT
+    tet.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    tet.reference_id,
+    tet.date_created,
+    tet.date_updated,
+    tet.entity,
+    tet.entity_published_as,
+    tet.confidence_level,
+    tet.confidence_score,
+    tet.negated,
+    tet.note,
+    tet.tag_source_id,
+    tet.validation_by_professional_biocurator,
+    tet.entity_id_validation,
+    tet.topic_term,
+    tet.entity_type_term,
+    tet.species_term,
+    tet.data_novelty_id,
+    tet.data_context_id,
+    term.curie AS display_tag_term
+    FROM topic_entity_tag_term_3 tet
+    JOIN ontologyterm term ON tet.display_tag_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE topic_entity_tag_term_5 AS
+    SELECT
+    tet.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    tet.reference_id,
+    tet.date_created,
+    tet.date_updated,
+    tet.entity,
+    tet.entity_published_as,
+    tet.confidence_level,
+    tet.confidence_score,
+    tet.negated,
+    tet.note,
+    tet.tag_source_id,
+    tet.validation_by_professional_biocurator,
+    tet.entity_id_validation,
+    tet.topic_term,
+    tet.entity_type_term,
+    tet.species_term,
+    tet.display_tag_term,
+    tet.data_context_id,
+    term.curie AS data_novelty_term
+    FROM topic_entity_tag_term_4 tet
+    JOIN ontologyterm term ON tet.data_novelty_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE topic_entity_tag_term_6 AS
+    SELECT
+    tet.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    tet.reference_id,
+    tet.date_created,
+    tet.date_updated,
+    tet.entity,
+    tet.entity_published_as,
+    tet.confidence_level,
+    tet.confidence_score,
+    tet.negated,
+    tet.note,
+    tet.tag_source_id,
+    tet.validation_by_professional_biocurator,
+    tet.entity_id_validation,
+    tet.topic_term,
+    tet.entity_type_term,
+    tet.species_term,
+    tet.display_tag_term,
+    tet.data_novelty_term,
+    term.curie AS data_context_term
+    FROM topic_entity_tag_term_5 tet
+    JOIN ontologyterm term ON tet.data_context_id = term.ontologyterm_id
     EMIT CHANGES;
 
 CREATE TABLE topic_entity_tag_with_source AS
     SELECT
-    topic_entity_tag.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
+    topic_entity_tag.TOPIC_ENTITY_TAG_ID \"TOPIC_ENTITY_TAG_ID\",
     topic_entity_tag.reference_id,
-    topic_entity_tag.\"topic\" \"TOPIC\",
-    topic_entity_tag.entity_type,
+    topic_entity_tag.topic_term \"TOPIC\",
+    topic_entity_tag.entity_type_term AS entity_type,
     topic_entity_tag.date_created,
     topic_entity_tag.date_updated,
     topic_entity_tag.entity,
     topic_entity_tag.entity_published_as,
-    topic_entity_tag.species,
-    topic_entity_tag.display_tag,
+    topic_entity_tag.species_term AS species,
+    topic_entity_tag.display_tag_term AS display_tag,
     topic_entity_tag.confidence_level,
     topic_entity_tag.confidence_score,
     topic_entity_tag.negated,
     topic_entity_tag.note,
     topic_entity_tag.tag_source_id,
-    topic_entity_tag.data_novelty,
-    topic_entity_tag.data_context,
+    topic_entity_tag.data_novelty_term AS data_novelty,
+    topic_entity_tag.data_context_term AS data_context,
     topic_entity_tag.validation_by_professional_biocurator,
     topic_entity_tag.entity_id_validation,
     tag_source.source_method,
@@ -282,9 +507,9 @@ CREATE TABLE topic_entity_tag_with_source AS
       ELSE 'ECO:0007669'
     END AS source_evidence_assertion_group,
 
-    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type, ''), '|', coalesce(topic_entity_tag.\"topic\", ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END, '|', coalesce(tag_source.secondary_data_provider, '')) AS tag_group_key
+    concat(topic_entity_tag.reference_id, '|', coalesce(topic_entity_tag.entity_type_term, ''), '|', coalesce(topic_entity_tag.topic_term, ''), '|', coalesce(tag_source.data_provider, ''), '|', CASE WHEN tag_source.source_evidence_assertion IN ('ATP:0000036', 'ATP:0000035') THEN 'ECO:0006155' ELSE 'ECO:0007669' END, '|', coalesce(tag_source.secondary_data_provider, '')) AS tag_group_key
 
-    FROM topic_entity_tag topic_entity_tag
+    FROM topic_entity_tag_term_6 topic_entity_tag
     JOIN tag_source_with_mod tag_source ON
     topic_entity_tag.tag_source_id = tag_source.tag_source_id
     EMIT CHANGES;
@@ -449,12 +674,7 @@ CREATE TABLE reference_with_citation AS
     normalized_copyright_reference.retraction_status,
     normalized_copyright_reference.can_display_image,
     normalized_copyright_reference.image_count,
-    CASE
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
-      ELSE NULL
-    END AS retraction_status_name,
+    normalized_copyright_reference.retraction_status_name,
     citation.citation \"CITATION\",
     citation.short_citation \"SHORT_CITATION\"
     FROM normalized_copyright_reference normalized_copyright_reference
@@ -465,7 +685,7 @@ CREATE TABLE reference_with_citation AS
 CREATE TABLE reference_workflow_tag(
     reference_workflow_tag_id string PRIMARY KEY,
     reference_id string,
-    workflow_tag_id string,
+    workflow_tag_term_id string,
     mod_id string
   ) WITH (
     KAFKA_TOPIC='abc.public.workflow_tag',
@@ -473,13 +693,23 @@ CREATE TABLE reference_workflow_tag(
     KEY_FORMAT='json'
 );
 
-CREATE TABLE reference_workflow_tag_with_mod AS
+CREATE TABLE reference_workflow_tag_terms AS
     SELECT
         reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
         reference_workflow_tag.reference_id,
+        reference_workflow_tag.mod_id,
+        term.curie AS workflow_tag_id
+    FROM reference_workflow_tag
+    JOIN ontologyterm term ON reference_workflow_tag.workflow_tag_term_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_workflow_tag_with_mod AS
+    SELECT
+        reference_workflow_tag.REFERENCE_WORKFLOW_TAG_ID AS REFERENCE_WORKFLOW_TAG_ID,
+        reference_workflow_tag.reference_id,
         reference_workflow_tag.workflow_tag_id,
         mod.abbreviation AS mod_abbreviation
-    FROM reference_workflow_tag
+    FROM reference_workflow_tag_terms reference_workflow_tag
     JOIN mod
         ON reference_workflow_tag.mod_id = mod.mod_id;
 
@@ -549,8 +779,8 @@ CREATE TABLE indexing_priority (
     indexing_priority_id string PRIMARY KEY,
     reference_id string,
     mod_id string,
-    predicted_indexing_priority string,
-    curator_indexing_priority string,
+    predicted_indexing_priority_id string,
+    curator_indexing_priority_id string,
     confidence_score double
   ) WITH (
     KAFKA_TOPIC='abc.public.indexing_priority',
@@ -561,7 +791,7 @@ CREATE TABLE manual_indexing_tag (
     manual_indexing_tag_id string PRIMARY KEY,
     reference_id string,
     mod_id string,
-    curation_tag string,
+    curation_tag_id string,
     confidence_score double,
     validation_by_biocurator string,
     note string
@@ -620,14 +850,46 @@ CREATE TABLE reference_emails AS
     GROUP BY reference_id
     EMIT CHANGES;
 
-CREATE TABLE indexing_priority_with_mod AS
+CREATE TABLE indexing_priority_ids AS
     SELECT
         indexing_priority.indexing_priority_id AS INDEXING_PRIORITY_ID,
+        indexing_priority.reference_id,
+        indexing_priority.mod_id,
+        CASE WHEN indexing_priority.predicted_indexing_priority_id IS NULL THEN '__EMPTY__' ELSE indexing_priority.predicted_indexing_priority_id END AS predicted_indexing_priority_id,
+        CASE WHEN indexing_priority.curator_indexing_priority_id IS NULL THEN '__EMPTY__' ELSE indexing_priority.curator_indexing_priority_id END AS curator_indexing_priority_id
+    FROM indexing_priority
+    EMIT CHANGES;
+
+CREATE TABLE indexing_priority_term_1 AS
+    SELECT
+        indexing_priority.INDEXING_PRIORITY_ID AS INDEXING_PRIORITY_ID,
+        indexing_priority.reference_id,
+        indexing_priority.mod_id,
+        indexing_priority.curator_indexing_priority_id,
+        term.curie AS predicted_indexing_priority
+    FROM indexing_priority_ids indexing_priority
+    JOIN ontologyterm term ON indexing_priority.predicted_indexing_priority_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE indexing_priority_term_2 AS
+    SELECT
+        indexing_priority.INDEXING_PRIORITY_ID AS INDEXING_PRIORITY_ID,
+        indexing_priority.reference_id,
+        indexing_priority.mod_id,
+        indexing_priority.predicted_indexing_priority,
+        term.curie AS curator_indexing_priority
+    FROM indexing_priority_term_1 indexing_priority
+    JOIN ontologyterm term ON indexing_priority.curator_indexing_priority_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE indexing_priority_with_mod AS
+    SELECT
+        indexing_priority.INDEXING_PRIORITY_ID AS INDEXING_PRIORITY_ID,
         indexing_priority.reference_id,
         indexing_priority.predicted_indexing_priority,
         indexing_priority.curator_indexing_priority,
         mod.abbreviation AS mod_abbreviation
-    FROM indexing_priority
+    FROM indexing_priority_term_2 indexing_priority
     JOIN mod
         ON indexing_priority.mod_id = mod.mod_id;
 
@@ -638,13 +900,23 @@ CREATE TABLE indexing_priorities AS
     GROUP BY reference_id
     EMIT CHANGES;
 
-CREATE TABLE manual_indexing_tag_with_mod AS
+CREATE TABLE manual_indexing_tag_terms AS
     SELECT
         manual_indexing_tag.manual_indexing_tag_id AS MANUAL_INDEXING_TAG_ID,
         manual_indexing_tag.reference_id,
+        manual_indexing_tag.mod_id,
+        term.curie AS curation_tag
+    FROM manual_indexing_tag
+    JOIN ontologyterm term ON manual_indexing_tag.curation_tag_id = term.ontologyterm_id
+    EMIT CHANGES;
+
+CREATE TABLE manual_indexing_tag_with_mod AS
+    SELECT
+        manual_indexing_tag.MANUAL_INDEXING_TAG_ID AS MANUAL_INDEXING_TAG_ID,
+        manual_indexing_tag.reference_id,
         manual_indexing_tag.curation_tag,
         mod.abbreviation AS mod_abbreviation
-    FROM manual_indexing_tag
+    FROM manual_indexing_tag_terms manual_indexing_tag
     JOIN mod
         ON manual_indexing_tag.mod_id = mod.mod_id;
 
@@ -687,7 +959,7 @@ CREATE TABLE reference_with_resource AS
     reference_with_citation.SHORT_CITATION,
     resource.title \"RESOURCE_TITLE\"
     FROM reference_with_citation reference_with_citation
-    LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
+    JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
     EMIT CHANGES;
 
 -- ==================================================================================================
@@ -999,12 +1271,7 @@ CREATE TABLE reference_joined WITH (
     normalized_copyright_reference.retraction_status \"retraction_status\",
     normalized_copyright_reference.can_display_image \"can_display_image\",
     normalized_copyright_reference.image_count \"image_count\",
-    CASE
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
-      ELSE NULL
-    END AS \"retraction_status_name\",
+    normalized_copyright_reference.retraction_status_name \"retraction_status_name\",
     spine_tet.CITATION \"citation\",
     spine_tet.SHORT_CITATION \"short_citation\",
     spine_tet.OBSOLETE_CURIES \"obsolete_curies\",
@@ -1054,7 +1321,7 @@ CREATE TABLE reference_with_copyright AS
     copyright_license.open_access,
     copyright_license.name \"copyright_license\"
     FROM reference_with_resource reference_with_resource
-    LEFT OUTER JOIN copyright_license copyright_license ON reference_with_resource.copyright_license_id = copyright_license.copyright_license_id
+    JOIN copyright_license copyright_license ON reference_with_resource.copyright_license_id = copyright_license.copyright_license_id
     EMIT CHANGES;
 
 CREATE TABLE public_reference_joined WITH (

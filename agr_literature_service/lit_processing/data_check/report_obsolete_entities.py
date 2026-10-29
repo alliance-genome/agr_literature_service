@@ -292,13 +292,19 @@ def check_ateam_database(ateam_db, entity_type_name, mod_entity_ids, batch_size=
 def get_unique_entity_list(db, mod_abbreviation):
     query = text("""
         SELECT
-            tet.entity_type,
+            entity_type.curie,
             tet.entity,
             COUNT(ref.curie),
             string_agg(ref.curie, ', ') AS reference_curies,
-            string_agg(DISTINCT tet.species, ', ') AS species
+            string_agg(DISTINCT species.curie, ', ') AS species
         FROM
             topic_entity_tag tet
+        JOIN
+            ontologyterm entity_type
+            ON entity_type.id = tet.entity_type_id
+        LEFT JOIN
+            ontologyterm species
+            ON species.id = tet.species_id
         JOIN
             tag_source tet_src
             ON tet.tag_source_id = tet_src.id
@@ -313,7 +319,7 @@ def get_unique_entity_list(db, mod_abbreviation):
             -- the owning MOD; data_provider can be a third party such as GEO
             AND m.abbreviation = :mod_abbreviation
         GROUP BY
-            tet.entity_type, tet.entity;
+            entity_type.curie, tet.entity;
     """)
     params = {"mod_abbreviation": mod_abbreviation}
     rows = db.execute(query, params).fetchall()

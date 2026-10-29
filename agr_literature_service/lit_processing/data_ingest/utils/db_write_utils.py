@@ -2558,9 +2558,9 @@ def update_title_for_retracted_papers(db: Session, logger):
 def set_retraction_status(db, logger):
     stmt = text("""
         UPDATE reference
-        SET retraction_status = 'ATP:0000346'
+        SET retraction_status_id = (SELECT id FROM ontologyterm WHERE curie = 'ATP:0000346')
         WHERE 'Retracted Publication' = ANY(pubmed_types)
-        AND retraction_status IS NULL
+        AND retraction_status_id IS NULL
     """)
     try:
         result: Result = db.execute(stmt)

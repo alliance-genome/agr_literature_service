@@ -40,6 +40,7 @@ from agr_literature_service.api.models import (
     ReferencetypeModel
 )
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
+from ..ateam_fixture_schema import add_ontology_terms
 from ..fixtures import db # noqa
 from ..fixtures import load_name_to_atp_and_relationships_mock # noqa
 from .fixtures import auth_headers # noqa
@@ -144,6 +145,9 @@ def workflow_automation_init(db):  # noqa
         ["ATP:task2_failed", "ATP:task2_needed", ["sub_task_retry::reference classification"], "on_retry"]
     ]
     mods = db.query(ModModel).all()
+    # transition_from / transition_to are foreign keys to ontologyterm (SCRUM-6720): register the
+    # made-up workflow terms above (ATP:top, ATP:needed, ATP:task1_successful, ...)
+    add_ontology_terms(db.connection(), sorted({curie for data in test_data for curie in data[:2]}))
 
     for data in test_data:
         for mod in mods:

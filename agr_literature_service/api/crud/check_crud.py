@@ -28,10 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 def check_ateam_api():
-    token = get_authentication_token()
-    ateam_api_base_url = environ.get('ATEAM_API_URL')
-    ateam_health = ateam_api_base_url.replace('api', 'health')
+    # Since the merge (SCRUM-6720) ABC reads A-team data from the shared database; only creating
+    # species still goes through the A-team API (SCRUM-6791, SCRUM-6792)
     try:
+        token = get_authentication_token()
+        ateam_health = environ['ATEAM_API_URL'].replace('api', 'health')
         request = urllib.request.Request(url=ateam_health)
         request.add_header("Authorization", f"Bearer {token}")
         request.add_header("Content-type", "application/json")
@@ -42,8 +43,7 @@ def check_ateam_api():
             return resp_obj
     except Exception as e:
         logger.error(f"Exception checking ateam api: {e}")
-        # return {}
-        return {"status": "SKIPPED until A-team cognito authentication is in place"}
+        return {"status": "No species can be created until the ATeam API is back up"}
 
 
 def check_database(db: Session):

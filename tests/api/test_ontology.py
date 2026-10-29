@@ -33,6 +33,15 @@ class TestOntology:
         assert len(ancestors) == 0
 
 
+def _fake_ontology(monkeypatch, helpers, ontology, children_of):
+    """Stub the ATP children queries (SCRUM-6720: SQL, formerly the A-team client) with children_of(curie):
+    the per-term query and the one a cache build runs for every parent in ontology."""
+    monkeypatch.setattr(helpers, "_sql_atp_descendants",
+                        lambda curie, direct_children_only=False: children_of(curie))
+    monkeypatch.setattr(helpers, "_sql_atp_children_of_all",
+                        lambda: {parent: children_of(parent) for parent in ontology})
+
+
 class TestAtpBfsStartTerms:
     """SCRUM-5746: the ATP cache must cover every root the validation rules traverse."""
 
@@ -61,7 +70,7 @@ class TestAtpBfsStartTerms:
         resolve to no ancestors and the data_context validation check would silently
         degrade to exact equality.
 
-        The client is stubbed rather than _get_atp_children, so the real loader and the
+        The children query is stubbed rather than _get_atp_children, so the real loader and the
         real caching path run -- the bug this guards against lived in which terms the
         traversal visits, not in what the cache does with them. Deliberately not using
         load_name_to_atp_and_relationships_mock: that injects the whole hierarchy through
@@ -78,7 +87,7 @@ class TestAtpBfsStartTerms:
         # tests, so snapshot and restore them or later tests inherit a cold cache.
         saved = (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
                  dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
-        monkeypatch.setattr(helpers, "_get_client", lambda: FakeClient())
+        _fake_ontology(monkeypatch, helpers, TestAtpBfsStartTerms.FAKE_ONTOLOGY, FakeClient().get_atp_descendants)
         monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
         try:
             helpers.load_name_to_atp_and_relationships()   # default start terms
@@ -113,7 +122,7 @@ class TestAtpBfsStartTerms:
 
         saved = (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
                  dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
-        monkeypatch.setattr(helpers, "_get_client", lambda: FakeClient())
+        _fake_ontology(monkeypatch, helpers, TestAtpBfsStartTerms.FAKE_ONTOLOGY, FakeClient().get_atp_descendants)
         monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
         try:
             helpers.load_name_to_atp_and_relationships()   # default start terms
@@ -153,7 +162,8 @@ class TestAtpChildrenCaching:
                 return [{"curie": "ATP:0000009", "name": "phenotype"}]
 
         saved = self._snapshot(helpers)
-        monkeypatch.setattr(helpers, "_get_client", lambda: FlakyClient())
+        monkeypatch.setattr(helpers, "_atp_edges", None)  # no cache build: the per-term query
+        _fake_ontology(monkeypatch, helpers, {}, FlakyClient().get_atp_descendants)
         try:
             helpers.atp_to_children.clear()
             assert helpers._get_atp_children("ATP:0000002") == []
@@ -177,7 +187,8 @@ class TestAtpChildrenCaching:
                 return []
 
         saved = self._snapshot(helpers)
-        monkeypatch.setattr(helpers, "_get_client", lambda: LeafClient())
+        monkeypatch.setattr(helpers, "_atp_edges", None)  # no cache build: the per-term query
+        _fake_ontology(monkeypatch, helpers, {}, LeafClient().get_atp_descendants)
         try:
             helpers.atp_to_children.clear()
             assert helpers._get_atp_children("ATP:0000082") == []
@@ -228,7 +239,7 @@ class TestAtpCacheConcurrency:
             rebuilds.append(1)
             return real_load(start_terms)
 
-        monkeypatch.setattr(helpers, "_get_client", lambda: SlowClient())
+        _fake_ontology(monkeypatch, helpers, TestAtpCacheConcurrency.ONTOLOGY, SlowClient().get_atp_descendants)
         monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
         monkeypatch.setattr(helpers, "load_name_to_atp_and_relationships", counting_load)
         try:
@@ -284,7 +295,7 @@ class TestAtpCacheConcurrency:
 
         saved = (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
                  dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
-        monkeypatch.setattr(helpers, "_get_client", lambda: ReentrantClient())
+        _fake_ontology(monkeypatch, helpers, TestAtpCacheConcurrency.ONTOLOGY, ReentrantClient().get_atp_descendants)
         monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
         try:
             for cache in (helpers.atp_to_name, helpers.name_to_atp,

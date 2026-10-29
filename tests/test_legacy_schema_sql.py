@@ -51,6 +51,26 @@ def _pk_renames() -> Dict[str, str]:
 
 PK_RENAMES = _pk_renames()
 
+# SCRUM-6720 (ateam_merge): ontology curie columns that are now <column>_id foreign keys to
+# ontologyterm (workflow_tag.workflow_tag_id is workflow_tag_term_id). Raw SQL must join
+# ontologyterm for the curie; naming the dropped column on its own table is flagged 'curie-column'.
+_CURIE_COLUMNS: Dict[str, Tuple[str, ...]] = {
+    'manual_indexing_tag': ('curation_tag',),
+    'indexing_priority': ('predicted_indexing_priority', 'curator_indexing_priority'),
+    'ml_model': ('topic', 'species', 'data_novelty', 'data_context'),
+    'workflow_tag_topic': ('workflow_tag', 'topic'),
+    'dataset': ('data_type',),
+    'workflow_transition': ('transition_from', 'transition_to'),
+    'workflow_tag': ('workflow_tag_id', 'curation_tag'),
+    'curation_status': ('topic', 'curation_status', 'curation_tag'),
+    'curation_status_source_association': ('curation_status', 'curation_tag'),
+    'tag_source': ('source_evidence_assertion',),
+    'reference': ('retraction_status',),
+    'topic_entity_tag': ('topic', 'entity_type', 'display_tag', 'data_novelty', 'data_context', 'species'),
+}
+CURIE_COLUMNS: Dict[str, Tuple[str, ...]] = dict(
+    _CURIE_COLUMNS, **{f'{table}_version': columns for table, columns in _CURIE_COLUMNS.items()})
+
 
 def scan_text(sql: str) -> List[Tuple[int, str]]:
     """(line offset within the literal, rule) for every rule the SQL text breaks."""
@@ -66,7 +86,7 @@ def scan_text(sql: str) -> List[Tuple[int, str]]:
             found.add((line_of(match.start()), rule))
     references = [(table.lower(), (alias or '').lower()) for table, alias in TABLE_REF.findall(sql)]
     references += [(table.lower(), (alias or '').lower()) for table, alias in COMMA_REF.findall(sql)
-                   if table.lower() in PK_RENAMES]
+                   if table.lower() in PK_RENAMES or table.lower() in CURIE_COLUMNS]
     tables = {table for table, _alias in references}
     for table, pk in PK_RENAMES.items():
         if table not in tables:
@@ -82,7 +102,25 @@ def scan_text(sql: str) -> List[Tuple[int, str]]:
         # a subquery selecting the key straight from its table
         for match in re.finditer(rf'\bselect\s+(?:distinct\s+)?{pk}\s+from\s+{table}\b', sql, re.IGNORECASE):
             found.add((line_of(match.start()), 'own-pk'))
+    found.update((line_of(position), 'curie-column') for position in _curie_column_hits(sql, references, tables))
     return sorted(found)
+
+
+def _curie_column_hits(sql: str, references: List[Tuple[str, str]], tables: Set[str]) -> List[int]:
+    """Positions where the SQL names a dropped curie column (CURIE_COLUMNS) on its own table: qualified
+    by the table or one of its aliases, or unqualified in a statement on that table alone."""
+    positions = []
+    for table, columns in CURIE_COLUMNS.items():
+        if table not in tables:
+            continue
+        names = {table} | {alias for name, alias in references if name == table and alias and alias not in NOT_ALIAS}
+        for column in columns:
+            for name in names:
+                positions += [m.start() for m in re.finditer(rf'\b{re.escape(name)}\.{column}\b(?!_)', sql,
+                                                             re.IGNORECASE)]
+            if tables == {table}:
+                positions += [m.start() for m in re.finditer(rf'(?<![.\w:])(?<![Aa][Ss] ){column}\b(?!_)', sql)]
+    return positions
 
 
 def _literals(tree: ast.AST) -> Iterable[Tuple[int, str]]:
