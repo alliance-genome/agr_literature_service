@@ -4,6 +4,10 @@ resource_descriptor_cache.py
 Process-local, TTL'd in-memory cache of A-team resource descriptors.
 A-team is the sole source of truth (no YAML fallback). A failed refresh keeps
 the last-good snapshot; startup is fail-soft.
+
+Since the merge with the A-team persistent store (SCRUM-6720) the descriptors are
+read from A-team's resourcedescriptor tables in the same database, not from the
+A-team API. The TTL still applies, so an edit A-team makes shows up within it.
 """
 import logging
 import os
@@ -15,7 +19,6 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 logger = logging.getLogger(__name__)
 
 DEFAULT_TTL_SECONDS = 900
-DEFAULT_TIMEOUT_SECONDS = 5
 RETRY_BACKOFF_SECONDS = 60
 
 
@@ -72,17 +75,49 @@ def _normalize_ateam_descriptor(rd: Dict[str, Any]) -> Optional[ResourceDescript
     )
 
 
-def _fetch_from_ateam() -> List[ResourceDescriptor]:
-    from agr_curation_api import AGRCurationAPIClient  # type: ignore
-    timeout_seconds = _int_env("ATEAM_FETCH_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
-    client = AGRCurationAPIClient(config={"timeout": timedelta(seconds=timeout_seconds), "max_retries": 1})
-    raw_descriptors = client.get_resource_descriptors() or []
+# The rows the A-team API's resourcedescriptor/findForPublic returned: neither obsolete nor
+# internal, for the descriptors and their pages alike.
+_DESCRIPTORS_SQL = """
+    SELECT rd.id, rd.prefix, rd.name, rd.defaulturltemplate,
+           ARRAY(SELECT s.synonyms FROM resourcedescriptor_synonyms s
+                  WHERE s.resourcedescriptor_id = rd.id AND s.synonyms IS NOT NULL
+                  ORDER BY s.synonyms) AS synonyms
+      FROM resourcedescriptor rd
+     WHERE NOT coalesce(rd.obsolete, false) AND NOT coalesce(rd.internal, false)
+     ORDER BY rd.prefix"""
+_PAGES_SQL = """
+    SELECT p.resourcedescriptor_id, p.name, p.urltemplate
+      FROM resourcedescriptorpage p
+     WHERE p.resourcedescriptor_id IS NOT NULL
+       AND NOT coalesce(p.obsolete, false) AND NOT coalesce(p.internal, false)
+     ORDER BY p.id"""
+
+
+def _fetch_from_db() -> List[ResourceDescriptor]:
+    """Read the descriptors from A-team's tables in the merged database.
+
+    Each row is shaped like the A-team API's ResourceDescriptorView and goes through the
+    same normaliser, so the cache holds exactly what it held when it read the API.
+    """
+    from sqlalchemy import text
+    from agr_literature_service.api.database.main import engine
+    with engine.connect() as connection:
+        descriptor_rows = connection.execute(text(_DESCRIPTORS_SQL)).fetchall()
+        page_rows = connection.execute(text(_PAGES_SQL)).fetchall()
+    pages: Dict[int, List[Dict[str, Any]]] = {}
+    for descriptor_id, page_name, url_template in page_rows:
+        pages.setdefault(descriptor_id, []).append({"name": page_name, "urlTemplate": url_template})
     out: List[ResourceDescriptor] = []
-    for rd in raw_descriptors:
-        if isinstance(rd, dict):
-            entry = _normalize_ateam_descriptor(rd)
-            if entry is not None:
-                out.append(entry)
+    for descriptor_id, prefix, name, default_url, synonyms in descriptor_rows:
+        entry = _normalize_ateam_descriptor({
+            "prefix": prefix,
+            "name": name,
+            "synonyms": list(synonyms) or None,
+            "defaultUrlTemplate": default_url,
+            "resourcePages": pages.get(descriptor_id, []),
+        })
+        if entry is not None:
+            out.append(entry)
     return out
 
 
@@ -101,7 +136,7 @@ _lock = threading.Lock()
 
 # Injectable seams (overridden in tests).
 _now: Callable[[], datetime] = datetime.now
-_fetch: Callable[[], List[ResourceDescriptor]] = _fetch_from_ateam
+_fetch: Callable[[], List[ResourceDescriptor]] = _fetch_from_db
 
 
 def _do_fetch_locked(now: datetime) -> None:

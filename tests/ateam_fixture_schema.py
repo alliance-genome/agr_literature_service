@@ -15,6 +15,9 @@ Only the columns ABC reads are created. Their names follow the A-team migrations
   ontologyterm_subsets  v0.31.0.1: ontologyterm_id, subsets
   biologicalentity      v0.38.0.25: primaryexternalid (the MOD curie, unique), modinternalid,
                         curie (AGRKB:), taxon_id -> ontologyterm, obsolete
+  resourcedescriptor    id, prefix (unique), name, defaulturltemplate, internal, obsolete;
+                        resourcedescriptor_synonyms and resourcedescriptorpage (name,
+                        urltemplate) hang off it
 These tables are not in Base.metadata, so the per-test cleanup leaves them alone: they hold
 static reference data, created and filled once per test process.
 """
@@ -47,6 +50,24 @@ ATEAM_FIXTURE_DDL = (
         modinternalid varchar(255),
         taxon_id bigint REFERENCES ontologyterm (id),
         obsolete boolean NOT NULL DEFAULT false)""",
+    # resource_descriptor_cache reads these (cross reference URLs); empty unless a test fills them
+    """CREATE TABLE IF NOT EXISTS resourcedescriptor (
+        id bigint PRIMARY KEY,
+        prefix varchar(255) NOT NULL CONSTRAINT resourcedescriptor_prefix_uk UNIQUE,
+        name varchar(255),
+        defaulturltemplate varchar(255),
+        internal boolean DEFAULT false,
+        obsolete boolean DEFAULT false)""",
+    """CREATE TABLE IF NOT EXISTS resourcedescriptor_synonyms (
+        resourcedescriptor_id bigint NOT NULL REFERENCES resourcedescriptor (id),
+        synonyms varchar(255))""",
+    """CREATE TABLE IF NOT EXISTS resourcedescriptorpage (
+        id bigint PRIMARY KEY,
+        name varchar(255),
+        urltemplate varchar(255),
+        internal boolean DEFAULT false,
+        obsolete boolean DEFAULT false,
+        resourcedescriptor_id bigint REFERENCES resourcedescriptor (id))""",
 )
 
 TERM_TYPES = {'ATP': 'ATPTerm', 'NCBITaxon': 'NCBITaxonTerm', 'ECO': 'ECOTerm'}

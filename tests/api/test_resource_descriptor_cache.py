@@ -7,6 +7,9 @@ from fastapi import HTTPException
 import agr_literature_service.api.resource_descriptor_cache as rdc
 from agr_literature_service.api.crud import resource_descriptor_crud
 
+from ..fixtures import db  # noqa: F401
+from .fixtures import descriptor_rows  # noqa: F401
+
 
 ATEAM_SAMPLE = [
     {
@@ -42,12 +45,11 @@ def test_normalize_skips_without_prefix():
     assert rdc._normalize_ateam_descriptor({"name": "no prefix"}) is None
 
 
-def test_fetch_from_ateam_uses_client():
-    with mock.patch("agr_curation_api.AGRCurationAPIClient") as MockClient:
-        MockClient.return_value.get_resource_descriptors.return_value = ATEAM_SAMPLE
-        result = rdc._fetch_from_ateam()
-    assert [r.db_prefix for r in result] == ["TESTMOD"]
-    assert result[0].pages[0].name == "gene"
+def test_fetch_from_db_reads_ateam_tables(descriptor_rows):  # noqa: F811
+    result = rdc._fetch_from_db()
+    assert [r.db_prefix for r in result] == ["TESTMOD"]   # the obsolete descriptor is left out
+    assert result[0] == rdc._normalize_ateam_descriptor(ATEAM_SAMPLE[0])
+    assert [p.name for p in result[0].pages] == ["gene", "homepage"]   # the internal page is left out
 
 
 @pytest.fixture(autouse=True)
@@ -163,32 +165,20 @@ def test_refresh_empty_result_keeps_last_good(monkeypatch):
     assert rdc.get_map()["MGI"].default_url == "good"   # last-good retained
 
 
-def test_fetch_from_ateam_uses_short_timeout(monkeypatch):
-    monkeypatch.setattr(rdc, "_fetch", rdc._fetch_from_ateam)
-    with mock.patch("agr_curation_api.AGRCurationAPIClient") as MockClient:
-        MockClient.return_value.get_resource_descriptors.return_value = [
-            {"prefix": "X", "defaultUrlTemplate": "u"}
-        ]
-        rdc._fetch_from_ateam()
-    config = MockClient.call_args.kwargs["config"]
-    assert config["timeout"] == timedelta(seconds=5)
-    assert config["max_retries"] == 1
-
-
 def test_crud_update_returns_data_on_success(monkeypatch):
     monkeypatch.setattr(rdc, "_fetch", lambda: [_rd("MGI", "u1")])
     result = resource_descriptor_crud.update()
     assert [r.db_prefix for r in result] == ["MGI"]
 
 
-def test_crud_update_raises_502_when_ateam_fails(monkeypatch):
+def test_crud_update_raises_503_when_the_read_fails(monkeypatch):
     def boom():
-        raise RuntimeError("ateam down")
+        raise RuntimeError("database down")
 
     monkeypatch.setattr(rdc, "_fetch", boom)
     with pytest.raises(HTTPException) as exc_info:
         resource_descriptor_crud.update()
-    assert exc_info.value.status_code == 502
+    assert exc_info.value.status_code == 503
 
 
 def test_int_env_falls_back_on_unset_blank_and_invalid(monkeypatch):
