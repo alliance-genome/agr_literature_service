@@ -55,14 +55,17 @@ set_reindex_status "setup" "{\"env_state\": \"${ENV_STATE}\", \"slot\": \"${SLOT
 # Ingest pipeline that sorts the authors array by author_order at index time. Both settings
 # files set it as index.default_pipeline, so it MUST exist before the indexes receive writes
 # (a missing default_pipeline makes every bulk index request fail). PUT is idempotent.
-curl -i -X PUT -H "Accept:application/json" -H "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_ingest/pipeline/sort_authors_by_order -d @/sort-authors-pipeline.json
+# The setup curls run with -sS: curl's progress meter goes to stderr, which the log pipeline files
+# as ERROR (one alert group per meter line). -S still prints real transfer errors; -w '\n' ends each
+# response body so the next line of the log does not run on from it.
+curl -sS -i -w '\n' -X PUT -H "Accept:application/json" -H "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_ingest/pipeline/sort_authors_by_order -d @/sort-authors-pipeline.json
 
 # Delete + recreate ONLY the inactive slot (the live slot is never touched here)
-curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
-curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT} -d @/elasticsearch-settings.json
+curl -sS -i -w '\n' -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
+curl -sS -i -w '\n' -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT} -d @/elasticsearch-settings.json
 
-curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT}
-curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT} -d @/elasticsearch-settings-public.json
+curl -sS -i -w '\n' -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT}
+curl -sS -i -w '\n' -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT} -d @/elasticsearch-settings-public.json
 
 export PGPASSWORD=${PSQL_PASSWORD}
 # Drop replication slots (both old and new).
@@ -77,10 +80,12 @@ psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c 
 # publication. Without dropping them here, tables added to table.include.list after the
 # publication was first created (e.g. indexing_priority, manual_indexing_tag) never get
 # published, so their row changes never stream into the index.
-psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE pub text; BEGIN FOREACH pub IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_tag_source','debezium_curation_status','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource'] LOOP EXECUTE format('DROP PUBLICATION IF EXISTS %I', pub); END LOOP; END\$\$;"
+# client_min_messages=warning: on a fresh database every DROP ... IF EXISTS prints a "does not
+# exist, skipping" NOTICE on stderr, which the log pipeline files as ERROR.
+PGOPTIONS='-c client_min_messages=warning' psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE pub text; BEGIN FOREACH pub IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_tag_source','debezium_curation_status','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource'] LOOP EXECUTE format('DROP PUBLICATION IF EXISTS %I', pub); END LOOP; END\$\$;"
 
 # Create single unified connector
-curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-unified.json)
+curl -sS -i -w '\n' -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-unified.json)
 sleep ${CONNECTOR_SETUP_SLEEP}
 
 # Gate 1 (SCRUM-6231): instead of a blind ${KSQL_SETUP_SLEEP}s wait, poll until the Debezium snapshot
@@ -198,11 +203,11 @@ OFFSETS_RESET_OK=1
 reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${SINK_NAME}" || OFFSETS_RESET_OK=0
 reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${PUBLIC_SINK_NAME}" || OFFSETS_RESET_OK=0
 
-curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${SINK_NAME}
-curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${PUBLIC_SINK_NAME}
+curl -sS -i -w '\n' -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${SINK_NAME}
+curl -sS -i -w '\n' -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${PUBLIC_SINK_NAME}
 
-curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
-curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
+curl -sS -i -w '\n' -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
+curl -sS -i -w '\n' -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
 
 # Track setup completion
 SETUP_END=$(date +%s)
