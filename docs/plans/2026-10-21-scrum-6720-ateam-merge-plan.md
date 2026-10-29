@@ -60,12 +60,24 @@ Facts from the spike (SCRUM-6650):
   `main` before cutover. The revisions chain after main's head `80595e1e0d4d` and are applied only to
   the merged DB with `alembic -x db_url=… upgrade head`. `main` is merged in as it moves; the branch
   goes to `main` at cutover.
-  - **Latest main merge, 2026-10-28** (dbbd5148): #1357 (SCRUM-1463, journal title indexed and
+  - **Main merge, 2026-10-28** (dbbd5148): #1357 (SCRUM-1463, journal title indexed and
     highlighted), #1358 (SCRUM-6470/6472, TET audit skip flag) and #1360 (SCRUM-6787,
     `agr-curation-api-client` 0.15.2). No conflicts and no alembic changes, so the rehearsals stand.
     Main's `reference_resource_title` joins `resource` on `resource_id`, which on this branch is
     always a real id or the `'__EMPTY__'` sentinel; the ES settings carry both `resource_title` and
     the build-slot bulk-load settings. CI green on 67a6ea85.
+  - **Latest main merges, 2026-10-29:**
+    - bf77bb5e: #1361 (SCRUM-6248, `debezium/setup.sh` keeps its routine output off stderr, so it
+      no longer arrives in the log store as ERROR).
+    - e28d37f7: #1359 and #1362 (SCRUM-6753: the PMC "Article plus Supplemental Information" PDF
+      is marked main, the backfill commits per paper, an author reload deletes the old automated
+      author history, and one-off scripts `SCRUM-6753_mark_article_plus_supplement_main.py` and
+      `update_sgd_person_dates.py`) and SCRUM-6775 (abstract classification and community curation
+      in the pre-curation overview).
+    - No conflicts and no alembic changes, so the rehearsals stand. The only new raw SQL
+      (`delete_automated_author_history`) uses `agent`, `transaction` and `author_version`, already the
+      post-SCRUM-6719 schema; the new workflow code goes through `get_atp_id_by_name` and
+      `get_workflow_tags_from_process`, which are SQL on this branch. CI green on e28d37f7.
 - **Guard revision** `c4a1e7b93d20`: changes nothing, but stops the chain on a database without the
   A-team tables (`ontologyterm`, `ontologytermclosure`, `ontologyterm_subsets`, `biologicalentity`,
   `ateam_reference`, `ateam_person`).
