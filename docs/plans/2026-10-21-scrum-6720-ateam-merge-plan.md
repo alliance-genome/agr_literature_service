@@ -20,6 +20,8 @@ reworked on 2026-10-23 to stream `ontologyterm` and join it in ksql; Valerio's #
 the branch) made the joins INNER, dropped the ES labels and added bulk-load settings. Phase 5 is
 the A-team's. Left for ABC: Phase 6 and the Phase 7 rollout. On 2026-10-28 the merged test DB was
 rebuilt from fresh dumps and the ateam_merge chain rehearsed again: about 73 min end to end (Phase 7).
+A second run that day, from a prod dump, rehearsed the whole chain from prod's revision (SCRUM-6719,
+bigint, ateam_merge): 4 h 40 end to end, 2 h 49 of it SCRUM-6719's audit revision.
 
 Per the ticket, its alembic revisions go on the `ateam_merge` branch and are applied only to the
 merged database. That is the long-lived git branch `ateam_merge` (see Phase 0); `alembic/env.py`
@@ -334,6 +336,43 @@ rehearsal, as SCRUM-6719 did. Keep a rollback (the pre-merge dumps).
     linked by `entity_id`; DB 124 GB.
   - **Downtime estimate for the A-team freeze:** about 73 min for load plus migration, before the
     Debezium rebuild (about 4 h 40 on stage).
+- **Rehearsal, 2026-10-28, full chain from a prod dump** (SCRUM-6720 comment 98994): rebuilt from the
+  A-team dump `2026-10-20_21-00-36` and Shuai's ABC prod dump of 2026-10-27 23:28 (`pg_dump` 17.11,
+  alembic `b5e2d8a41c73`, i.e. without SCRUM-6719 or #1352). Then `ANALYZE` and `alembic upgrade head`
+  through SCRUM-6719, the bigint conversion and the ateam_merge revisions. No restore errors, alembic
+  exit 0. Per-step times are from `~/ateam_merge_rehearsal_sampler.sh` (`pg_stat_activity` every 15 s).
+
+  | Step | Time |
+  |---|---|
+  | Restore A-team dump (incl. copy) | 18 min 39 s |
+  | Rename + restore prod dump (incl. copy) | 19 min 25 s |
+  | **Load total** | **38 min 4 s** |
+  | `ANALYZE` | 3 min 8 s |
+  | SCRUM-6719 `47d74bfbbe87`: audit backfill | ~2 h 27 min |
+  | ↳ unresolved-user checks, then `VACUUM FULL` | ~3 min + ~19 min |
+  | SCRUM-6719 `1e8243e92015` (`users` → `agent`) and `80595e1e0d4d` (keys → `id`) | < 1 min |
+  | bigint `039dbc7de1ef`, incl. FK re-adds and `ANALYZE` | ~30 min |
+  | ateam_merge revisions (`c4a1e7b93d20` → `d5f7b9c1e262`) | ~39 min |
+  | **`alembic upgrade` total** | **3 h 58 min** |
+  | **End to end** | **4 h 40 min** |
+
+  - **SCRUM-6719's backfill is 70% of the run.** Largest tables: `reference_version` 32 min, `author`
+    27, `cross_reference` 15, `author_version` 13, `referencefile` 12, `resource` 12. Its docstring's
+    dev-copy estimate was 3 h 09.
+  - **ateam_merge took 39 min,** against 31 on the stage-data run: `topic_entity_tag` FKs about 15 min
+    (live and history), `workflow_tag` FKs about 13, the `entity_id` fill about 8.
+  - **bigint took about 30 min** (16.5 on 10-22); `reference_version` alone about 14.5.
+  - **SCRUM-6719 is safe on the merged DB:** its table lists come from column names
+    (`created_by`, `created_by_id`) that no A-team table has, and it skips `ateam_*`. Prod had no
+    `START_STATE` left.
+  - **Checks:** 291 tables, 0 invalid indexes, `reference.id` bigint, 1,617 agents, 1,301,188
+    references; A-team tables untouched (131 / 12 FKs); `workflow_tag` 2,165,122 live and 5,263,895
+    history rows; `topic_entity_tag` 4,173,771 rows, 2,498,957 of the 2,656,760 with an entity string
+    linked; DB 124 GB.
+  - **Cutover downtime:** with SCRUM-6719 and #1352 already on prod, about 38 min load + 39 min
+    ateam_merge ≈ **1 h 20**; all in one go ≈ **4 h 40**. Both are before the Debezium rebuild.
+    **Recommendation:** deploy SCRUM-6719 and #1352 to prod in an earlier, separate release (its
+    backfill commits in batches and needs the API and automated scripts stopped).
 - **Still possible:** fold Phase 2's `entity_id` fill into Phase 1's `topic_entity_tag` rewrite, so the
   4.2M rows are rewritten once (about 10 min less).
 - **Before `alembic upgrade`:** run `oneoff_scripts/SCRUM-6754_replace_start_state.py`. Revision
