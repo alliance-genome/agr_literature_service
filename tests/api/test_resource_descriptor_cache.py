@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from unittest import mock
 
@@ -136,6 +137,50 @@ def test_initial_load_failure_is_fail_soft(monkeypatch):
     monkeypatch.setattr(rdc, "_fetch", mock.Mock(side_effect=RuntimeError("down")))
     assert rdc.get_all() == []          # empty, no exception
     assert rdc.get_map() == {}
+
+
+def test_empty_cache_retries_every_read_and_rate_limits_the_error(monkeypatch, caplog):
+    now, advance = _fake_clock(datetime(2026, 1, 1))
+    state = {"fail": True, "calls": 0}
+
+    def fetch():
+        state["calls"] += 1
+        if state["fail"]:
+            raise RuntimeError("down")
+        return [_rd("MGI", "good")]
+
+    monkeypatch.setattr(rdc, "_now", now)
+    monkeypatch.setattr(rdc, "_fetch", fetch)
+    with caplog.at_level(logging.WARNING, logger=rdc.__name__):
+        rdc.get_all()                                     # initial load fails: ERROR
+        advance(1)
+        rdc.get_all()                                     # retried at once, error not repeated
+        advance(rdc.EMPTY_ERROR_LOG_SECONDS)
+        rdc.get_all()                                     # still failing a minute later: ERROR again
+    assert state["calls"] == 3
+    assert [r.levelno for r in caplog.records] == [logging.ERROR, logging.ERROR]
+    state["fail"] = False
+    advance(1)
+    assert rdc.get_map()["MGI"].default_url == "good"   # recovers on the next read
+
+
+def test_refresh_failure_with_data_logs_warning(monkeypatch, caplog):
+    now, advance = _fake_clock(datetime(2026, 1, 1))
+    state = {"fail": False}
+
+    def fetch():
+        if state["fail"]:
+            raise RuntimeError("down")
+        return [_rd("MGI", "good")]
+
+    monkeypatch.setattr(rdc, "_now", now)
+    monkeypatch.setattr(rdc, "_fetch", fetch)
+    rdc.get_all()
+    state["fail"] = True
+    advance(1000)
+    with caplog.at_level(logging.WARNING, logger=rdc.__name__):
+        rdc.get_all()
+    assert [r.levelno for r in caplog.records] == [logging.WARNING]
 
 
 def test_force_refresh_replaces_immediately(monkeypatch):

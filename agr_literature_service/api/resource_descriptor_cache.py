@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TTL_SECONDS = 900
 RETRY_BACKOFF_SECONDS = 60
+# With nothing loaded every read retries, but logs the failure at most this often
+EMPTY_ERROR_LOG_SECONDS = 60
 
 
 def _int_env(name: str, default: int) -> int:
@@ -129,6 +131,7 @@ def _ttl() -> timedelta:
 class _State:
     snapshot: Optional[List[ResourceDescriptor]] = None
     fetched_at: Optional[datetime] = None
+    empty_error_at: Optional[datetime] = None
 
 
 _state = _State()
@@ -143,7 +146,7 @@ def _do_fetch_locked(now: datetime) -> None:
     global _map_cache, _map_cache_stamp
     fetched = _fetch()
     if not fetched:
-        raise ValueError("A-team returned no resource descriptors")
+        raise ValueError("the A-team resourcedescriptor tables returned no descriptors")
     _state.snapshot = fetched
     _state.fetched_at = now
     _map_cache, _map_cache_stamp = None, None
@@ -152,13 +155,19 @@ def _do_fetch_locked(now: datetime) -> None:
 def ensure_fresh() -> None:
     now = _now()
     with _lock:
-        if _state.snapshot is None:
+        if not _state.snapshot:
+            # Nothing loaded yet, or every load so far failed: try again on every read (a SQL read
+            # on the same database is cheap), so the URLs come back as soon as the tables are readable
             try:
                 _do_fetch_locked(now)
             except Exception as e:  # noqa: BLE001
-                logger.warning("Resource descriptor initial load failed; starting empty: %s", e)
                 _state.snapshot = []
-                _state.fetched_at = now - _ttl() + timedelta(seconds=RETRY_BACKOFF_SECONDS)
+                last = _state.empty_error_at
+                if last is None or (now - last) >= timedelta(seconds=EMPTY_ERROR_LOG_SECONDS):
+                    # ERROR, not WARNING: with no descriptors every cross reference URL is missing
+                    logger.error("Resource descriptors could not be loaded; no cross reference URLs "
+                                 "until a load succeeds: %s", e)
+                    _state.empty_error_at = now
         elif _state.fetched_at is None or (now - _state.fetched_at) > _ttl():
             try:
                 _do_fetch_locked(now)
@@ -299,4 +308,5 @@ def _reset() -> None:
     with _lock:
         _state.snapshot = None
         _state.fetched_at = None
+        _state.empty_error_at = None
         _map_cache, _map_cache_stamp = None, None
