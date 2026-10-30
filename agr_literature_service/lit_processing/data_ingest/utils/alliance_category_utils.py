@@ -21,6 +21,10 @@ outranks PubMed's research article, a retraction outranks everything. A
 reference with no category from any source keeps the one it has (e.g. a MOD's
 own DQM allianceCategory for a paper with no PMID). The category of an
 obsolete reference, or one a curator set by hand, is left alone.
+
+A paper in PubMed has been published, so a MOD's Personal Communication type
+gives it no category (MGI types a few published papers as personal
+communications, the data having come from the authors before publication).
 """
 import csv
 from dataclasses import dataclass, field
@@ -56,6 +60,9 @@ CATEGORY_PRIORITY = [
     "Unknown",
 ]
 _RANK = {category: rank for rank, category in enumerate(CATEGORY_PRIORITY)}
+
+# MOD reference type categories a paper in PubMed cannot have
+NOT_IN_PUBMED_CATEGORIES = {"Personal_Communication"}
 
 RELATION_CATEGORY = {
     "RetractionOf": "Retraction",
@@ -105,10 +112,12 @@ def highest_priority(categories: Iterable[Optional[str]]) -> Optional[str]:
     return min(known, key=_RANK.__getitem__) if known else None
 
 
-def mod_reference_type_category(mod_reference_types: Iterable[Tuple[str, str]]) -> Optional[str]:
+def mod_reference_type_category(mod_reference_types: Iterable[Tuple[str, str]],
+                                in_pubmed: bool = False) -> Optional[str]:
     """The category the reference's MOD reference types give, if any."""
     mapping = load_mapping()
-    return highest_priority(mapping.get((mod, label.lower())) for mod, label in mod_reference_types)
+    categories = (mapping.get((mod, label.lower())) for mod, label in mod_reference_types)
+    return highest_priority(c for c in categories if not (in_pubmed and c in NOT_IN_PUBMED_CATEGORIES))
 
 
 def pubmed_types_category(pubmed_types: Optional[List[str]]) -> Optional[str]:
@@ -120,14 +129,17 @@ def pubmed_types_category(pubmed_types: Optional[List[str]]) -> Optional[str]:
     return get_alliance_category_from_pubmed_types(pubmed_types)
 
 
-def resolve_category(inputs: CategoryInputs, pubmed_category: Optional[str], current) -> Optional[str]:
+def resolve_category(inputs: CategoryInputs, pubmed_category: Optional[str], current,
+                     other_category: Optional[str] = None) -> Optional[str]:
     """The category the reference should have; its current one when nothing
-    gives a category, or when it is obsolete or was set by a curator."""
+    gives a category, or when it is obsolete or was set by a curator.
+    pubmed_category is None for a paper not in PubMed; other_category is the
+    MOD's own DQM category of a paper with no PMID."""
     current = category_name(current)
     if current in UNCHANGED_CATEGORIES or inputs.set_by_curator:
         return current
-    candidates = [mod_reference_type_category(inputs.mod_reference_types),
-                  category_name(pubmed_category)]
+    candidates = [mod_reference_type_category(inputs.mod_reference_types, in_pubmed=pubmed_category is not None),
+                  category_name(pubmed_category), category_name(other_category)]
     candidates += [RELATION_CATEGORY.get(relation_type) for relation_type in inputs.relation_types]
     return highest_priority(candidates) or current
 
@@ -176,9 +188,7 @@ def set_reference_category(db: Session, reference_id: int,
     db.flush()
     inputs = load_category_inputs(db, [reference_id])[reference_id]
     old = category_name(reference.category)
-    source_category = highest_priority([pubmed_types_category(reference.pubmed_types),
-                                        category_name(other_category)])
-    new = resolve_category(inputs, source_category, old)
+    new = resolve_category(inputs, pubmed_types_category(reference.pubmed_types), old, other_category)
     if new is None or new == old:
         return None
     reference.category = new

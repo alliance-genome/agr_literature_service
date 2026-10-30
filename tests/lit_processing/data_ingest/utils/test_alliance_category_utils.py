@@ -8,7 +8,8 @@ from typing import Any, cast
 import pytest
 
 from agr_literature_service.api.crud import mod_reference_type_crud
-from agr_literature_service.api.models import PersonModel, ReferenceModel, UserModel
+from agr_literature_service.api.models import ModModel, ModReferencetypeAssociationModel, PersonModel, \
+    ReferenceModel, ReferencetypeModel, UserModel
 from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 from agr_literature_service.api.user import _set_current_user, get_current_agent_id, get_global_user_id, \
     set_global_user_id
@@ -70,6 +71,11 @@ def _inputs(*types, relations=(), curator=False):
     # unclear types are Other until confirmed, still below a review
     (_inputs(("WB", "WormBook")), "Research_Article", None, "Other"),
     (_inputs(("WB", "WormBook"), ("WB", "Review")), "Research_Article", None, "Review_Article"),
+    # a paper in PubMed is not a personal communication, whatever the MOD type
+    (_inputs(("MGI", "Personal Communication")), "Research_Article", "Personal_Communication",
+     "Research_Article"),
+    (_inputs(("SGD", "Personal Communication to SGD")), None, "Other", "Personal_Communication"),
+    (_inputs(("WB", "Email")), None, "Other", "Personal_Communication"),
     # nothing gives a category: keep the current one (e.g. the DQM category of a paper with no PMID)
     (_inputs(("WB", "Experimental")), None, "Personal_Communication", "Personal_Communication"),
     # obsolete references and a curator's category are left alone
@@ -160,3 +166,18 @@ class TestSetReferenceCategory:
         assert category_name(db.get(ReferenceModel, unchanged).category) == "Research_Article"
         assert category_name(db.get(ReferenceModel, pubmed_only).category) == "Comment"
         assert backfill(db, apply=False, report_file=str(report)) == {}
+
+    def test_personal_communication_in_pubmed(self, db, populate_test_mod_reference_types):  # noqa
+        set_global_user_id(db, "alliance_category_test")
+        mgi = db.query(ModModel).filter(ModModel.abbreviation == "MGI").one()
+        db.add(ModReferencetypeAssociationModel(mod=mgi, referencetype=ReferencetypeModel(
+            label="Personal Communication"), display_order=10))
+        db.commit()
+        published = _reference(db, "AGRKB:CAT-TEST-8")
+        unpublished = _reference(db, "AGRKB:CAT-TEST-9", category="Other", pubmed_types=())
+        for reference_id in (published, unpublished):
+            mod_reference_type_crud.insert_mod_reference_type_into_db(
+                db, [], "MGI", "Personal Communication", reference_id)
+        assert set_reference_category(db, published) is None
+        assert set_reference_category(db, unpublished) == ("Other", "Personal_Communication")
+        db.commit()

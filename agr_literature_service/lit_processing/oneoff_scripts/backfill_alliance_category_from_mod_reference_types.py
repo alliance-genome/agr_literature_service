@@ -55,7 +55,8 @@ def find_changes(db, reference_rows) -> List[Tuple]:
             pubmed_category_cache[key] = pubmed_types_category(list(key))
         old = category_name(category)
         new = resolve_category(inputs[reference_id], pubmed_category_cache[key], old)
-        decided_by = {mod_reference_type_category(inputs[reference_id].mod_reference_types)}
+        decided_by = {mod_reference_type_category(inputs[reference_id].mod_reference_types,
+                                                  in_pubmed=pubmed_category_cache[key] is not None)}
         decided_by |= {RELATION_CATEGORY.get(relation) for relation in inputs[reference_id].relation_types}
         if new and new != old and new in decided_by:
             changes.append((reference_id, curie, old, new, inputs[reference_id], pubmed_types))
