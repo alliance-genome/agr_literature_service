@@ -34,9 +34,9 @@ def test_mapping():
     assert mapping[("WB", "comment")] == "Comment"
     assert mapping[("WB", "letter")] == "Comment"
     assert mapping[("FB", "erratum")] == "Correction"
+    assert mapping[("WB", "journal_article")] == "Research_Article"
     # flags and generic article types give no category
     assert mapping[("WB", "experimental")] is None
-    assert mapping[("WB", "journal_article")] is None
     assert mapping[("MGI", "peer reviewed article")] is None
     # unclear until curators confirm
     assert mapping[("WB", "wormbook")] == "Other"
@@ -60,6 +60,10 @@ def _inputs(*types, relations=(), curator=False):
     (_inputs(("WB", "Experimental"), ("WB", "Journal_article")), "Review_Article", "Research_Article",
      "Review_Article"),
     (_inputs(("WB", "Experimental")), "Research_Article", "Review_Article", "Research_Article"),
+    # WB Journal_article is a research article, below any other category
+    (_inputs(("WB", "Journal_article"), ("WB", "Experimental")), None, "Personal_Communication",
+     "Research_Article"),
+    (_inputs(("WB", "Journal_article")), "Comment", "Research_Article", "Comment"),
     # a retraction notice outranks everything
     (_inputs(("FB", "review"), relations=["RetractionOf"]), "Research_Article", None, "Retraction"),
     (_inputs(relations=["CommentOn"]), "Research_Article", None, "Comment"),

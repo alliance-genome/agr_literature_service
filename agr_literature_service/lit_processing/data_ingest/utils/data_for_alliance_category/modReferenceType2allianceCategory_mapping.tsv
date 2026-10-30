@@ -146,7 +146,7 @@ WB	Gazette_article	Conference_Publication	kept current: all references already h
 WB	Historical_article	Other	unclear: Other until curators confirm	Other?
 WB	Interactive_tutorial		ignored: generic type or flag, PubMed decides	Research Article
 WB	Interview	Other	sheet	Other
-WB	Journal_article		sheet: research/ignore, PubMed decides	Research Article
+WB	Journal_article	Research_Article	sheet	Research Article
 WB	Lectures	Other	unclear: Other until curators confirm	Conference Publication
 WB	Letter	Comment	changed: Comment category added after the sheet	Personal Communication
 WB	Meeting_abstract	Conference_Publication	sheet	Conference Publication
