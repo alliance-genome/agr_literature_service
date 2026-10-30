@@ -108,6 +108,18 @@ class TestSetReferenceCategory:
         mod_reference_type_crud.destroy(db, mrt_id)
         assert category_name(db.get(ReferenceModel, reference_id).category) == "Research_Article"
 
+    def test_dqm_category_of_paper_without_pmid(self, db, populate_test_mod_reference_types):  # noqa
+        """The MOD's DQM category is one of the sources: a higher one wins over the
+        types, and a second run (the next nightly load) changes nothing."""
+        set_global_user_id(db, "alliance_category_test")
+        reference_id = _reference(db, "AGRKB:CAT-TEST-7", pubmed_types=())
+        mod_reference_type_crud.insert_mod_reference_type_into_db(db, [], "WB", "Journal_article", reference_id)
+        assert set_reference_category(db, reference_id, "Review Article") == ("Research_Article", "Review_Article")
+        assert set_reference_category(db, reference_id, "Review Article") is None
+        # without it (a paper with a PMID), the types and PubMed decide
+        assert set_reference_category(db, reference_id) == ("Review_Article", "Research_Article")
+        db.commit()
+
     def test_curator_category_kept(self, db, populate_test_mod_reference_types):  # noqa
         set_global_user_id(db, "alliance_category_test")
         reference_id = _reference(db, "AGRKB:CAT-TEST-2")

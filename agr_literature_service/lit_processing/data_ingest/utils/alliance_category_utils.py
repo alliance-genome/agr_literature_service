@@ -164,17 +164,21 @@ def load_category_inputs(db: Session, reference_ids: Iterable[int]) -> Dict[int,
     return inputs
 
 
-def set_reference_category(db: Session, reference_id: int) -> Optional[Tuple[Optional[str], str]]:
+def set_reference_category(db: Session, reference_id: int,
+                           other_category: Optional[str] = None) -> Optional[Tuple[Optional[str], str]]:
     """Set the reference's category from its MOD reference types, relations and
-    stored PubMed types. Returns (old, new) when it changed. Flushes, does not
-    commit."""
+    stored PubMed types, plus other_category when given (the MOD's own DQM
+    category of a paper with no PMID). Returns (old, new) when it changed.
+    Flushes, does not commit."""
     reference = db.get(ReferenceModel, reference_id)
     if reference is None:
         return None
     db.flush()
     inputs = load_category_inputs(db, [reference_id])[reference_id]
     old = category_name(reference.category)
-    new = resolve_category(inputs, pubmed_types_category(reference.pubmed_types), old)
+    source_category = highest_priority([pubmed_types_category(reference.pubmed_types),
+                                        category_name(other_category)])
+    new = resolve_category(inputs, source_category, old)
     if new is None or new == old:
         return None
     reference.category = new

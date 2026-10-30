@@ -40,7 +40,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
     add_file_needed_for_new_papers
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
-    load_category_inputs, resolve_category, set_reference_category
+    set_reference_category
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import cleanup_temp_directory
@@ -893,19 +893,13 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
+                    if field_snake == 'category':
+                        # set below by set_reference_category, with this as one of its sources
+                        continue
                     dqm_value = None
                     db_value = None
                     if field_camel in dqm_entry:
                         dqm_value = dqm_entry[field_camel]
-                        if field_snake == 'category' and dqm_value:
-                            dqm_value = dqm_value.lower().replace(" ", "_")
-                            # the MOD's own category is one of the sources: a MOD
-                            # reference type or a relation can outrank it
-                            reference_id = db_entry['reference_id']
-                            resolved = resolve_category(load_category_inputs(db_session, [reference_id])[reference_id],
-                                                        dqm_value, db_entry.get('category'))
-                            if resolved:
-                                dqm_value = resolved.lower()
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
                     if field_camel in ['datePublishedStart', 'datePublishedEnd']:
@@ -918,8 +912,6 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     if dqm_value != db_value:
                         logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                         update_json[field_snake] = dqm_value
-                        if field_snake == 'category':
-                            update_json[field_snake] = update_json[field_snake].replace(' ', '_')
 
                 # ignore keywords after initial 2021 Nov load
                 # keywords_changed = compare_keywords(db_entry, dqm_entry)
@@ -956,9 +948,11 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     except Exception as e:
                         logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
 
-            # the MOD reference types may have changed: set the category they give
+            # the MOD reference types may have changed: set the category they give.
+            # A paper with no PMID also has the MOD's own category as a source.
             try:
-                changed = set_reference_category(db_session, db_entry['reference_id'])
+                dqm_category = dqm_entry.get('allianceCategory') if processing_flag == 'mod_biblio_all' else None
+                changed = set_reference_category(db_session, db_entry['reference_id'], dqm_category)
                 if changed:
                     logger.info(f"{agr}: category {changed[0]} -> {changed[1]}")
             except Exception as e:
