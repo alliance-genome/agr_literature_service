@@ -1,0 +1,179 @@
+# MOD reference type -> Alliance category, from the Lit WG 'MOD Reference Types - Mapping' sheet,
+# updated 2026-10 for the Comment / Correction categories added since. Blank category = the type
+# gives no category (generic article type or flag): PubMed and the other types decide.
+# Types not listed here are ignored. See alliance_category_utils.CATEGORY_PRIORITY for the order
+# used when a reference's types point to different categories.
+mod	mod_reference_type	alliance_category	basis	original_sheet
+FB	abstract	Conference_Publication	sheet	Conference Publication
+FB	autobiography	Other	sheet	Other
+FB	bibliographic list	Other	sheet	Other
+FB	biography	Other	sheet	Other
+FB	book	Book	not in sheet / sheet ambiguous: assigned	
+FB	book review	Other	sheet	Other
+FB	conference report	Other	unclear: Other until curators confirm	Other
+FB	curated genome annotation	Internal_Process_Reference	sheet	Internal Process Reference
+FB	database	Other	sheet	Other
+FB	DNA/RNA sequence record	Internal_Process_Reference	kept current: all references already have it; sheet says otherwise, please confirm	Direct Data Submission
+FB	editorial	Comment	changed: Comment category added after the sheet	Other
+FB	erratum	Correction	changed: Correction category (matches the PubMed mapping)	Research Article
+FB	film	Other	sheet	Other
+FB	FlyBase analysis	Internal_Process_Reference	sheet	Internal Process Reference
+FB	interview	Other	sheet	Other
+FB	lecture	Other	sheet	Other
+FB	letter	Comment	changed: Comment category added after the sheet	Other
+FB	micropublication		sheet: research/ignore, PubMed decides	Research Article
+FB	news article	Other	sheet	Other
+FB	newspaper article		not in sheet: generic type, PubMed decides	
+FB	note	Comment	changed: Comment category added after the sheet	Other
+FB	obituary	Other	sheet	Other
+FB	paper		sheet: research/ignore, PubMed decides	Research Article
+FB	patent	Other	sheet	Other
+FB	personal communication to FlyBase	Personal_Communication	sheet	Personal Communication
+FB	poem	Other	sheet	Other
+FB	poster	Other	unclear: Other until curators confirm	Other
+FB	preprint	Preprint	sheet	Preprint
+FB	press release	Other	sheet	Other
+FB	protein sequence record	Internal_Process_Reference	kept current: all references already have it; sheet says otherwise, please confirm	Direct Data Submission
+FB	retraction	Retraction	sheet	Retraction
+FB	review	Review_Article	sheet	Review Article
+FB	sequence record	Internal_Process_Reference	kept current: all references already have it; sheet says otherwise, please confirm	
+FB	species list	Direct_Data_Submission	sheet	Direct Data Submission
+FB	spoof	Other	sheet	Other
+FB	stock list	Direct_Data_Submission	sheet	Direct Data Submission
+FB	supplementary material		sheet: research/ignore, PubMed decides	Research Article
+FB	teaching note	Other	sheet	Other
+FB	thesis	Thesis	sheet	Thesis
+FB	unpublished	Other	unclear: Other until curators confirm	Other
+FB	website	Other	sheet	Other
+FB	white paper	Other	sheet	Other
+MGI	Annual Report/Bulletin	Other	sheet	Other
+MGI	Book	Book	sheet	Book
+MGI	Conference Proceedings/Abstracts	Conference_Publication	sheet	Conference Publication
+MGI	Dissertation/Thesis	Thesis	sheet	Thesis
+MGI	External Resource	Other	sheet	Other
+MGI	isReviewArticle	Review_Article	sheet	Review Article
+MGI	JAX Notes	Other	sheet	Other
+MGI	MGI Curation Record	Internal_Process_Reference	sheet	Internal Process Reference
+MGI	MGI Data Load	Internal_Process_Reference	sheet	Internal Process Reference
+MGI	MGI Direct Data Submission	Direct_Data_Submission	sheet	Direct Data Submission
+MGI	Newsletter	Other	sheet	Other
+MGI	Not Specified		ignored: generic type or flag, PubMed decides	Unknown
+MGI	Peer Reviewed Article		sheet: research/ignore, PubMed decides	Research Article  (could be Review Article is "isReviewArticle" is true)
+MGI	Personal Communication	Personal_Communication	sheet	Personal Communication
+MGI	Unreviewed Article	Preprint	sheet	Preprint
+RGD	ABSTRACT	Other	unclear: Other until curators confirm	Other
+RGD	BOOK	Book	sheet	Book
+RGD	BOOK REVIEW	Other	sheet	Other
+RGD	DIRECT DATA TRANSFER	Internal_Process_Reference	sheet	Internal Process Reference
+RGD	JOURNAL ARTICLE		sheet: research/ignore, PubMed decides	Research Article or Review Article
+RGD	PERSONAL COMMUNICATION	Personal_Communication	sheet	Personal Communication
+RGD	WEBSITE	Internal_Process_Reference	sheet	Internal Process Reference
+SGD	Autobiography	Other	sheet	Other
+SGD	Bibliography	Other	sheet	Other
+SGD	Biography	Other	sheet	Other
+SGD	Book	Book	sheet	Book
+SGD	Book Chapter	Other	unclear: Other until curators confirm	Research or Review article
+SGD	Case Reports		sheet: research/ignore, PubMed decides	Research Article
+SGD	Chapter	Other	unclear: Other until curators confirm	Research or review article
+SGD	Classical Article		sheet: research/ignore, PubMed decides	Research Article
+SGD	Clinical Conference		sheet: research/ignore, PubMed decides	Research Article
+SGD	Clinical Study		not in sheet: generic type, PubMed decides	
+SGD	Clinical Trial		sheet: research/ignore, PubMed decides	Research Article
+SGD	Clinical Trial Protocol		ignored: generic type or flag, PubMed decides	Other
+SGD	Comment	Comment	changed: Comment category added after the sheet	Other
+SGD	Comparative Study		sheet: research/ignore, PubMed decides	Research Article
+SGD	Congress	Conference_Publication	sheet	Conference Publication
+SGD	Consensus Development Conference		ignored: generic type or flag, PubMed decides	Conference Publication
+SGD	Controlled Clinical Trial		sheet: research/ignore, PubMed decides	Research Article
+SGD	Corrected and Republished Article		sheet: research/ignore, a republished article is not an erratum	Research Article
+SGD	Corrected And Republished Article		sheet: research/ignore, a republished article is not an erratum	Research Article
+SGD	Dataset		ignored: generic type or flag, PubMed decides	Direct Data Submission
+SGD	Direct Submission to SGD	Direct_Data_Submission	sheet	Direct Data Submission
+SGD	Directory	Other	sheet	Other
+SGD	Duplicate Publication		sheet: research/ignore, PubMed decides	Research Article
+SGD	Editorial	Comment	changed: Comment category added after the sheet	Other
+SGD	English Abstract		ignored: generic type or flag, PubMed decides	Conference Publication
+SGD	Evaluation Study		sheet: research/ignore, PubMed decides	Research Article
+SGD	Expression of Concern	Other	not in sheet / sheet ambiguous: assigned	
+SGD	Festschrift	Other	sheet	Other
+SGD	Government Publications	Other	sheet	Other
+SGD	Historical Article		ignored: generic type or flag, PubMed decides	Research Article
+SGD	Interview	Other	sheet	Other
+SGD	Introductory Journal Article		ignored: generic type or flag, PubMed decides	Research Article
+SGD	Journal Article		sheet: research/ignore, PubMed decides	Research Article
+SGD	Lecture	Other	unclear: Other until curators confirm	Conference Publication
+SGD	Letter	Comment	changed: Comment category added after the sheet	Personal Communication
+SGD	Meta-Analysis		sheet: research/ignore, PubMed decides	Research Article
+SGD	Monograph	Other	unclear: Other until curators confirm	Other
+SGD	Multicenter Study		sheet: research/ignore, PubMed decides	Ignore
+SGD	News	Other	sheet	Other
+SGD	Observational Study		not in sheet: generic type, PubMed decides	
+SGD	Overall		ignored: generic type or flag, PubMed decides	Conference Publication
+SGD	Personal Communication in Publication	Personal_Communication	sheet	Personal Communication
+SGD	Personal Communication to SGD	Personal_Communication	sheet	Personal Communication
+SGD	Personal Narrative	Other	sheet	Other
+SGD	Portrait	Other	sheet	Other
+SGD	Preprint	Preprint	not in sheet / sheet ambiguous: assigned	
+SGD	Published Erratum	Correction	changed: Correction category (matches the PubMed mapping)	Research Article
+SGD	Randomized Controlled Trial		sheet: research/ignore, PubMed decides	Research Article
+SGD	Randomized Controlled Trial, Veterinary		not in sheet: generic type, PubMed decides	
+SGD	Research Support, American Recovery and Reinvestment Act		sheet: research/ignore, PubMed decides	Ignore
+SGD	Research Support, N.I.H., Extramural		sheet: research/ignore, PubMed decides	Ignore
+SGD	Research Support, N.I.H., Intramural		sheet: research/ignore, PubMed decides	Ignore
+SGD	Research Support, Non-U.S. Gov't		sheet: research/ignore, PubMed decides	Ignore
+SGD	Research Support, U.S. Gov't, Non-P.H.S.		sheet: research/ignore, PubMed decides	Ignore
+SGD	Research Support, U.S. Gov't, P.H.S.		sheet: research/ignore, PubMed decides	Ignore
+SGD	Retracted Publication		ignored: generic type or flag, PubMed decides	Retracted
+SGD	Retraction of Publication	Retraction	sheet	Retraction
+SGD	Review	Review_Article	sheet	Review Article
+SGD	Scoping Review	Review_Article	not in sheet / sheet ambiguous: assigned	
+SGD	Systematic Review	Review_Article	sheet	Review Article
+SGD	Technical Report		sheet: research/ignore, PubMed decides	Research Article
+SGD	Thesis	Thesis	sheet	Thesis
+SGD	Validation Study		sheet: research/ignore, PubMed decides	Research Article
+SGD	Video-Audio Media		ignored: generic type or flag, PubMed decides	Other
+SGD	Webcast	Other	sheet	Other
+WB	Biography	Other	sheet	Other
+WB	Book	Book	not in sheet / sheet ambiguous: assigned	Book or Book Resource
+WB	Book_chapter	Other	unclear: Other until curators confirm	Other
+WB	Comment	Comment	changed: Comment category added after the sheet	Personal Communication
+WB	Congresses	Conference_Publication	sheet	Conference Publication
+WB	Directory	Other	sheet	Other
+WB	Editorial	Comment	changed: Comment category added after the sheet	Other
+WB	Email	Personal_Communication	not in sheet / sheet ambiguous: assigned	Personal Communication
+WB	Experimental		ignored: generic type or flag, PubMed decides	
+WB	Gazette_article	Conference_Publication	kept current: all references already have it; sheet says otherwise, please confirm	Other
+WB	Historical_article	Other	unclear: Other until curators confirm	Other?
+WB	Interactive_tutorial		ignored: generic type or flag, PubMed decides	Research Article
+WB	Interview	Other	sheet	Other
+WB	Journal_article		sheet: research/ignore, PubMed decides	Research Article
+WB	Lectures	Other	unclear: Other until curators confirm	Conference Publication
+WB	Letter	Comment	changed: Comment category added after the sheet	Personal Communication
+WB	Meeting_abstract	Conference_Publication	sheet	Conference Publication
+WB	Method		sheet: research/ignore, PubMed decides	Research Article
+WB	Micropublication		sheet: research/ignore, PubMed decides	Research Article
+WB	Monograph	Other	unclear: Other until curators confirm	Other
+WB	News	Other	sheet	Other
+WB	Not_experimental		ignored: generic type or flag, PubMed decides	
+WB	Other	Other	unclear: Other until curators confirm	Other
+WB	Published_erratum	Correction	changed: Correction category (matches the PubMed mapping)	Research Article
+WB	Retracted_publication		ignored: generic type or flag, PubMed decides	Retraction
+WB	Retraction_of_publication	Retraction	sheet	Retraction
+WB	Review	Review_Article	sheet	Review Article
+WB	Technical_report	Other	unclear: Other until curators confirm	Other
+WB	WormBook	Other	unclear: Other until curators confirm	Other/ Review Article
+XB	Book	Book	not in sheet / sheet ambiguous: assigned	
+XB	Research Article		ignored: generic type or flag, PubMed decides	
+XB	Unpublished	Other	unclear: Other until curators confirm	
+ZFIN	Abstract	Conference_Publication	sheet	Conference Publication
+ZFIN	Active Curation	Internal_Process_Reference	sheet	Internal Process Reference
+ZFIN	Book	Book	sheet	Book
+ZFIN	Chapter	Other	unclear: Other until curators confirm	Other
+ZFIN	Curation	Internal_Process_Reference	sheet	Internal Process Reference
+ZFIN	Journal		sheet: research/ignore, PubMed decides	Research Article
+ZFIN	Movie	Other	sheet	Other
+ZFIN	Other	Other	unclear: Other until curators confirm	Other
+ZFIN	Review	Review_Article	sheet	Review Article
+ZFIN	Thesis	Thesis	sheet	Thesis
+ZFIN	Unknown		ignored: generic type or flag, PubMed decides	Unknown
+ZFIN	Unpublished	Internal_Process_Reference	kept current: all references already have it; sheet says otherwise, please confirm	Direct Data Submission

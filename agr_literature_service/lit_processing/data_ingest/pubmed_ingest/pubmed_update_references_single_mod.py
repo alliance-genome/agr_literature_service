@@ -30,6 +30,8 @@ from agr_literature_service.lit_processing.utils.report_utils import \
     write_log_and_send_pubmed_update_report, \
     write_log_and_send_pubmed_no_update_report
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    CategoryInputs, load_category_inputs, resolve_category
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
@@ -336,6 +338,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
     if query_all_papers and len(all_data) == 0:
         return authors_with_first_or_corresponding_flag
 
+    # the category also comes from MOD reference types and reference relations
+    reference_id_to_category_inputs = load_category_inputs(db_session, [x.reference_id for x in all_data])
+
     i = 0
 
     for x in all_data:
@@ -381,7 +386,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                         new_resource_id, journal_title,
                                                         reference_id_to_authors.get(x.reference_id),
                                                         bad_date_published, pmids_with_pub_status_changed,
-                                                        update_log, count)
+                                                        update_log, count,
+                                                        reference_id_to_category_inputs.get(x.reference_id))
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating reference table: {e}")
 
@@ -469,7 +475,7 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, pmids_with_pub_status_changed, update_log, count):  # noqa: C901 pragma: no cover
+def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, pmids_with_pub_status_changed, update_log, count, category_inputs=None):  # noqa: C901 pragma: no cover
 
     colName_to_json_key = {'issue_name': 'issueName',
                            'page_range': 'pages',
@@ -533,6 +539,9 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             if colName == 'category':
                 if old_value:
                     old_value = old_value.replace("ReferenceCategory.", "")
+                # PubMed's category is one of the sources: a MOD reference type or
+                # a reference relation can outrank it (alliance_category_utils)
+                new_value = resolve_category(category_inputs or CategoryInputs(), new_value, old_value)
                 handle_generic_update(fw, pmid, x, colName, old_value,
                                       new_value, update_log, has_update)
                 continue

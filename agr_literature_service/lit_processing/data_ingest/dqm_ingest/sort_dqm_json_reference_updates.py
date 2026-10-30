@@ -38,7 +38,9 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
-    add_file_needed_for_new_papers, set_category_for_fb_note_papers
+    add_file_needed_for_new_papers
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    load_category_inputs, resolve_category, set_reference_category
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import cleanup_temp_directory
@@ -687,12 +689,6 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                 logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
         fh_mod_report[mod].close()
 
-        if mod == 'FB':
-            try:
-                set_category_for_fb_note_papers(db_session, logger=logger)
-            except Exception as e:
-                logger.info("An error occurred when updating category for FB papers with 'note' reference type:" + str(e))
-
         try:
             mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
         except Exception as e:
@@ -903,6 +899,13 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                         dqm_value = dqm_entry[field_camel]
                         if field_snake == 'category' and dqm_value:
                             dqm_value = dqm_value.lower().replace(" ", "_")
+                            # the MOD's own category is one of the sources: a MOD
+                            # reference type or a relation can outrank it
+                            reference_id = db_entry['reference_id']
+                            resolved = resolve_category(load_category_inputs(db_session, [reference_id])[reference_id],
+                                                        dqm_value, db_entry.get('category'))
+                            if resolved:
+                                dqm_value = resolved.lower()
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
                     if field_camel in ['datePublishedStart', 'datePublishedEnd']:
@@ -952,6 +955,14 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                         logger.info("The reference row for curie = " + agr + " has been updated.")
                     except Exception as e:
                         logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
+
+            # the MOD reference types may have changed: set the category they give
+            try:
+                changed = set_reference_category(db_session, db_entry['reference_id'])
+                if changed:
+                    logger.info(f"{agr}: category {changed[0]} -> {changed[1]}")
+            except Exception as e:
+                logger.info(f"{agr}: error setting the category: {e}")
 
         if live_change:
             db_session.commit()

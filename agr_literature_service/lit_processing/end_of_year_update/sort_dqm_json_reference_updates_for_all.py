@@ -38,6 +38,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, \
     change_mod_curie_status
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    load_category_inputs, resolve_category, set_reference_category
 from agr_literature_service.api.user import set_global_user_id
 
 # For WB needing 57578 references checked for updating,
@@ -710,8 +712,15 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                     db_value = None
                     if field_camel in dqm_entry:
                         dqm_value = dqm_entry[field_camel]
-                        if field_snake == 'category':
+                        if field_snake == 'category' and dqm_value:
                             dqm_value = dqm_value.lower().replace(" ", "_")
+                            # the MOD's own category is one of the sources: a MOD
+                            # reference type or a relation can outrank it
+                            reference_id = db_entry['reference_id']
+                            resolved = resolve_category(load_category_inputs(db_session, [reference_id])[reference_id],
+                                                        dqm_value, db_entry.get('category'))
+                            if resolved:
+                                dqm_value = resolved.lower()
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
                     if field_camel in ['datePublishedStart', 'datePublishedEnd']:
@@ -754,6 +763,14 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                         logger.info("The reference row for curie = " + agr + " has been updated.")
                     except Exception as e:
                         logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
+
+            # the MOD reference types may have changed: set the category they give
+            try:
+                changed = set_reference_category(db_session, db_entry['reference_id'])
+                if changed:
+                    logger.info(f"{agr}: category {changed[0]} -> {changed[1]}")
+            except Exception as e:
+                logger.info(f"{agr}: error setting the category: {e}")
 
         if live_change:
             db_session.commit()
