@@ -1810,41 +1810,6 @@ def insert_referencefile(db_session: Session, pmid, file_class, file_publication
     return referencefile_id
 
 
-def set_category_for_fb_note_papers(db, logger):
-    stmt = text("""
-        UPDATE reference
-        SET category = 'Comment'
-        WHERE reference_id IN (
-            SELECT rmrt.reference_id
-              FROM reference_mod_referencetype rmrt
-              JOIN mod_referencetype mrt
-                ON rmrt.mod_referencetype_id = mrt.id
-              JOIN referencetype rt
-                ON mrt.referencetype_id = rt.id
-              JOIN mod m
-                ON mrt.mod_id = m.id
-             WHERE rt.label = 'note'
-               AND m.abbreviation = 'FB'
-        )
-          AND reference_id NOT IN (
-            SELECT mca.reference_id
-              FROM mod_corpus_association mca
-              JOIN mod m2
-                ON mca.mod_id = m2.id
-             WHERE mca.corpus = TRUE
-               AND m2.abbreviation <> 'FB'
-        )
-          AND category <> 'Comment'
-    """)
-    try:
-        result: Result = db.execute(stmt)
-        db.commit()
-        logger.info(f"Set category='Comment' for {result.rowcount} FB paper(s) with 'note' reference type")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to set category for FB note papers. Error={e}")
-
-
 def update_title_cleanup_tags_for_retracted_papers(db, logger):
     update_title_for_retracted_papers(db, logger)
     cleanup_tags_for_retracted_papers(db, logger)

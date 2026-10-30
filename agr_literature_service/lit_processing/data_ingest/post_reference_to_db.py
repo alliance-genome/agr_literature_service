@@ -5,6 +5,7 @@ import json
 from typing import List
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import set_reference_category
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel
@@ -133,6 +134,10 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
                 insert_mod_corpus_associations(db_session, primaryId, reference_id,
                                                mod_to_mod_id,
                                                entry['modCorpusAssociations'])
+
+            # the MOD reference types and relations can outrank the category from
+            # PubMed or the MOD's DQM file (alliance_category_utils)
+            set_reference_category(db_session, reference_id)
 
             log.info("The new reference for for primaryId = " + primaryId + " has been added into database")
             if live_change:
