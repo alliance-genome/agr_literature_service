@@ -174,6 +174,65 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
     db.commit()
 
 
+def set_curator_priority(db: Session, curie: str, mod_abbreviation: str,
+                         curator_indexing_priority: Optional[str]) -> Dict[str, Any]:
+    """
+    Set the curator indexing priority of a reference (AGRKB, PMID or MOD curie)
+    for a MOD, so a MOD does not need ABC's indexing_priority id. Creates the
+    record when the reference has no prediction for the MOD; clearing the
+    curator priority of a record with no prediction deletes the record.
+    """
+    reference = (
+        db.query(ReferenceModel)
+        .filter(ReferenceModel.curie == normalize_reference_curie(db, curie))
+        .first()
+    )
+    if not reference:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Reference with curie {curie} does not exist",
+        )
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Mod with abbreviation {mod_abbreviation} does not exist",
+        )
+    if curator_indexing_priority is not None:
+        priority_tags = get_workflow_tags_from_process("ATP:0000210")
+        if curator_indexing_priority not in priority_tags:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(f"{curator_indexing_priority} is not an indexing priority; "
+                        f"use one of {', '.join(sorted(priority_tags))}"),
+            )
+
+    obj = (
+        db.query(IndexingPriorityModel)
+        .filter(IndexingPriorityModel.reference_id == reference.reference_id)
+        .filter(IndexingPriorityModel.mod_id == mod.mod_id)
+        .first()
+    )
+    if obj is None:
+        if curator_indexing_priority is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No indexing priority for {curie} and {mod_abbreviation}",
+            )
+        obj = IndexingPriorityModel(reference_id=reference.reference_id, mod_id=mod.mod_id,
+                                    curator_indexing_priority=curator_indexing_priority)
+        db.add(obj)
+    elif curator_indexing_priority is None and obj.predicted_indexing_priority is None:
+        db.delete(obj)
+        db.commit()
+        return {"reference_curie": reference.curie, "mod_abbreviation": mod.abbreviation,
+                "predicted_indexing_priority": None, "curator_indexing_priority": None}
+    else:
+        obj.curator_indexing_priority = curator_indexing_priority
+    db.commit()
+    return show(db, obj.indexing_priority_id)
+
+
 def show(db: Session, indexing_priority_id: int) -> Dict[str, Any]:
     tag: Optional[IndexingPriorityModel] = (
         db.query(IndexingPriorityModel)

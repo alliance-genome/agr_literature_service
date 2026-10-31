@@ -108,3 +108,17 @@ class IndexingPrioritySchemaUpdate(ConfidenceMixin):
         if v is not None and not v.startswith('ATP:'):
             raise ValueError("curator_indexing_priority must start with 'ATP:'")
         return v
+
+
+class IndexingPriorityCuratorSchemaUpdate(BaseModel):
+    """Schema for setting the curator indexing priority of a reference and MOD;
+    null clears it."""
+    model_config = ConfigDict(extra='forbid')
+
+    curator_indexing_priority: Optional[str]
+
+    @field_validator('curator_indexing_priority')
+    def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("curator_indexing_priority must start with 'ATP:'")
+        return v
