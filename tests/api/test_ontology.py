@@ -444,7 +444,10 @@ class TestAtpAncestorPerCurieFallback:
         from agr_literature_service.api.crud import ateam_db_helpers as helpers
         saved = self._snapshot(helpers)
         try:
-            helpers.set_globals({}, {}, {"ATP:0000001": ["ATP:0000002"], "ATP:0000002": []},
+            # every map must be non-empty, or _ensure_atp_loaded treats the cache as cold
+            names = {"ATP:0000001": "root", "ATP:0000002": "topic"}
+            helpers.set_globals(names, {n: c for c, n in names.items()},
+                                {"ATP:0000001": ["ATP:0000002"], "ATP:0000002": []},
                                 {"ATP:0000002": "ATP:0000001"})
             assert helpers._atp_roots == {"ATP:0000001"}
             assert helpers.atp_get_all_ancestors("ATP:0000002") == ["ATP:0000001"]
