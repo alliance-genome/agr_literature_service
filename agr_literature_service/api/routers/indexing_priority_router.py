@@ -9,6 +9,7 @@ from agr_literature_service.api.schemas.indexing_priority_schemas import (
     IndexingPrioritySchemaShow,
     IndexingPrioritySchemaUpdate,
     IndexingPrioritySchemaPost,
+    IndexingPriorityCuratorSchemaUpdate,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -67,6 +68,26 @@ async def patch(
     updates = request.model_dump(exclude_unset=True)
     indexing_priority_crud.patch(db, indexing_priority_id, updates)
     return indexing_priority_crud.show(db, indexing_priority_id)
+
+
+@router.patch(
+    "/curator_priority/{reference_curie}/{mod_abbreviation}",
+    status_code=status.HTTP_200_OK,
+    response_model=IndexingPrioritySchemaShow,
+)
+def set_curator_priority(
+    reference_curie: str,
+    mod_abbreviation: str,
+    request: IndexingPriorityCuratorSchemaUpdate,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """Set (or, with null, clear) the curator indexing priority of a reference
+    (AGRKB, PMID or MOD curie) for a MOD, creating the record if the reference
+    has no prediction for the MOD."""
+    set_global_user_from_cognito(db, user)
+    return indexing_priority_crud.set_curator_priority(
+        db, reference_curie, mod_abbreviation, request.curator_indexing_priority)
 
 
 @router.get(

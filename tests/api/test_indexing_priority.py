@@ -1,7 +1,10 @@
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from starlette.testclient import TestClient
 
+from agr_literature_service.api.main import app
 from agr_literature_service.api.models import (
+    CrossReferenceModel,
     ReferenceModel,
     IndexingPriorityModel,
     ModModel,
@@ -208,3 +211,72 @@ class TestIndexingPriorityCRUD:
             assert key in row
 
         assert row["predicted_indexing_priority_name"]
+
+
+class TestCuratorPriorityByCurie:
+    """A MOD sets the curator priority with its own pub ID, not ABC's indexing_priority id."""
+
+    def _add_zfin_xref(self, db, ref_curie):  # noqa
+        ref_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == ref_curie).scalar()
+        db.add(CrossReferenceModel(curie="ZFIN:ZDB-PUB-990101-1", curie_prefix="ZFIN", reference_id=ref_id))
+        db.commit()
+        return "ZFIN:ZDB-PUB-990101-1"
+
+    def test_set_existing_prediction(self, db, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        ip_id = ip_crud.create(db, _mk_payload(test_reference.new_ref_curie, "ZFIN", "ATP:0000212", 0.7))
+        pub_id = self._add_zfin_xref(db, test_reference.new_ref_curie)
+
+        data = ip_crud.set_curator_priority(db, pub_id, "ZFIN", "ATP:0000211")
+        assert data["indexing_priority_id"] == ip_id
+        assert data["curator_indexing_priority"] == "ATP:0000211"
+        # the prediction is untouched
+        assert data["predicted_indexing_priority"] == "ATP:0000212"
+        assert float(data["confidence_score"]) == pytest.approx(0.7)
+
+        # null clears the curator priority and keeps the prediction
+        data = ip_crud.set_curator_priority(db, pub_id, "ZFIN", None)
+        assert data["indexing_priority_id"] == ip_id
+        assert data["curator_indexing_priority"] is None
+        assert data["predicted_indexing_priority"] == "ATP:0000212"
+
+    def test_create_and_clear_without_prediction(self, db, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        ref_curie = test_reference.new_ref_curie
+        data = ip_crud.set_curator_priority(db, ref_curie, "ZFIN", "ATP:0000211")
+        assert data["curator_indexing_priority"] == "ATP:0000211"
+        assert data["predicted_indexing_priority"] is None
+
+        # clearing the only priority removes the record
+        ip_crud.set_curator_priority(db, ref_curie, "ZFIN", None)
+        assert db.query(IndexingPriorityModel).filter(
+            IndexingPriorityModel.indexing_priority_id == data["indexing_priority_id"]).first() is None
+        with pytest.raises(HTTPException) as ei:
+            ip_crud.set_curator_priority(db, ref_curie, "ZFIN", None)
+        assert ei.value.status_code == 404
+
+    def test_bad_input(self, db, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        for curie, mod, value, code in (
+                ("ZFIN:ZDB-PUB-000000-0", "ZFIN", "ATP:0000211", 404),
+                (test_reference.new_ref_curie, "NOPE", "ATP:0000211", 422),
+                (test_reference.new_ref_curie, "ZFIN", "ATP:0000999", 422)):
+            with pytest.raises(HTTPException) as ei:
+                ip_crud.set_curator_priority(db, curie, mod, value)
+            assert ei.value.status_code == code
+
+    def test_api(self, db, auth_headers, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        ip_crud.create(db, _mk_payload(test_reference.new_ref_curie, "ZFIN", "ATP:0000212", 0.7))
+        pub_id = self._add_zfin_xref(db, test_reference.new_ref_curie)
+        url = f"/indexing_priority/curator_priority/{pub_id}/ZFIN"
+        with TestClient(app) as client:
+            response = client.patch(url, headers=auth_headers, json={"curator_indexing_priority": "ATP:0000211"})
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["curator_indexing_priority"] == "ATP:0000211"
+            assert response.json()["reference_curie"] == test_reference.new_ref_curie
+            # only the curator priority can be set
+            response = client.patch(url, headers=auth_headers, json={"predicted_indexing_priority": "ATP:0000211"})
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+            response = client.patch(url, headers=auth_headers, json={"curator_indexing_priority": "High"})
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
