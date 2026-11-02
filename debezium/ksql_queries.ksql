@@ -356,6 +356,9 @@ CREATE TABLE cross_references AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('curie':=curie, 'is_obsolete':=cast(obsolete as string))) \"CROSS_REFERENCES\"
     FROM cross_reference
+    -- SCRUM-6796: resource cross-references have no reference_id. GROUP BY dropped them anyway,
+    -- but logged a Group-by column resolved to null ERROR for each one.
+    WHERE reference_id IS NOT NULL
     GROUP BY reference_id
     EMIT CHANGES;
 
