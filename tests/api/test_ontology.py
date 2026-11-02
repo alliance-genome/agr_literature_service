@@ -301,3 +301,155 @@ class TestAtpCacheConcurrency:
                 "ATP:0000079", "ATP:0000009", "ATP:0000002"]
         finally:
             helpers.set_globals(*saved)
+
+
+class TestAtpAncestorPerCurieFallback:
+    """SCRUM-6681: a term the cache cannot climb to a root is resolved per curie.
+
+    The fallback used to run only when atp_to_parent was entirely empty, so in a warm
+    worker a term outside the cached branches got [] (or a truncated chain) and every
+    hierarchy check over it degraded to exact equality.
+    """
+
+    # ATP:0000177 is the only cached root below. ATP:0000002 -> ATP:0000009 -> ATP:0000079
+    # -> ATP:0000082 sits under ATP:0000001, a branch the cache is not built from.
+    ONTOLOGY = {
+        "ATP:0000177": [("ATP:0000172", "workflow subprocess")],
+        "ATP:0000172": [("ATP:0000175", "workflow leaf")],
+        "ATP:0000001": [("ATP:0000002", "topic"), ("ATP:0000273", "bibliographic tag")],
+        "ATP:0000002": [("ATP:0000009", "phenotype")],
+        "ATP:0000009": [("ATP:0000079", "phenotype subtopic")],
+        "ATP:0000079": [("ATP:0000082", "phenotype leaf")],
+    }
+
+    @classmethod
+    def _parents(cls):
+        return {c: p for p, kids in cls.ONTOLOGY.items() for c, _ in kids}
+
+    @classmethod
+    def _ancestors(cls, curie):
+        parents, result = cls._parents(), []
+        while curie in parents:
+            curie = parents[curie]
+            result.append(curie)
+        return result
+
+    def _install(self, monkeypatch, helpers, fail=False, start_terms=("ATP:0000177",)):
+        calls = []
+
+        class FakeClient:
+            def get_atp_descendants(self, ancestor_curie, direct_children_only=False):
+                return [{"curie": c, "name": n}
+                        for c, n in TestAtpAncestorPerCurieFallback.ONTOLOGY.get(ancestor_curie, [])]
+
+            def search_ontology_ancestors_or_descendants(self, ontology_node, direction="descendants"):
+                assert direction == "ancestors"
+                calls.append(ontology_node)
+                if fail:
+                    raise helpers.AGRAPIError("A-team DB unavailable")
+                # unordered, like the closure-table query, to prove the result gets ordered
+                return sorted(TestAtpAncestorPerCurieFallback._ancestors(ontology_node))
+
+        monkeypatch.setattr(helpers, "_get_client", lambda: FakeClient())
+        monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
+        helpers.load_name_to_atp_and_relationships(start_terms=list(start_terms))
+        return calls
+
+    @staticmethod
+    def _snapshot(helpers):
+        return (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
+                dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
+
+    def test_term_outside_the_cached_branches_resolves_in_a_warm_worker(self, monkeypatch):
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            calls = self._install(monkeypatch, helpers)
+            assert helpers.atp_to_parent, "the cache is warm"
+            expected = ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"]
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == expected, \
+                "ancestors come back nearest first"
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == expected
+            assert calls == ["ATP:0000082"], "the client answer is cached per curie"
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_cached_branch_does_not_call_the_client(self, monkeypatch):
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            calls = self._install(monkeypatch, helpers)
+            assert helpers.atp_get_all_ancestors("ATP:0000175") == ["ATP:0000172", "ATP:0000177"]
+            assert helpers.atp_get_all_ancestors("ATP:0000177") == []
+            assert calls == []
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_chain_leaked_by_a_descendant_lookup_is_not_trusted(self, monkeypatch):
+        """_get_atp_children sets parent pointers as a side effect, so after a descendant
+        lookup on ATP:0000079 the cache climbs ATP:0000082 one step and stops there."""
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            calls = self._install(monkeypatch, helpers)
+            helpers._get_atp_children("ATP:0000079")
+            assert helpers.atp_to_parent["ATP:0000082"] == "ATP:0000079"
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == [
+                "ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"]
+            assert calls == ["ATP:0000082"]
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_fallback_above_a_start_term_keeps_its_branch_cached(self, monkeypatch):
+        """Ordering a client answer fetches the children of ATP:0000001, and
+        _get_atp_children's setdefault then gives the start term ATP:0000002 a parent. The
+        topic climb must still stop on ATP:0000002 and not go to the client."""
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            calls = self._install(monkeypatch, helpers, start_terms=("ATP:0000002",))
+            assert helpers.atp_get_all_ancestors("ATP:0000273") == ["ATP:0000001"]
+            assert helpers.atp_to_parent["ATP:0000002"] == "ATP:0000001", \
+                "the fallback gave the start term a parent"
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == [
+                "ATP:0000079", "ATP:0000009", "ATP:0000002"]
+            assert calls == ["ATP:0000273"], "the cached topic branch must not call the client"
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_client_failure_is_not_cached(self, monkeypatch):
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            calls = self._install(monkeypatch, helpers, fail=True)
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == []
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == []
+            assert calls == ["ATP:0000082", "ATP:0000082"], "a failure retries on the next call"
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_rebuild_forgets_the_fallback_answers(self, monkeypatch):
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            calls = self._install(monkeypatch, helpers)
+            helpers.atp_get_all_ancestors("ATP:0000082")
+            helpers.load_name_to_atp_and_relationships(start_terms=["ATP:0000177"])
+            helpers.atp_get_all_ancestors("ATP:0000082")
+            assert calls == ["ATP:0000082", "ATP:0000082"]
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_injected_hierarchy_roots_are_its_parentless_terms(self):
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+        saved = self._snapshot(helpers)
+        try:
+            # every map must be non-empty, or _ensure_atp_loaded treats the cache as cold
+            names = {"ATP:0000001": "root", "ATP:0000002": "topic"}
+            helpers.set_globals(names, {n: c for c, n in names.items()},
+                                {"ATP:0000001": ["ATP:0000002"], "ATP:0000002": []},
+                                {"ATP:0000002": "ATP:0000001"})
+            assert helpers._atp_roots == {"ATP:0000001"}
+            assert helpers.atp_get_all_ancestors("ATP:0000002") == ["ATP:0000001"]
+        finally:
+            helpers.set_globals(*saved)

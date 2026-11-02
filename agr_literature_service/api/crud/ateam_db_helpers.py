@@ -5,7 +5,7 @@ from agr_curation_api.models import OntologyTermResult
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
-from typing import Dict, List, Optional, Iterable, Tuple, Union, cast
+from typing import Dict, List, Optional, Iterable, Set, Tuple, Union, cast
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
 
@@ -33,6 +33,14 @@ atp_to_children: Dict[str, List[str]] = {}
 _atp_cache_lock = threading.RLock()
 _atp_cache_ready = False
 _atp_cache_building_thread: Optional[int] = None
+
+# SCRUM-6681: the terms the cache was built down from. Climbing atp_to_parent to one of
+# them gives a complete ancestor chain; a climb that stops anywhere else has only reached
+# the edge of what is cached, and atp_get_all_ancestors asks the ontology client instead.
+_atp_roots: Set[str] = set()
+# SCRUM-6681: ancestors resolved through the ontology client, per curie, for the terms the
+# cache could not climb to a root. Emptied whenever the cache is rebuilt or replaced.
+_atp_ancestor_fallback: Dict[str, List[str]] = {}
 
 _client: Optional[AGRCurationAPIClient] = None
 
@@ -397,11 +405,15 @@ def get_workflow_tags_for_mod(name: str, mod_abbreviation: str) -> List[str]:
 
 def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
     global atp_to_name, name_to_atp, atp_to_children, atp_to_parent, _atp_cache_ready
+    global _atp_roots, _atp_ancestor_fallback
     atp_to_name = atp_to_name_init.copy()
     name_to_atp = name_to_atp_init.copy()
     atp_to_children = atp_to_children_init.copy()
     atp_to_parent = atp_to_parent_init.copy()
-    # Injected wholesale, so the result is complete by construction.
+    # Injected wholesale, so the result is complete by construction, and its roots are
+    # the terms that have children but no parent.
+    _atp_roots = set(atp_to_children) - set(atp_to_parent)
+    _atp_ancestor_fallback = {}
     _atp_cache_ready = True
 
 
@@ -450,13 +462,17 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # reads it on every rule, so it has to be here. Its container terms are excluded
         # from matching separately, in topic_hierarchy_with_self.
         #
-        # A branch left out here is not merely uncached. atp_get_all_ancestors falls back
-        # to the ontology client only when atp_to_parent is *entirely* empty, so in any
-        # warm worker a missing branch resolves to however much of the chain happens to
-        # have been cached as a side effect of earlier descendant lookups -- silently, and
+        # A branch left out here is not cached. Until SCRUM-6681 atp_get_all_ancestors fell
+        # back to the ontology client only when atp_to_parent was *entirely* empty, so in
+        # any warm worker a missing branch resolved to however much of the chain happened
+        # to be cached as a side effect of earlier descendant lookups -- silently, and
         # differently per worker. For data_context, whose terms are never walked as
-        # descendants in normal operation, that meant no ancestors at all and a
-        # hierarchy check that degraded to exact equality.
+        # descendants in normal operation, that meant no ancestors at all and a hierarchy
+        # check that degraded to exact equality. A climb that does not end on one of these
+        # start terms now goes to the client for that curie, which is correct but costs a
+        # few round trips the first time each term is asked about (one for its ancestors,
+        # one for the children of each ancestor not yet cached), so a branch that
+        # validation reads belongs here.
         #
         # Order matters: frontier.pop() is LIFO and atp_to_parent uses setdefault
         # (first write wins), so the LAST entry here is walked FIRST and claims the
@@ -464,7 +480,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # front, leaving the pre-existing precedence between 335 and 177 untouched.
         start_terms = ['ATP:0000002', 'ATP:0000323', 'ATP:0000177', 'ATP:0000335']
 
-    global _atp_cache_ready, _atp_cache_building_thread
+    global _atp_cache_ready, _atp_cache_building_thread, _atp_roots
     # SCRUM-6474: the whole clear-and-refill runs under the lock, and _atp_cache_ready
     # stays False throughout, so a concurrent caller blocks in _ensure_atp_loaded rather
     # than reading the maps mid-flight. Adding ATP:0000002 took this window from ~180
@@ -478,6 +494,8 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
             name_to_atp.clear()
             atp_to_children.clear()
             atp_to_parent.clear()
+            _atp_roots = set()
+            _atp_ancestor_fallback.clear()
 
             # Fetch root names
             _fetch_atp_names(start_terms)
@@ -492,6 +510,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
                     if child_curie not in seen:
                         seen.add(child_curie)
                         frontier.append(child_curie)
+            _atp_roots = set(start_terms)
         except Exception:
             # Leave the maps empty rather than half-built: _ensure_atp_loaded's emptiness
             # test then forces a genuine retry on the next call instead of pinning a
@@ -549,9 +568,47 @@ def atp_get_all_descendants(curie: str, direct_children_only: bool = False, incl
         return result
 
 
+def _climb_cached_parents(curie: str, within: Optional[Set[str]] = None,
+                          stop_at: Optional[Set[str]] = None) -> List[str]:
+    """Follow atp_to_parent up from curie, nearest ancestor first, stopping at a term with
+    no cached parent (or, with `within`, at a parent outside that set). With `stop_at`,
+    the climb also ends on the first term in that set, which is included."""
+    parent_list: List[str] = []
+    seen = {curie}
+    node = curie
+    while not (stop_at and node in stop_at):
+        parent = atp_to_parent.get(node)
+        if not parent or parent in seen or (within is not None and parent not in within):
+            break
+        parent_list.append(parent)
+        seen.add(parent)
+        node = parent
+    return parent_list
+
+
+def _order_client_ancestors(curie: str, ancestors: Iterable[str]) -> List[str]:
+    """Put the client's (unordered) ancestors of curie nearest first, as the cached climb
+    does: callers such as workflow_tag_crud._resolve_process_hierarchy read the position.
+
+    Fetching each ancestor's direct children fills the parent pointers along the chain
+    (and caches them for later lookups), so the chain can then be climbed in order.
+    Ancestors off that single-parent path (a term with two parents) follow, sorted.
+    """
+    ancestor_set = {a for a in ancestors if a != curie}
+    for ancestor in sorted(ancestor_set):
+        _get_atp_children(ancestor)
+    chain = _climb_cached_parents(curie, within=ancestor_set)
+    return chain + sorted(ancestor_set.difference(chain))
+
+
 def atp_get_all_ancestors(curie: str) -> List[str]:
     """
-    Climb parent pointers we built. For strict ancestry, we can fall back to the client.
+    Return the ancestors of an ATP curie, nearest first.
+
+    Climbs the cached parent pointers. When the climb does not end on a root the cache was
+    built from, the term is outside the cached branches (or only partly cached, as a side
+    effect of an earlier descendant lookup), so the ontology client is asked instead and
+    its answer is cached for that curie.
     """
     # SCRUM-6474: build the cache first. Without this a cold cache fell through to the
     # client on every call AND never populated the maps, so the "fallback" silently became
@@ -559,21 +616,39 @@ def atp_get_all_ancestors(curie: str) -> List[str]:
     # atp_return_invalid_ids (which does _ensure_atp_loaded) before any rule runs, but
     # revalidate_all_tags reaches get_ancestors first -- so the sweep paid it per tag.
     _ensure_atp_loaded()
-    if not atp_to_parent:
-        try:
-            return _get_client().search_ontology_ancestors_or_descendants(ontology_node=curie, direction="ancestors")
-        except AGRAPIError:
-            pass
 
-    parent_list: List[str] = []
-    not_seen: List[str] = [curie]
-    while not_seen:
-        p = not_seen.pop(0)
-        parent = atp_to_parent.get(p)
-        if parent:
-            parent_list.append(parent)
-            not_seen.append(parent)
-    return parent_list
+    # Stop on the first root rather than only checking where the climb ends: a start term
+    # has no parent from the build, but _get_atp_children's setdefault gives it one as soon
+    # as anything fetches the children of the term above it (_order_client_ancestors does,
+    # for every client answer). Without the stop, one fallback for any other child of
+    # ATP:0000001 would make every topic climb end on 001, not on ATP:0000002, and send the
+    # whole cached topic branch to the client.
+    parent_list = _climb_cached_parents(curie, stop_at=_atp_roots)
+    top = parent_list[-1] if parent_list else curie
+    if top in _atp_roots:
+        return parent_list
+
+    # SCRUM-6681: the fallback used to run only when atp_to_parent was entirely empty, so
+    # in a warm worker a term outside the cached branches got [] or a truncated chain and
+    # every hierarchy check over it degraded to exact equality. It needs
+    # agr-curation-api-client >= 0.15.2: earlier versions returned descendants here.
+    cached = _atp_ancestor_fallback.get(curie)
+    if cached is not None:
+        return list(cached)
+    try:
+        ancestors = _get_client().search_ontology_ancestors_or_descendants(
+            ontology_node=curie, direction="ancestors")
+    except Exception as e:
+        # Not cached, so the next call retries.
+        logger.warning("ATP ancestor lookup for %s failed (%s); using the %d cached ancestors",
+                       curie, e, len(parent_list))
+        return parent_list
+    if ancestors is None:
+        logger.warning("ATP ancestor lookup for %s returned no payload; not caching", curie)
+        return parent_list
+    resolved = _order_client_ancestors(curie, ancestors)
+    _atp_ancestor_fallback[curie] = resolved
+    return list(resolved)
 
 
 def atp_get_name(atp_id: str) -> Optional[str]:
