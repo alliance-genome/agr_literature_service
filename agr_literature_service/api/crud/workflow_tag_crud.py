@@ -1633,13 +1633,13 @@ def _get_pre_curation_status_atp_mapping() -> Dict[str, Dict[str, list]]:
         },
         "file_upload": {
             "complete": [get_atp_id_by_name('files uploaded', fallback='ATP:0000134')],
-            "failed": [get_atp_id_by_name('file unobtainable', fallback='ATP:0000135')],
+            "failed": [get_atp_id_by_name('file unavailable', fallback='ATP:0000135')],
             "in_progress": [get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')],
             "needed": [get_atp_id_by_name('file needed', fallback='ATP:0000141')]
         },
         "text_conversion": {
-            "complete": [get_atp_id_by_name('text conversion complete', fallback='ATP:0000163')],
-            "failed": [get_atp_id_by_name('text conversion failed', fallback='ATP:0000164')],
+            "complete": [get_atp_id_by_name('file converted to text', fallback='ATP:0000163')],
+            "failed": [get_atp_id_by_name('file to text conversion failed', fallback='ATP:0000164')],
             "in_progress": [get_atp_id_by_name('text conversion in progress', fallback='ATP:0000198')],
             "needed": [get_atp_id_by_name('text conversion needed', fallback='ATP:0000162')]
         },
