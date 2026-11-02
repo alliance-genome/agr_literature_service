@@ -18,6 +18,9 @@ from all three sources:
 
 When these differ, the first in CATEGORY_PRIORITY wins: a review from any MOD
 outranks PubMed's research article, a retraction outranks everything. A
+comment outranks a review, since short commentaries on one or two articles
+are often typed as reviews (FB curators; most such papers have a CommentOn
+relation in PubMed). A
 reference with no category from any source keeps the one it has (e.g. a MOD's
 own DQM allianceCategory for a paper with no PMID). The category of an
 obsolete reference, or one a curator set by hand, is left alone.
@@ -46,8 +49,8 @@ MAPPING_FILE = path.join(path.dirname(path.abspath(__file__)), "data_for_allianc
 CATEGORY_PRIORITY = [
     "Retraction",
     "Correction",
-    "Review_Article",
     "Comment",
+    "Review_Article",
     "Personal_Communication",
     "Thesis",
     "Book",

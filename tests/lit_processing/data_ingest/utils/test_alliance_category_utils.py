@@ -35,6 +35,7 @@ def test_mapping():
     assert mapping[("WB", "comment")] == "Comment"
     assert mapping[("WB", "letter")] == "Comment"
     assert mapping[("FB", "erratum")] == "Correction"
+    assert mapping[("FB", "conference report")] == "Conference_Publication"
     assert mapping[("WB", "journal_article")] == "Research_Article"
     # flags and generic article types give no category
     assert mapping[("WB", "experimental")] is None
@@ -51,9 +52,10 @@ def _inputs(*types, relations=(), curator=False):
 @pytest.mark.parametrize("inputs, pubmed, current, expected", [
     # a MOD's review outranks PubMed's research article
     (_inputs(("FB", "review")), "Research_Article", "Research_Article", "Review_Article"),
-    # review wins over another MOD's comment, and over a generic type
+    # another MOD's comment wins over a review (comments are often typed as reviews)
     (_inputs(("FB", "review"), ("WB", "Comment"), ("WB", "Journal_article")), "Research_Article", None,
-     "Review_Article"),
+     "Comment"),
+    (_inputs(("FB", "review"), relations=["CommentOn"]), "Research_Article", None, "Comment"),
     # WB comments are comments, whatever category WB's DQM file sends
     (_inputs(("WB", "Comment"), ("WB", "Not_experimental")), "Personal_Communication", "Personal_Communication",
      "Comment"),

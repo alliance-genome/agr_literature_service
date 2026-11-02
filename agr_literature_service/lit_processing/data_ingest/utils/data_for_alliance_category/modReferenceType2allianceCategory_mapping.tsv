@@ -10,7 +10,7 @@ FB	bibliographic list	Other	sheet	Other
 FB	biography	Other	sheet	Other
 FB	book	Book	not in sheet / sheet ambiguous: assigned	
 FB	book review	Other	sheet	Other
-FB	conference report	Other	unclear: Other until curators confirm	Other
+FB	conference report	Conference_Publication	confirmed by FB curators: a report about a conference	Other
 FB	curated genome annotation	Internal_Process_Reference	sheet	Internal Process Reference
 FB	database	Other	sheet	Other
 FB	DNA/RNA sequence record	Internal_Process_Reference	kept current: all references already have it; sheet says otherwise, please confirm	Direct Data Submission
