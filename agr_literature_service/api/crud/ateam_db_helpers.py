@@ -470,7 +470,9 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # descendants in normal operation, that meant no ancestors at all and a hierarchy
         # check that degraded to exact equality. A climb that does not end on one of these
         # start terms now goes to the client for that curie, which is correct but costs a
-        # round trip per term, so a branch that validation reads belongs here.
+        # few round trips the first time each term is asked about (one for its ancestors,
+        # one for the children of each ancestor not yet cached), so a branch that
+        # validation reads belongs here.
         #
         # Order matters: frontier.pop() is LIFO and atp_to_parent uses setdefault
         # (first write wins), so the LAST entry here is walked FIRST and claims the
@@ -566,19 +568,22 @@ def atp_get_all_descendants(curie: str, direct_children_only: bool = False, incl
         return result
 
 
-def _climb_cached_parents(curie: str, within: Optional[Set[str]] = None) -> List[str]:
+def _climb_cached_parents(curie: str, within: Optional[Set[str]] = None,
+                          stop_at: Optional[Set[str]] = None) -> List[str]:
     """Follow atp_to_parent up from curie, nearest ancestor first, stopping at a term with
-    no cached parent (or, with `within`, at a parent outside that set)."""
+    no cached parent (or, with `within`, at a parent outside that set). With `stop_at`,
+    the climb also ends on the first term in that set, which is included."""
     parent_list: List[str] = []
     seen = {curie}
     node = curie
-    while True:
+    while not (stop_at and node in stop_at):
         parent = atp_to_parent.get(node)
         if not parent or parent in seen or (within is not None and parent not in within):
-            return parent_list
+            break
         parent_list.append(parent)
         seen.add(parent)
         node = parent
+    return parent_list
 
 
 def _order_client_ancestors(curie: str, ancestors: Iterable[str]) -> List[str]:
@@ -612,7 +617,13 @@ def atp_get_all_ancestors(curie: str) -> List[str]:
     # revalidate_all_tags reaches get_ancestors first -- so the sweep paid it per tag.
     _ensure_atp_loaded()
 
-    parent_list = _climb_cached_parents(curie)
+    # Stop on the first root rather than only checking where the climb ends: a start term
+    # has no parent from the build, but _get_atp_children's setdefault gives it one as soon
+    # as anything fetches the children of the term above it (_order_client_ancestors does,
+    # for every client answer). Without the stop, one fallback for any other child of
+    # ATP:0000001 would make every topic climb end on 001, not on ATP:0000002, and send the
+    # whole cached topic branch to the client.
+    parent_list = _climb_cached_parents(curie, stop_at=_atp_roots)
     top = parent_list[-1] if parent_list else curie
     if top in _atp_roots:
         return parent_list
