@@ -12,6 +12,15 @@ from sqlalchemy import text
 from agr_literature_service.api.models import ReferenceModel, ReferenceModReferencetypeAssociationModel, ModModel, \
     ReferencetypeModel, ModReferencetypeAssociationModel
 from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import set_reference_category
+
+
+def _update_category(db: Session, reference_ids) -> None:
+    """A MOD reference type gives the reference its Alliance category
+    (alliance_category_utils): set it again after the types change."""
+    for reference_id in {reference_id for reference_id in reference_ids if reference_id is not None}:
+        set_reference_category(db, reference_id)
+    db.commit()
 
 
 def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation, referencetype_label, reference_id):
@@ -76,6 +85,7 @@ def create(db: Session, mod_reference_type: ModReferenceTypeSchemaPost) -> int:
     if new_mod_ref_type_id is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="Invalid reference type")
+    _update_category(db, [reference.reference_id])
     return new_mod_ref_type_id
 
 
@@ -92,8 +102,10 @@ def destroy(db: Session, mod_reference_type_id: int) -> None:
     if not ref_mod_reference_type:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
+    reference_id = ref_mod_reference_type.reference_id
     db.delete(ref_mod_reference_type)
     db.commit()
+    _update_category(db, [reference_id])
 
     return None
 
@@ -115,6 +127,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"ModReferenceType with mod_reference_type_id {mod_reference_type_id} not found")
 
+    old_reference_id = ref_mod_ref_type_obj.reference_id
     reference = None
     if "reference_curie" in mrt_data:
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == mrt_data["reference_curie"]).first()
@@ -150,6 +163,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
         ref_mod_ref_type_obj.mod_referencetype = mod_ref_type
     db.add(ref_mod_ref_type_obj)
     db.commit()
+    _update_category(db, [old_reference_id, ref_mod_ref_type_obj.reference_id])
     return {"message": "updated"}
 
 

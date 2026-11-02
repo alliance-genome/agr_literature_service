@@ -38,7 +38,9 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
-    add_file_needed_for_new_papers, set_category_for_fb_note_papers
+    add_file_needed_for_new_papers
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    set_reference_category
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import cleanup_temp_directory
@@ -687,12 +689,6 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                 logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
         fh_mod_report[mod].close()
 
-        if mod == 'FB':
-            try:
-                set_category_for_fb_note_papers(db_session, logger=logger)
-            except Exception as e:
-                logger.info("An error occurred when updating category for FB papers with 'note' reference type:" + str(e))
-
         try:
             mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
         except Exception as e:
@@ -897,12 +893,13 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
+                    if field_snake == 'category':
+                        # set below by set_reference_category, with this as one of its sources
+                        continue
                     dqm_value = None
                     db_value = None
                     if field_camel in dqm_entry:
                         dqm_value = dqm_entry[field_camel]
-                        if field_snake == 'category' and dqm_value:
-                            dqm_value = dqm_value.lower().replace(" ", "_")
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
                     if field_camel in ['datePublishedStart', 'datePublishedEnd']:
@@ -915,8 +912,6 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     if dqm_value != db_value:
                         logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                         update_json[field_snake] = dqm_value
-                        if field_snake == 'category':
-                            update_json[field_snake] = update_json[field_snake].replace(' ', '_')
 
                 # ignore keywords after initial 2021 Nov load
                 # keywords_changed = compare_keywords(db_entry, dqm_entry)
@@ -952,6 +947,16 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                         logger.info("The reference row for curie = " + agr + " has been updated.")
                     except Exception as e:
                         logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
+
+            # the MOD reference types may have changed: set the category they give.
+            # A paper with no PMID also has the MOD's own category as a source.
+            try:
+                dqm_category = dqm_entry.get('allianceCategory') if processing_flag == 'mod_biblio_all' else None
+                changed = set_reference_category(db_session, db_entry['reference_id'], dqm_category)
+                if changed:
+                    logger.info(f"{agr}: category {changed[0]} -> {changed[1]}")
+            except Exception as e:
+                logger.info(f"{agr}: error setting the category: {e}")
 
         if live_change:
             db_session.commit()
