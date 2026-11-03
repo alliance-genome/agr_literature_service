@@ -1371,6 +1371,13 @@ def _build_overall_paper_status() -> Dict[str, Dict[str, str]]:
 def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
     # Build overall paper status mapping dynamically from A-Team ontology
     overall_paper_status = _build_overall_paper_status()
+    workflow_parent = workflow_parent.strip()
+    # Only processes with an overall paper status can be reported on; anything else used to
+    # raise a KeyError and return a 500 (SCRUM-6806)
+    if workflow_parent not in overall_paper_status:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"No workflow report for {workflow_parent}. Supported processes: "
+                                   f"{', '.join(sorted(overall_paper_status))}")
 
     # get list of ALL ATPs under this parent
     name_to_atp, atp_to_name = get_name_to_atp_for_descendants(workflow_parent)

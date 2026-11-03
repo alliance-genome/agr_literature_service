@@ -4,6 +4,8 @@ Unit tests for pure / near-pure helpers in workflow_tag_crud.
 These avoid the database and A-Team network by exercising the functions
 directly (mocking the ontology lookups where needed).
 """
+from typing import Dict
+
 import pytest
 from unittest.mock import patch
 from fastapi import HTTPException
@@ -176,3 +178,30 @@ class TestModHasWorkflowData:
     def test_false_when_no_data(self, clean_atp_state):
         mod_data = {"inside_corpus": None, "file_upload": {"status": None}}
         assert wtc._mod_has_workflow_data(mod_data) is False
+
+
+_OVERALL_PAPER_STATUS: Dict[str, Dict[str, str]] = {"ATP:0000165": {}, "ATP:0000172": {}, "ATP:0000311": {}}
+
+
+@pytest.mark.parametrize("workflow_parent", ["ATP:0000388", " ATP:0000354", "ATP:0000355"])
+def test_report_workflow_tags_rejects_unsupported_process_with_422(workflow_parent):
+    """SCRUM-6806: these prod requests used to raise KeyError and return a 500."""
+    with patch.object(wtc, "_build_overall_paper_status", return_value=_OVERALL_PAPER_STATUS), \
+            patch.object(wtc, "get_name_to_atp_for_descendants") as descendants:
+        with pytest.raises(HTTPException) as exc:
+            wtc.report_workflow_tags(None, workflow_parent, "FB")
+    assert exc.value.status_code == 422
+    assert exc.value.detail == (f"No workflow report for {workflow_parent.strip()}. Supported processes: "
+                                "ATP:0000165, ATP:0000172, ATP:0000311")
+    descendants.assert_not_called()
+
+
+def test_report_workflow_tags_strips_whitespace_from_the_process():
+    class _Reached(Exception):
+        pass
+
+    with patch.object(wtc, "_build_overall_paper_status", return_value=_OVERALL_PAPER_STATUS), \
+            patch.object(wtc, "get_name_to_atp_for_descendants", side_effect=_Reached) as descendants:
+        with pytest.raises(_Reached):
+            wtc.report_workflow_tags(None, " ATP:0000165 ", "FB")
+    descendants.assert_called_once_with("ATP:0000165")
