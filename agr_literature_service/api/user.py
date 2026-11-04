@@ -1,7 +1,8 @@
 import logging
 import time
+from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Optional, Dict, Any, Set, Tuple
+from typing import TYPE_CHECKING, Optional, Dict, Any, Iterator, Set, Tuple
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
@@ -97,6 +98,24 @@ def set_global_user_id(db: Session, id: str) -> None:
     program name). An unknown label becomes an automation agent.
     """
     _set_current_user(id, _ensure_automation_user(db, id).user_id)
+
+
+@contextmanager
+def acting_as(db: Session, label: Optional[str]) -> Iterator[None]:
+    """Within the block, writes are recorded as made by the agent ``label`` (an
+    existing agent's label); the previous current user is restored after it.
+    With no label the current user is left as it is. For an endpoint that lets
+    a service account name the curator who made the change (SCRUM-6819)."""
+    if not label:
+        yield
+        return
+    user_token = _current_user_id.set(label)
+    agent_token = _current_agent_id.set(_ensure_automation_user(db, label).user_id)
+    try:
+        yield
+    finally:
+        _current_agent_id.reset(agent_token)
+        _current_user_id.reset(user_token)
 
 
 def add_user_if_not_exists(db: Session, user_id: str) -> None:

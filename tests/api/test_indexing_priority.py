@@ -8,7 +8,11 @@ from agr_literature_service.api.models import (
     ReferenceModel,
     IndexingPriorityModel,
     ModModel,
+    PersonEmailModel,
+    PersonModel,
 )
+from agr_literature_service.api.models.user_model import UserModel
+from agr_literature_service.api.user import get_global_user_id
 from agr_literature_service.api.crud import indexing_priority_crud as ip_crud
 from agr_literature_service.api.schemas.indexing_priority_schemas import (
     IndexingPrioritySchemaPost,
@@ -280,3 +284,108 @@ class TestCuratorPriorityByCurie:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
             response = client.patch(url, headers=auth_headers, json={"curator_indexing_priority": "High"})
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+ZFIN_CURATOR_CURIE = "AGRKB:105000006819"
+ZFIN_CURATOR_EMAIL = "zfin.curator.6819@example.org"
+
+
+def _ensure_curator(db):  # noqa
+    """A person with an email and an agent, as a ZFIN curator is in ABC. Persons
+    and agents survive the per-test cleanup, so get-or-create."""
+    person = db.query(PersonModel).filter(PersonModel.curie == ZFIN_CURATOR_CURIE).one_or_none()
+    if person is None:
+        person = PersonModel(display_name="Zfin Curator", curie=ZFIN_CURATOR_CURIE)
+        db.add(person)
+        db.flush()
+        db.add(PersonEmailModel(person_id=person.person_id, email_address=ZFIN_CURATOR_EMAIL))
+        db.add(UserModel(person_id=person.person_id))
+        db.commit()
+    return ZFIN_CURATOR_CURIE
+
+
+class TestUpdatedBy:
+    """ZFIN calls with its own token and names the curator who validated the
+    predicted priority in updated_by (SCRUM-6819)."""
+
+    def test_patch_by_id(self, db, auth_headers, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        curator = _ensure_curator(db)
+        ip_id = ip_crud.create(db, _mk_payload(test_reference.new_ref_curie, "ZFIN", "ATP:0000212", 0.7))
+        with TestClient(app) as client:
+            # without updated_by the token's user is recorded
+            response = client.patch(f"/indexing_priority/{ip_id}", headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000212"})
+            assert response.status_code == status.HTTP_200_OK
+            token_user = response.json()["updated_by"]
+            assert token_user != curator
+            # by email
+            response = client.patch(f"/indexing_priority/{ip_id}", headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000211",
+                                          "updated_by": ZFIN_CURATOR_EMAIL})
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["updated_by"] == curator
+            assert response.json()["updated_by_email"] == ZFIN_CURATOR_EMAIL
+            # null updated_by is the same as leaving it out
+            response = client.patch(f"/indexing_priority/{ip_id}", headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000212", "updated_by": None})
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["updated_by"] == token_user
+            # an unknown curator is refused and nothing changes
+            response = client.patch(f"/indexing_priority/{ip_id}", headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000211",
+                                          "updated_by": "nobody.6819@example.org"})
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+            response = client.patch(f"/indexing_priority/{ip_id}", headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000211", "updated_by": " "})
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        data = ip_crud.show(db, ip_id)
+        assert data["curator_indexing_priority"] == "ATP:0000212"
+        assert data["updated_by"] == token_user
+
+    def test_curator_priority_by_curie(self, db, auth_headers, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        curator = _ensure_curator(db)
+        ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_reference.new_ref_curie).scalar()
+        db.add(CrossReferenceModel(curie="ZFIN:ZDB-PUB-240101-1", curie_prefix="ZFIN", reference_id=ref_id))
+        db.commit()
+        url = "/indexing_priority/curator_priority/ZFIN:ZDB-PUB-240101-1/ZFIN"
+        with TestClient(app) as client:
+            # a new record (no prediction): the curator is creator and updater
+            response = client.patch(url, headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000211", "updated_by": curator})
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["updated_by"] == curator
+            ip_id = response.json()["indexing_priority_id"]
+            assert ip_crud.show(db, ip_id)["created_by"] == curator
+            # someone else changes it, then the curator validates the same value again
+            response = client.patch(url, headers=auth_headers, json={"curator_indexing_priority": "ATP:0000212"})
+            assert response.json()["updated_by"] != curator
+            response = client.patch(url, headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000212",
+                                          "updated_by": ZFIN_CURATOR_EMAIL})
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["updated_by"] == curator
+            # an unknown curator is refused and nothing changes
+            response = client.patch(url, headers=auth_headers,
+                                    json={"curator_indexing_priority": "ATP:0000211",
+                                          "updated_by": "nobody.6819@example.org"})
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert ip_crud.show(db, ip_id)["curator_indexing_priority"] == "ATP:0000212"
+
+    def test_curator_already_last_updater(self, db, test_reference):  # noqa
+        """Naming the record's current updater again still records the curator,
+        not the request's user: assigning an unchanged updated_by would not."""
+        _ensure_mod(db, "ZFIN")
+        curator = _ensure_curator(db)
+        ip_id = ip_crud.create(db, _mk_payload(test_reference.new_ref_curie, "ZFIN", "ATP:0000212", 0.7))
+        user_before = get_global_user_id()
+        ip_crud.patch(db, ip_id, {"curator_indexing_priority": "ATP:0000212", "updated_by": curator})
+        assert ip_crud.show(db, ip_id)["updated_by"] == curator
+        # the curator is the user for that update only
+        assert get_global_user_id() == user_before
+        ip_crud.patch(db, ip_id, {"curator_indexing_priority": "ATP:0000211", "updated_by": curator})
+        data = ip_crud.show(db, ip_id)
+        assert data["updated_by"] == curator
+        assert data["curator_indexing_priority"] == "ATP:0000211"
