@@ -101,16 +101,17 @@ def set_global_user_id(db: Session, id: str) -> None:
 
 
 @contextmanager
-def acting_as(db: Session, label: Optional[str]) -> Iterator[None]:
-    """Within the block, writes are recorded as made by the agent ``label`` (an
-    existing agent's label); the previous current user is restored after it.
-    With no label the current user is left as it is. For an endpoint that lets
+def acting_as(agent: Optional[Tuple[int, str]]) -> Iterator[None]:
+    """Within the block, writes are recorded as made by ``agent``, an existing
+    agent's (agent.id, label); the previous current user is restored after it.
+    With no agent the current user is left as it is. For an endpoint that lets
     a service account name the curator who made the change (SCRUM-6819)."""
-    if not label:
+    if agent is None:
         yield
         return
+    agent_id, label = agent
     user_token = _current_user_id.set(label)
-    agent_token = _current_agent_id.set(_ensure_automation_user(db, label).user_id)
+    agent_token = _current_agent_id.set(agent_id)
     try:
         yield
     finally:

@@ -389,3 +389,62 @@ class TestUpdatedBy:
         data = ip_crud.show(db, ip_id)
         assert data["updated_by"] == curator
         assert data["curator_indexing_priority"] == "ATP:0000211"
+
+
+def _ensure_person(db, curie, display_name, email=None):  # noqa
+    """A person with no agent: someone who never logged in to ABC."""
+    if db.query(PersonModel).filter(PersonModel.curie == curie).one_or_none() is None:
+        person = PersonModel(display_name=display_name, curie=curie)
+        db.add(person)
+        db.flush()
+        if email:
+            db.add(PersonEmailModel(person_id=person.person_id, email_address=email))
+        db.commit()
+    return curie
+
+
+class TestUpdatedByPersons:
+    """updated_by finds any person, logged in to ABC or not, and refuses a name
+    or email shared by more than one person (SCRUM-6819)."""
+
+    def _record(self, db, test_reference):  # noqa
+        _ensure_mod(db, "ZFIN")
+        return ip_crud.create(db, _mk_payload(test_reference.new_ref_curie, "ZFIN", "ATP:0000212", 0.7))
+
+    def _agents(self, db, curie):  # noqa
+        person_id = db.query(PersonModel.person_id).filter(PersonModel.curie == curie).scalar()
+        return db.query(UserModel).filter(UserModel.person_id == person_id).count()
+
+    def test_person_without_agent_by_id_email_and_name(self, db, test_reference):  # noqa
+        ip_id = self._record(db, test_reference)
+        for curie, name, email, given in (
+                ("AGRKB:105000068191", "Nolog Inone", "nolog.6819a@example.org", "agrkb:105000068191"),
+                ("AGRKB:105000068192", "Nolog Intwo", "nolog.6819b@example.org", "NOLOG.6819B@example.org"),
+                ("AGRKB:105000068193", "Nolog Inthree", None, "nolog  inthree")):
+            _ensure_person(db, curie, name, email)
+            ip_crud.patch(db, ip_id, {"confidence_score": 0.1, "updated_by": given})
+            assert ip_crud.show(db, ip_id)["updated_by"] == curie
+            # the person got one agent, reused on the next update
+            ip_crud.patch(db, ip_id, {"confidence_score": 0.2, "updated_by": given})
+            assert self._agents(db, curie) == 1
+
+    def test_ambiguous_or_unknown_is_refused(self, db, test_reference):  # noqa
+        ip_id = self._record(db, test_reference)
+        _ensure_person(db, "AGRKB:105000068194", "Same Name", "same.6819a@example.org")
+        _ensure_person(db, "AGRKB:105000068195", "Same Name", "same.6819b@example.org")
+        before = ip_crud.show(db, ip_id)
+        for given, message in (("Same Name", "more than one person"),
+                               ("S. Name", "more than one person"),
+                               ("Nobody Here 6819", "Unknown updated_by"),
+                               ("AGRKB:105000069999", "Unknown updated_by")):
+            with pytest.raises(HTTPException) as ei:
+                ip_crud.patch(db, ip_id, {"confidence_score": 0.3, "updated_by": given})
+            assert ei.value.status_code == 422
+            assert message in ei.value.detail
+            db.rollback()
+        after = ip_crud.show(db, ip_id)
+        assert after["confidence_score"] == before["confidence_score"]
+        assert after["updated_by"] == before["updated_by"]
+        # either one can still be named by AGRKB ID or email
+        ip_crud.patch(db, ip_id, {"confidence_score": 0.4, "updated_by": "same.6819b@example.org"})
+        assert ip_crud.show(db, ip_id)["updated_by"] == "AGRKB:105000068195"

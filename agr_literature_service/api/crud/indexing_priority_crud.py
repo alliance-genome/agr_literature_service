@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
@@ -15,7 +15,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
-from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
+from agr_literature_service.api.crud.user_utils import map_to_user_id, resolve_named_agent
 from agr_literature_service.api.user import acting_as
 
 logger = logging.getLogger(__name__)
@@ -119,11 +119,11 @@ def destroy(db: Session, indexing_priority_id: int) -> None:
     db.commit()
 
 
-def resolve_updated_by(db: Session, identifier: Optional[str]) -> Optional[str]:
-    """The agent label of the curator a MOD names in updated_by, e.g. the ZFIN
-    curator who validated a predicted priority (SCRUM-6819); None if none is
-    named. Unlike map_to_user_id, an unknown curator is refused rather than
-    created, so a typo cannot record the change under a made-up name.
+def resolve_updated_by(db: Session, identifier: Optional[str]) -> Optional[Tuple[int, str]]:
+    """The agent of the curator a MOD names in updated_by, e.g. the ZFIN curator
+    who validated a predicted priority (SCRUM-6819); None if none is named. See
+    resolve_named_agent: an AGRKB ID, email or full name, 422 if it matches no
+    person or more than one.
 
     The change is then made acting_as the curator rather than by assigning
     updated_by: assigning the record's current updated_by again reads as no
@@ -131,14 +131,7 @@ def resolve_updated_by(db: Session, identifier: Optional[str]) -> Optional[str]:
     curator also makes them the creator of a new record."""
     if identifier is None:
         return None
-    label = map_to_existing_user_id(identifier, db)
-    if not label:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(f"Unknown updated_by {identifier!r}: expected a person curie, "
-                    "an email or a display name of a person in ABC"),
-        )
-    return label
+    return resolve_named_agent(identifier, db)
 
 
 def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict[str, Any]) -> None:
@@ -164,7 +157,7 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
             detail=f"IndexingPriorityTag with indexing_priority_id {indexing_priority_id} not found",
         )
 
-    with acting_as(db, curator):
+    with acting_as(curator):
         _apply_patch(db, obj, data)
 
 
@@ -238,7 +231,7 @@ def set_curator_priority(db: Session, curie: str, mod_abbreviation: str,
                         f"use one of {', '.join(sorted(priority_tags))}"),
             )
     curator = resolve_updated_by(db, updated_by)
-    with acting_as(db, curator):
+    with acting_as(curator):
         return _set_curator_priority(db, curie, reference, mod, curator_indexing_priority)
 
 
