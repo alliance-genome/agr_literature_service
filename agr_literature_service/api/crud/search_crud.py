@@ -53,6 +53,8 @@ abstract_classification_root_ids = ["ATP:0000379"]
 community_curation_classification_root_ids = ["ATP:0000235"]
 first_pass_curation_root_ids = ["ATP:0000329"]
 email_extraction_root_ids = ["ATP:0000354"]
+# SCRUM-6490: author-person curation and author review
+author_workflow_root_ids = ["ATP:0000375", "ATP:0000388"]
 
 # Per-MOD size of the nested workflow_tag_ids terms aggregation. The Workflow
 # facet categories are built from these buckets, so a MOD's tags that fall
@@ -83,7 +85,8 @@ WORKFLOW_FACETS = [
     "abstract_classification",
     "community_curation",
     "first_pass_curation",
-    "email_extraction"
+    "email_extraction",
+    "author_workflow"
 ]
 
 CURATION_CLASSIFICATION_TAG_FACETS = [
@@ -212,7 +215,8 @@ def search_references(
                 {"citation": {"type": "unified"}},
                 {"resource_title": {"type": "unified"}},
                 {"authors.name": {"type": "unified"}},
-                {"authors.orcid": {"type": "unified"}}
+                {"authors.orcid": {"type": "unified"}},
+                {"mesh_terms.heading_term": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -995,7 +999,8 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "abstract_classification": get_atp_ids(abstract_classification_root_ids),
         "community_curation": get_atp_ids(community_curation_classification_root_ids),
         "first_pass_curation": get_atp_ids(first_pass_curation_root_ids),
-        "email_extraction": get_atp_ids(email_extraction_root_ids)
+        "email_extraction": get_atp_ids(email_extraction_root_ids),
+        "author_workflow": get_atp_ids(author_workflow_root_ids)
     }
 
     grouped_workflow_tags: Dict[str, Dict[str, Any]] = {category: {} for category in atp_ids}
@@ -1133,7 +1138,8 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
 def remap_highlights(highlights):  # pragma: no cover
     remapped = {}
     for key, value in highlights.items():
-        new_key = key.replace("authors.name", "authors").replace("resource_title", "resource")
+        new_key = key.replace("authors.name", "authors").replace("resource_title", "resource") \
+            .replace("mesh_terms.heading_term", "mesh")
         remapped[new_key] = value
     return remapped
 

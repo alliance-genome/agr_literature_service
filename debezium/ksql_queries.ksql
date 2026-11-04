@@ -969,6 +969,8 @@ CREATE TABLE reference_resource_title AS
     EMIT CHANGES;
 
 -- Wide reference columns attached ONCE here instead of being dragged through 13 links.
+-- MeSH terms (SCRUM-6490), searched with the text fields, are joined here too: PubMed rarely
+-- changes them, so they need no spine link.
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
@@ -1022,12 +1024,15 @@ CREATE TABLE reference_joined WITH (
     spine_tet.WORKFLOW_TAGS \"workflow_tags\",
     spine_tet.TOPIC_ENTITY_TAGS \"topic_entity_tags\",
     spine_tet.CROSS_REFERENCES \"cross_references\",
-    spine_tet.AUTHORS \"authors\"
+    spine_tet.AUTHORS \"authors\",
+    mesh_terms.MESH_TERMS \"mesh_terms\"
     FROM spine_tet spine_tet
     JOIN normalized_copyright_reference normalized_copyright_reference ON
     spine_tet.REFERENCE_ID = normalized_copyright_reference.reference_id
     LEFT OUTER JOIN reference_resource_title reference_resource_title ON
     spine_tet.REFERENCE_ID = reference_resource_title.REFERENCE_ID
+    LEFT OUTER JOIN mesh_terms mesh_terms ON
+    spine_tet.REFERENCE_ID = mesh_terms.REFERENCE_ID
     EMIT CHANGES;
 
 CREATE TABLE reference_with_copyright AS

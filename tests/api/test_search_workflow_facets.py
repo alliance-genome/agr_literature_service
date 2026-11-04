@@ -8,11 +8,15 @@ ROOT_DESCENDANTS = {
     "ATP:0000379": ["ATP:0000380", "ATP:0000381", "ATP:0000382", "ATP:0000383",
                     "ATP:0000384", "ATP:0000385", "ATP:0000386", "ATP:0000387"],
     "ATP:0000311": ["ATP:0000312", "ATP:0000313"],
+    "ATP:0000375": ["ATP:0000109", "ATP:0000376", "ATP:0000377", "ATP:0000378"],
+    "ATP:0000388": ["ATP:0000389", "ATP:0000390", "ATP:0000391", "ATP:0000392"],
 }
 NAMES = {
     "ATP:0000386": "abstract classification complete",
     "ATP:0000380": "molecular probe classification needed",
     "ATP:0000313": "curation classification needed",
+    "ATP:0000109": "author-person curation needed",
+    "ATP:0000392": "author review complete",
 }
 
 
@@ -61,3 +65,18 @@ def test_abstract_classification_counts_sum_across_mods():
     assert [(b["key"], b["doc_count"]) for b in aggs["abstract_classification"]["buckets"]] == [
         ("ATP:0000386", 8)
     ]
+
+
+def test_author_workflow_is_a_workflow_facet():
+    # SCRUM-6490: selecting one of its values filters on the nested workflow tags
+    assert "author_workflow" in search_crud.WORKFLOW_FACETS
+
+
+def test_author_workflow_facet_groups_author_person_and_author_review():
+    res = _search_response({"WB": {"ATP:0000109": 7, "ATP:0000392": 2, "ATP:0000386": 1}})
+    aggs = _group(res, ["WB"])
+    assert [(b["key"], b["doc_count"], b["name"]) for b in aggs["author_workflow"]["buckets"]] == [
+        ("ATP:0000109", 7, "author-person curation needed"),
+        ("ATP:0000392", 2, "author review complete"),
+    ]
+    assert [b["key"] for b in aggs["abstract_classification"]["buckets"]] == ["ATP:0000386"]

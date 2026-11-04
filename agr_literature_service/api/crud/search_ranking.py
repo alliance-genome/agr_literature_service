@@ -3,6 +3,10 @@ import re
 
 # =========================== Boost policy (central config) ===========================
 
+# SCRUM-6490: PubMed MeSH heading terms are searched with the other text fields but
+# rank below every one of them, so each boost set gives MeSH half its lowest weight.
+MESH_FIELD = "mesh_terms.heading_term"
+
 # Boost Set: BOOST_PHRASE_FIELDS
 # Query Type (ES): multi_match "phrase" match_phrase
 # Match Style: Exact phrase, same order (tight match)
@@ -14,6 +18,7 @@ BOOST_PHRASE_FIELDS: Dict[str, float] = {
     "keywords": 5.0,
     "abstract": 3.0,
     "citation": 2.0,
+    MESH_FIELD: 1.0,
 }
 
 # Boost Set: BOOST_BEST_FIELDS
@@ -27,6 +32,7 @@ BOOST_BEST_FIELDS: Dict[str, float] = {
     "keywords": 2.0,
     "abstract": 2.0,
     "citation": 1.0,
+    MESH_FIELD: 0.5,
 }
 
 # Boost Set: BOOST_PREFIX_FIELDS
@@ -40,6 +46,7 @@ BOOST_PREFIX_FIELDS: Dict[str, float] = {
     "keywords": 1.0,
     "abstract": 1.0,
     "citation": 1.0,
+    MESH_FIELD: 0.5,
 }
 
 # Boost Constant: BOOST_EXACT_TITLE_KEYWORD
@@ -98,7 +105,7 @@ TEXT_FIELDS = {
 
 # Keep these exported for any callers that rely on them
 PHRASE_FIELDS = _fields_with_boost(BOOST_PHRASE_FIELDS)
-ALL_TEXT_FIELDS = ["title", "keywords", "abstract", "citation"]
+ALL_TEXT_FIELDS = ["title", "keywords", "abstract", "citation", MESH_FIELD]
 
 
 # --------------------------- Rescore helpers ---------------------------
@@ -455,7 +462,7 @@ def build_id_xref_author_helpers(phrase: str, *, include_author: bool = True) ->
 
 def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_helpers: bool = True):
     """
-    Build an all-fields query (Title + Abstract + Keywords + Citation). This is the default search
+    Build an all-fields query (Title + Abstract + Keywords + Citation + MeSH). This is the default search
     if the user doesn’t pick a single field.
     Example: User searches "Jane Doe" with no field restriction:
       * best_fields → might hit tokens "Jane" and "Doe" in title/abstract/etc. (unlikely).
@@ -609,7 +616,7 @@ def build_content_gate_filter(q: str) -> dict | None:
     return {
         "multi_match": {
             "query": " ".join(toks),
-            "fields": ["title", "abstract", "keywords", "citation"],
+            "fields": ALL_TEXT_FIELDS,
             "type": "best_fields",
             "operator": "or",
             "minimum_should_match": _msm_for_content_gate(len(toks))
