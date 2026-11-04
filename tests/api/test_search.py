@@ -199,6 +199,8 @@ def initialize_elasticsearch():
         "date_published": "2022",
         "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
+        "mesh_terms": [{"heading_term": "Saccharomyces cerevisiae", "qualifier_term": "genetics"},
+                       {"heading_term": "Science", "qualifier_term": None}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["note"],
         "language": "English",
@@ -602,6 +604,30 @@ class TestSearch:
         assert doc1["resource_title"] == "Genetics"
         assert "<em>Genetics</em>" in doc1["highlight"]["resource"][0]
         assert "resource_title" not in doc1["highlight"]
+
+    def test_search_all_text_fields_include_mesh(self, initialize_elasticsearch, auth_headers):  # noqa
+        # SCRUM-6490: a MeSH heading term alone finds the paper, highlighted as "mesh"
+        with TestClient(app) as client:
+            payload = {"query": "saccharomyces", "return_facets_only": False}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        assert [h["curie"] for h in res["hits"]] == ["AGRKB:101000000000002"]
+        assert "<em>Saccharomyces</em>" in res["hits"][0]["highlight"]["mesh"][0]
+
+    def test_search_mesh_ranks_below_other_text_fields(self, initialize_elasticsearch, auth_headers):  # noqa
+        # "science" is in two abstracts and in one paper's MeSH terms only
+        with TestClient(app) as client:
+            payload = {"query": "science", "return_facets_only": False}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        curies = [h["curie"] for h in res["hits"]]
+        assert sorted(curies[:2]) == ["AGRKB:101000000000003", "AGRKB:101000000000004"]
+        assert curies[2:] == ["AGRKB:101000000000002"]
+
+    def test_search_mesh_qualifiers_are_not_searched(self, initialize_elasticsearch, auth_headers):  # noqa
+        # qualifiers such as "genetics" are on most papers, so only heading terms are searched
+        with TestClient(app) as client:
+            payload = {"query": "genetics", "return_facets_only": False}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+        assert "AGRKB:101000000000002" not in [h["curie"] for h in res["hits"]]
 
     def test_search_hit_resource_title_from_database(self, initialize_elasticsearch, auth_headers):  # noqa
         payload = {
