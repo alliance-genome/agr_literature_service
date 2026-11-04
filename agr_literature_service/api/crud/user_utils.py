@@ -212,6 +212,9 @@ def resolve_named_agent(identifier: str, db: Session) -> Tuple[int, str]:
     ident = (identifier or "").strip()
     if not ident:
         raise HTTPException(status_code=422, detail="updated_by cannot be empty")
+    # punctuation alone normalizes to '' and would match a person with no name
+    if not any(c.isalnum() for c in ident):
+        raise HTTPException(status_code=422, detail=f"Unknown updated_by {identifier!r}: no letters or digits")
 
     automation = db.execute(_SQL_AUTOMATION_AGENT, {"label": ident}).fetchone()
     if automation:

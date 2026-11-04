@@ -436,7 +436,8 @@ class TestUpdatedByPersons:
         for given, message in (("Same Name", "more than one person"),
                                ("S. Name", "more than one person"),
                                ("Nobody Here 6819", "Unknown updated_by"),
-                               ("AGRKB:105000069999", "Unknown updated_by")):
+                               ("AGRKB:105000069999", "Unknown updated_by"),
+                               (" . ", "Unknown updated_by")):
             with pytest.raises(HTTPException) as ei:
                 ip_crud.patch(db, ip_id, {"confidence_score": 0.3, "updated_by": given})
             assert ei.value.status_code == 422
