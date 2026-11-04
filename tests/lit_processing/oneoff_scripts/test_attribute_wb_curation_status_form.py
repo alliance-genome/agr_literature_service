@@ -71,9 +71,17 @@ def test_attribute_to_form(db):  # noqa
         positive_other_topic = _status(db, rid, mod_id, abc, "WBPerson6456", "ATP:0000011",
                                        script.POSITIVE_NOT_IN_OA)
         pipeline = _status(db, rid, mod_id, abc, "pubmed_search_new_references", "ATP:0000012", script.WONT_CURATE)
-        # a form row whose ABC association was changed since the load: skipped
+        # a form row whose ABC association differs from the row: skipped
         edited = _status(db, rid, mod_id, abc, "WBPerson6456", "ATP:0000013", script.WONT_CURATE,
                          association_value="ATP:0000236")
+        # a form row a curator edited in the ABC: row and ABC association change together and still agree,
+        # but the updater is no longer the loader: skipped
+        edited_in_abc = _status(db, rid, mod_id, abc, "WBPerson6456", "ATP:0000061", script.POSITIVE_NOT_IN_OA)
+        set_global_user_id(db, "curator_scrum6456")
+        db.get(CurationStatusModel, edited_in_abc).note = "curated for GO"
+        db.query(CurationStatusSourceAssociationModel).filter(
+            CurationStatusSourceAssociationModel.curation_status_id == edited_in_abc).one().note = "curated for GO"
+        db.commit()
         # a form row that already has the form source: skipped
         both = _status(db, rid, mod_id, abc, "WBPerson6456", "ATP:0000014", script.WONT_CURATE)
         db.add(CurationStatusSourceAssociationModel(curation_status_id=both, tag_source_id=form,
@@ -84,7 +92,8 @@ def test_attribute_to_form(db):  # noqa
         # a dry run counts and writes nothing
         counts = attribute_to_form(db, mod_abbreviation=MOD)
         assert counts["move: total"] == 2
-        assert counts["skipped: ABC association edited since the load"] == 1
+        assert counts["skipped: ABC association differs from the row"] == 1
+        assert counts["skipped: edited after the load"] == 1
         assert counts["skipped: already has the form source"] == 1
         assert _source_of(db, wont_curate) == [abc]
 
@@ -92,7 +101,7 @@ def test_attribute_to_form(db):  # noqa
         assert counts["move: total"] == 2
         assert _source_of(db, wont_curate) == [form]
         assert _source_of(db, positive_061) == [form]
-        for untouched in (positive_other_topic, pipeline, edited):
+        for untouched in (positive_other_topic, pipeline, edited, edited_in_abc):
             assert _source_of(db, untouched) == [abc]
         assert _source_of(db, both) == sorted([abc, form])
         # the association kept its reported value; the curation_status row is unchanged
