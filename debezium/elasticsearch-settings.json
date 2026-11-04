@@ -636,6 +636,30 @@
             "normalizer": "sortNormalizer"
           }
         }
+      },
+      "mesh_terms": {
+        "properties": {
+          "heading_term": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "qualifier_term": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
       }
     }
   }
