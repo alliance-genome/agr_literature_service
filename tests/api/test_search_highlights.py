@@ -102,3 +102,23 @@ def test_tag_piece_regex_does_not_backtrack():
     # exponentially; with 40 repeats the old pattern would not finish.
     fragment = "A -=" + '"" -=' * 40 + "<em>DNA</em>"
     assert strip_markup(fragment).endswith("<em>DNA</em>")
+
+
+def test_text_that_looks_like_a_tag_is_kept():
+    # only known HTML tag names are markup: nucleotide changes, "<LOD" and the
+    # like are text (the review cases on PR #1377)
+    for fragment in ("G>A <em>mutation</em> was",
+                     "T>C transitions in <em>DNA</em>",
+                     "(<em>DNA</em> levels <Q1 in mutants)",
+                     "levels <em>DNA</em> were <LOD in",
+                     "<em>DNA</em> damage at <EC50",
+                     "<em>DNA</em> repair (p <or = 0.05> in both)"):
+        assert strip_markup(fragment) == fragment
+
+
+def test_namespaced_and_cut_off_tags_are_dropped():
+    assert strip_markup("ratio of <mml:math><mml:mi>x</mml:mi></mml:math> in <em>DNA</em>") \
+        == "ratio of x in <em>DNA</em>"
+    assert strip_markup("ns0:sup>2</ns0:sup> <em>DNA</em> damage") == "2 <em>DNA</em> damage"
+    assert strip_markup("<em>DNA</em> damage in <i>Danio rer") == "<em>DNA</em> damage in Danio rer"
+    assert strip_markup("<em>DNA</em> damage in <span class=\"x") == "<em>DNA</em> damage in"

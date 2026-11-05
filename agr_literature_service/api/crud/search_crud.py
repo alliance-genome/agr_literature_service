@@ -1140,21 +1140,45 @@ HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
 # Abstracts and titles can hold HTML (e.g. "<p><strong>Purpose</strong>: ..."),
 # which the highlighter treats as text: a fragment can start or end inside a
 # tag ("p>Purpose"), and a whole <p> renders as a separate paragraph in the
-# matching text. Every tag but the highlight's <em> is dropped, along with a
-# piece of a tag cut off at either end of the fragment.
-MARKUP_TAG = re.compile(r"<(?!/?em>)/?[A-Za-z][^<>]*>")
+# matching text. The source's tags are dropped, along with a piece of a tag cut
+# off at either end of the fragment; the highlight's own <em> is kept. Only
+# known tag names count, so text such as "G>A", "<LOD" or "p<0.05" stays.
+HTML_TAG_NAMES = ("p", "br", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
+                  "tr", "td", "th", "table", "tbody", "thead", "blockquote", "strong", "b",
+                  "i", "u", "sup", "sub", "span", "a", "font", "italic", "bold", "sc", "inf",
+                  "monospace", "img", "small", "big")
+# also namespaced MathML/XML tags ("mml:math", "ns0:sup")
+HTML_TAG_NAME = r"(?:%s|[A-Za-z]\w*:[\w-]+)(?=[\s/>])" % "|".join(HTML_TAG_NAMES)
+MARKUP_TAG = re.compile(r"</?%s[^<>]*>" % HTML_TAG_NAME, re.I)
 # block tags separate words; inline ones (<strong>, <i>, <sup>, ...) do not
 BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[^<>]*>", re.I)
 # An unquoted attribute value excludes quotes and "=", so each attribute can be
 # read only one way (otherwise the regex backtracks exponentially, CodeQL).
-LEADING_TAG_PIECE = re.compile(r"""^\s*/?[A-Za-z][A-Za-z0-9]*(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""")
-TRAILING_TAG_PIECE = re.compile(r"</?(?:(?!em>)[A-Za-z][^<>]*)?$")
+LEADING_TAG_PIECE = re.compile(
+    r"""^\s*/?%s(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""" % HTML_TAG_NAME, re.I)
+TRAILING_TAG_PIECE = re.compile(r"</?(?P<name>[A-Za-z][\w:-]*)?(?P<rest>\s[^<>]*)?$")
+
+
+def _strip_trailing_tag_piece(fragment):
+    """Drop a tag cut off at the end of the fragment ("...congenital</stro").
+    The cut can fall inside the tag name, so a name that starts a known tag
+    name is enough; once the piece has more after the name ("<LOD in"), the
+    name must be a whole tag name. A bare "<" or "</" at the very end goes."""
+    match = TRAILING_TAG_PIECE.search(fragment)
+    if not match:
+        return fragment
+    name = (match.group("name") or "").lower()
+    if match.group("rest") is not None:
+        is_tag = ":" in name or name in HTML_TAG_NAMES
+    else:
+        is_tag = not name or ":" in name or any(tag.startswith(name) for tag in HTML_TAG_NAMES)
+    return fragment[:match.start()] if is_tag else fragment
 
 
 def strip_markup(fragment):
     """A highlight fragment without the source text's own HTML (see MARKUP_TAG)."""
     fragment = LEADING_TAG_PIECE.sub("", fragment)
-    fragment = TRAILING_TAG_PIECE.sub("", fragment)
+    fragment = _strip_trailing_tag_piece(fragment)
     fragment = MARKUP_TAG.sub("", BLOCK_TAG.sub(" ", fragment))
     return re.sub(r"\s+", " ", fragment).strip()
 
