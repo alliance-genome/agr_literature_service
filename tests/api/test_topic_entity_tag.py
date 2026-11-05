@@ -225,6 +225,28 @@ class TestTopicEntityTag:
             data = response.json()
             assert len(data["tags"][ref_curie]) >= 1
 
+    def test_show_all_reference_tags_batch_data_context_filter(self, test_topic_entity_tag, auth_headers):  # noqa
+        # The fixture tag's data context is experimentally studied (ATP:0000325).
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_build_curie_to_name_map.return_value = {}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            def tag_count(filters):
+                response = client.post(
+                    url="/topic_entity_tag/by_references",
+                    json={"curies_or_reference_ids": [ref_curie], "filters": filters},
+                    headers=auth_headers,
+                )
+                assert response.status_code == status.HTTP_200_OK
+                return len(response.json()["tags"][ref_curie])
+
+            assert tag_count({"data_context": ["ATP:0000325"]}) >= 1
+            assert tag_count({"data_context": ["ATP:0000324"]}) == 0
+            assert tag_count({"negated_data_context": ["ATP:0000325"]}) == 0
+            assert tag_count({"negated_data_context": ["ATP:0000324"]}) >= 1
+
     def test_show_all_reference_tags_batch_mod_filter(self, test_topic_entity_tag, test_tag_source, test_mod, auth_headers):  # noqa
         # The grid must show only the selected MOD's tags. A tag's owning MOD is
         # its source's secondary_data_provider (the field create_or_update uses for
