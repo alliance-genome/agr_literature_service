@@ -4029,3 +4029,111 @@ class TestRevalidationOutcomeEmail:
     def test_bodies_render_without_a_reference(self):
         for _subject, body in self._bodies().values():
             assert "{target}" not in body.format(target="")
+
+
+class TestDeprecatedExperimentallyStudiedDataContext:
+    """SCRUM-6815: ATP:0000325 "experimentally studied data" was deprecated in the
+    2026-10-30 ATP release. FB moved to ATP:0000405 experimental data; ZFIN to
+    ATP:0000406 experimentally studied entity for curator-added entities and
+    ATP:0000405 for topic tags. Other MODs keep ATP:0000325 until they answer."""
+
+    @pytest.mark.parametrize("mod_abbreviation, has_entity, expected", [
+        ("FB", False, "ATP:0000405"),
+        ("FB", True, "ATP:0000405"),
+        ("ZFIN", False, "ATP:0000405"),
+        ("ZFIN", True, "ATP:0000406"),
+        ("WB", False, "ATP:0000325"),
+        ("WB", True, "ATP:0000325"),
+        ("SGD", True, "ATP:0000325"),
+        (None, False, "ATP:0000325"),
+    ])
+    def test_default_data_context_for_mod(self, mod_abbreviation, has_entity, expected):
+        from agr_literature_service.api.crud.topic_entity_tag_crud import default_data_context_for_mod
+        assert default_data_context_for_mod(mod_abbreviation, has_entity) == expected
+
+    def test_fallback_reads_the_entity_from_the_payload(self):
+        # no ml_model_id, so the db is never touched
+        from agr_literature_service.api.crud.topic_entity_tag_crud import resolve_default_data_context
+        assert resolve_default_data_context(None, {"entity": "ZFIN:ZDB-GENE-990415-8"}, "ZFIN") == "ATP:0000406"
+        assert resolve_default_data_context(None, {"entity": None}, "ZFIN") == "ATP:0000405"
+
+    def test_curator_validation_uses_experimental_data(self):
+        # ATP:0000325 has no ancestors any more, so a curator validation carrying it
+        # validated nothing but other ATP:0000325 tags
+        from agr_literature_service.api.crud.topic_entity_tag_crud import CURATOR_VALIDATION_DATA_CONTEXT
+        assert CURATOR_VALIDATION_DATA_CONTEXT == "ATP:0000405"
+
+    @staticmethod
+    def _source_for_mod(client, auth_headers, mod_abbreviation):  # noqa
+        client.post(url="/mod/", json={"abbreviation": mod_abbreviation, "short_name": mod_abbreviation,
+                                       "full_name": f"{mod_abbreviation} test"}, headers=auth_headers)
+        source = {
+            "source_evidence_assertion": "ATP:0000036",
+            "source_method": "abc_literature_system",
+            "validation_type": "professional_biocurator",
+            "description": "curator using the ABC",
+            "data_provider": mod_abbreviation,
+            "secondary_data_provider_abbreviation": mod_abbreviation,
+        }
+        response = client.post(url="/tag_source", json=source, headers=auth_headers)
+        assert response.status_code == status.HTTP_201_CREATED, response.json()
+        return response.json()["tag_source_id"]
+
+    @pytest.mark.parametrize("mod_abbreviation, expected", [("FB", "ATP:0000405"), ("ZFIN", "ATP:0000405")])
+    def test_topic_tag_without_data_context_gets_the_mod_default(self, test_reference, auth_headers,  # noqa
+                                                                 mod_abbreviation, expected):
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            source_id = self._source_for_mod(client, auth_headers, mod_abbreviation)
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.json()
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == expected
+
+    @pytest.mark.parametrize("existing_context", ["ATP:0000323", "ATP:0000405"])
+    def test_experimental_data_validates_root_and_same_term_tags(self, db, auth_headers, test_reference,  # noqa
+                                                                 test_tag_source, test_mod,  # noqa
+                                                                 existing_context):
+        """A curator tag at ATP:0000405 validates WB's topic tags (ATP:0000323, an
+        ancestor) and FB's classifier tags (ATP:0000405, the same term)."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
+                                            headers=auth_headers).json()["tag_source_id"]
+            existing_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": existing_context,
+                "created_by": "WBPerson1",
+            }
+            existing_id = client.post(url="/topic_entity_tag/", json=existing_tag,
+                                      headers=auth_headers).json()["topic_entity_tag_id"]
+            curator_tag = dict(existing_tag, data_context="ATP:0000405",
+                               tag_source_id=curator_source_id, created_by="WBPerson2")
+            curator_id = client.post(url="/topic_entity_tag/", json=curator_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            existing_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == existing_id).one()
+            assert int(curator_id) in {t.topic_entity_tag_id for t in existing_obj.validated_by}

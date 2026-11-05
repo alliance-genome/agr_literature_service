@@ -125,6 +125,17 @@ EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 # synthesises a tag rather than taking one from a client.
 EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
 
+# SCRUM-6815: the 2026-10-30 ATP release deprecated ATP:0000325 (no parent, no
+# replacement) and reworked the tree under ATP:0000324 mentioned data:
+#     ATP:0000324  mentioned data
+#     +-- ATP:0000405  experimental data
+#         |-- ATP:0000406  experimentally studied entity
+#         +-- ATP:0000409  supporting experimental entity
+# MODs move off ATP:0000325 one at a time, each together with a backfill of its
+# own tags, so the default is per MOD (default_data_context_for_mod).
+EXPERIMENTAL_DATA_CONTEXT_ATP = "ATP:0000405"
+EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP = "ATP:0000406"
+
 # SCRUM-6242 (increment 5): the curator validation written by the grid's
 # Validation column. These mirror exactly what the UI (CellValidationStrip /
 # getCuratorSourceId) sends today so the server-side validate path produces an
@@ -135,10 +146,32 @@ EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
 # helper (SCRUM-6518). Only these two are still used here: they describe the TET
 # rows the validation path writes, not the source itself.
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
-CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+# SCRUM-6815: ATP:0000405, not the deprecated ATP:0000325. A tag only validates
+# tags whose data_context is in its own hierarchy, and ATP:0000325 now has no
+# ancestors, so it stopped validating FB's ATP:0000405 tags and WB's ATP:0000323
+# topic tags. ATP:0000405 sits under ATP:0000323, so it covers both.
+CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTAL_DATA_CONTEXT_ATP
 
 
-def resolve_default_data_context(db: Session, topic_entity_tag_data: dict) -> str:
+def default_data_context_for_mod(mod_abbreviation: Optional[str], has_entity: bool) -> str:
+    """The data_context for a tag no ml_model speaks for, by the MOD that made it.
+
+    SCRUM-6815. FB asked for ATP:0000405 on everything; ZFIN for ATP:0000406 on
+    curator-added entities and ATP:0000405 on topic tags. Every other MOD keeps
+    ATP:0000325 until it picks a replacement and its tags are backfilled, since
+    check_for_duplicate_tags keys on data_context and a default that disagrees
+    with the stored rows turns would-be 409s into duplicates. Keep in step with
+    defaultDataContext in the UI (dataContextDefaults.js).
+    """
+    if mod_abbreviation == "FB":
+        return EXPERIMENTAL_DATA_CONTEXT_ATP
+    if mod_abbreviation == "ZFIN":
+        return EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP if has_entity else EXPERIMENTAL_DATA_CONTEXT_ATP
+    return EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+
+
+def resolve_default_data_context(db: Session, topic_entity_tag_data: dict,
+                                 mod_abbreviation: Optional[str] = None) -> str:
     """The data_context to store when the client sent none.
 
     SCRUM-5697. The ml_model row is authoritative. A pipeline's data-context
@@ -149,16 +182,17 @@ def resolve_default_data_context(db: Session, topic_entity_tag_data: dict) -> st
     when the producer never sends the field, and changing the policy is an
     ml_model update rather than a release of every pipeline.
 
-    Falls back to the module constant in the two cases where a model cannot
-    answer: the tag was not created from a model at all (curator and author
-    entry, the MOD loaders), or the model carries no data_context of its own.
+    Falls back to the MOD's default (default_data_context_for_mod) in the two
+    cases where a model cannot answer: the tag was not created from a model at
+    all (curator and author entry, the MOD loaders), or the model carries no
+    data_context of its own.
     """
     ml_model_id = topic_entity_tag_data.get('ml_model_id')
     if ml_model_id is not None:
         ml_model = db.get(MLModel, ml_model_id)
         if ml_model is not None and ml_model.data_context:
             return str(ml_model.data_context)
-    return EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+    return default_data_context_for_mod(mod_abbreviation, bool(topic_entity_tag_data.get('entity')))
 
 
 def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
@@ -173,7 +207,8 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
     nothing. Every other provider supplies data_novelty itself (a 404 if
     missing, since the column is non-null) and gets its species checked.
     """
-    if source.secondary_data_provider.abbreviation == "SGD":
+    mod_abbreviation = source.secondary_data_provider.abbreviation
+    if mod_abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
         if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
             topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
@@ -183,7 +218,7 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
         # explicit data_context is theirs to choose and is left alone.
         if topic_entity_tag_data.get('data_context') is None:
             topic_entity_tag_data['data_context'] = resolve_default_data_context(
-                db, topic_entity_tag_data)
+                db, topic_entity_tag_data, mod_abbreviation)
         return
 
     if topic_entity_tag_data.get('data_novelty') is None:
@@ -198,7 +233,7 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
         # mismatch there turns would-be 409s into duplicate rows. An explicit
         # value from the client always wins; this only fills a gap.
         topic_entity_tag_data['data_context'] = resolve_default_data_context(
-            db, topic_entity_tag_data)
+            db, topic_entity_tag_data, mod_abbreviation)
     check_and_set_species(topic_entity_tag_data)
 
 

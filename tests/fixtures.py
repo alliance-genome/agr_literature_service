@@ -230,7 +230,10 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000228': [], 'ATP:0000229': [],
         # SCRUM-5697 data_context hierarchy (see docs/validation.md)
         'ATP:0000323': ['ATP:0000324', 'ATP:0000326'],
-        'ATP:0000324': ['ATP:0000360', 'ATP:0000325'],
+        # SCRUM-6815: the 2026-10-30 release added ATP:0000405 experimental data and
+        # ATP:0000406 experimentally studied entity under mentioned data.
+        'ATP:0000324': ['ATP:0000360', 'ATP:0000325', 'ATP:0000405'],
+        'ATP:0000405': ['ATP:0000406'], 'ATP:0000406': [],
         'ATP:0000326': ['ATP:0000328', 'ATP:0000327'],
         'ATP:0000325': [], 'ATP:0000360': [],
         'ATP:0000327': [], 'ATP:0000328': []
@@ -284,6 +287,8 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000324': 'mentioned data',
         'ATP:0000360': 'background information',
         'ATP:0000325': 'experimentally studied data',
+        'ATP:0000405': 'experimental data',
+        'ATP:0000406': 'experimentally studied entity',
         'ATP:0000326': 'marker data',
         'ATP:0000328': 'expression marker',
         'ATP:0000327': 'genetic marker'
@@ -332,6 +337,8 @@ def load_name_to_atp_and_relationships_mock():
         'mentioned data': 'ATP:0000324',
         'background information': 'ATP:0000360',
         'experimentally studied data': 'ATP:0000325',
+        'experimental data': 'ATP:0000405',
+        'experimentally studied entity': 'ATP:0000406',
         'marker data': 'ATP:0000326',
         'expression marker': 'ATP:0000328',
         'genetic marker': 'ATP:0000327'
