@@ -833,7 +833,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
         "large_scale_tags": extract_large_scale_tags(ref["_source"]),
-        "highlight": remap_highlights(ref.get("highlight", {}))
+        "highlight": remap_highlights(ref.get("highlight", {}), ref["_source"])
     } for ref in res["hits"]["hits"]]
     add_names_to_large_scale_tags(hits)
     add_resource_titles_to_hits(hits)
@@ -1135,12 +1135,45 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
     return result
 
 
-def remap_highlights(highlights):  # pragma: no cover
+HIGHLIGHT_TAGS = re.compile(r"</?em>")
+
+
+def merge_highlight_fragments(fragments, source_text=None):
+    """Tidy one field's highlight fragments for display.
+
+    The unified highlighter cuts a sentence longer than the fragment size into
+    pieces, so "PAICS mediates <em>DNA</em>" and "<em>damage</em> and ..." come
+    back as two fragments of one run of text. Fragments are in document order,
+    so a fragment that starts right where the previous one ended in
+    ``source_text`` is joined back onto it. Repeated fragments are dropped: a
+    MeSH heading is indexed once per qualifier, so "DNA Damage" can match
+    several times.
+    """
+    merged = []
+    previous_end = None
+    for fragment in fragments:
+        if fragment in merged:
+            continue
+        plain = HIGHLIGHT_TAGS.sub("", fragment)
+        start = source_text.find(plain, previous_end or 0) if source_text else -1
+        if merged and previous_end is not None and start >= previous_end \
+                and not source_text[previous_end:start].strip():
+            merged[-1] = merged[-1] + source_text[previous_end:start] + fragment
+        else:
+            merged.append(fragment)
+        previous_end = start + len(plain) if start >= 0 else None
+    return merged
+
+
+def remap_highlights(highlights, source=None):  # pragma: no cover
+    source = source or {}
     remapped = {}
     for key, value in highlights.items():
         new_key = key.replace("authors.name", "authors").replace("resource_title", "resource") \
             .replace("mesh_terms.heading_term", "mesh")
-        remapped[new_key] = value
+        source_text = source.get(key)
+        remapped[new_key] = merge_highlight_fragments(
+            value, source_text if isinstance(source_text, str) else None)
     return remapped
 
 
