@@ -64,6 +64,9 @@ async def patch(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """Partly update an indexing priority record. The optional updated_by (a
+    person curie, email or display name) records that curator as the updater
+    instead of the authenticated user; an unknown curator is a 422."""
     set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
     indexing_priority_crud.patch(db, indexing_priority_id, updates)
@@ -84,10 +87,13 @@ def set_curator_priority(
 ):
     """Set (or, with null, clear) the curator indexing priority of a reference
     (AGRKB, PMID or MOD curie) for a MOD, creating the record if the reference
-    has no prediction for the MOD."""
+    has no prediction for the MOD. The optional updated_by (a person curie,
+    email or display name) records that curator as the updater instead of the
+    authenticated user; an unknown curator is a 422."""
     set_global_user_from_cognito(db, user)
     return indexing_priority_crud.set_curator_priority(
-        db, reference_curie, mod_abbreviation, request.curator_indexing_priority)
+        db, reference_curie, mod_abbreviation, request.curator_indexing_priority,
+        updated_by=request.updated_by)
 
 
 @router.get(

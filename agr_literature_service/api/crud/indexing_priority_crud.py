@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
@@ -15,7 +15,8 @@ from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
-from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud.user_utils import map_to_user_id, resolve_named_agent
+from agr_literature_service.api.user import acting_as
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,21 @@ def destroy(db: Session, indexing_priority_id: int) -> None:
     db.commit()
 
 
+def resolve_updated_by(db: Session, identifier: Optional[str]) -> Optional[Tuple[int, str]]:
+    """The agent of the curator a MOD names in updated_by, e.g. the ZFIN curator
+    who validated a predicted priority (SCRUM-6819); None if none is named. See
+    resolve_named_agent: an AGRKB ID, email or full name, 422 if it matches no
+    person or more than one.
+
+    The change is then made acting_as the curator rather than by assigning
+    updated_by: assigning the record's current updated_by again reads as no
+    change, and the audit listener would stamp the token's user. Acting as the
+    curator also makes them the creator of a new record."""
+    if identifier is None:
+        return None
+    return resolve_named_agent(identifier, db)
+
+
 def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict[str, Any]) -> None:
     """
     Partial update an indexing_priority record. `indexing_priority_update` is expected
@@ -127,8 +143,8 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
 
     if "created_by" in data and data["created_by"] is not None:
         data["created_by"] = map_to_user_id(data["created_by"], db)
-    if "updated_by" in data and data["updated_by"] is not None:
-        data["updated_by"] = map_to_user_id(data["updated_by"], db)
+    # null means no curator named: the authenticated user is recorded
+    curator = resolve_updated_by(db, data.pop("updated_by", None))
 
     obj = (
         db.query(IndexingPriorityModel)
@@ -141,6 +157,11 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
             detail=f"IndexingPriorityTag with indexing_priority_id {indexing_priority_id} not found",
         )
 
+    with acting_as(curator):
+        _apply_patch(db, obj, data)
+
+
+def _apply_patch(db: Session, obj: IndexingPriorityModel, data: Dict[str, Any]) -> None:
     for field, value in data.items():
         if field == "reference_curie":
             if value is not None:
@@ -175,12 +196,15 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
 
 
 def set_curator_priority(db: Session, curie: str, mod_abbreviation: str,
-                         curator_indexing_priority: Optional[str]) -> Dict[str, Any]:
+                         curator_indexing_priority: Optional[str],
+                         updated_by: Optional[str] = None) -> Dict[str, Any]:
     """
     Set the curator indexing priority of a reference (AGRKB, PMID or MOD curie)
     for a MOD, so a MOD does not need ABC's indexing_priority id. Creates the
     record when the reference has no prediction for the MOD; clearing the
     curator priority of a record with no prediction deletes the record.
+    updated_by, if given, is the curator recorded as the updater (and as the
+    creator of a new record) instead of the authenticated user.
     """
     reference = (
         db.query(ReferenceModel)
@@ -206,7 +230,13 @@ def set_curator_priority(db: Session, curie: str, mod_abbreviation: str,
                 detail=(f"{curator_indexing_priority} is not an indexing priority; "
                         f"use one of {', '.join(sorted(priority_tags))}"),
             )
+    curator = resolve_updated_by(db, updated_by)
+    with acting_as(curator):
+        return _set_curator_priority(db, curie, reference, mod, curator_indexing_priority)
 
+
+def _set_curator_priority(db: Session, curie: str, reference: ReferenceModel, mod: ModModel,
+                          curator_indexing_priority: Optional[str]) -> Dict[str, Any]:
     obj = (
         db.query(IndexingPriorityModel)
         .filter(IndexingPriorityModel.reference_id == reference.reference_id)
@@ -217,7 +247,7 @@ def set_curator_priority(db: Session, curie: str, mod_abbreviation: str,
         if curator_indexing_priority is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No indexing priority for {curie} and {mod_abbreviation}",
+                detail=f"No indexing priority for {curie} and {mod.abbreviation}",
             )
         obj = IndexingPriorityModel(reference_id=reference.reference_id, mod_id=mod.mod_id,
                                     curator_indexing_priority=curator_indexing_priority)
