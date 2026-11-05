@@ -2000,6 +2000,10 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
     if data_novelty:
         positive_conditions.append(_ci_in(TopicEntityTagModel.data_novelty, data_novelty))
 
+    data_context = filters.get("data_context")
+    if data_context:
+        positive_conditions.append(_ci_in(TopicEntityTagModel.data_context, data_context))
+
     source_methods = filters.get("source_methods")
     if source_methods:
         positive_conditions.append(TopicEntityTagModel.tag_source.has(
@@ -2046,6 +2050,16 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa:
         query = query.filter(or_(
             TopicEntityTagModel.confidence_level.is_(None),
             func.upper(TopicEntityTagModel.confidence_level).notin_(upper_values)
+        ))
+
+    negated_data_context = filters.get("negated_data_context")
+    if negated_data_context:
+        # Drop tags whose data context is excluded, but keep tags with none set
+        # (the search's exclusion only matches tags that carry the value).
+        upper_values = [str(v).upper() for v in negated_data_context if v is not None]
+        query = query.filter(or_(
+            TopicEntityTagModel.data_context.is_(None),
+            func.upper(TopicEntityTagModel.data_context).notin_(upper_values)
         ))
 
     negated_source_methods = filters.get("negated_source_methods")
