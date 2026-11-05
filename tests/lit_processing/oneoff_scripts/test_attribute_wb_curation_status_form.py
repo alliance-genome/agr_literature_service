@@ -76,7 +76,7 @@ def test_attribute_to_form(db):  # noqa
                          association_value="ATP:0000236")
         # a form row a curator edited in the ABC: row and ABC association change together and still agree,
         # but the updater is no longer the loader: skipped
-        edited_in_abc = _status(db, rid, mod_id, abc, "WBPerson6456", "ATP:0000061", script.POSITIVE_NOT_IN_OA)
+        edited_in_abc = _status(db, rid, mod_id, abc, "WBPerson6456", "ATP:0000062", script.POSITIVE_NOT_IN_OA)
         set_global_user_id(db, "curator_scrum6456")
         db.get(CurationStatusModel, edited_in_abc).note = "curated for GO"
         db.query(CurationStatusSourceAssociationModel).filter(
