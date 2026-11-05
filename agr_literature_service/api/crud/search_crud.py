@@ -1145,7 +1145,9 @@ HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
 MARKUP_TAG = re.compile(r"<(?!/?em>)/?[A-Za-z][^<>]*>")
 # block tags separate words; inline ones (<strong>, <i>, <sup>, ...) do not
 BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[^<>]*>", re.I)
-LEADING_TAG_PIECE = re.compile(r"""^\s*/?[A-Za-z][A-Za-z0-9]*(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>]+))*(\s*/)?>""")
+# An unquoted attribute value excludes quotes and "=", so each attribute can be
+# read only one way (otherwise the regex backtracks exponentially, CodeQL).
+LEADING_TAG_PIECE = re.compile(r"""^\s*/?[A-Za-z][A-Za-z0-9]*(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""")
 TRAILING_TAG_PIECE = re.compile(r"</?(?:(?!em>)[A-Za-z][^<>]*)?$")
 
 

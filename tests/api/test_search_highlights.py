@@ -95,3 +95,10 @@ def test_remap_highlights_cleans_markup_and_mesh():
     assert remapped["abstract"] == ["Purpose: To determine whether folate reduces "
                                     "<em>Hirschsprung</em> <em>disease</em>."]
     assert remapped["mesh"] == ["<em>Hirschsprung</em> <em>Disease</em>"]
+
+
+def test_tag_piece_regex_does_not_backtrack():
+    # CodeQL: an attribute run like 'A -="" -="" ...' made LEADING_TAG_PIECE backtrack
+    # exponentially; with 40 repeats the old pattern would not finish.
+    fragment = "A -=" + '"" -=' * 40 + "<em>DNA</em>"
+    assert strip_markup(fragment).endswith("<em>DNA</em>")
