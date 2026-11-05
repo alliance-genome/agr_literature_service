@@ -170,8 +170,8 @@ class ReferenceTagsBatchFilters(BaseModel):
 
     ``apply_to_single_tag`` mirrors the search's mode: when true (the default for
     an omitted value), the positive nested-TET facets (topic / confidence-level /
-    source-method / source-evidence / data-novelty) must all be satisfied by ONE
-    tag; when false the search matched them across different tags of a reference,
+    source-method / source-evidence / data-novelty / data-context) must all be
+    satisfied by ONE tag; when false the search matched them across different tags of a reference,
     so they are ORed instead (union of matching tags) to avoid an empty grid row
     for a genuine search hit."""
     topics: Optional[List[str]] = None
@@ -182,6 +182,8 @@ class ReferenceTagsBatchFilters(BaseModel):
     source_evidence_assertions: Optional[List[str]] = None
     negated_source_evidence_assertions: Optional[List[str]] = None
     data_novelty: Optional[List[str]] = None
+    data_context: Optional[List[str]] = None
+    negated_data_context: Optional[List[str]] = None
     entity_types: Optional[List[str]] = None
     entities: Optional[List[str]] = None
     confidence_score_min: Optional[float] = None
