@@ -691,15 +691,14 @@ def search_references(
     )
 
     # Remove empty filter if no facets/dates were added. A standalone confidence level /
-    # source method / SEA exclusion adds a top-level must_not nested clause, so keep the
-    # filter in that case.
+    # data context / source method / SEA exclusion adds a top-level must_not nested clause,
+    # so keep the filter in that case.
     has_tet_whole_ref_negation = bool(
         tet_nested_facets_values
         and tet_nested_facets_values.get("tet_facets_negative_values")
         and any(
             tet_nested_facets_values["tet_facets_negative_values"][0].get(k)
-            for k in (
-                "topic_entity_tags.confidence_level.keyword",
+            for k in TET_TOPIC_SCOPED_NEGATION_FIELDS + (
                 "topic_entity_tags.source_method.keyword",
                 "topic_entity_tags.source_evidence_assertion.keyword",
             )
@@ -1146,6 +1145,14 @@ def remap_highlights(highlights):  # pragma: no cover
 
 # --------------------------- TET (nested) aggs & filters ---------------------------
 
+# Excluded TET values that drop a reference only when the tag carrying them also
+# matches the positive TET facet selection (see add_tet_facets_values).
+TET_TOPIC_SCOPED_NEGATION_FIELDS = (
+    "topic_entity_tags.confidence_level.keyword",
+    "topic_entity_tags.data_context.keyword",
+)
+
+
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
     levels = []
@@ -1165,9 +1172,13 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
         # to any tag with the excluded level. (Previously this was a must_not *inside* the
         # positive nested query, which kept a reference as long as one matching tag was not NEG
         # -- letting through references that had a NEG tag for the selected topic.)
-        negated_levels = negated.get("topic_entity_tags.confidence_level.keyword", [])
-        if negated_levels:
-            level_term = {"terms": {"topic_entity_tags.confidence_level.keyword": negated_levels}}
+        # Data context exclusion (e.g. drop papers whose selected-topic tag is not
+        # experimentally studied) is topic-scoped the same way.
+        for field in TET_TOPIC_SCOPED_NEGATION_FIELDS:
+            negated_values = negated.get(field, [])
+            if not negated_values:
+                continue
+            level_term = {"terms": {field: negated_values}}
             scopes = [
                 terms for terms in (
                     _positive_scope_terms(f)
