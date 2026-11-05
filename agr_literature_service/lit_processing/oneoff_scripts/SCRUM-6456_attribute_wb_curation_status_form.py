@@ -13,8 +13,11 @@ and its reported values, only tag_source_id changes. The curation_status rows th
 
 Skipped and reported instead of changed:
   - a row that already has a curation_status_form association (nothing to move);
-  - a row whose ABC association no longer matches the row (status, tag or note), i.e. it was edited in the ABC
-    after the load and the ABC attribution may be right.
+  - a row edited after the load: the row or its ABC association was last updated by someone other than the
+    WBPerson who created it. An edit in the ABC updates both together, so their values still agree; the
+    updater is what shows it (on prod, 2026-10-08, a curator added tags and notes to three form rows);
+  - a row whose ABC association no longer matches the row (status, tag or note): the row was changed without
+    the ABC source, so it is left for a curator to check.
 
 Run before the WBPerson agents are remapped to AGRKB persons (SCRUM-6458): the WBPerson label is what identifies
 the form rows. The associations are updated through the ORM, so Continuum records the change in
@@ -60,10 +63,11 @@ def find_form_rows(db: Session, mod_id: int, abc_source_id: int
                    ) -> List[Tuple[CurationStatusSourceAssociationModel, CurationStatusModel]]:
     """ABC associations of the curation_status rows the curation status form loaded.
 
-    The association's deferred audit columns are loaded here: the update listener reads them, and loading them
-    one row at a time costs a query per row."""
+    The deferred audit columns are loaded here: the edit check and the update listener read them, and loading
+    them one row at a time costs a query per row."""
     return db.query(CurationStatusSourceAssociationModel, CurationStatusModel).options(
-        Load(CurationStatusSourceAssociationModel).undefer("*")
+        Load(CurationStatusSourceAssociationModel).undefer("*"),
+        Load(CurationStatusModel).undefer("*")
     ).join(
         CurationStatusModel,
         CurationStatusModel.curation_status_id == CurationStatusSourceAssociationModel.curation_status_id
@@ -77,6 +81,11 @@ def find_form_rows(db: Session, mod_id: int, abc_source_id: int
             and_(CurationStatusModel.curation_status == POSITIVE_NOT_IN_OA,
                  CurationStatusModel.topic.in_(POSITIVE_NOT_IN_OA_TOPICS)))
     ).order_by(CurationStatusModel.curation_status_id).all()
+
+
+def _edited_after_load(association: CurationStatusSourceAssociationModel, row: CurationStatusModel) -> bool:
+    """Someone other than the loader updated the row or its ABC association since the load."""
+    return row.updated_by_id != row.created_by_id or association.updated_by_id != row.created_by_id
 
 
 def _matches_row(association: CurationStatusSourceAssociationModel, row: CurationStatusModel) -> bool:
@@ -106,8 +115,12 @@ def attribute_to_form(db: Session, mod_abbreviation: str = "WB", apply: bool = F
         if row.curation_status_id in already_form:
             counts["skipped: already has the form source"] += 1
             logger.info(f"  skip curation_status {row.curation_status_id}: already has the form source")
+        elif _edited_after_load(association, row):
+            counts["skipped: edited after the load"] += 1
+            logger.info(f"  skip curation_status {row.curation_status_id}: edited after the load "
+                        f"(row updated by {row.updated_by}, ABC association updated by {association.updated_by})")
         elif not _matches_row(association, row):
-            counts["skipped: ABC association edited since the load"] += 1
+            counts["skipped: ABC association differs from the row"] += 1
             logger.info(f"  skip curation_status {row.curation_status_id}: ABC association "
                         f"({association.curation_status}, {association.curation_tag}, {association.note!r}) "
                         f"differs from the row ({row.curation_status}, {row.curation_tag}, {row.note!r})")
