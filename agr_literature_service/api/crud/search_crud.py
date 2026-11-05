@@ -1142,7 +1142,10 @@ HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
 # tag ("p>Purpose"), and a whole <p> renders as a separate paragraph in the
 # matching text. The source's tags are dropped, along with a piece of a tag cut
 # off at either end of the fragment; the highlight's own <em> is kept. Only
-# known tag names count, so text such as "G>A", "<LOD" or "p<0.05" stays.
+# known tag names count, so text such as "G>A", "<LOD" or "p<0.05" stays. A cut
+# off piece must also be lowercase, as the source HTML is in practice, so
+# "A>G" or "P>0.05" at a fragment edge is not read as a tag; a whole <...> tag
+# is a strong enough signal to match in any case.
 HTML_TAG_NAMES = ("p", "br", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
                   "tr", "td", "th", "table", "tbody", "thead", "blockquote", "strong", "b",
                   "i", "u", "sup", "sub", "span", "a", "font", "italic", "bold", "sc", "inf",
@@ -1155,7 +1158,7 @@ BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[
 # An unquoted attribute value excludes quotes and "=", so each attribute can be
 # read only one way (otherwise the regex backtracks exponentially, CodeQL).
 LEADING_TAG_PIECE = re.compile(
-    r"""^\s*/?%s(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""" % HTML_TAG_NAME, re.I)
+    r"""^\s*/?%s(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""" % HTML_TAG_NAME)
 TRAILING_TAG_PIECE = re.compile(r"</?(?P<name>[A-Za-z][\w:-]*)?(?P<rest>\s[^<>]*)?$")
 
 
@@ -1167,7 +1170,7 @@ def _strip_trailing_tag_piece(fragment):
     match = TRAILING_TAG_PIECE.search(fragment)
     if not match:
         return fragment
-    name = (match.group("name") or "").lower()
+    name = match.group("name") or ""
     if match.group("rest") is not None:
         is_tag = ":" in name or name in HTML_TAG_NAMES
     else:

@@ -122,3 +122,15 @@ def test_namespaced_and_cut_off_tags_are_dropped():
     assert strip_markup("ns0:sup>2</ns0:sup> <em>DNA</em> damage") == "2 <em>DNA</em> damage"
     assert strip_markup("<em>DNA</em> damage in <i>Danio rer") == "<em>DNA</em> damage in Danio rer"
     assert strip_markup("<em>DNA</em> damage in <span class=\"x") == "<em>DNA</em> damage in"
+
+
+def test_uppercase_letters_at_a_fragment_edge_are_text():
+    # single-letter tag names (a, b, i, p, u) only count in lowercase at the edges
+    for fragment in ("A>G <em>mutation</em> was",
+                     "P>0.05 for <em>DNA</em>",
+                     "I>V <em>DNA</em>",
+                     "<em>DNA</em> levels <A",
+                     "<em>DNA</em> conc. <T"):
+        assert strip_markup(fragment) == fragment
+    # a whole tag is markup in any case
+    assert strip_markup("<SUP>2</SUP> <em>DNA</em>") == "2 <em>DNA</em>"
