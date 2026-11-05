@@ -79,9 +79,9 @@ ECO_AUTOMATIC_ASSERTION = "ECO:0006156"
 # nothing about whether the data is new, so the unspecific parent term is used
 # (the PDB pipeline does the same).
 DATA_NOVELTY_NOT_NEW = "ATP:0000335"
-# ATP:0000325 "experimentally studied data" (SCRUM-5697): a GEO series is data
-# the paper generated and studied, not a dataset it merely mentions.
-DATA_CONTEXT_EXPERIMENTALLY_STUDIED = "ATP:0000325"
+# data_context is left to the server: create_tag fills in the owning MOD's
+# default (default_data_context_for_mod), so each MOD's GEO tags match its other
+# topic tags rather than the deprecated ATP:0000325 sent before (SCRUM-6815).
 SOURCE_METHOD = "GEO dataset association pipeline"
 SOURCE_DATA_PROVIDER = "GEO"
 # A run of failures this long means something systemic rather than a bad row --
@@ -188,7 +188,6 @@ def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntit
         topic=HIGH_THROUGHPUT_ASSAY_ATP,
         tag_source_id=source_id,
         data_novelty=DATA_NOVELTY_NOT_NEW,
-        data_context=DATA_CONTEXT_EXPERIMENTALLY_STUDIED,
         negated=False,
     )
 

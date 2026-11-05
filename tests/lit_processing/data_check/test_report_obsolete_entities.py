@@ -15,7 +15,7 @@ def _add_entity_tag(db, reference_id, data_provider, owner_mod_id, entity):  # n
     db.add(TopicEntityTagModel(reference_id=reference_id, topic="ATP:0000005", entity_type="ATP:0000005",
                                entity=entity, entity_id_validation="alliance", species="NCBITaxon:7227",
                                tag_source_id=source.tag_source_id, negated=False,
-                               data_novelty="ATP:0000335", data_context="ATP:0000325"))
+                               data_novelty="ATP:0000335", data_context="ATP:0000405"))
     db.commit()
 
 

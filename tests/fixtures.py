@@ -228,15 +228,18 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:task1_complete': [], 'ATP:task2_complete': [], 'ATP:task3_complete': [],
         'ATP:0000334': [],
         'ATP:0000228': [], 'ATP:0000229': [],
-        # SCRUM-5697 data_context hierarchy (see docs/validation.md)
-        'ATP:0000323': ['ATP:0000324', 'ATP:0000326'],
-        # SCRUM-6815: the 2026-10-30 release added ATP:0000405 experimental data and
-        # ATP:0000406 experimentally studied entity under mentioned data.
-        'ATP:0000324': ['ATP:0000360', 'ATP:0000325', 'ATP:0000405'],
-        'ATP:0000405': ['ATP:0000406'], 'ATP:0000406': [],
-        'ATP:0000326': ['ATP:0000328', 'ATP:0000327'],
-        'ATP:0000325': [], 'ATP:0000360': [],
-        'ATP:0000327': [], 'ATP:0000328': []
+        # data_context hierarchy as of the 2026-10-30 ATP release (SCRUM-6815; see
+        # docs/validation.md). ATP:0000325 experimentally studied data and
+        # ATP:0000326 marker data were deprecated and have no parent any more; they
+        # are listed so a lookup of them never reaches the network.
+        'ATP:0000323': ['ATP:0000324', 'ATP:0000404'],
+        'ATP:0000324': ['ATP:0000360', 'ATP:0000405'],
+        'ATP:0000405': ['ATP:0000406', 'ATP:0000409'],
+        'ATP:0000406': ['ATP:0000407', 'ATP:0000408'],
+        'ATP:0000409': ['ATP:0000327', 'ATP:0000328', 'ATP:0000410'],
+        'ATP:0000360': [], 'ATP:0000404': [], 'ATP:0000407': [], 'ATP:0000408': [],
+        'ATP:0000327': [], 'ATP:0000328': [], 'ATP:0000410': [],
+        'ATP:0000325': [], 'ATP:0000326': []
     }
 
     atp_to_name = {
@@ -289,6 +292,11 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000325': 'experimentally studied data',
         'ATP:0000405': 'experimental data',
         'ATP:0000406': 'experimentally studied entity',
+        'ATP:0000407': 'primary studied entity',
+        'ATP:0000408': 'additional studied entity',
+        'ATP:0000409': 'supporting experimental entity',
+        'ATP:0000410': 'experimental control',
+        'ATP:0000404': 'nomenclature error',
         'ATP:0000326': 'marker data',
         'ATP:0000328': 'expression marker',
         'ATP:0000327': 'genetic marker'
@@ -339,6 +347,11 @@ def load_name_to_atp_and_relationships_mock():
         'experimentally studied data': 'ATP:0000325',
         'experimental data': 'ATP:0000405',
         'experimentally studied entity': 'ATP:0000406',
+        'primary studied entity': 'ATP:0000407',
+        'additional studied entity': 'ATP:0000408',
+        'supporting experimental entity': 'ATP:0000409',
+        'experimental control': 'ATP:0000410',
+        'nomenclature error': 'ATP:0000404',
         'marker data': 'ATP:0000326',
         'expression marker': 'ATP:0000328',
         'genetic marker': 'ATP:0000327'

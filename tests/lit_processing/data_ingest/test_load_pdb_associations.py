@@ -34,7 +34,8 @@ class TestBuildPayloads:
         assert data["topic"] == mod.PROTEIN_STRUCTURE_ATP
         assert data["tag_source_id"] == 42
         assert data["data_novelty"] == mod.DATA_NOVELTY_NOT_NEW
-        assert data["data_context"] == mod.DATA_CONTEXT_EXPERIMENTALLY_STUDIED
+        # SCRUM-6815: left to the server's per-MOD default
+        assert data.get("data_context") is None
         assert data["negated"] is False
         assert data.get("entity") is None
         assert data.get("entity_type") is None

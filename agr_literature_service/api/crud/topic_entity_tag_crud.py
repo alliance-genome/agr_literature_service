@@ -110,31 +110,37 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 # tag auto-created from a positive mixed topic+entity tag.
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
-# SCRUM-5697: data_context is a hierarchy, not a flat set of alternatives.
+# SCRUM-5697 / SCRUM-6815: data_context is a hierarchy, not a flat set of
+# alternatives. Since the 2026-10-30 ATP release:
 #     ATP:0000323  data context
 #     |-- ATP:0000324  mentioned data
 #     |   |-- ATP:0000360  background information
-#     |   +-- ATP:0000325  experimentally studied data
-#     +-- ATP:0000326  marker data
-#         |-- ATP:0000328  expression marker
-#         +-- ATP:0000327  genetic marker
-# The four leaves are what the editor offers as curation choices, but they are
-# not the only values stored: WB topic tags legitimately carry the ATP:0000323
-# root (see resolve_default_data_context below).
-# "Experimentally studied data" is the default the server applies wherever it
-# synthesises a tag rather than taking one from a client.
-EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
-
-# SCRUM-6815: the 2026-10-30 ATP release deprecated ATP:0000325 (no parent, no
-# replacement) and reworked the tree under ATP:0000324 mentioned data:
-#     ATP:0000324  mentioned data
-#     +-- ATP:0000405  experimental data
-#         |-- ATP:0000406  experimentally studied entity
-#         +-- ATP:0000409  supporting experimental entity
-# MODs move off ATP:0000325 one at a time, each together with a backfill of its
-# own tags, so the default is per MOD (default_data_context_for_mod).
+#     |   +-- ATP:0000405  experimental data
+#     |       |-- ATP:0000406  experimentally studied entity (-> 407, 408)
+#     |       +-- ATP:0000409  supporting experimental entity (-> 327, 328, 410)
+#     +-- ATP:0000404  nomenclature error
+# ATP:0000325 "experimentally studied data", the previous default, was
+# deprecated with no parent and no replacement; every MOD moved off it together
+# (SCRUM-6815), with a backfill of the stored tags.
 EXPERIMENTAL_DATA_CONTEXT_ATP = "ATP:0000405"
 EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP = "ATP:0000406"
+DATA_CONTEXT_ROOT_ATP = "ATP:0000323"
+
+# The data_context for a tag no ml_model speaks for (curator and author entry,
+# the MOD loaders), as (topic-only tag, tag with an entity), by the MOD that made
+# it. Curation policy from SCRUM-5697 and SCRUM-6815: WB topic tags take the
+# root and its entities are experimentally studied; FB asked for experimental
+# data on everything; ZFIN for experimentally studied entities on curator-added
+# entities. The backfill applied the same table, and it has to keep agreeing with
+# the stored rows: check_for_duplicate_tags keys on data_context, so a default
+# that disagrees turns would-be 409s into duplicates. Keep in step with
+# DATA_CONTEXT_DEFAULTS in the UI (dataContextDefaults.js).
+DATA_CONTEXT_DEFAULTS: Dict[str, Tuple[str, str]] = {
+    "WB": (DATA_CONTEXT_ROOT_ATP, EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP),
+    "FB": (EXPERIMENTAL_DATA_CONTEXT_ATP, EXPERIMENTAL_DATA_CONTEXT_ATP),
+    "ZFIN": (EXPERIMENTAL_DATA_CONTEXT_ATP, EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP),
+}
+DATA_CONTEXT_DEFAULT_OTHER_MODS: Tuple[str, str] = (EXPERIMENTAL_DATA_CONTEXT_ATP, EXPERIMENTAL_DATA_CONTEXT_ATP)
 
 # SCRUM-6242 (increment 5): the curator validation written by the grid's
 # Validation column. These mirror exactly what the UI (CellValidationStrip /
@@ -146,28 +152,17 @@ EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP = "ATP:0000406"
 # helper (SCRUM-6518). Only these two are still used here: they describe the TET
 # rows the validation path writes, not the source itself.
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
-# SCRUM-6815: ATP:0000405, not the deprecated ATP:0000325. A tag only validates
-# tags whose data_context is in its own hierarchy, and ATP:0000325 now has no
-# ancestors, so it stopped validating FB's ATP:0000405 tags and WB's ATP:0000323
-# topic tags. ATP:0000405 sits under ATP:0000323, so it covers both.
+# SCRUM-6815: ATP:0000405 for every MOD. A positive tag validates tags whose
+# data_context is the same or an ancestor, and a more specific one is validated
+# by it, so this one value covers WB's ATP:0000323 topic tags, ATP:0000405 tags
+# and ATP:0000406 entity tags alike.
 CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTAL_DATA_CONTEXT_ATP
 
 
 def default_data_context_for_mod(mod_abbreviation: Optional[str], has_entity: bool) -> str:
-    """The data_context for a tag no ml_model speaks for, by the MOD that made it.
-
-    SCRUM-6815. FB asked for ATP:0000405 on everything; ZFIN for ATP:0000406 on
-    curator-added entities and ATP:0000405 on topic tags. Every other MOD keeps
-    ATP:0000325 until it picks a replacement and its tags are backfilled, since
-    check_for_duplicate_tags keys on data_context and a default that disagrees
-    with the stored rows turns would-be 409s into duplicates. Keep in step with
-    defaultDataContext in the UI (dataContextDefaults.js).
-    """
-    if mod_abbreviation == "FB":
-        return EXPERIMENTAL_DATA_CONTEXT_ATP
-    if mod_abbreviation == "ZFIN":
-        return EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP if has_entity else EXPERIMENTAL_DATA_CONTEXT_ATP
-    return EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+    """The data_context for a tag no ml_model speaks for, from DATA_CONTEXT_DEFAULTS."""
+    topic_only, with_entity = DATA_CONTEXT_DEFAULTS.get(mod_abbreviation or "", DATA_CONTEXT_DEFAULT_OTHER_MODS)
+    return with_entity if has_entity else topic_only
 
 
 def resolve_default_data_context(db: Session, topic_entity_tag_data: dict,
@@ -176,7 +171,7 @@ def resolve_default_data_context(db: Session, topic_entity_tag_data: dict,
 
     SCRUM-5697. The ml_model row is authoritative. A pipeline's data-context
     policy is curation policy, decided per MOD and per model kind (WB's topic
-    classifiers carry ATP:0000323, its entity extractors ATP:0000325), so it
+    classifiers carry ATP:0000323, FB's classifiers ATP:0000405), so it
     belongs on ``ml_model.data_context`` rather than in each producer's code.
     Reading it here means a tag created from a model inherits that policy even
     when the producer never sends the field, and changing the policy is an
