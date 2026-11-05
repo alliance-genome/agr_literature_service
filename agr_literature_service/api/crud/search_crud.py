@@ -209,7 +209,8 @@ def search_references(
         "highlight": {
             "require_field_match": False,
             "fields": [
-                {"title": {"type": "unified"}},
+                # the whole title, not a fragment cut off before the end
+                {"title": {"type": "unified", "number_of_fragments": 0}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
@@ -1135,6 +1136,36 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
 
 
 HIGHLIGHT_TAGS = re.compile(r"</?em>")
+HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
+# Abstracts and titles can hold HTML (e.g. "<p><strong>Purpose</strong>: ..."),
+# which the highlighter treats as text: a fragment can start or end inside a
+# tag ("p>Purpose"), and a whole <p> renders as a separate paragraph in the
+# matching text. Every tag but the highlight's <em> is dropped, along with a
+# piece of a tag cut off at either end of the fragment.
+MARKUP_TAG = re.compile(r"<(?!/?em>)/?[A-Za-z][^<>]*>")
+# block tags separate words; inline ones (<strong>, <i>, <sup>, ...) do not
+BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[^<>]*>", re.I)
+LEADING_TAG_PIECE = re.compile(r"""^\s*/?[A-Za-z][A-Za-z0-9]*(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>]+))*(\s*/)?>""")
+TRAILING_TAG_PIECE = re.compile(r"</?(?:(?!em>)[A-Za-z][^<>]*)?$")
+
+
+def strip_markup(fragment):
+    """A highlight fragment without the source text's own HTML (see MARKUP_TAG)."""
+    fragment = LEADING_TAG_PIECE.sub("", fragment)
+    fragment = TRAILING_TAG_PIECE.sub("", fragment)
+    fragment = MARKUP_TAG.sub("", BLOCK_TAG.sub(" ", fragment))
+    return re.sub(r"\s+", " ", fragment).strip()
+
+
+def best_mesh_headings(fragments):
+    """The MeSH headings that match the most words of the query: for
+    "Hirschsprung Disease" that is "Hirschsprung Disease", not also
+    "Disease Models, Animal". Headings that each match one word, as for a
+    one-word query, are all kept."""
+    def matched_words(fragment):
+        return len({word.lower() for word in HIGHLIGHTED_WORD.findall(fragment)})
+    most = max((matched_words(f) for f in fragments), default=0)
+    return [f for f in fragments if matched_words(f) == most]
 
 
 def merge_highlight_fragments(fragments, source_text=None):
@@ -1171,8 +1202,15 @@ def remap_highlights(highlights, source=None):  # pragma: no cover
         new_key = key.replace("authors.name", "authors").replace("resource_title", "resource") \
             .replace("mesh_terms.heading_term", "mesh")
         source_text = source.get(key)
-        remapped[new_key] = merge_highlight_fragments(
-            value, source_text if isinstance(source_text, str) else None)
+        merged = merge_highlight_fragments(value, source_text if isinstance(source_text, str) else None)
+        fragments = []
+        for fragment in (strip_markup(f) for f in merged):
+            if fragment and fragment not in fragments:
+                fragments.append(fragment)
+        if new_key == "mesh":
+            fragments = best_mesh_headings(fragments)
+        if fragments:
+            remapped[new_key] = fragments
     return remapped
 
 
