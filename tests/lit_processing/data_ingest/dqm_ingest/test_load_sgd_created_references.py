@@ -150,7 +150,11 @@ def test_an_sgd_made_id_is_never_replaced(db):  # noqa
 def test_same_pmid_twice_renames_only_once(db):  # noqa
     sgd = _setup(db)
     rid = _paper(db, 1, pmid="PMID:124", sgd_ids=[("SGD:S100009001", False)], sgd_mod_id=sgd, corpus=True)
-    results = _run(db, [_sgd("SGD:S000390011", "PMID:124"), _sgd("SGD:S000390012", "PMID:124")])
+    listed = [_sgd("SGD:S000390011", "PMID:124"), _sgd("SGD:S000390012", "PMID:124")]
+    # the dry run reports what the real run does
+    dry = _run(db, listed, apply=False)
+    assert len(dry[loader.ID_REPLACED]) == 1 and len(dry[loader.CONFLICT]) == 1
+    results = _run(db, listed)
     assert len(results[loader.ID_REPLACED]) == 1 and len(results[loader.CONFLICT]) == 1
     assert _sgd_ids(db, rid) == [("SGD:S000390011", False)]
 

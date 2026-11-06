@@ -57,7 +57,7 @@ ID_REPLACED = "ABC SGD ID replaced with SGD's ID"
 NEW_PMID = "PMID not in ABC"
 NOT_LOADED = "PMID could not be loaded from PubMed"
 NEEDS_CURATOR = "no PMID or DOI match in ABC, needs a curator"
-CONFLICT = "SGD's ID is on a different ABC paper than the PMID"
+CONFLICT = "needs a curator: SGD ID conflict"
 CHANGED = (MOVED_INTO_CORPUS, ID_ADDED, ID_REPLACED)
 
 
@@ -87,6 +87,9 @@ class Lookups:
         reference_ids = set(self.reference_by_curie.values()) | {
             x.reference_id for rows in self.xrefs_by_curie.values() for x in rows if x.reference_id}
         self.sgd_xrefs_by_reference: Dict[int, List[CrossReferenceModel]] = defaultdict(list)
+        # papers given an SGD ID earlier in this run (kept in a dry run too, so
+        # it reports what the real run would do)
+        self.assigned: Dict[int, str] = {}
         self.mca_by_reference: Dict[int, ModCorpusAssociationModel] = {}
         if reference_ids:
             for x in db.query(CrossReferenceModel).filter(CrossReferenceModel.reference_id.in_(reference_ids),
@@ -144,6 +147,10 @@ def reconcile_paper(db, lookups: Lookups, sgd_mod_id: int, paper: Dict, apply: b
         return (NEW_PMID, paper["pmid"]) if paper.get("pmid") else \
             (NEEDS_CURATOR, f"{sgdid} {paper.get('display_name') or ''} doi={paper.get('doi')}")
 
+    if reference_id in lookups.assigned:
+        # SGD lists two IDs for the same PMID/DOI
+        return CONFLICT, (f"{paper.get('pmid') or paper.get('doi')} was given {lookups.assigned[reference_id]} "
+                          f"in this run, SGD also lists {sgdid}")
     sgd_xrefs = lookups.sgd_xrefs_by_reference.get(reference_id, [])
     current = [x for x in sgd_xrefs if not x.is_obsolete]
     old_copy = next((x for x in sgd_xrefs if x.curie == sgdid), None)
@@ -153,6 +160,7 @@ def reconcile_paper(db, lookups: Lookups, sgd_mod_id: int, paper: Dict, apply: b
         return CONFLICT, f"{paper.get('pmid') or paper.get('doi')} has {current[0].curie} in ABC, SGD lists {sgdid}"
     outcome, detail = (ID_REPLACED, f"{current[0].curie} -> {sgdid} ({paper.get('pmid')})") if current \
         else (ID_ADDED, f"{sgdid} ({paper.get('pmid')})")
+    lookups.assigned[reference_id] = sgdid
     if not apply:
         return outcome, detail
 
