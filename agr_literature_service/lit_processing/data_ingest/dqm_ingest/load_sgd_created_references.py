@@ -98,8 +98,11 @@ class Lookups:
                 self.mca_by_reference[mca.reference_id] = mca
 
     def reference_for(self, paper: Dict) -> Optional[int]:
-        if paper.get("pmid"):
-            return self.reference_by_curie.get(paper["pmid"])
+        """The ABC paper with the PMID, else with the DOI. The DOI fallback
+        matters: post_references skips a DOI already in ABC but still creates
+        the paper, so loading such a PMID from PubMed would duplicate it."""
+        if paper.get("pmid") and paper["pmid"] in self.reference_by_curie:
+            return self.reference_by_curie[paper["pmid"]]
         if paper.get("doi"):
             return self.reference_by_curie.get(f"DOI:{paper['doi']}")
         return None
@@ -144,15 +147,21 @@ def reconcile_paper(db, lookups: Lookups, sgd_mod_id: int, paper: Dict, apply: b
     sgd_xrefs = lookups.sgd_xrefs_by_reference.get(reference_id, [])
     current = [x for x in sgd_xrefs if not x.is_obsolete]
     old_copy = next((x for x in sgd_xrefs if x.curie == sgdid), None)
+    if current and not current[0].curie.startswith("SGD:S1"):
+        # the paper's ID is an SGD-made S000 one too: SGD has two papers for
+        # this PMID/DOI, which a curator has to resolve
+        return CONFLICT, f"{paper.get('pmid') or paper.get('doi')} has {current[0].curie} in ABC, SGD lists {sgdid}"
     outcome, detail = (ID_REPLACED, f"{current[0].curie} -> {sgdid} ({paper.get('pmid')})") if current \
         else (ID_ADDED, f"{sgdid} ({paper.get('pmid')})")
     if not apply:
         return outcome, detail
 
     if current and old_copy is None:
-        # SGD never used the ABC-minted ID (it had the paper already), so the
-        # row takes SGD's ID instead of leaving an unused ID behind
+        # an ABC-minted S1 ID (checked above) that SGD never used, since it
+        # had the paper already: the row takes SGD's ID instead of leaving an
+        # unused ID behind
         current[0].curie = sgdid
+        lookups.xrefs_by_curie[sgdid].append(current[0])
     else:
         for x in current:
             # only one active SGD ID per paper: retire the other one first
@@ -166,6 +175,7 @@ def reconcile_paper(db, lookups: Lookups, sgd_mod_id: int, paper: Dict, apply: b
                                            pages=["reference"], is_obsolete=False)
             db.add(new_xref)
             lookups.sgd_xrefs_by_reference[reference_id].append(new_xref)
+            lookups.xrefs_by_curie[sgdid].append(new_xref)
     _put_in_sgd_corpus(db, lookups, sgd_mod_id, reference_id)
     return outcome, detail
 

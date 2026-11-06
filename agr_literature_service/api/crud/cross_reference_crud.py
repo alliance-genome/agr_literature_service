@@ -225,7 +225,10 @@ def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
             "reference_curie": ref_curie
         }
         return new_wbpaper_xref
-    # SGD IDs come from ensure_active_sgd_curie (sgd_curie_listener)
+    # SGD IDs come from ensure_active_sgd_curie (sgd_curie_listener); only WB
+    # IDs are generated here
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail=f"Cannot generate a new {mod_abbreviation} ID")
 
 
 def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):

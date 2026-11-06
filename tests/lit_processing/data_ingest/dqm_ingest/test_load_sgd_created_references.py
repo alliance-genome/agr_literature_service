@@ -137,6 +137,34 @@ def test_reported_not_changed(db):  # noqa
     assert _sgd_ids(db, other) == []
 
 
+def test_an_sgd_made_id_is_never_replaced(db):  # noqa
+    # the paper's ID is an S000 one from SGD too: two SGD papers for one PMID,
+    # so a curator decides; nothing is renamed
+    sgd = _setup(db)
+    rid = _paper(db, 1, pmid="PMID:123", sgd_ids=[("SGD:S000100001", False)], sgd_mod_id=sgd, corpus=True)
+    results = _run(db, [_sgd("SGD:S000390010", "PMID:123")])
+    assert results[loader.CONFLICT] == ["PMID:123 has SGD:S000100001 in ABC, SGD lists SGD:S000390010"]
+    assert _sgd_ids(db, rid) == [("SGD:S000100001", False)]
+
+
+def test_same_pmid_twice_renames_only_once(db):  # noqa
+    sgd = _setup(db)
+    rid = _paper(db, 1, pmid="PMID:124", sgd_ids=[("SGD:S100009001", False)], sgd_mod_id=sgd, corpus=True)
+    results = _run(db, [_sgd("SGD:S000390011", "PMID:124"), _sgd("SGD:S000390012", "PMID:124")])
+    assert len(results[loader.ID_REPLACED]) == 1 and len(results[loader.CONFLICT]) == 1
+    assert _sgd_ids(db, rid) == [("SGD:S000390011", False)]
+
+
+def test_doi_is_used_when_abc_lacks_the_pmid(db):  # noqa
+    # loading the PMID would duplicate the paper ABC already has by DOI
+    sgd = _setup(db)
+    rid = _paper(db, 1, doi="10.1000/preprint")
+    results = _run(db, [_sgd("SGD:S000390013", "PMID:125", doi="10.1000/preprint")])
+    assert loader.NEW_PMID not in results
+    assert _sgd_ids(db, rid) == [("SGD:S000390013", False)]
+    assert _in_corpus(db, rid, sgd)
+
+
 def test_dry_run_changes_nothing(db):  # noqa
     sgd = _setup(db)
     rid = _paper(db, 1, pmid="PMID:39322276", sgd_ids=[("SGD:S100006889", False)], sgd_mod_id=sgd, corpus=False)
