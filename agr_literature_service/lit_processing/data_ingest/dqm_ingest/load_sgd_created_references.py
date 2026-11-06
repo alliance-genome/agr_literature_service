@@ -37,6 +37,7 @@ import requests
 from sqlalchemy import and_
 
 from agr_literature_service.api.models import CrossReferenceModel, ModCorpusAssociationModel, ModModel
+from agr_literature_service.api.schemas import ModCorpusSortSourceType
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -48,7 +49,7 @@ SCRIPT_NAME = "load_sgd_created_references"
 # (https://backend.yeastgenome.org/entity/), and appending to it hit that endpoint
 SGD_CREATED_REFERENCES_URL = environ.get("SGD_CREATED_REFERENCES_URL",
                                          "https://www.yeastgenome.org/backend/references/created_in_sgd")
-SORT_SOURCE = "Dqm_files"
+SORT_SOURCE = ModCorpusSortSourceType.Dqm_files
 CHUNK_SIZE = 2000
 REPORT_LIST_LIMIT = 50
 
