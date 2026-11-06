@@ -209,7 +209,8 @@ def search_references(
         "highlight": {
             "require_field_match": False,
             "fields": [
-                {"title": {"type": "unified"}},
+                # the whole title, not a fragment cut off before the end
+                {"title": {"type": "unified", "number_of_fragments": 0}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
@@ -832,7 +833,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
         "large_scale_tags": extract_large_scale_tags(ref["_source"]),
-        "highlight": remap_highlights(ref.get("highlight", {}))
+        "highlight": remap_highlights(ref.get("highlight", {}), ref["_source"])
     } for ref in res["hits"]["hits"]]
     add_names_to_large_scale_tags(hits)
     add_resource_titles_to_hits(hits)
@@ -1134,12 +1135,111 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
     return result
 
 
-def remap_highlights(highlights):  # pragma: no cover
+HIGHLIGHT_TAGS = re.compile(r"</?em>")
+HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
+# Abstracts and titles can hold HTML (e.g. "<p><strong>Purpose</strong>: ..."),
+# which the highlighter treats as text: a fragment can start or end inside a
+# tag ("p>Purpose"), and a whole <p> renders as a separate paragraph in the
+# matching text. The source's tags are dropped, along with a piece of a tag cut
+# off at either end of the fragment; the highlight's own <em> is kept. Only
+# known tag names count, so text such as "G>A", "<LOD" or "p<0.05" stays. A cut
+# off piece must also be lowercase, as the source HTML is in practice, so
+# "A>G" or "P>0.05" at a fragment edge is not read as a tag; a whole <...> tag
+# is a strong enough signal to match in any case.
+HTML_TAG_NAMES = ("p", "br", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
+                  "tr", "td", "th", "table", "tbody", "thead", "blockquote", "strong", "b",
+                  "i", "u", "sup", "sub", "span", "a", "font", "italic", "bold", "sc", "inf",
+                  "monospace", "img", "small", "big")
+# also namespaced MathML/XML tags ("mml:math", "ns0:sup")
+HTML_TAG_NAME = r"(?:%s|[A-Za-z]\w*:[\w-]+)(?=[\s/>])" % "|".join(HTML_TAG_NAMES)
+MARKUP_TAG = re.compile(r"</?%s[^<>]*>" % HTML_TAG_NAME, re.I)
+# block tags separate words; inline ones (<strong>, <i>, <sup>, ...) do not
+BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[^<>]*>", re.I)
+# An unquoted attribute value excludes quotes and "=", so each attribute can be
+# read only one way (otherwise the regex backtracks exponentially, CodeQL).
+LEADING_TAG_PIECE = re.compile(
+    r"""^\s*/?%s(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""" % HTML_TAG_NAME)
+TRAILING_TAG_PIECE = re.compile(r"</?(?P<name>[A-Za-z][\w:-]*)?(?P<rest>\s[^<>]*)?$")
+
+
+def _strip_trailing_tag_piece(fragment):
+    """Drop a tag cut off at the end of the fragment ("...congenital</stro").
+    The cut can fall inside the tag name, so a name that starts a known tag
+    name is enough; once the piece has more after the name ("<LOD in"), the
+    name must be a whole tag name. A bare "<" or "</" at the very end goes."""
+    match = TRAILING_TAG_PIECE.search(fragment)
+    if not match:
+        return fragment
+    name = match.group("name") or ""
+    if match.group("rest") is not None:
+        is_tag = ":" in name or name in HTML_TAG_NAMES
+    else:
+        is_tag = not name or ":" in name or any(tag.startswith(name) for tag in HTML_TAG_NAMES)
+    return fragment[:match.start()] if is_tag else fragment
+
+
+def strip_markup(fragment):
+    """A highlight fragment without the source text's own HTML (see MARKUP_TAG)."""
+    fragment = LEADING_TAG_PIECE.sub("", fragment)
+    fragment = _strip_trailing_tag_piece(fragment)
+    fragment = MARKUP_TAG.sub("", BLOCK_TAG.sub(" ", fragment))
+    return re.sub(r"\s+", " ", fragment).strip()
+
+
+def best_mesh_headings(fragments):
+    """The MeSH headings that match the most words of the query: for
+    "Hirschsprung Disease" that is "Hirschsprung Disease", not also
+    "Disease Models, Animal". Headings that each match one word, as for a
+    one-word query, are all kept."""
+    def matched_words(fragment):
+        return len({word.lower() for word in HIGHLIGHTED_WORD.findall(fragment)})
+    most = max((matched_words(f) for f in fragments), default=0)
+    return [f for f in fragments if matched_words(f) == most]
+
+
+def merge_highlight_fragments(fragments, source_text=None):
+    """Tidy one field's highlight fragments for display.
+
+    The unified highlighter cuts a sentence longer than the fragment size into
+    pieces, so "PAICS mediates <em>DNA</em>" and "<em>damage</em> and ..." come
+    back as two fragments of one run of text. Fragments are in document order,
+    so a fragment that starts right where the previous one ended in
+    ``source_text`` is joined back onto it. Repeated fragments are dropped: a
+    MeSH heading is indexed once per qualifier, so "DNA Damage" can match
+    several times.
+    """
+    merged = []
+    previous_end = None
+    for fragment in fragments:
+        if fragment in merged:
+            continue
+        plain = HIGHLIGHT_TAGS.sub("", fragment)
+        start = source_text.find(plain, previous_end or 0) if source_text else -1
+        if merged and previous_end is not None and start >= previous_end \
+                and not source_text[previous_end:start].strip():
+            merged[-1] = merged[-1] + source_text[previous_end:start] + fragment
+        else:
+            merged.append(fragment)
+        previous_end = start + len(plain) if start >= 0 else None
+    return merged
+
+
+def remap_highlights(highlights, source=None):  # pragma: no cover
+    source = source or {}
     remapped = {}
     for key, value in highlights.items():
         new_key = key.replace("authors.name", "authors").replace("resource_title", "resource") \
             .replace("mesh_terms.heading_term", "mesh")
-        remapped[new_key] = value
+        source_text = source.get(key)
+        merged = merge_highlight_fragments(value, source_text if isinstance(source_text, str) else None)
+        fragments = []
+        for fragment in (strip_markup(f) for f in merged):
+            if fragment and fragment not in fragments:
+                fragments.append(fragment)
+        if new_key == "mesh":
+            fragments = best_mesh_headings(fragments)
+        if fragments:
+            remapped[new_key] = fragments
     return remapped
 
 
