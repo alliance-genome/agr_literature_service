@@ -17,6 +17,7 @@ from agr_literature_service.api.models import (
     CrossReferenceModel,
     ReferenceModel
 )
+from agr_literature_service.api.models.sgd_curie_listener import ensure_active_sgd_curie
 from agr_literature_service.api import resource_descriptor_cache
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
@@ -184,7 +185,13 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     if cross_reference:
         return
     env_state = os.environ.get("ENV_STATE", "")
-    if mod_abbreviation not in ['WB', 'SGD']:
+    if mod_abbreviation == 'SGD':
+        # reactivate the paper's obsolete SGD ID if it has one, else mint one;
+        # the same rule sgd_curie_listener applies on every save (SCRUM-6830)
+        ensure_active_sgd_curie(db, reference_obj.reference_id)
+        db.commit()
+        return
+    if mod_abbreviation != 'WB':
         return
     if env_state == "prod" and mod_abbreviation == 'WB':
         return
@@ -218,21 +225,7 @@ def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
             "reference_curie": ref_curie
         }
         return new_wbpaper_xref
-
-    if mod_abbreviation == 'SGD':
-        row = db.execute(text("SELECT nextval('sgd_id_seq')")).fetchone()
-        if row:
-            sgdid_number = row[0]
-            new_sgdid = f"SGD:S{sgdid_number}"
-            new_xref = {
-                "curie": new_sgdid,
-                "pages": [
-                    "reference"
-                ],
-                "reference_curie": ref_curie
-            }
-            return new_xref
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Cannot create a new SGDID")
+    # SGD IDs come from ensure_active_sgd_curie (sgd_curie_listener)
 
 
 def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):

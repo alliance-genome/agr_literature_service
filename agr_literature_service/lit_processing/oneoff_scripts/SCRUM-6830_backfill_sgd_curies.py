@@ -21,8 +21,7 @@ Usage:
     python SCRUM-6830_backfill_sgd_curies.py
 """
 import argparse
-import logging.config
-from os import path
+import logging
 
 from sqlalchemy import text
 
@@ -30,9 +29,11 @@ from agr_literature_service.api.models.sgd_curie_listener import ensure_active_s
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
-log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../logging.conf')
-logging.config.fileConfig(log_file_path)
-logger = logging.getLogger('literature logger')
+# basicConfig, not fileConfig: fileConfig disables every logger already
+# created, which broke log-capturing tests that ran after this module's test
+# imported it
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 SCRIPT_NAME = "SCRUM-6830_backfill_sgd_curies"
 BATCH_COMMIT_SIZE = 200
