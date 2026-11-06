@@ -44,11 +44,10 @@ class TestBuildPayload:
         assert payload.created_by == "default_user"
         assert payload.force_insertion is True
 
-    def test_genetic_data_call_is_a_non_negated_neg_tag(self):
-        payload = mod.build_payload(_row(1, 7, 0.12), source_id=170)
-        assert payload.negated is False
-        assert payload.confidence_level == "NEG"
-        assert payload.confidence_score == 0.12
+    def test_lowest_no_genetic_data_score_is_low(self):
+        payload = mod.build_payload(_row(1, 7, 0.5), source_id=170)
+        assert payload.negated is True
+        assert payload.confidence_level == "LOW"
 
     def test_keeps_the_original_dates(self):
         # the weekly FB export reads only tags created in the last 6 days, so backfilled tags
@@ -65,26 +64,29 @@ class TestBuildPayload:
 
 class TestPlan:
 
-    def test_skips_references_already_tagged_by_the_classifier_and_rows_without_a_score(self):
-        rows = [_row(1, 1, 0.9), _row(2, 2, 0.1), _row(3, 3, None)]
+    def test_skips_tagged_references_rows_without_a_score_and_low_scores(self):
+        rows = [_row(1, 1, 0.9), _row(2, 2, 0.95), _row(3, 3, None), _row(4, 4, 0.1)]
         todo = mod.plan(rows, already_tagged={2})
         assert [r["manual_indexing_tag_id"] for r in todo["create"]] == [1]
         assert [r["manual_indexing_tag_id"] for r in todo["skip_tagged"]] == [2]
         assert [r["manual_indexing_tag_id"] for r in todo["skip_no_score"]] == [3]
+        # SCRUM-6670 comment 99232: "has genetic data" calls get no tag
+        assert [r["manual_indexing_tag_id"] for r in todo["skip_low_score"]] == [4]
 
-    def test_summary_splits_by_polarity_and_level(self):
-        summary = mod.summarize([_row(1, 1, 0.9), _row(2, 2, 0.1), _row(3, 3, 0.2)])
-        assert summary == {"negated HIGH": 1, "non-negated NEG": 2}
+    def test_summary_counts_levels(self):
+        summary = mod.summarize([_row(1, 1, 0.9), _row(2, 2, 0.6), _row(3, 3, 0.95)])
+        assert summary == {"HIGH": 2, "LOW": 1}
 
 
 class TestDeleteSourceRows:
 
-    def test_deletes_only_rows_whose_reference_has_a_tag(self):
+    def test_deletes_tagged_and_low_score_rows_but_keeps_failed_ones(self):
         session = MagicMock()
-        session.execute.return_value.rowcount = 1
-        rows = [_row(10, 1, 0.9), _row(20, 2, 0.1)]
-        assert mod.delete_source_rows(session, rows, tagged={1}) == 1
-        assert session.execute.call_args[0][1] == {"ids": [10]}
+        session.execute.return_value.rowcount = 2
+        # 30 scored >= 0.5 but has no tag (its create failed): kept for a re-run
+        rows = [_row(10, 1, 0.9), _row(20, 2, 0.1), _row(30, 3, 0.8)]
+        assert mod.delete_source_rows(session, rows, tagged={1}) == 2
+        assert session.execute.call_args[0][1] == {"ids": [10, 20]}
         session.commit.assert_called_once()
 
     def test_nothing_to_delete(self):
@@ -108,13 +110,14 @@ class TestRun:
         p = self._patches([_row(1, 1, 0.9), _row(2, 2, 0.1)])
         with p[0], p[1], p[2], p[3], p[4] as m_user, p[5] as m_create, p[6] as m_revalidate:
             counts = mod.run(commit=False, delete_source=False, limit=None, backup_file="unused.csv")
-        assert counts == {"rows": 2, "to_create": 2, "skipped_tagged": 0, "skipped_no_score": 0}
+        assert counts == {"rows": 2, "to_create": 1, "skipped_tagged": 0, "skipped_no_score": 0,
+                          "skipped_low_score": 1}
         m_user.assert_not_called()
         m_create.assert_not_called()
         m_revalidate.assert_not_called()
 
     def test_commit_creates_and_revalidates_each_reference(self):
-        p = self._patches([_row(1, 1, 0.9), _row(2, 2, 0.1)])
+        p = self._patches([_row(1, 1, 0.9), _row(2, 2, 0.7)])
         with p[0], p[1], p[2], p[3], p[4], p[5] as m_create, p[6] as m_revalidate:
             counts = mod.run(commit=True, delete_source=False, limit=None, backup_file="unused.csv")
         assert counts["created"] == 2
@@ -122,7 +125,7 @@ class TestRun:
         assert [c.kwargs["curie_or_reference_id"] for c in m_revalidate.call_args_list] == ["1", "2"]
 
     def test_a_failed_tag_does_not_stop_the_rest(self):
-        p = self._patches([_row(1, 1, 0.9), _row(2, 2, 0.1)])
+        p = self._patches([_row(1, 1, 0.9), _row(2, 2, 0.7)])
         with p[0], p[1], p[2], p[3], p[4], p[5] as m_create, p[6]:
             m_create.side_effect = [Exception("boom"), (5, False)]
             counts = mod.run(commit=True, delete_source=False, limit=None, backup_file="unused.csv")
@@ -165,7 +168,7 @@ class TestBackfillAgainstTheDatabase:
         reference_id = db.query(ReferenceModel).filter_by(curie=test_reference.new_ref_curie).one().reference_id
         created = datetime(2026, 9, 3, 4, 0)
         db.add(ManualIndexingTagModel(reference_id=reference_id, mod_id=fb.mod_id,
-                                      curation_tag="ATP:0000207", confidence_score=0.12,
+                                      curation_tag="ATP:0000207", confidence_score=0.91,
                                       date_created=created, date_updated=created))
         db.commit()
 
@@ -179,9 +182,43 @@ class TestBackfillAgainstTheDatabase:
         assert counts["created"] == 1
         assert counts["deleted"] == 1
         tag = db.query(TopicEntityTagModel).filter_by(reference_id=reference_id, topic="ATP:0000402").one()
-        assert tag.negated is False
-        assert tag.confidence_level == "NEG"
-        assert tag.confidence_score == 0.12
+        assert tag.negated is True
+        assert tag.confidence_level == "HIGH"
+        assert tag.confidence_score == 0.91
         assert tag.date_created == created
         assert tag.data_context == "ATP:0000405"
         assert db.query(ManualIndexingTagModel).filter_by(reference_id=reference_id).count() == 0
+
+    def test_low_score_row_gets_no_tag_and_is_deleted(self, db, auth_headers, test_reference,  # noqa
+                                                      test_ml_model, tmp_path):  # noqa
+        from starlette.testclient import TestClient
+        from agr_literature_service.api.main import app
+        from agr_literature_service.api.models import (ManualIndexingTagModel, ModModel,
+                                                       ReferenceModel, TopicEntityTagModel)
+
+        with TestClient(app) as client:
+            client.post(url="/mod/", json={"abbreviation": "FB", "short_name": "FB",
+                                           "full_name": "FlyBase"}, headers=auth_headers)
+            client.post(url="/tag_source", headers=auth_headers, json={
+                "source_evidence_assertion": "ECO:0008004", "source_method": "abc_document_classifier",
+                "validation_type": None, "description": "classifier", "data_provider": "FB",
+                "secondary_data_provider_abbreviation": "FB"})
+        fb = db.query(ModModel).filter_by(abbreviation="FB").one()
+        reference_id = db.query(ReferenceModel).filter_by(curie=test_reference.new_ref_curie).one().reference_id
+        db.add(ManualIndexingTagModel(reference_id=reference_id, mod_id=fb.mod_id,
+                                      curation_tag="ATP:0000207", confidence_score=0.02))
+        db.commit()
+        backup = tmp_path / "rows.csv"
+
+        with patch.object(mod, "create_postgres_session", return_value=db), \
+                patch.object(mod, "ML_MODEL_V3_ID", test_ml_model["ml_model_id"]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.atp_return_invalid_ids",
+                      return_value=[]):
+            counts = mod.run(commit=True, delete_source=True, limit=None, backup_file=str(backup))
+
+        assert counts["to_create"] == 0
+        assert counts["skipped_low_score"] == 1
+        assert counts["deleted"] == 1
+        assert db.query(TopicEntityTagModel).filter_by(reference_id=reference_id).count() == 0
+        assert db.query(ManualIndexingTagModel).filter_by(reference_id=reference_id).count() == 0
+        assert "0.02" in backup.read_text()

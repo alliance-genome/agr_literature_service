@@ -2,13 +2,15 @@
 
 Until SCRUM-6669 the FB "no genetic data" classifier (job topic ATP:0000207) wrote one
 manual_indexing_tag row per paper: curation_tag ATP:0000207 with the model's probability of "no
-genetic data" as confidence_score. It now writes a "genetic data" (ATP:0000402) topic tag for every
-paper instead, and this script turns each old row into the tag the classifier would write today:
+genetic data" as confidence_score. It now writes a negated "genetic data" (ATP:0000402) topic tag
+only for a paper it calls "no genetic data" (score >= 0.5), and this script does the same for the
+old rows:
 
-  * score >= 0.5 ("no genetic data"): a negated ATP:0000402 tag, confidence level LOW / MEDIUM /
-    HIGH on the classifier's bands (get_confidence_level: 0.667, 0.833);
-  * score < 0.5 ("has genetic data"): a non-negated ATP:0000402 tag with confidence level NEG, the
-    convention the classifier uses for every negated model's negative calls.
+  * score >= 0.5: a negated ATP:0000402 tag, confidence level LOW / MEDIUM / HIGH on the
+    classifier's bands (get_confidence_level: 0.667, 0.833);
+  * score < 0.5 ("has genetic data"): no tag. FlyBase asked for these not to be shown (SCRUM-6670
+    comment 99232): a "genetic data" tag with level NEG reads as a double negative, and the new
+    allele and transgene pipelines leave their NEG calls out of the TET table the same way.
 
 Every tag keeps the row's score and date_created, so the weekly FB export (which only reads tags
 created in the last 6 days) does not send them again, and carries the ml_model 60 metadata
@@ -18,8 +20,9 @@ SCRUM-6669 classifier) is skipped: that tag is newer. Tags are created with
 validate_on_insert=False and each touched reference is revalidated once afterwards.
 
 With --delete-source the FB ATP:0000207 rows are then removed from manual_indexing_tag (the table
-stays: other MODs use it) -- only rows whose reference now has a classifier ATP:0000402 tag, and only
-after every row has been written to a CSV backup.
+stays: other MODs use it) -- rows whose reference now has a classifier ATP:0000402 tag and rows
+scoring under 0.5, which get no tag by design -- and only after every row has been written to a
+CSV backup, so the low-score predictions are kept there.
 
 Usage (the default is a read-only dry run)::
 
@@ -88,13 +91,13 @@ def ml_model_id_for(date_created: datetime) -> int:
 
 
 def build_payload(row: Dict, source_id: int) -> TopicEntityTagSchemaPost:
-    """The ATP:0000402 tag the classifier would write today for this manual_indexing_tag row."""
+    """The negated ATP:0000402 tag the classifier would write today for a "no genetic data" row."""
     score = row["confidence_score"]
     return TopicEntityTagSchemaPost(
         reference_curie=row["reference_curie"],
         topic=GENETIC_DATA_TOPIC,
         species=SPECIES,
-        negated=score >= POSITIVE_THRESHOLD,
+        negated=True,
         data_novelty=DATA_NOVELTY,
         data_context=DATA_CONTEXT,
         confidence_score=score,
@@ -141,20 +144,21 @@ def references_with_classifier_tag(db: Session, source_id: int) -> Set[int]:
 
 def plan(rows: List[Dict], already_tagged: Set[int]) -> Dict[str, List[Dict]]:
     """Split the rows into what the backfill does with them."""
-    todo: Dict[str, List[Dict]] = {"create": [], "skip_tagged": [], "skip_no_score": []}
+    todo: Dict[str, List[Dict]] = {"create": [], "skip_tagged": [], "skip_no_score": [], "skip_low_score": []}
     for row in rows:
         if row["reference_id"] in already_tagged:
             todo["skip_tagged"].append(row)
         elif row["confidence_score"] is None:
             todo["skip_no_score"].append(row)
+        elif row["confidence_score"] < POSITIVE_THRESHOLD:
+            todo["skip_low_score"].append(row)
         else:
             todo["create"].append(row)
     return todo
 
 
 def summarize(rows: List[Dict]) -> Counter:
-    return Counter(("negated" if r["confidence_score"] >= POSITIVE_THRESHOLD else "non-negated")
-                   + " " + confidence_level(r["confidence_score"]) for r in rows)
+    return Counter(confidence_level(r["confidence_score"]) for r in rows)
 
 
 def write_backup(rows: List[Dict], backup_file: str) -> None:
@@ -191,7 +195,11 @@ def create_tags(db: Session, rows: List[Dict], source_id: int) -> Dict[str, int]
 
 
 def delete_source_rows(db: Session, rows: List[Dict], tagged: Set[int]) -> int:
-    ids = [row["manual_indexing_tag_id"] for row in rows if row["reference_id"] in tagged]
+    """Delete the rows that are now a tag, and the low-score rows that get none by design.
+    A >= 0.5 row whose tag could not be created stays, so a re-run can still pick it up."""
+    ids = [row["manual_indexing_tag_id"] for row in rows
+           if row["reference_id"] in tagged
+           or (row["confidence_score"] is not None and row["confidence_score"] < POSITIVE_THRESHOLD)]
     if not ids:
         return 0
     deleted = db.execute(text("DELETE FROM manual_indexing_tag WHERE id = ANY(:ids)"),
@@ -214,9 +222,12 @@ def run(commit: bool, delete_source: bool, limit: Optional[int], backup_file: st
         logger.info("  skipped, reference already has a classifier %s tag: %d",
                     GENETIC_DATA_TOPIC, len(todo["skip_tagged"]))
         logger.info("  skipped, no score: %d", len(todo["skip_no_score"]))
+        logger.info("  no tag, score under %.1f (has genetic data): %d", POSITIVE_THRESHOLD,
+                    len(todo["skip_low_score"]))
         counts = {"rows": len(rows), "to_create": len(todo["create"]),
                   "skipped_tagged": len(todo["skip_tagged"]),
-                  "skipped_no_score": len(todo["skip_no_score"])}
+                  "skipped_no_score": len(todo["skip_no_score"]),
+                  "skipped_low_score": len(todo["skip_low_score"])}
         if not commit and not delete_source:
             logger.info("DRY RUN - nothing written. Re-run with --commit, then --delete-source.")
             return counts
@@ -239,7 +250,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--commit", action="store_true", help="create the topic entity tags")
     parser.add_argument("--delete-source", action="store_true",
                         help="back up, then delete the FB ATP:0000207 manual_indexing_tag rows whose "
-                             "reference has a classifier ATP:0000402 tag")
+                             "reference has a classifier ATP:0000402 tag, and those under 0.5")
     parser.add_argument("--limit", type=int, default=None, help="create at most this many tags")
     parser.add_argument("--backup-file", default=f"SCRUM-6670_manual_indexing_tag_FB_{datetime.now():%Y%m%d_%H%M%S}.csv",
                         help="CSV the rows are written to before --delete-source")
