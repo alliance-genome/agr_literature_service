@@ -44,7 +44,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 SCRIPT_NAME = "load_sgd_created_references"
-SGD_API_URL = environ.get("SGD_API_URL", "https://www.yeastgenome.org/backend/")
+# its own setting: SGD_API_URL is already used, for SGD's entity-name lookup
+# (https://backend.yeastgenome.org/entity/), and appending to it hit that endpoint
+SGD_CREATED_REFERENCES_URL = environ.get("SGD_CREATED_REFERENCES_URL",
+                                         "https://www.yeastgenome.org/backend/references/created_in_sgd")
 SORT_SOURCE = "Dqm_files"
 CHUNK_SIZE = 2000
 REPORT_LIST_LIMIT = 50
@@ -62,10 +65,12 @@ CHANGED = (MOVED_INTO_CORPUS, ID_ADDED, ID_REPLACED)
 
 
 def fetch_sgd_created_references(days: int) -> List[Dict]:
-    url = SGD_API_URL.rstrip("/") + "/references/created_in_sgd"
-    response = requests.get(url, params={"days": days}, timeout=600)
+    response = requests.get(SGD_CREATED_REFERENCES_URL, params={"days": days}, timeout=600)
     response.raise_for_status()
-    return response.json()["references"]
+    data = response.json()
+    if not isinstance(data, dict) or "references" not in data:
+        raise ValueError(f"{response.url} did not return SGD's created_in_sgd list: {str(data)[:200]}")
+    return data["references"]
 
 
 class Lookups:

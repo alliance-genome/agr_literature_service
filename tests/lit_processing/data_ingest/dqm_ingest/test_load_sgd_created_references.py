@@ -206,3 +206,18 @@ def test_report_lists_the_changes():
     assert "SGD-created papers from the last 2 day(s): 3" in message
     assert "<li>SGD:S1 -> SGD:S0 (PMID:1)" in message
     assert loader.NEEDS_CURATOR in message
+
+
+def test_fetch_reads_the_created_in_sgd_list():
+    with patch(f"{MODULE}.requests.get") as get:
+        get.return_value.json.return_value = {"days": 2, "references": [_sgd("SGD:S000390020", "PMID:1")]}
+        assert loader.fetch_sgd_created_references(2) == [_sgd("SGD:S000390020", "PMID:1")]
+        assert get.call_args.kwargs["params"] == {"days": 2}
+        assert get.call_args.args[0].endswith("/references/created_in_sgd")
+        # another SGD endpoint (e.g. the entity lookup) answers with a list
+        get.return_value.json.return_value = [{"modEntityId": "SGD:S000001855"}]
+        try:
+            loader.fetch_sgd_created_references(2)
+            raise AssertionError("expected ValueError")
+        except ValueError as e:
+            assert "did not return SGD's created_in_sgd list" in str(e)
