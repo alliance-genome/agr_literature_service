@@ -15,7 +15,13 @@ class TestFieldHelpers:
 
     def test_exported_phrase_fields(self):
         assert "title^6.0" in sr.PHRASE_FIELDS
-        assert sr.ALL_TEXT_FIELDS == ["title", "keywords", "abstract", "citation"]
+        assert sr.ALL_TEXT_FIELDS == ["title", "keywords", "abstract", "citation", "mesh_terms.heading_term"]
+
+    def test_mesh_ranks_below_every_other_text_field(self):
+        # SCRUM-6490: MeSH has the lowest weight in each all-fields boost set
+        for boosts in (sr.BOOST_PHRASE_FIELDS, sr.BOOST_BEST_FIELDS, sr.BOOST_PREFIX_FIELDS):
+            others = [w for f, w in boosts.items() if f != sr.MESH_FIELD]
+            assert boosts[sr.MESH_FIELD] < min(others)
 
 
 class TestRescoreWindow:
@@ -247,6 +253,8 @@ class TestContentGate:
         assert mm["operator"] == "or"
         assert mm["query"] == "oxidative stress response"
         assert mm["minimum_should_match"] == "80%"  # 3 content tokens -> 80%
+        # a paper that matches only on its MeSH terms passes the gate
+        assert sr.MESH_FIELD in mm["fields"]
 
     def test_build_content_gate_filter_none_when_all_stopwords(self):
         assert sr.build_content_gate_filter("the of a") is None

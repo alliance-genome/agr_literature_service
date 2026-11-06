@@ -252,3 +252,91 @@ class TestTetFacetsNegation:
         # The positive nested query no longer carries a confidence-level must_not
         nested = filter_bool["must"][-1]["nested"]["query"]["bool"]
         assert nested["must_not"] == []
+
+    def test_data_context_negation_is_topic_scoped(self):
+        """Excluding a data context drops a reference only when the tag for the
+        selected topic carries it, the same scoping as confidence level."""
+        es_body = _new_es_body()
+        add_tet_facets_values(
+            es_body,
+            {
+                "tet_facets_values": [
+                    {"topic_entity_tags.topic.keyword": "ATP:0000005"}
+                ],
+                "tet_facets_negative_values": [
+                    {"topic_entity_tags.data_context.keyword": ["ATP:0000324"]}
+                ],
+            },
+            apply_to_single_tet=True,
+        )
+        assert _filter_bool(es_body).get("must_not", []) == [
+            {
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"topic_entity_tags.topic.keyword": "ATP:0000005"}},
+                                {"terms": {"topic_entity_tags.data_context.keyword": ["ATP:0000324"]}},
+                            ]
+                        }
+                    },
+                }
+            }
+        ]
+
+    def test_data_context_negation_without_positive_facet(self):
+        es_body = _new_es_body()
+        add_tet_facets_values(
+            es_body,
+            {
+                "tet_facets_values": [],
+                "tet_facets_negative_values": [
+                    {"topic_entity_tags.data_context.keyword": ["ATP:0000324"]}
+                ],
+            },
+            apply_to_single_tet=False,
+        )
+        must_not = _filter_bool(es_body).get("must_not", [])
+        assert must_not == [
+            {
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"terms": {"topic_entity_tags.data_context.keyword": ["ATP:0000324"]}}
+                            ]
+                        }
+                    },
+                }
+            }
+        ]
+
+    def test_data_context_and_confidence_level_negations_are_separate_clauses(self):
+        """Excluding NEG and a data context drops a paper whose topic tag has
+        either one, not only a tag that has both."""
+        es_body = _new_es_body()
+        add_tet_facets_values(
+            es_body,
+            {
+                "tet_facets_values": [
+                    {"topic_entity_tags.topic.keyword": "ATP:0000005"}
+                ],
+                "tet_facets_negative_values": [
+                    {
+                        "topic_entity_tags.confidence_level.keyword": ["NEG"],
+                        "topic_entity_tags.data_context.keyword": ["ATP:0000324"],
+                    }
+                ],
+            },
+            apply_to_single_tet=True,
+        )
+        must_not = _filter_bool(es_body).get("must_not", [])
+        assert len(must_not) == 2
+        negated_terms = [c["nested"]["query"]["bool"]["must"][-1]["terms"] for c in must_not]
+        assert {"topic_entity_tags.confidence_level.keyword": ["NEG"]} in negated_terms
+        assert {"topic_entity_tags.data_context.keyword": ["ATP:0000324"]} in negated_terms
+        for clause in must_not:
+            assert clause["nested"]["query"]["bool"]["must"][0] == \
+                {"term": {"topic_entity_tags.topic.keyword": "ATP:0000005"}}

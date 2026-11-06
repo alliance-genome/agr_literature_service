@@ -53,6 +53,8 @@ abstract_classification_root_ids = ["ATP:0000379"]
 community_curation_classification_root_ids = ["ATP:0000235"]
 first_pass_curation_root_ids = ["ATP:0000329"]
 email_extraction_root_ids = ["ATP:0000354"]
+# SCRUM-6490: author-person curation and author review
+author_workflow_root_ids = ["ATP:0000375", "ATP:0000388"]
 
 # Per-MOD size of the nested workflow_tag_ids terms aggregation. The Workflow
 # facet categories are built from these buckets, so a MOD's tags that fall
@@ -83,7 +85,8 @@ WORKFLOW_FACETS = [
     "abstract_classification",
     "community_curation",
     "first_pass_curation",
-    "email_extraction"
+    "email_extraction",
+    "author_workflow"
 ]
 
 CURATION_CLASSIFICATION_TAG_FACETS = [
@@ -206,13 +209,15 @@ def search_references(
         "highlight": {
             "require_field_match": False,
             "fields": [
-                {"title": {"type": "unified"}},
+                # the whole title, not a fragment cut off before the end
+                {"title": {"type": "unified", "number_of_fragments": 0}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
                 {"resource_title": {"type": "unified"}},
                 {"authors.name": {"type": "unified"}},
-                {"authors.orcid": {"type": "unified"}}
+                {"authors.orcid": {"type": "unified"}},
+                {"mesh_terms.heading_term": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -687,15 +692,14 @@ def search_references(
     )
 
     # Remove empty filter if no facets/dates were added. A standalone confidence level /
-    # source method / SEA exclusion adds a top-level must_not nested clause, so keep the
-    # filter in that case.
+    # data context / source method / SEA exclusion adds a top-level must_not nested clause,
+    # so keep the filter in that case.
     has_tet_whole_ref_negation = bool(
         tet_nested_facets_values
         and tet_nested_facets_values.get("tet_facets_negative_values")
         and any(
             tet_nested_facets_values["tet_facets_negative_values"][0].get(k)
-            for k in (
-                "topic_entity_tags.confidence_level.keyword",
+            for k in TET_TOPIC_SCOPED_NEGATION_FIELDS + (
                 "topic_entity_tags.source_method.keyword",
                 "topic_entity_tags.source_evidence_assertion.keyword",
             )
@@ -829,7 +833,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
         "large_scale_tags": extract_large_scale_tags(ref["_source"]),
-        "highlight": remap_highlights(ref.get("highlight", {}))
+        "highlight": remap_highlights(ref.get("highlight", {}), ref["_source"])
     } for ref in res["hits"]["hits"]]
     add_names_to_large_scale_tags(hits)
     add_resource_titles_to_hits(hits)
@@ -995,7 +999,8 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "abstract_classification": get_atp_ids(abstract_classification_root_ids),
         "community_curation": get_atp_ids(community_curation_classification_root_ids),
         "first_pass_curation": get_atp_ids(first_pass_curation_root_ids),
-        "email_extraction": get_atp_ids(email_extraction_root_ids)
+        "email_extraction": get_atp_ids(email_extraction_root_ids),
+        "author_workflow": get_atp_ids(author_workflow_root_ids)
     }
 
     grouped_workflow_tags: Dict[str, Dict[str, Any]] = {category: {} for category in atp_ids}
@@ -1130,15 +1135,123 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
     return result
 
 
-def remap_highlights(highlights):  # pragma: no cover
+HIGHLIGHT_TAGS = re.compile(r"</?em>")
+HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
+# Abstracts and titles can hold HTML (e.g. "<p><strong>Purpose</strong>: ..."),
+# which the highlighter treats as text: a fragment can start or end inside a
+# tag ("p>Purpose"), and a whole <p> renders as a separate paragraph in the
+# matching text. The source's tags are dropped, along with a piece of a tag cut
+# off at either end of the fragment; the highlight's own <em> is kept. Only
+# known tag names count, so text such as "G>A", "<LOD" or "p<0.05" stays. A cut
+# off piece must also be lowercase, as the source HTML is in practice, so
+# "A>G" or "P>0.05" at a fragment edge is not read as a tag; a whole <...> tag
+# is a strong enough signal to match in any case.
+HTML_TAG_NAMES = ("p", "br", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
+                  "tr", "td", "th", "table", "tbody", "thead", "blockquote", "strong", "b",
+                  "i", "u", "sup", "sub", "span", "a", "font", "italic", "bold", "sc", "inf",
+                  "monospace", "img", "small", "big")
+# also namespaced MathML/XML tags ("mml:math", "ns0:sup")
+HTML_TAG_NAME = r"(?:%s|[A-Za-z]\w*:[\w-]+)(?=[\s/>])" % "|".join(HTML_TAG_NAMES)
+MARKUP_TAG = re.compile(r"</?%s[^<>]*>" % HTML_TAG_NAME, re.I)
+# block tags separate words; inline ones (<strong>, <i>, <sup>, ...) do not
+BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[^<>]*>", re.I)
+# An unquoted attribute value excludes quotes and "=", so each attribute can be
+# read only one way (otherwise the regex backtracks exponentially, CodeQL).
+LEADING_TAG_PIECE = re.compile(
+    r"""^\s*/?%s(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""" % HTML_TAG_NAME)
+TRAILING_TAG_PIECE = re.compile(r"</?(?P<name>[A-Za-z][\w:-]*)?(?P<rest>\s[^<>]*)?$")
+
+
+def _strip_trailing_tag_piece(fragment):
+    """Drop a tag cut off at the end of the fragment ("...congenital</stro").
+    The cut can fall inside the tag name, so a name that starts a known tag
+    name is enough; once the piece has more after the name ("<LOD in"), the
+    name must be a whole tag name. A bare "<" or "</" at the very end goes."""
+    match = TRAILING_TAG_PIECE.search(fragment)
+    if not match:
+        return fragment
+    name = match.group("name") or ""
+    if match.group("rest") is not None:
+        is_tag = ":" in name or name in HTML_TAG_NAMES
+    else:
+        is_tag = not name or ":" in name or any(tag.startswith(name) for tag in HTML_TAG_NAMES)
+    return fragment[:match.start()] if is_tag else fragment
+
+
+def strip_markup(fragment):
+    """A highlight fragment without the source text's own HTML (see MARKUP_TAG)."""
+    fragment = LEADING_TAG_PIECE.sub("", fragment)
+    fragment = _strip_trailing_tag_piece(fragment)
+    fragment = MARKUP_TAG.sub("", BLOCK_TAG.sub(" ", fragment))
+    return re.sub(r"\s+", " ", fragment).strip()
+
+
+def best_mesh_headings(fragments):
+    """The MeSH headings that match the most words of the query: for
+    "Hirschsprung Disease" that is "Hirschsprung Disease", not also
+    "Disease Models, Animal". Headings that each match one word, as for a
+    one-word query, are all kept."""
+    def matched_words(fragment):
+        return len({word.lower() for word in HIGHLIGHTED_WORD.findall(fragment)})
+    most = max((matched_words(f) for f in fragments), default=0)
+    return [f for f in fragments if matched_words(f) == most]
+
+
+def merge_highlight_fragments(fragments, source_text=None):
+    """Tidy one field's highlight fragments for display.
+
+    The unified highlighter cuts a sentence longer than the fragment size into
+    pieces, so "PAICS mediates <em>DNA</em>" and "<em>damage</em> and ..." come
+    back as two fragments of one run of text. Fragments are in document order,
+    so a fragment that starts right where the previous one ended in
+    ``source_text`` is joined back onto it. Repeated fragments are dropped: a
+    MeSH heading is indexed once per qualifier, so "DNA Damage" can match
+    several times.
+    """
+    merged = []
+    previous_end = None
+    for fragment in fragments:
+        if fragment in merged:
+            continue
+        plain = HIGHLIGHT_TAGS.sub("", fragment)
+        start = source_text.find(plain, previous_end or 0) if source_text else -1
+        if merged and previous_end is not None and start >= previous_end \
+                and not source_text[previous_end:start].strip():
+            merged[-1] = merged[-1] + source_text[previous_end:start] + fragment
+        else:
+            merged.append(fragment)
+        previous_end = start + len(plain) if start >= 0 else None
+    return merged
+
+
+def remap_highlights(highlights, source=None):  # pragma: no cover
+    source = source or {}
     remapped = {}
     for key, value in highlights.items():
-        new_key = key.replace("authors.name", "authors").replace("resource_title", "resource")
-        remapped[new_key] = value
+        new_key = key.replace("authors.name", "authors").replace("resource_title", "resource") \
+            .replace("mesh_terms.heading_term", "mesh")
+        source_text = source.get(key)
+        merged = merge_highlight_fragments(value, source_text if isinstance(source_text, str) else None)
+        fragments = []
+        for fragment in (strip_markup(f) for f in merged):
+            if fragment and fragment not in fragments:
+                fragments.append(fragment)
+        if new_key == "mesh":
+            fragments = best_mesh_headings(fragments)
+        if fragments:
+            remapped[new_key] = fragments
     return remapped
 
 
 # --------------------------- TET (nested) aggs & filters ---------------------------
+
+# Excluded TET values that drop a reference only when the tag carrying them also
+# matches the positive TET facet selection (see add_tet_facets_values).
+TET_TOPIC_SCOPED_NEGATION_FIELDS = (
+    "topic_entity_tags.confidence_level.keyword",
+    "topic_entity_tags.data_context.keyword",
+)
+
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
@@ -1159,9 +1272,13 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
         # to any tag with the excluded level. (Previously this was a must_not *inside* the
         # positive nested query, which kept a reference as long as one matching tag was not NEG
         # -- letting through references that had a NEG tag for the selected topic.)
-        negated_levels = negated.get("topic_entity_tags.confidence_level.keyword", [])
-        if negated_levels:
-            level_term = {"terms": {"topic_entity_tags.confidence_level.keyword": negated_levels}}
+        # Data context exclusion (e.g. drop papers whose selected-topic tag is not
+        # experimentally studied) is topic-scoped the same way.
+        for field in TET_TOPIC_SCOPED_NEGATION_FIELDS:
+            negated_values = negated.get(field, [])
+            if not negated_values:
+                continue
+            level_term = {"terms": {field: negated_values}}
             scopes = [
                 terms for terms in (
                     _positive_scope_terms(f)
