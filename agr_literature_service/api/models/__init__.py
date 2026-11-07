@@ -58,6 +58,9 @@ from agr_literature_service.api.models.vocabulary_term_abc_model import Vocabula
 from agr_literature_service.api.models.vocabulary_term_synonym_abc_model import (  # noqa
     VocabularyTermSynonymAbcModel)
 
+# registers the listener that gives SGD corpus papers an SGD curie (SCRUM-6830)
+from agr_literature_service.api.models import sgd_curie_listener  # noqa: F401,E402
+
 import logging
 
 logger = logging.getLogger(__name__)
