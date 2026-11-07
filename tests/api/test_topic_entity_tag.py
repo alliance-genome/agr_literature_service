@@ -226,7 +226,7 @@ class TestTopicEntityTag:
             assert len(data["tags"][ref_curie]) >= 1
 
     def test_show_all_reference_tags_batch_data_context_filter(self, test_topic_entity_tag, auth_headers):  # noqa
-        # The fixture tag's data context is experimentally studied (ATP:0000325).
+        # The fixture tag's data context is ATP:0000405 (SCRUM-6815).
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
                 mock_build_curie_to_name_map:
@@ -242,9 +242,9 @@ class TestTopicEntityTag:
                 assert response.status_code == status.HTTP_200_OK
                 return len(response.json()["tags"][ref_curie])
 
-            assert tag_count({"data_context": ["ATP:0000325"]}) >= 1
+            assert tag_count({"data_context": ["ATP:0000405"]}) >= 1
             assert tag_count({"data_context": ["ATP:0000324"]}) == 0
-            assert tag_count({"negated_data_context": ["ATP:0000325"]}) == 0
+            assert tag_count({"negated_data_context": ["ATP:0000405"]}) == 0
             assert tag_count({"negated_data_context": ["ATP:0000324"]}) >= 1
 
     def test_show_all_reference_tags_batch_mod_filter(self, test_topic_entity_tag, test_tag_source, test_mod, auth_headers):  # noqa
