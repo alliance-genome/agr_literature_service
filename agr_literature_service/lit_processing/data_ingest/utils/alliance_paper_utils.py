@@ -5,6 +5,7 @@ This module contains common functions used by:
 - load_interaction_papers.py
 - load_goa_human_papers.py
 - load_mod_gaf_papers.py
+- load_complex_papers.py
 """
 import gzip
 import logging
