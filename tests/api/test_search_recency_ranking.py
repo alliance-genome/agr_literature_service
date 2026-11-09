@@ -6,7 +6,7 @@ the term only in its abstract outranked one matching in the title, abstract and
 MeSH heading, and every paper older than about 12 years scored exactly 0 and
 was ordered by date alone.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import pytest
@@ -22,7 +22,7 @@ FILLER = ("Here we describe the behavioural and molecular responses of adult ani
 
 
 def _days_ago(days: int) -> str:
-    return (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
 
 
 def _is_aws_es_host(host: str) -> bool:
@@ -62,7 +62,7 @@ def es():
     client.indices.create(index=INDEX, body={
         "mappings": {
             "properties": {
-                "curie": {"type": "keyword"},
+                "curie": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
                 "title": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},
                 "abstract": {"type": "text"},
                 "keywords": {"type": "text"},
@@ -94,7 +94,7 @@ def _search(client, query: str, curie_prefix: str) -> list:
         "query": {"bool": {
             "must": bundle["must"],
             "should": bundle["should"],
-            "filter": [{"prefix": {"curie": curie_prefix}}],
+            "filter": [{"prefix": {"curie.keyword": curie_prefix}}],
         }},
         "size": 10,
     }
