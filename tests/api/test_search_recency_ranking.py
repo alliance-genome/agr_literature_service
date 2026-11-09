@@ -7,6 +7,7 @@ MeSH heading, and every paper older than about 12 years scored exactly 0 and
 was ordered by date alone.
 """
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 import pytest
 from elasticsearch import Elasticsearch
@@ -22,6 +23,12 @@ FILLER = ("Here we describe the behavioural and molecular responses of adult ani
 
 def _days_ago(days: int) -> str:
     return (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+
+def _is_aws_es_host(host: str) -> bool:
+    """True for an AWS-hosted (stage/prod) Elasticsearch endpoint."""
+    hostname = urlparse(host if "://" in host else "//" + host).hostname or ""
+    return hostname == "es.amazonaws.com" or hostname.endswith(".es.amazonaws.com")
 
 
 def _rich(curie: str, days: int) -> dict:
@@ -48,7 +55,7 @@ def _thin(curie: str, days: int) -> dict:
 
 @pytest.fixture(scope="module")
 def es():
-    if "es.amazonaws.com" in config.ELASTICSEARCH_HOST:
+    if _is_aws_es_host(config.ELASTICSEARCH_HOST):
         pytest.exit("**** Warning: not allow to run test on stage or prod elasticsearch index *****")
     client = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
     client.indices.delete(index=INDEX, ignore=[400, 404])
