@@ -4,7 +4,9 @@ Runs the real all-text query plus the recency function_score against a small
 Elasticsearch index. Before the fix, a paper a few months newer that matched
 the term only in its abstract outranked one matching in the title, abstract and
 MeSH heading, and every paper older than about 12 years scored exactly 0 and
-was ordered by date alone.
+was ordered by date alone. A paper matching in its title only also outranked
+one matching in its title, abstract, keywords and MeSH, because each query
+clause counted only its best field and the shorter title scored higher.
 """
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -53,6 +55,31 @@ def _thin(curie: str, days: int) -> dict:
     }
 
 
+def _broad(curie: str, days: int) -> dict:
+    """Matches 'xenobiotic' in a long title plus abstract, keyword and MeSH (AGRKB:101000001213786)."""
+    return {
+        "curie": curie,
+        "title": ("Identification and Functional Validation of the Role of Solute Carriers in Shaping "
+                  "Xenobiotic Tolerance in Polyphagous Pests of Spodoptera litura"),
+        "abstract": FILLER + " These genes drive the development of xenobiotic tolerance; overexpression "
+                             "conferred tolerance to xenobiotics.",
+        "keywords": ["solute carrier", "tolerance", "xenobiotics"],
+        "mesh_terms": [{"heading_term": "Xenobiotics"}, {"heading_term": "Insecticides"}],
+        "date_published_start": _days_ago(days),
+    }
+
+
+def _title_only(curie: str, days: int) -> dict:
+    """Matches 'xenobiotic' in a short title only (AGRKB:101000001190387)."""
+    return {
+        "curie": curie,
+        "title": "A ginger compound alleviates gut inflammation via the xenobiotic receptor PXR",
+        "abstract": FILLER,
+        "mesh_terms": [{"heading_term": "Colitis"}],
+        "date_published_start": _days_ago(days),
+    }
+
+
 @pytest.fixture(scope="module")
 def es():
     if _is_aws_es_host(config.ELASTICSEARCH_HOST):
@@ -80,6 +107,8 @@ def es():
         _thin("OLD:thin", 4900), _rich("OLD:rich", 5100),
         # Same paper, two ages: recency still breaks the tie
         _rich("TIE:new", 30), _rich("TIE:old", 3000),
+        # Same age: matches in more fields beat a shorter title-only match
+        _broad("BREADTH:broad", 400), _title_only("BREADTH:title", 400),
     ]
     for i, doc in enumerate(docs):
         client.index(index=INDEX, id=i, body=doc)
@@ -119,3 +148,8 @@ def test_recency_breaks_ties_between_equal_matches(es):
     assert [c for c, _ in hits] == ["TIE:new", "TIE:old"]
     (_, new_score), (_, old_score) = hits
     assert new_score / old_score <= 1.0 + sr.RECENCY_MAX_BONUS
+
+
+def test_matches_in_more_fields_beat_shorter_title_only_match(es):
+    hits = _search(es, "xenobiotic", "BREADTH:")
+    assert [c for c, _ in hits] == ["BREADTH:broad", "BREADTH:title"]

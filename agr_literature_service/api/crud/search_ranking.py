@@ -49,6 +49,14 @@ BOOST_PREFIX_FIELDS: Dict[str, float] = {
     MESH_FIELD: 0.5,
 }
 
+# Constant: MULTI_FIELD_TIE_BREAKER
+# Query Type (ES): tie_breaker on every all-text multi_match (best_fields, phrase, phrase_prefix)
+# Match Style: Score = best field + tie_breaker * each other matching field
+# Use Case: SCRUM-2278: a paper matching the term in its title, abstract, keywords and
+#           MeSH must outrank one matching only in its (shorter) title. Without it each
+#           clause counted only its best field, so title length decided the order.
+MULTI_FIELD_TIE_BREAKER: float = 0.3
+
 # Boost Constant: BOOST_EXACT_TITLE_KEYWORD
 # Query Type (ES): term on title.keyword
 # Match Style: Exact literal match (no analysis)
@@ -500,7 +508,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "type": "best_fields",
             "operator": "or",
             "minimum_should_match": compute_minimum_should_match(q_core),
-            "tie_breaker": 0.1,
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
     # phrase → tight phrase match
@@ -510,6 +518,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "fields": _fields_with_boost(BOOST_PHRASE_FIELDS),
             "type": "phrase",
             "slop": 1,
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
     # phrase_prefix → prefix expansion for type-ahead / wildcard queries
@@ -518,6 +527,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "query": q_core,
             "fields": _fields_with_boost(BOOST_PREFIX_FIELDS),
             "type": "phrase_prefix",
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
 

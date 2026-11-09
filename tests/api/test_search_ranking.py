@@ -205,6 +205,14 @@ class TestBuildQueries:
         must_should = res["must"][0]["bool"]["should"]
         assert len(must_should) == 3  # only the three multi_match clauses
 
+    def test_all_text_clauses_reward_matches_in_more_fields(self):
+        # SCRUM-2278: every multi_match counts its other matching fields too,
+        # not just the single best one
+        res = sr.build_all_text_query("xenobiotic", include_id_author_helpers=False)
+        clauses = [c["multi_match"] for c in res["must"][0]["bool"]["should"]]
+        assert {c["type"] for c in clauses} == {"best_fields", "phrase", "phrase_prefix"}
+        assert all(c["tie_breaker"] == sr.MULTI_FIELD_TIE_BREAKER for c in clauses)
+
 
 class TestScoringAndSort:
     def test_text_search_with_rescore_drops_sort(self):
