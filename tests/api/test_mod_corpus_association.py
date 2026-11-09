@@ -178,6 +178,34 @@ class TestModCorpusAssociation:
             xref_obs_false = db.query(CrossReferenceModel).filter(CrossReferenceModel.is_obsolete.is_(False)).one()
             assert xref_obs_false.curie == 'WB:WBPaper00001235'
 
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
+    def test_mca_modid_sgd_reactivates_obsolete_xref(self, db, test_reference, auth_headers): # noqa
+        # SCRUM-6830: unlike WB, a paper back in the SGD corpus gets its old SGD ID back
+        with TestClient(app) as client:
+            populate_test_mods()
+            obs_cross_ref = {"curie": "SGD:S000350202", "reference_curie": test_reference.new_ref_curie,
+                             "is_obsolete": True}
+            response = client.post(url="/cross_reference/", json=obs_cross_ref, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            new_mca = {
+                "mod_abbreviation": "SGD",
+                "reference_curie": test_reference.new_ref_curie,
+                "mod_corpus_sort_source": "manual_creation",
+                "corpus": "false"
+            }
+            response_mca = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
+            assert response_mca.status_code == status.HTTP_201_CREATED
+            patch_response = client.patch(
+                url=f"/reference/mod_corpus_association/{response_mca.json()['mod_corpus_association_id']}",
+                json={"corpus": "true"}, headers=auth_headers)
+            assert patch_response.status_code == status.HTTP_200_OK
+
+            db.expire_all()
+            sgd_xrefs = db.query(CrossReferenceModel).filter(CrossReferenceModel.curie_prefix == 'SGD').all()
+            assert [(x.curie, x.is_obsolete) for x in sgd_xrefs] == [("SGD:S000350202", False)]
+
 
 class TestAllianceOnlyReference:
     """
