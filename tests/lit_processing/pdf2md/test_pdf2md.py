@@ -242,7 +242,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         with patch(
-            "agr_literature_service.lit_processing.pdf2md.pdf2md.file_upload"
+            "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ) as mock_upload:
             success, error = process_single_reference(
                 mock_db, self._ref_file_info(), "test_token"
@@ -281,7 +281,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         with patch(
-            "agr_literature_service.lit_processing.pdf2md.pdf2md.file_upload"
+            "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ) as mock_upload:
             success, error = process_single_reference(
                 mock_db, self._ref_file_info(), "test_token"
@@ -370,7 +370,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         with patch(
-            "agr_literature_service.lit_processing.pdf2md.pdf2md.file_upload"
+            "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ) as mock_upload:
             success, error = process_single_reference(
                 mock_db,
@@ -473,7 +473,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         with patch(
-            "agr_literature_service.lit_processing.pdf2md.pdf2md.file_upload"
+            "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ):
             success, error = process_single_reference(
                 mock_db, self._ref_file_info(), "test_token",
@@ -530,7 +530,7 @@ class TestProcessSingleReference:
         mock_download_result.return_value = b"# Markdown content"
 
         with patch(
-            "agr_literature_service.lit_processing.pdf2md.pdf2md.file_upload"
+            "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ):
             success, error = process_single_reference(
                 mock_db, self._ref_file_info(), "test_token",

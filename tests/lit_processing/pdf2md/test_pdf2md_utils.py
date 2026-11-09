@@ -1562,7 +1562,7 @@ class TestSupplementPdfLimits:
             submitted = True
             return "process-id"
 
-        def fake_file_upload(**kwargs):
+        def fake_upload_pdfx_markdown(*args, **kwargs):
             nonlocal uploaded
             uploaded = True
 
@@ -1580,7 +1580,7 @@ class TestSupplementPdfLimits:
             "download_pdfx_result",
             lambda *args, **kwargs: b"# Converted\n\ncontent",
         )
-        monkeypatch.setattr(pdf2md_utils, "file_upload", fake_file_upload)
+        monkeypatch.setattr(pdf2md_utils, "upload_pdfx_markdown", fake_upload_pdfx_markdown)
         monkeypatch.setattr(
             pdf2md_utils, "process_extracted_images", lambda **kwargs: 0,
         )
@@ -1623,7 +1623,7 @@ class TestSupplementPdfLimits:
             "download_pdfx_result",
             lambda *args, **kwargs: b"# Converted\n\ncontent",
         )
-        monkeypatch.setattr(pdf2md_utils, "file_upload", lambda **kwargs: None)
+        monkeypatch.setattr(pdf2md_utils, "upload_pdfx_markdown", lambda *args, **kwargs: None)
         monkeypatch.setattr(
             pdf2md_utils, "process_extracted_images", lambda **kwargs: 0,
         )
