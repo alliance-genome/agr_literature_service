@@ -55,6 +55,23 @@ def get_current_status_obj(db: Session, job_type: str, reference_id, mod_id):
     return cur
 
 
+def other_sub_tasks_in(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, workflow_tag_ids: list) -> list:
+    """The reference's other workflow tags for this MOD with one of workflow_tag_ids.
+
+    The current sub task is left out: the caller has just changed it in memory,
+    and with autoflush off (the lit_processing sessions) the query would still see
+    its old value in the database. A retried failed sub task then counted as
+    failed and put the main task back to failed (SCRUM-6828).
+    """
+    if not workflow_tag_ids:
+        return []
+    return db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
+        WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
+        WorkflowTagModel.reference_workflow_tag_id != current_workflow_tag_db_obj.reference_workflow_tag_id,
+        WorkflowTagModel.workflow_tag_id.in_(workflow_tag_ids)).all()
+
+
 def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
     """
     This is called if the workflow transition actions has 'sub_task_in_progress::XXXXXX' specified.
@@ -111,10 +128,7 @@ def sub_task_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
                             detail=mess)
     failed_list = get_workflow_tags_from_process(jobs_types[checktype]['failed'])
 
-    any_failed = db.query(WorkflowTagModel).filter(
-        WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
-        WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
-        WorkflowTagModel.workflow_tag_id.in_(failed_list)).all()
+    any_failed = other_sub_tasks_in(db, current_workflow_tag_db_obj, failed_list)
     if any_failed:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['failed']
     else:
@@ -165,18 +179,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     not_complete_list.extend(get_workflow_tags_from_process(jobs_types[checktype]['in_progress']))
     not_complete_list.extend(get_workflow_tags_from_process(jobs_types[checktype]['failed']))
 
-    if not not_complete_list:
-        cur = None
-    elif len(not_complete_list) == 1:
-        cur = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
-            WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
-            WorkflowTagModel.workflow_tag_id == not_complete_list[0]).all()
-    else:
-        cur = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
-            WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
-            WorkflowTagModel.workflow_tag_id.in_(not_complete_list)).all()
+    cur = other_sub_tasks_in(db, current_workflow_tag_db_obj, not_complete_list)
     # current job successful also we have no other subtasks that are failed, needed
     # or in_progress, so we can set the main one now to complete too.
     # If there are still subtasks that are not complete then we do not change
