@@ -13,15 +13,13 @@ merged-style markdown output.
 """
 import logging
 import time
-from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import UploadFile
 from sqlalchemy import create_engine, desc, select
 from sqlalchemy.orm import sessionmaker, Session
 
 from agr_literature_service.api.crud.referencefile_crud import (
-    get_main_pdf_referencefile_id, download_file, file_upload
+    get_main_pdf_referencefile_id, download_file
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
@@ -43,6 +41,8 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     process_nxml_to_markdown,
     process_supplemental_office_files,
     process_supplemental_pdfs,
+    pdfx_upload_order,
+    upload_pdfx_markdown,
 )
 
 
@@ -448,7 +448,7 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
         poll_pdfx_status(process_id, token)
 
         successful_methods = []
-        for method in methods_to_extract:
+        for method in pdfx_upload_order(methods_to_extract):
             try:
                 markdown_content = download_pdfx_result(process_id, method, token)
 
@@ -456,29 +456,8 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                     logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
                     continue
 
-                file_class = EXTRACTION_METHODS[method]
-                output_display_name = f"{display_name}_{method}"
-
-                metadata = {
-                    "reference_curie": reference_curie,
-                    "display_name": output_display_name,
-                    "file_class": file_class,
-                    "file_publication_status": "final",
-                    "file_extension": "md",
-                    "pdf_type": None,
-                    "is_annotation": None,
-                    "mod_abbreviation": mod_abbreviation
-                }
-
-                file_upload(
-                    db=db,
-                    metadata=metadata,
-                    file=UploadFile(
-                        file=BytesIO(markdown_content),
-                        filename=f"{output_display_name}.md"
-                    ),
-                    upload_if_already_converted=True
-                )
+                upload_pdfx_markdown(db, reference_curie, display_name, method, EXTRACTION_METHODS[method],
+                                     markdown_content, mod_abbreviation)
 
                 successful_methods.append(method)
                 logger.info(f"Uploaded {method} markdown for {reference_curie}")
@@ -507,13 +486,17 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                 f"(main '{display_name}'): {e}"
             )
 
-        if successful_methods:
-            logger.info(
-                f"Successfully processed main PDF for {reference_curie} "
-                f"with methods: {successful_methods}"
-            )
-            return True, None
-        return False, "No methods successfully extracted"
+        if not successful_methods:
+            return False, "No methods successfully extracted"
+        if "merged" in methods_to_extract and "merged" not in successful_methods:
+            # Everything downstream reads the merged file, so without it the paper
+            # is not converted, whatever the parsers produced (SCRUM-6824)
+            return False, "Merged markdown was not stored"
+        logger.info(
+            f"Successfully processed main PDF for {reference_curie} "
+            f"with methods: {successful_methods}"
+        )
+        return True, None
 
     except Exception as e:
         recover_session(db, e)

@@ -6,6 +6,7 @@ including PDFX API integration, reference lookup by curie, nXML conversion, and 
 retrieval for both main and supplemental files.
 """
 import gzip
+import hashlib
 import json
 import logging
 import os
@@ -23,7 +24,9 @@ from sqlalchemy.orm import Session
 
 from agr_abc_document_parsers import convert_office_to_markdown, convert_xml_to_markdown
 
-from agr_literature_service.api.crud.referencefile_crud import download_file, file_upload
+from agr_literature_service.api.crud.referencefile_crud import (
+    download_file, file_upload, find_first_available_display_name
+)
 from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.reference_utils import (
     normalize_reference_curie,
@@ -1409,6 +1412,87 @@ def process_pdf_for_reference(  # pragma: no cover
     )
 
 
+def pdfx_upload_order(methods: List[str]) -> List[str]:
+    """The methods in upload order: merged first (SCRUM-6824).
+
+    A reference can hold each content (md5sum) only once, so when PDFX's merged
+    Markdown is identical to one parser's output, the second upload only links
+    to the first. Uploading merged first keeps the converted_merged_* row, which
+    everything downstream reads; the identical parser file is the one dropped.
+    """
+    return sorted(methods, key=lambda method: method != "merged")
+
+
+def _claim_identical_parser_file(db: Session, reference_curie: str, md5sum: str,
+                                 merged_file_class: str, merged_display_name: str) -> None:
+    """Turn an earlier run's parser file into the merged file when they are identical.
+
+    With merged uploaded first this only happens on a re-conversion: the earlier
+    run stored the parser output, so the merged upload would only link to it
+    and the reference would still have no merged file (SCRUM-6824).
+    """
+    existing = db.query(ReferencefileModel).filter(
+        ReferencefileModel.md5sum == md5sum,
+        ReferencefileModel.reference.has(ReferenceModel.curie == reference_curie)
+    ).one_or_none()
+    if existing is None or existing.file_class == merged_file_class:
+        return
+    kind = merged_file_class.rsplit("_", 1)[1]
+    parser_file_classes = {f"converted_{method}_{kind}" for method in EXTRACTION_METHODS if method != "merged"}
+    if existing.file_class not in parser_file_classes or existing.file_extension != "md":
+        return
+    old_name = f"{existing.display_name} ({existing.file_class})"
+    existing.display_name = find_first_available_display_name(
+        display_name=merged_display_name, file_extension="md", reference_curie=reference_curie, db=db)
+    existing.file_class = merged_file_class
+    db.commit()
+    logger.warning(f"Merged markdown for {reference_curie} is identical to {old_name}; "
+                   f"that file is now {existing.display_name} ({merged_file_class})")
+
+
+def upload_pdfx_markdown(db: Session, reference_curie: str, display_name: str, method: str,
+                         output_file_class: str, markdown_content: bytes,
+                         mod_abbreviation: Optional[str]) -> None:
+    """Store one PDFX method's Markdown for a source PDF.
+
+    For merged, raises unless the reference ends up with a file of
+    output_file_class holding this content, so the caller does not count the
+    conversion as done when the merged file was silently dropped (SCRUM-6824).
+    """
+    output_display_name = f"{display_name}_{method}"
+    md5sum = hashlib.md5(markdown_content).hexdigest()
+    if method == "merged":
+        _claim_identical_parser_file(db, reference_curie, md5sum, output_file_class, output_display_name)
+    metadata = {
+        "reference_curie": reference_curie,
+        "display_name": output_display_name,
+        "file_class": output_file_class,
+        "file_publication_status": "final",
+        "file_extension": "md",
+        "pdf_type": None,
+        "is_annotation": None,
+        "mod_abbreviation": mod_abbreviation
+    }
+    file_upload(
+        db=db,
+        metadata=metadata,
+        file=UploadFile(
+            file=BytesIO(markdown_content),
+            filename=f"{output_display_name}.md"
+        ),
+        upload_if_already_converted=True
+    )
+    if method == "merged":
+        stored = db.query(ReferencefileModel).filter(
+            ReferencefileModel.md5sum == md5sum,
+            ReferencefileModel.file_class == output_file_class,
+            ReferencefileModel.reference.has(ReferenceModel.curie == reference_curie)
+        ).one_or_none()
+        if stored is None:
+            raise RuntimeError(f"merged markdown was not stored as {output_file_class}: "
+                               f"the reference already has the same content as another file")
+
+
 def _process_single_pdf_file(  # pragma: no cover
     db: Session,
     pdf_file: ReferencefileModel,
@@ -1485,7 +1569,7 @@ def _process_single_pdf_file(  # pragma: no cover
 
     # Download and store each method's output
     successful_methods = []
-    for method in methods_to_extract:
+    for method in pdfx_upload_order(methods_to_extract):
         try:
             markdown_content = download_pdfx_result(process_id, method, token)
 
@@ -1500,28 +1584,8 @@ def _process_single_pdf_file(  # pragma: no cover
                 # For supplement files, use a different naming convention
                 output_file_class = f"converted_{method}_supplement"
 
-            output_display_name = f"{display_name}_{method}"
-
-            metadata = {
-                "reference_curie": reference_curie,
-                "display_name": output_display_name,
-                "file_class": output_file_class,
-                "file_publication_status": "final",
-                "file_extension": "md",
-                "pdf_type": None,
-                "is_annotation": None,
-                "mod_abbreviation": mod_abbreviation
-            }
-
-            file_upload(
-                db=db,
-                metadata=metadata,
-                file=UploadFile(
-                    file=BytesIO(markdown_content),
-                    filename=f"{output_display_name}.md"
-                ),
-                upload_if_already_converted=True
-            )
+            upload_pdfx_markdown(db, reference_curie, display_name, method, output_file_class,
+                                 markdown_content, mod_abbreviation)
 
             successful_methods.append(method)
             logger.info(f"Uploaded {method} markdown for {reference_curie} ({file_class})")
@@ -1550,14 +1614,17 @@ def _process_single_pdf_file(  # pragma: no cover
             f"({file_class} '{display_name}'): {e}"
         )
 
-    if successful_methods:
-        logger.info(
-            f"Successfully processed {file_class} PDF for {reference_curie} "
-            f"with methods: {successful_methods}"
-        )
-        return True, successful_methods, None
-    else:
+    if not successful_methods:
         return False, [], "No methods successfully extracted"
+    if "merged" in methods_to_extract and "merged" not in successful_methods:
+        # Everything downstream reads the merged file, so without it the PDF is
+        # not converted, whatever the parsers produced (SCRUM-6824)
+        return False, successful_methods, "Merged markdown was not stored"
+    logger.info(
+        f"Successfully processed {file_class} PDF for {reference_curie} "
+        f"with methods: {successful_methods}"
+    )
+    return True, successful_methods, None
 
 
 def get_pdfs_missing_xml(  # pragma: no cover
