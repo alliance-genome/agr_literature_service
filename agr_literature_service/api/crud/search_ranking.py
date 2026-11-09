@@ -130,34 +130,46 @@ def rescore_exact_phrase(phrase: str, fields: List[str], size: int, weight: floa
 
 # --------------------------- Recency function_score ---------------------------
 
+# SCRUM-2278: recency is a bounded tie-breaker, not a ranking signal of its own.
+# The text score is multiplied by 1 + RECENCY_MAX_BONUS * decay(age), so the
+# multiplier stays between 1.0 (very old or undated) and 1 + RECENCY_MAX_BONUS
+# (published within RECENCY_OFFSET of today). The bonus halves every
+# RECENCY_HALF_LIFE beyond the offset. A paper can therefore never outrank
+# another by more than that factor on date alone, and old papers keep their
+# relevance order instead of all collapsing to a score of 0.
+RECENCY_MAX_BONUS: float = 1.0
+RECENCY_HALF_LIFE: str = "1825d"
+RECENCY_OFFSET: str = "180d"
+
+
 def apply_balanced_recency_boost(es_body: Dict[str, Any], field: str = "date_published_start") -> None:
     """
-    Strong recency favoring with extra-hard penalties for old papers.
+    Multiply the text score by a bounded recency factor in [1, 1 + RECENCY_MAX_BONUS].
+    Papers without a publication date get the floor of 1.0.
     """
     base_query = es_body.get("query") or {"match_all": {}}
     es_body["query"] = {
         "function_score": {
             "query": base_query,
             "functions": [
-                # Future-dated papers
-                {"filter": {"range": {field: {"gt": "now"}}}, "weight": 2.5},
-
-                # Smooth decay (≈ halves each ~365 days; ignore first 2 weeks)
-                {"gauss": {field: {"origin": "now", "scale": "365d", "offset": "14d", "decay": 0.5}}},
-
-                # Recent tiers
-                {"filter": {"range": {field: {"gte": "now-183d", "lte": "now"}}}, "weight": 5.5},
-                {"filter": {"range": {field: {"gte": "now-365d", "lt": "now-183d"}}}, "weight": 4.0},
-                {"filter": {"range": {field: {"gte": "now-1095d", "lt": "now-365d"}}}, "weight": 2.5},
-                {"filter": {"range": {field: {"gte": "now-1825d", "lt": "now-1095d"}}}, "weight": 1.2},
-
-                # Older clamps
-                {"filter": {"range": {field: {"lt": "now-3650d", "gte": "now-7300d"}}}, "weight": 0.05},
-                {"filter": {"range": {field: {"lt": "now-7300d"}}}, "weight": 0.005},
+                # Floor: every paper keeps its full text score
+                {"weight": 1.0},
+                # Recency bonus; decay functions return 1 for a missing field,
+                # so only dated papers may earn it
+                {
+                    "filter": {"exists": {"field": field}},
+                    "exp": {field: {
+                        "origin": "now",
+                        "scale": RECENCY_HALF_LIFE,
+                        "offset": RECENCY_OFFSET,
+                        "decay": 0.5,
+                    }},
+                    "weight": RECENCY_MAX_BONUS,
+                },
             ],
-            "score_mode": "multiply",
+            "score_mode": "sum",
             "boost_mode": "multiply",
-            "max_boost": 10.0,
+            "max_boost": 1.0 + RECENCY_MAX_BONUS,
         }
     }
 
