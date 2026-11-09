@@ -1,15 +1,19 @@
 """
-Put the papers that the Complex Portal cites for yeast complexes into the SGD
-corpus (SCRUM-6833).
+Put the papers that the Complex Portal cites for yeast complexes on SGD's
+needs-review list (SCRUM-6833).
 
 SGD's load_complex.py links each complex to its Complex Portal papers. It used
 to add any paper missing from SGD itself, which minted an SGD-only SGD ID for
 a paper ABC did not know about. Now this script, run weekly, makes sure every
-such paper is in the SGD corpus in ABC: papers not in ABC are loaded from
-PubMed, and papers already in ABC are added to (or moved into) the SGD corpus.
-They then reach SGD with their ABC-assigned SGD ID through SGD's
-load_new_references_from_abc.py, and load_complex.py links them on its next
-run.
+such paper is in ABC and in front of SGD's curators: papers not in ABC are
+loaded from PubMed, and papers not yet associated with SGD are added to SGD's
+needs-review list (corpus not set) with sort source complex_portal, so they
+can be filtered for on the sort page. Papers SGD already has an association
+with (in the corpus, rejected, or already waiting for review) are left alone.
+
+A paper a curator accepts into the SGD corpus gets its SGD ID then, reaches
+SGD through load_new_references_from_abc.py, and load_complex.py links it on
+its next run.
 """
 import argparse
 import logging
@@ -19,19 +23,18 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 import requests
 from dotenv import load_dotenv
+from sqlalchemy import text
 
+from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel
 from agr_literature_service.api.schemas import ModCorpusSortSourceType
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.go_annotations.load_mod_gaf_papers import \
     load_sgd_new_papers
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_utils import (
-    associate_sgd_papers_with_corpus,
     clean_up_tmp_directories,
     search_pubmed_for_validity,
-    update_sgd_corpus_flag_to_true,
 )
 from agr_literature_service.lit_processing.utils.db_read_utils import (
-    get_mod_papers,
     get_pmids_with_obsolete_mod_curie,
     retrieve_all_pmids,
 )
@@ -134,23 +137,66 @@ def fetch_complex_pmids() -> Tuple[Dict[str, Set[str]], Set[str]]:
     return pmid_to_complexes, failed
 
 
-def classify_pmids(all_pmids: Set[str], all_pmids_db: Set[str], in_corpus: Set[str],
-                   out_corpus: Set[str], obsolete_mod_curie: Set[str]) -> Dict[str, Set[str]]:
-    """
-    Sort the Complex Portal PMIDs by what has to happen to them.
+def get_sgd_association_status(db_session) -> Dict[str, Optional[bool]]:
+    """PMID -> corpus value of the paper's SGD association: True (in the
+    corpus), False (rejected) or None (needs review)."""
+    rows = db_session.execute(text(
+        "SELECT cr.curie, mca.corpus "
+        "FROM cross_reference cr "
+        "JOIN mod_corpus_association mca ON mca.reference_id = cr.reference_id "
+        "JOIN mod m ON m.id = mca.mod_id "
+        "WHERE cr.curie_prefix = 'PMID' AND cr.obsolete = False "
+        "AND m.abbreviation = :mod"), {"mod": MOD}).fetchall()
+    return {curie.replace("PMID:", ""): corpus for curie, corpus in rows}
 
-    Papers whose SGD ID is obsolete (deleted in SGD) are set aside, not put
-    back into the corpus.
+
+def classify_pmids(all_pmids: Set[str], all_pmids_db: Set[str], sgd_status: Dict[str, Optional[bool]],
+                   obsolete_mod_curie: Set[str]) -> Dict[str, Set[str]]:
     """
-    out_corpus_pmids = (all_pmids & out_corpus) - obsolete_mod_curie
-    not_associated = (all_pmids & all_pmids_db) - in_corpus - out_corpus - obsolete_mod_curie
+    Sort the Complex Portal PMIDs by where they stand with SGD.
+
+    Only papers with no SGD association are put on the needs-review list.
+    Papers whose SGD ID is obsolete (deleted in SGD) are set aside.
+    """
+    in_corpus = {p for p in all_pmids if sgd_status.get(p, "") is True}
+    rejected = {p for p in all_pmids if sgd_status.get(p, "") is False}
+    needs_review = {p for p in all_pmids if p in sgd_status and sgd_status[p] is None}
+    obsolete = (all_pmids - in_corpus) & obsolete_mod_curie
     return {
-        "in_corpus": all_pmids & in_corpus,
-        "out_corpus": out_corpus_pmids,
-        "not_associated": not_associated,
+        "in_corpus": in_corpus,
+        "rejected": rejected - obsolete,
+        "needs_review": needs_review - obsolete,
+        "not_associated": (all_pmids & all_pmids_db) - set(sgd_status) - obsolete,
         "not_in_db": all_pmids - all_pmids_db,
-        "obsolete_mod_curie": (all_pmids - in_corpus) & obsolete_mod_curie,
+        "obsolete_mod_curie": obsolete,
     }
+
+
+def add_to_sgd_needs_review(db_session, pmids: Set[str]) -> Set[str]:  # pragma: no cover
+    """Give each paper an SGD association with corpus not set (needs
+    review), unless it has an SGD association already. Returns the PMIDs
+    added."""
+    if not pmids:
+        return set()
+    sgd_mod_id = db_session.query(ModModel.mod_id).filter(ModModel.abbreviation == MOD).scalar()
+    rows = db_session.execute(text(
+        "SELECT cr.curie, cr.reference_id FROM cross_reference cr "
+        "WHERE cr.curie = ANY(:curies) AND cr.obsolete = False "
+        "AND NOT EXISTS (SELECT 1 FROM mod_corpus_association mca "
+        "                WHERE mca.reference_id = cr.reference_id AND mca.mod_id = :mod_id)"),
+        {"curies": [f"PMID:{p}" for p in pmids], "mod_id": sgd_mod_id}).fetchall()
+    added: Set[str] = set()
+    reference_ids: Set[int] = set()
+    for curie, reference_id in rows:
+        if reference_id in reference_ids:
+            continue
+        reference_ids.add(reference_id)
+        db_session.add(ModCorpusAssociationModel(reference_id=reference_id, mod_id=sgd_mod_id, corpus=None,
+                                                 mod_corpus_sort_source=ModCorpusSortSourceType.Complex_portal))
+        added.add(curie.replace("PMID:", ""))
+    if added:
+        db_session.commit()
+    return added
 
 
 def format_pmid(pmid: str, pmid_to_complexes: Dict[str, Set[str]]) -> str:
@@ -158,45 +204,40 @@ def format_pmid(pmid: str, pmid_to_complexes: Dict[str, Set[str]]) -> str:
     return f"PMID:{pmid} [{complexes}]" if complexes else f"PMID:{pmid}"
 
 
+def _pmid_lines(pmids: Set[str], pmid_to_complexes: Dict[str, Set[str]], label: str = "") -> str:
+    return "".join(f"{format_pmid(p, pmid_to_complexes)}{label}<br>" for p in sorted(pmids, key=int))
+
+
 def build_report_message(pmid_to_complexes: Dict[str, Set[str]], failed_complexes: Set[str],
-                         groups: Dict[str, Set[str]], pmids_updated: Set[str],
-                         pmids_added_existing: Set[str], pmids_added_new: Set[str],
-                         pmids_not_loaded: Set[str], obsolete_pmids: Set[str],
-                         dry_run: bool = False) -> str:
+                         groups: Dict[str, Set[str]], pmids_added_existing: Set[str],
+                         pmids_added_new: Set[str], pmids_not_loaded: Set[str],
+                         obsolete_pmids: Set[str], dry_run: bool = False) -> str:
     """Build the HTML report."""
-    added = pmids_updated | pmids_added_existing | pmids_added_new
     message = f"<b>{REPORT_SUBJECT}{' (dry run)' if dry_run else ''}</b><p>"
     message += "<ul>"
     message += f"<li>PMIDs cited by yeast complexes: {len(pmid_to_complexes)}"
-    message += f"<li>Already in SGD corpus: {len(groups['in_corpus'])}"
+    message += f"<li>In SGD corpus: {len(groups['in_corpus'])}"
+    message += f"<li>Already on SGD's needs-review list: {len(groups['needs_review'])}"
+    message += f"<li>Rejected by SGD (left alone): {len(groups['rejected'])}"
     if dry_run:
-        message += f"<li>Would move into SGD corpus (associated but outside): {len(groups['out_corpus'])}"
-        message += f"<li>Would add to SGD corpus (in ABC, not associated): {len(groups['not_associated'])}"
-        message += f"<li>Would load from PubMed and add to SGD corpus: {len(groups['not_in_db'])}"
+        message += f"<li>Would add to SGD needs review (in ABC, not associated): {len(groups['not_associated'])}"
+        message += f"<li>Would load from PubMed and add to SGD needs review: {len(groups['not_in_db'])}"
     else:
-        message += f"<li>Moved into SGD corpus (associated but outside): {len(pmids_updated)}"
-        message += f"<li>Added to SGD corpus (in ABC, not associated): {len(pmids_added_existing)}"
-        message += f"<li>New references loaded and added to SGD corpus: {len(pmids_added_new)}"
+        added = pmids_added_existing | pmids_added_new
+        message += f"<li>Added to SGD needs review (in ABC, not associated): {len(pmids_added_existing)}"
+        message += f"<li>New references loaded and added to SGD needs review: {len(pmids_added_new)}"
+        if added:
+            message += f"<li>Papers added to SGD needs review ({len(added)}):<br>"
+            message += _pmid_lines(pmids_added_new, pmid_to_complexes, " (new)")
+            message += _pmid_lines(pmids_added_existing, pmid_to_complexes, " (existing)")
     if pmids_not_loaded:
         message += f"<li>Not loaded (obsolete or unavailable in PubMed): {len(pmids_not_loaded)}<br>"
-        for pmid in sorted(pmids_not_loaded, key=int):
-            label = " (obsolete)" if pmid in obsolete_pmids else ""
-            message += f"{format_pmid(pmid, pmid_to_complexes)}{label}<br>"
+        message += "".join(f"{format_pmid(p, pmid_to_complexes)}{' (obsolete)' if p in obsolete_pmids else ''}<br>"
+                           for p in sorted(pmids_not_loaded, key=int))
     if groups["obsolete_mod_curie"]:
         message += (f"<li>Not added, SGD ID is obsolete (paper deleted in SGD): "
                     f"{len(groups['obsolete_mod_curie'])}<br>")
-        for pmid in sorted(groups["obsolete_mod_curie"], key=int):
-            message += f"{format_pmid(pmid, pmid_to_complexes)}<br>"
-    if added:
-        message += f"<li>Papers added to SGD corpus ({len(added)}):<br>"
-        for pmid in sorted(added, key=int):
-            if pmid in pmids_added_new:
-                label = " (new)"
-            elif pmid in pmids_updated:
-                label = " (moved into corpus)"
-            else:
-                label = " (existing)"
-            message += f"{format_pmid(pmid, pmid_to_complexes)}{label}<br>"
+        message += _pmid_lines(groups["obsolete_mod_curie"], pmid_to_complexes)
     if failed_complexes:
         message += f"<li>Complexes that could not be fetched ({len(failed_complexes)}): "
         message += ", ".join(sorted(failed_complexes))
@@ -206,8 +247,9 @@ def build_report_message(pmid_to_complexes: Dict[str, Set[str]], failed_complexe
 
 def load_complex_papers(dry_run: bool = False) -> str:  # pragma: no cover
     """
-    Put every paper the Complex Portal cites for a yeast complex into the SGD
-    corpus. With dry_run, report what would change and write nothing.
+    Put every paper the Complex Portal cites for a yeast complex, and that
+    SGD has no association with yet, on SGD's needs-review list. With
+    dry_run, report what would change and write nothing.
 
     Returns:
         HTML report message
@@ -220,11 +262,12 @@ def load_complex_papers(dry_run: bool = False) -> str:  # pragma: no cover
     set_global_user_id(db_session, script_name)
 
     all_pmids_db = set(retrieve_all_pmids(db_session))
-    in_corpus, out_corpus = get_mod_papers(db_session, MOD)
+    sgd_status = get_sgd_association_status(db_session)
     obsolete_mod_curie = get_pmids_with_obsolete_mod_curie(db_session, MOD)
-    groups = classify_pmids(all_pmids, all_pmids_db, in_corpus, out_corpus, obsolete_mod_curie)
+    groups = classify_pmids(all_pmids, all_pmids_db, sgd_status, obsolete_mod_curie)
     logger.info(f"{len(all_pmids)} PMIDs: {len(groups['in_corpus'])} in SGD corpus, "
-                f"{len(groups['out_corpus'])} associated but outside, "
+                f"{len(groups['needs_review'])} already need review, "
+                f"{len(groups['rejected'])} rejected, "
                 f"{len(groups['not_associated'])} in ABC not associated, "
                 f"{len(groups['not_in_db'])} not in ABC, "
                 f"{len(groups['obsolete_mod_curie'])} with an obsolete SGD ID")
@@ -234,7 +277,6 @@ def load_complex_papers(dry_run: bool = False) -> str:  # pragma: no cover
         obsolete_pmids, _ = search_pubmed_for_validity(groups["not_in_db"],
                                                        environ.get('NCBI_API_KEY', ''))
 
-    pmids_updated: Set[str] = set()
     pmids_added_existing: Set[str] = set()
     pmids_added_new: Set[str] = set()
     pmids_not_loaded: Set[str] = set(obsolete_pmids)
@@ -245,21 +287,17 @@ def load_complex_papers(dry_run: bool = False) -> str:  # pragma: no cover
             clean_up_tmp_directories([xml_path, json_path])
             pmids_loaded = load_sgd_new_papers(db_session, pmids_to_load)
             pmids_not_loaded |= pmids_to_load - pmids_loaded
-        _, pmids_updated = update_sgd_corpus_flag_to_true(db_session, groups["out_corpus"])
-        _, pmids_added_existing = associate_sgd_papers_with_corpus(
-            db_session, groups["not_associated"], ModCorpusSortSourceType.Complex_portal)
-        _, pmids_added_new = associate_sgd_papers_with_corpus(
-            db_session, pmids_loaded, ModCorpusSortSourceType.Complex_portal)
+        pmids_added_existing = add_to_sgd_needs_review(db_session, groups["not_associated"])
+        pmids_added_new = add_to_sgd_needs_review(db_session, pmids_loaded)
     db_session.close()
 
-    return build_report_message(pmid_to_complexes, failed_complexes, groups, pmids_updated,
-                                pmids_added_existing, pmids_added_new, pmids_not_loaded,
-                                obsolete_pmids, dry_run)
+    return build_report_message(pmid_to_complexes, failed_complexes, groups, pmids_added_existing,
+                                pmids_added_new, pmids_not_loaded, obsolete_pmids, dry_run)
 
 
 if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(
-        description="Put the papers the Complex Portal cites for yeast complexes into the SGD corpus"
+        description="Put the papers the Complex Portal cites for yeast complexes on SGD's needs-review list"
     )
     parser.add_argument('-d', '--dry-run', action='store_true',
                         help="Report what would change without writing to the database")

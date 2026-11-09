@@ -99,44 +99,52 @@ class TestClassifyPmids:
 
     def test_groups(self):
         groups = classify_pmids(
-            all_pmids={"1", "2", "3", "4", "5", "6"},
-            all_pmids_db={"1", "2", "3", "5", "6"},
-            in_corpus={"1"},
-            out_corpus={"2", "6"},
-            obsolete_mod_curie={"5", "6"},
+            all_pmids={"1", "2", "3", "4", "5", "6", "7", "8"},
+            all_pmids_db={"1", "2", "3", "4", "6", "7", "8"},
+            sgd_status={"1": True, "2": False, "3": None, "7": None, "9": True},
+            obsolete_mod_curie={"6", "7"},
         )
         assert groups["in_corpus"] == {"1"}
-        assert groups["out_corpus"] == {"2"}
-        assert groups["not_associated"] == {"3"}
-        assert groups["not_in_db"] == {"4"}
-        assert groups["obsolete_mod_curie"] == {"5", "6"}
+        assert groups["rejected"] == {"2"}
+        assert groups["needs_review"] == {"3"}
+        assert groups["not_associated"] == {"4", "8"}
+        assert groups["not_in_db"] == {"5"}
+        assert groups["obsolete_mod_curie"] == {"6", "7"}
+
+    def test_in_corpus_paper_with_obsolete_curie_stays_in_corpus(self):
+        groups = classify_pmids({"1"}, {"1"}, {"1": True}, {"1"})
+        assert groups["in_corpus"] == {"1"}
+        assert groups["obsolete_mod_curie"] == set()
 
 
 class TestBuildReportMessage:
 
     def test_report(self):
-        groups = classify_pmids({"1", "2", "3", "4"}, {"1", "2", "3"}, {"1"}, {"2"}, set())
+        groups = classify_pmids({"1", "2", "3", "4", "5", "6"}, {"1", "2", "3", "4"},
+                                {"1": True, "2": False, "3": None}, set())
         message = build_report_message(
-            pmid_to_complexes={"1": {"CPX-1"}, "2": {"CPX-2"}, "3": {"CPX-3"}, "4": {"CPX-3", "CPX-4"}},
+            pmid_to_complexes={"1": {"CPX-1"}, "2": {"CPX-2"}, "3": {"CPX-3"}, "4": {"CPX-4"},
+                               "5": {"CPX-5"}, "6": {"CPX-5", "CPX-6"}},
             failed_complexes={"CPX-9"},
             groups=groups,
-            pmids_updated={"2"},
-            pmids_added_existing={"3"},
-            pmids_added_new=set(),
-            pmids_not_loaded={"4"},
-            obsolete_pmids={"4"},
+            pmids_added_existing={"4"},
+            pmids_added_new={"5"},
+            pmids_not_loaded={"6"},
+            obsolete_pmids={"6"},
         )
-        assert "PMIDs cited by yeast complexes: 4" in message
-        assert "Moved into SGD corpus (associated but outside): 1" in message
-        assert "PMID:2 [CPX-2] (moved into corpus)" in message
-        assert "PMID:3 [CPX-3] (existing)" in message
-        assert "PMID:4 [CPX-3, CPX-4] (obsolete)" in message
+        assert "PMIDs cited by yeast complexes: 6" in message
+        assert "In SGD corpus: 1" in message
+        assert "Rejected by SGD (left alone): 1" in message
+        assert "Already on SGD's needs-review list: 1" in message
+        assert "PMID:4 [CPX-4] (existing)" in message
+        assert "PMID:5 [CPX-5] (new)" in message
+        assert "PMID:6 [CPX-5, CPX-6] (obsolete)" in message
         assert "CPX-9" in message
 
     def test_dry_run_report(self):
-        groups = classify_pmids({"1", "2"}, {"1"}, set(), set(), set())
+        groups = classify_pmids({"1", "2"}, {"1"}, {}, set())
         message = build_report_message({"1": set(), "2": set()}, set(), groups,
-                                       set(), set(), set(), set(), set(), dry_run=True)
+                                       set(), set(), set(), set(), dry_run=True)
         assert "(dry run)" in message
-        assert "Would add to SGD corpus (in ABC, not associated): 1" in message
-        assert "Would load from PubMed and add to SGD corpus: 1" in message
+        assert "Would add to SGD needs review (in ABC, not associated): 1" in message
+        assert "Would load from PubMed and add to SGD needs review: 1" in message
