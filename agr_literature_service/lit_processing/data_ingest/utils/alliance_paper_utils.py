@@ -17,9 +17,9 @@ from typing import Dict, List, Set, Tuple
 from sqlalchemy import text
 
 from agr_literature_service.api.models import (
-    ModCorpusAssociationModel, ModModel
+    ModCorpusAssociationModel, ModModel, ReferenceModel
 )
-from agr_literature_service.api.schemas import ModCorpusSortSourceType
+from agr_literature_service.api.schemas import ModCorpusSortSourceType, ReferenceCategory
 
 logger = logging.getLogger(__name__)
 
@@ -185,11 +185,25 @@ def clean_up_tmp_directories(paths: List[str]) -> None:
         makedirs(dir_path, exist_ok=True)
 
 
+def _drop_preprints(db_session, reference_ids: Set[int]) -> Set[int]:
+    """The reference_ids that are not preprints. SGD only takes
+    peer-reviewed papers, so the loaders never put a preprint into the SGD
+    corpus."""
+    if not reference_ids:
+        return set()
+    preprints = {rid for (rid,) in db_session.query(ReferenceModel.reference_id).filter(
+        ReferenceModel.reference_id.in_(list(reference_ids)),
+        ReferenceModel.category == ReferenceCategory.Preprint).all()}
+    return reference_ids - preprints
+
+
 def update_sgd_corpus_flag_to_true(db_session,  # pragma: no cover
                                    pmids: Set[str]) -> Tuple[int, Set[str]]:
     """
-    Update SGD papers that are associated but outside corpus to be inside
-    the corpus (corpus=True).
+    Move SGD papers that are waiting for review (corpus not set) into the
+    corpus (corpus=True). Papers an SGD curator rejected (corpus False) are
+    left alone, so a GAF or interaction file citing a paper does not undo the
+    curator's decision; preprints are left alone too.
 
     Args:
         db_session: Database session
@@ -228,19 +242,20 @@ def update_sgd_corpus_flag_to_true(db_session,  # pragma: no cover
     if not reference_ids_in_db:
         return 0, set()
 
-    ref_ids_list = list(reference_ids_in_db)
+    ref_ids_list = list(_drop_preprints(db_session, reference_ids_in_db))
 
     # Build reverse mapping: ref_id -> pmid
     ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
 
-    # Move the associations that are outside the corpus (corpus False or NULL)
-    # into it. Through the ORM, not a raw UPDATE, so each change gets a version
-    # row and a date_updated: a raw UPDATE left papers in the corpus with no
-    # record of when or how they got there (SCRUM-6830).
+    # Move the associations waiting for review (corpus NULL) into the corpus;
+    # not rejected ones (corpus False), which used to be moved in too and
+    # overrode the curators. Through the ORM, not a raw UPDATE, so each change
+    # gets a version row and a date_updated: a raw UPDATE left papers in the
+    # corpus with no record of when or how they got there (SCRUM-6830).
     mcas = db_session.query(ModCorpusAssociationModel).filter(
         ModCorpusAssociationModel.reference_id.in_(ref_ids_list),
         ModCorpusAssociationModel.mod_id == sgd_mod_id,
-        ModCorpusAssociationModel.corpus.isnot(True)
+        ModCorpusAssociationModel.corpus.is_(None)
     ).all()
     for mca in mcas:
         mca.corpus = True
@@ -262,7 +277,7 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
     """
     Associate SGD papers with the SGD corpus.
     Only associates papers that do NOT already have a mod_corpus_association
-    with SGD.
+    with SGD, and are not preprints (SGD only takes peer-reviewed papers).
 
     Args:
         db_session: Database session
@@ -297,7 +312,7 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
     rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
 
     pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
-    reference_ids_in_db = set(pmid_to_ref_id.values())
+    reference_ids_in_db = _drop_preprints(db_session, set(pmid_to_ref_id.values()))
 
     if not reference_ids_in_db:
         return 0, set()
