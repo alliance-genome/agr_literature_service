@@ -49,6 +49,14 @@ BOOST_PREFIX_FIELDS: Dict[str, float] = {
     MESH_FIELD: 0.5,
 }
 
+# Constant: MULTI_FIELD_TIE_BREAKER
+# Query Type (ES): tie_breaker on every all-text multi_match (best_fields, phrase, phrase_prefix)
+# Match Style: Score = best field + tie_breaker * each other matching field
+# Use Case: SCRUM-2278: a paper matching the term in its title, abstract, keywords and
+#           MeSH must outrank one matching only in its (shorter) title. Without it each
+#           clause counted only its best field, so title length decided the order.
+MULTI_FIELD_TIE_BREAKER: float = 0.3
+
 # Boost Constant: BOOST_EXACT_TITLE_KEYWORD
 # Query Type (ES): term on title.keyword
 # Match Style: Exact literal match (no analysis)
@@ -130,34 +138,46 @@ def rescore_exact_phrase(phrase: str, fields: List[str], size: int, weight: floa
 
 # --------------------------- Recency function_score ---------------------------
 
+# SCRUM-2278: recency is a bounded tie-breaker, not a ranking signal of its own.
+# The text score is multiplied by 1 + RECENCY_MAX_BONUS * decay(age), so the
+# multiplier stays between 1.0 (very old or undated) and 1 + RECENCY_MAX_BONUS
+# (published within RECENCY_OFFSET of today). The bonus halves every
+# RECENCY_HALF_LIFE beyond the offset. A paper can therefore never outrank
+# another by more than that factor on date alone, and old papers keep their
+# relevance order instead of all collapsing to a score of 0.
+RECENCY_MAX_BONUS: float = 1.0
+RECENCY_HALF_LIFE: str = "1825d"
+RECENCY_OFFSET: str = "180d"
+
+
 def apply_balanced_recency_boost(es_body: Dict[str, Any], field: str = "date_published_start") -> None:
     """
-    Strong recency favoring with extra-hard penalties for old papers.
+    Multiply the text score by a bounded recency factor in [1, 1 + RECENCY_MAX_BONUS].
+    Papers without a publication date get the floor of 1.0.
     """
     base_query = es_body.get("query") or {"match_all": {}}
     es_body["query"] = {
         "function_score": {
             "query": base_query,
             "functions": [
-                # Future-dated papers
-                {"filter": {"range": {field: {"gt": "now"}}}, "weight": 2.5},
-
-                # Smooth decay (≈ halves each ~365 days; ignore first 2 weeks)
-                {"gauss": {field: {"origin": "now", "scale": "365d", "offset": "14d", "decay": 0.5}}},
-
-                # Recent tiers
-                {"filter": {"range": {field: {"gte": "now-183d", "lte": "now"}}}, "weight": 5.5},
-                {"filter": {"range": {field: {"gte": "now-365d", "lt": "now-183d"}}}, "weight": 4.0},
-                {"filter": {"range": {field: {"gte": "now-1095d", "lt": "now-365d"}}}, "weight": 2.5},
-                {"filter": {"range": {field: {"gte": "now-1825d", "lt": "now-1095d"}}}, "weight": 1.2},
-
-                # Older clamps
-                {"filter": {"range": {field: {"lt": "now-3650d", "gte": "now-7300d"}}}, "weight": 0.05},
-                {"filter": {"range": {field: {"lt": "now-7300d"}}}, "weight": 0.005},
+                # Floor: every paper keeps its full text score
+                {"weight": 1.0},
+                # Recency bonus; decay functions return 1 for a missing field,
+                # so only dated papers may earn it
+                {
+                    "filter": {"exists": {"field": field}},
+                    "exp": {field: {
+                        "origin": "now",
+                        "scale": RECENCY_HALF_LIFE,
+                        "offset": RECENCY_OFFSET,
+                        "decay": 0.5,
+                    }},
+                    "weight": RECENCY_MAX_BONUS,
+                },
             ],
-            "score_mode": "multiply",
+            "score_mode": "sum",
             "boost_mode": "multiply",
-            "max_boost": 10.0,
+            "max_boost": 1.0 + RECENCY_MAX_BONUS,
         }
     }
 
@@ -488,7 +508,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "type": "best_fields",
             "operator": "or",
             "minimum_should_match": compute_minimum_should_match(q_core),
-            "tie_breaker": 0.1,
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
     # phrase → tight phrase match
@@ -498,6 +518,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "fields": _fields_with_boost(BOOST_PHRASE_FIELDS),
             "type": "phrase",
             "slop": 1,
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
     # phrase_prefix → prefix expansion for type-ahead / wildcard queries
@@ -506,6 +527,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "query": q_core,
             "fields": _fields_with_boost(BOOST_PREFIX_FIELDS),
             "type": "phrase_prefix",
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
 
