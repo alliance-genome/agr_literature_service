@@ -50,16 +50,33 @@ class TestRecencyBoost:
         fs = es_body["query"]["function_score"]
         assert fs["query"] == {"match": {"title": "x"}}
         assert fs["boost_mode"] == "multiply"
-        assert fs["max_boost"] == 10.0
-        assert len(fs["functions"]) == 8
+        assert len(fs["functions"]) == 2
 
     def test_defaults_to_match_all_when_no_query(self):
         es_body: dict = {}
         sr.apply_balanced_recency_boost(es_body, field="date_created")
         fs = es_body["query"]["function_score"]
         assert fs["query"] == {"match_all": {}}
-        # the gauss decay function should reference the custom field
-        assert any("gauss" in fn and "date_created" in fn["gauss"] for fn in fs["functions"])
+        # the decay function should reference the custom field
+        assert any("exp" in fn and "date_created" in fn["exp"] for fn in fs["functions"])
+
+    def test_multiplier_is_bounded(self):
+        # SCRUM-2278: floor of 1.0 plus a capped bonus, summed, so date alone can
+        # never move a paper by more than 1 + RECENCY_MAX_BONUS
+        es_body: dict = {"query": {"match": {"title": "x"}}}
+        sr.apply_balanced_recency_boost(es_body)
+        fs = es_body["query"]["function_score"]
+        assert fs["score_mode"] == "sum"
+        assert {"weight": 1.0} in fs["functions"]
+        assert fs["max_boost"] == 1.0 + sr.RECENCY_MAX_BONUS
+        assert all("gauss" not in fn for fn in fs["functions"])
+
+    def test_bonus_only_for_dated_papers(self):
+        es_body: dict = {}
+        sr.apply_balanced_recency_boost(es_body)
+        decay = next(fn for fn in es_body["query"]["function_score"]["functions"] if "exp" in fn)
+        assert decay["filter"] == {"exists": {"field": "date_published_start"}}
+        assert decay["weight"] == sr.RECENCY_MAX_BONUS
 
 
 class TestNestedAuthorHelpers:
@@ -187,6 +204,14 @@ class TestBuildQueries:
         res = sr.build_all_text_query("Jane Doe", include_id_author_helpers=False)
         must_should = res["must"][0]["bool"]["should"]
         assert len(must_should) == 3  # only the three multi_match clauses
+
+    def test_all_text_clauses_reward_matches_in_more_fields(self):
+        # SCRUM-2278: every multi_match counts its other matching fields too,
+        # not just the single best one
+        res = sr.build_all_text_query("xenobiotic", include_id_author_helpers=False)
+        clauses = [c["multi_match"] for c in res["must"][0]["bool"]["should"]]
+        assert {c["type"] for c in clauses} == {"best_fields", "phrase", "phrase_prefix"}
+        assert all(c["tie_breaker"] == sr.MULTI_FIELD_TIE_BREAKER for c in clauses)
 
 
 class TestScoringAndSort:
