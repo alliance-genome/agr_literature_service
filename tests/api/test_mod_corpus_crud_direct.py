@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from agr_literature_service.api.crud import mod_corpus_association_crud as mca_crud
-from agr_literature_service.api.models import (ModModel, ReferenceModel,
+from agr_literature_service.api.models import (CrossReferenceModel, ModModel, ReferenceModel,
                                                ModCorpusAssociationModel,
                                                WorkflowTagModel)
 from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
@@ -143,6 +143,25 @@ class TestCreate:
             WorkflowTagModel.reference_id == ref.reference_id,
             WorkflowTagModel.workflow_tag_id == SGD_INDEX).first()
         assert tag is not None
+
+    def test_sgd_corpus_keeps_existing_sgd_curie(self, seeded): # noqa
+        """SCRUM-6833: create() sets mca.reference, not reference_id, so
+        sgd_curie_listener missed the paper's saved SGD curie and minted a
+        second one, which failed idx_curie_prefix_ref_no_cgc."""
+        db, ref = seeded  # noqa
+        db.add(CrossReferenceModel(curie="SGD:S000381662", curie_prefix="SGD", reference_id=ref.reference_id,
+                                   pages=["reference"], is_obsolete=False))
+        db.commit()
+        payload = ModCorpusAssociationSchemaPost(
+            mod_abbreviation="SGD", reference_curie=ref.curie, corpus=True,
+            mod_corpus_sort_source=ModCorpusSortSourceType.Dqm_files)
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+                patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            mca_crud.create(db, payload)
+        curies = [x.curie for x in db.query(CrossReferenceModel).filter(
+            CrossReferenceModel.reference_id == ref.reference_id,
+            CrossReferenceModel.curie_prefix == "SGD").all()]
+        assert curies == ["SGD:S000381662"]
 
     def test_unknown_reference_raises_422(self, seeded): # noqa
         db, _ = seeded  # noqa

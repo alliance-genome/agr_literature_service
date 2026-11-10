@@ -93,6 +93,14 @@ def _sgd_corpus_papers_get_sgd_curie(session, _flush_context, _instances):
             is_sgd = (mca.mod_id == sgd_mod_id) if mca.mod_id is not None \
                 else (mca.mod is not None and mca.mod.abbreviation == 'SGD')
             if is_sgd:
-                # the relationship only for an association whose paper is not saved yet
-                ensure_active_sgd_curie(session, mca.reference_id,
-                                        mca.reference if mca.reference_id is None else None)
+                # An association can carry only its reference object (the crud
+                # sets mca.reference), whose id is not copied to reference_id
+                # until the flush. Use the saved paper's id then, or its saved
+                # SGD curie is missed and a second one minted, which fails
+                # idx_curie_prefix_ref_no_cgc. The relationship only for a
+                # paper that is not saved yet.
+                reference_id = mca.reference_id
+                if reference_id is None and mca.reference is not None:
+                    reference_id = mca.reference.reference_id
+                ensure_active_sgd_curie(session, reference_id,
+                                        mca.reference if reference_id is None else None)

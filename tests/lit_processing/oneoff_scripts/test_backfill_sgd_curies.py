@@ -8,11 +8,13 @@ from typing import Any, cast
 
 from sqlalchemy import text
 
-from agr_literature_service.api.models import CrossReferenceModel, ModCorpusAssociationModel, ModModel
+from agr_literature_service.api.models import CrossReferenceModel, ModCorpusAssociationModel, ModModel, \
+    ReferenceModel
 from agr_literature_service.api.models.sgd_curie_listener import ensure_active_sgd_curie
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_utils import \
-    update_sgd_corpus_flag_to_true
+    associate_sgd_papers_with_corpus, update_sgd_corpus_flag_to_true
+from agr_literature_service.api.schemas import ModCorpusSortSourceType, ReferenceCategory
 from ..data_ingest.utils.test_author import _make_reference
 from ...fixtures import db  # noqa
 
@@ -143,17 +145,56 @@ def test_ensure_does_nothing_when_a_curie_is_active(db):  # noqa
 # --- the loaders ------------------------------------------------------------------------------
 
 
+def _make_preprint(db, reference_id):  # noqa
+    db.query(ReferenceModel).filter(ReferenceModel.reference_id == reference_id).one().category = \
+        ReferenceCategory.Preprint
+    db.commit()
+
+
 def test_loader_move_into_corpus_is_versioned_and_gets_a_curie(db):  # noqa
     sgd = _setup(db)
-    rid = _paper(db, 1, sgd, corpus=False, pmid="20740007")
+    rid = _paper(db, 1, sgd, corpus=None, pmid="20740007")
     count, pmids = update_sgd_corpus_flag_to_true(db, {"20740007"})
     assert (count, pmids) == (1, {"20740007"})
     mca = _mca(db, rid, sgd)
     assert mca.corpus is True
     history = db.execute(text("SELECT corpus FROM mod_corpus_association_version WHERE id = :id "
                               "ORDER BY transaction_id"), {"id": mca.mod_corpus_association_id}).scalars().all()
-    assert history == [False, True]
+    assert history == [None, True]
     assert len(_active(db, rid)) == 1
+
+
+def test_loader_leaves_a_rejected_paper_alone(db):  # noqa
+    """A GAF or interaction file citing a paper an SGD curator rejected
+    does not move it back into the corpus."""
+    sgd = _setup(db)
+    rid = _paper(db, 1, sgd, corpus=False, pmid="37034759")
+    assert update_sgd_corpus_flag_to_true(db, {"37034759"}) == (0, set())
+    assert _mca(db, rid, sgd).corpus is False
+    assert _sgd_curies(db, rid) == set()
+
+
+def test_loader_leaves_a_preprint_alone(db):  # noqa
+    sgd = _setup(db)
+    rid = _paper(db, 1, sgd, corpus=None, pmid="37066402")
+    _make_preprint(db, rid)
+    assert update_sgd_corpus_flag_to_true(db, {"37066402"}) == (0, set())
+    assert _mca(db, rid, sgd).corpus is None
+
+
+def test_loader_does_not_associate_a_preprint(db):  # noqa
+    sgd = _setup(db)
+    article = _make_reference(db, "AGRKB:SCRUM6830-article")
+    preprint = _make_reference(db, "AGRKB:SCRUM6830-preprint")
+    _make_preprint(db, preprint.reference_id)
+    db.add(CrossReferenceModel(curie="PMID:41677783", curie_prefix="PMID", reference_id=article.reference_id))
+    db.add(CrossReferenceModel(curie="PMID:37034759", curie_prefix="PMID", reference_id=preprint.reference_id))
+    db.commit()
+    count, pmids = associate_sgd_papers_with_corpus(db, {"41677783", "37034759"},
+                                                    ModCorpusSortSourceType.Interaction)
+    assert (count, pmids) == (1, {"41677783"})
+    assert _mca(db, article.reference_id, sgd).corpus is True
+    assert db.query(ModCorpusAssociationModel).filter_by(reference_id=preprint.reference_id).count() == 0
 
 
 # --- the one-off backfill ---------------------------------------------------------------------
