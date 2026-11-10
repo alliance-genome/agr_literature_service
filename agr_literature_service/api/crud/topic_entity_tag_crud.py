@@ -124,19 +124,19 @@ EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 # (SCRUM-6815), with a backfill of the stored tags.
 EXPERIMENTAL_DATA_CONTEXT_ATP = "ATP:0000405"
 EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP = "ATP:0000406"
-DATA_CONTEXT_ROOT_ATP = "ATP:0000323"
 
 # The data_context for a tag no ml_model speaks for (curator and author entry,
 # the MOD loaders), as (topic-only tag, tag with an entity), by the MOD that made
-# it. Curation policy from SCRUM-5697 and SCRUM-6815: WB topic tags take the
-# root and its entities are experimentally studied; FB asked for experimental
-# data on everything; ZFIN for experimentally studied entities on curator-added
-# entities. The backfill applied the same table, and it has to keep agreeing with
-# the stored rows: check_for_duplicate_tags keys on data_context, so a default
-# that disagrees turns would-be 409s into duplicates. Keep in step with
-# DATA_CONTEXT_DEFAULTS in the UI (dataContextDefaults.js).
+# it. Curation policy from SCRUM-6815: FB asked for experimental data on
+# everything; ZFIN and WB for experimental data on topic tags and experimentally
+# studied entities on entity tags (WB topic tags used the ATP:0000323 root until
+# Kimberly's answer on 2026-11-10). The backfill applied the same table, and it
+# has to keep agreeing with the stored rows: check_for_duplicate_tags keys on
+# data_context, so a default that disagrees turns would-be 409s into
+# duplicates. Keep in step with DATA_CONTEXT_DEFAULTS in the UI
+# (dataContextDefaults.js).
 DATA_CONTEXT_DEFAULTS: Dict[str, Tuple[str, str]] = {
-    "WB": (DATA_CONTEXT_ROOT_ATP, EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP),
+    "WB": (EXPERIMENTAL_DATA_CONTEXT_ATP, EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP),
     "FB": (EXPERIMENTAL_DATA_CONTEXT_ATP, EXPERIMENTAL_DATA_CONTEXT_ATP),
     "ZFIN": (EXPERIMENTAL_DATA_CONTEXT_ATP, EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP),
 }
@@ -154,7 +154,7 @@ DATA_CONTEXT_DEFAULT_OTHER_MODS: Tuple[str, str] = (EXPERIMENTAL_DATA_CONTEXT_AT
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
 # SCRUM-6815: ATP:0000405 for every MOD. A positive tag validates tags whose
 # data_context is the same or an ancestor, and a more specific one is validated
-# by it, so this one value covers WB's ATP:0000323 topic tags, ATP:0000405 tags
+# by it, so this one value covers older WB topic tags at the ATP:0000323 root, ATP:0000405 tags
 # and ATP:0000406 entity tags alike.
 CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTAL_DATA_CONTEXT_ATP
 
@@ -171,7 +171,7 @@ def resolve_default_data_context(db: Session, topic_entity_tag_data: dict,
 
     SCRUM-5697. The ml_model row is authoritative. A pipeline's data-context
     policy is curation policy, decided per MOD and per model kind (WB's topic
-    classifiers carry ATP:0000323, FB's classifiers ATP:0000405), so it
+    entity extraction models carry ATP:0000406, FB's classifiers ATP:0000405), so it
     belongs on ``ml_model.data_context`` rather than in each producer's code.
     Reading it here means a tag created from a model inherits that policy even
     when the producer never sends the field, and changing the policy is an

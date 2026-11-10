@@ -2000,7 +2000,7 @@ class TestTopicEntityTag:
 
         A tag created from a model that omits the field inherits the model's
         value rather than the module constant, so a MOD's policy (WB's topic
-        classifiers carry ATP:0000323, FB's classifiers ATP:0000405) lives
+        entity extraction models carry ATP:0000406, FB's classifiers ATP:0000405) lives
         on the model row instead of being duplicated in every pipeline."""
         from agr_literature_service.api.models import MLModel
         load_name_to_atp_and_relationships_mock()
@@ -4063,7 +4063,7 @@ class TestDeprecatedExperimentallyStudiedDataContext:
         ("FB", True, "ATP:0000405"),
         ("ZFIN", False, "ATP:0000405"),
         ("ZFIN", True, "ATP:0000406"),
-        ("WB", False, "ATP:0000323"),
+        ("WB", False, "ATP:0000405"),
         ("WB", True, "ATP:0000406"),
         ("SGD", False, "ATP:0000405"),
         ("SGD", True, "ATP:0000405"),
@@ -4081,7 +4081,8 @@ class TestDeprecatedExperimentallyStudiedDataContext:
 
     def test_curator_validation_uses_experimental_data(self):
         # one value for every MOD: ATP:0000405 is the same term as FB's and ZFIN's
-        # topic tags, sits under WB's ATP:0000323 root, and ATP:0000406 sits under it
+        # and now WB's topic tags, sits under the ATP:0000323 root that older WB topic tags
+        # carry, and ATP:0000406 sits under it
         from agr_literature_service.api.crud.topic_entity_tag_crud import CURATOR_VALIDATION_DATA_CONTEXT
         assert CURATOR_VALIDATION_DATA_CONTEXT == "ATP:0000405"
 
@@ -4101,7 +4102,8 @@ class TestDeprecatedExperimentallyStudiedDataContext:
         assert response.status_code == status.HTTP_201_CREATED, response.json()
         return response.json()["tag_source_id"]
 
-    @pytest.mark.parametrize("mod_abbreviation, expected", [("FB", "ATP:0000405"), ("ZFIN", "ATP:0000405")])
+    @pytest.mark.parametrize("mod_abbreviation, expected", [("FB", "ATP:0000405"), ("ZFIN", "ATP:0000405"),
+                                                            ("WB", "ATP:0000405")])
     def test_topic_tag_without_data_context_gets_the_mod_default(self, test_reference, auth_headers,  # noqa
                                                                  mod_abbreviation, expected):
         load_name_to_atp_and_relationships_mock()
@@ -4125,8 +4127,8 @@ class TestDeprecatedExperimentallyStudiedDataContext:
     def test_experimental_data_validates_root_and_same_term_tags(self, db, auth_headers, test_reference,  # noqa
                                                                  test_tag_source, test_mod,  # noqa
                                                                  existing_context):
-        """A curator tag at ATP:0000405 validates WB's topic tags (ATP:0000323, an
-        ancestor) and FB's classifier tags (ATP:0000405, the same term)."""
+        """A curator tag at ATP:0000405 validates older WB topic tags (ATP:0000323, an
+        ancestor) and tags at ATP:0000405 (the same term)."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             curator_source = {
