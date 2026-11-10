@@ -44,6 +44,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_u
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import cleanup_temp_directory
+from agr_literature_service.lit_processing.utils.container_log_utils import emit_error_record
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
@@ -169,6 +170,8 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH')
+# the crontab job name, used in the ABC-DQM-FAILED records
+DQM_JOB_NAME = path.splitext(path.basename(__file__))[0]
 
 
 def load_pmids_not_found():
@@ -1010,17 +1013,20 @@ if __name__ == "__main__":
     # stale REFERENCE_<MOD>.json and is reported per MOD — previously it was
     # only a swallowed log line, and the mod was silently skipped (or worse,
     # silently reloaded from a stale file).
-    failed_download_mods = []
+    failed_download_mods = {}
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
         failed_mods = download_dqm_reference_json()
         if processing_download_dir:
             failed_download_mods = failed_mods
-            for failed_mod in failed_download_mods:
+            for failed_mod, error in failed_download_mods.items():
                 send_report(f"{failed_mod} DQM Loading Failed",
                             f"The {failed_mod} DQM REFERENCE download/unpack failed; "
-                            f"{failed_mod} was skipped this run. See the dqm loading "
-                            f"log for the error.")
+                            f"{failed_mod} was skipped this run. Error: {html.escape(error)}")
+                # the job still exits 0 (ABC-JOB-OK), so this is what puts the
+                # skipped MOD in Athena as an ERROR
+                emit_error_record("ABC-DQM-FAILED", error, job=DQM_JOB_NAME, mod=failed_mod,
+                                  datatype="REFERENCE", step="download")
         # update_resource_pubmed_nlm()
     mods = [args['mod']] if args['mod'] else get_mod_abbreviations()
     for mod in mods:
@@ -1032,5 +1038,7 @@ if __name__ == "__main__":
             tb = traceback.format_exc()
             send_report(f"{mod} DQM Loading Failed",
                         f"Error message: {e}<p>Traceback:<br>{tb}")
+            emit_error_record("ABC-DQM-FAILED", f"{type(e).__name__}: {e}", job=DQM_JOB_NAME,
+                              mod=mod, datatype="REFERENCE", step="load")
     cleanup_temp_directory("dqm_data")
     logger.info("ending sort_dqm_json_reference_updates.py")
