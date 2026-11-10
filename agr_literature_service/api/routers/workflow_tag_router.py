@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import workflow_tag_crud
+from agr_literature_service.api.crud import workflow_diagram_triggers, workflow_tag_crud
 from agr_literature_service.api.schemas import (
     WorkflowTagSchemaShow,
     WorkflowTagSchemaUpdate,
@@ -273,6 +273,20 @@ def get_report_workflow_diagram(
     db: Session = db_session
 ):
     return workflow_tag_crud.get_workflow_tag_diagram(mod, db)
+
+
+@router.get(
+    "/workflow_diagram_triggers/{mod}",
+    status_code=status.HTTP_200_OK,
+)
+def get_workflow_diagram_triggers(
+    mod: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session
+):
+    """What starts each of the MOD's workflows: events outside every workflow
+    (entry_points) and states of one workflow that start another (handoffs)."""
+    return workflow_diagram_triggers.get_workflow_diagram_triggers(mod, db)
 
 
 @router.get(
