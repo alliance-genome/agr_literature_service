@@ -73,6 +73,17 @@ run-functest:
 	docker compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
 	docker compose --env-file .env.test down
 
+# SCRUM-6850: the tables Debezium streams, from table.include.list, without the schema.
+DEBEZIUM_SOURCE_TABLES = $(shell grep -o '"table.include.list": *"[^"]*"' debezium/postgres-source-unified.json | sed -E 's/.*: *"//; s/"$$//; s/public\.//g; s/,/ /g')
+
+# Pre-create a source topic for every table Debezium streams. Debezium writes no record for an
+# empty table, so on a fresh Kafka its topic is never created, ksqlDB cannot create the source
+# table, and every statement that depends on it fails (manual_indexing_tag on stage, 2026-11-10:
+# the private index got no topic_entity_tags). --if-not-exists keeps it safe to repeat; one
+# partition is what Kafka gives a topic it creates itself.
+debezium-create-source-topics:
+	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c 'for table in $(DEBEZIUM_SOURCE_TABLES); do /kafka/bin/kafka-topics.sh --create --if-not-exists --topic "abc.public.$$table" --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092 || exit 1; done'
+
 restart-debezium-local:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
 	docker-compose --env-file ${ENV_FILE} up -d postgres
@@ -81,7 +92,7 @@ restart-debezium-local:
 	sleep 10
 	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
-	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
+	$(MAKE) debezium-create-source-topics ENV_FILE=${ENV_FILE}
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_ksql_server
 	sleep 20
@@ -91,7 +102,7 @@ restart-debezium-aws:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
-	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
+	$(MAKE) debezium-create-source-topics ENV_FILE=${ENV_FILE}
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_ksql_server
 	sleep 20
@@ -158,7 +169,7 @@ run-debezium-integration-tests:
 	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
 	# Create required Kafka topics
-	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
+	$(MAKE) debezium-create-source-topics ENV_FILE=.env.test
 	# Start KSQL server
 	docker-compose --env-file .env.test up -d --build dbz_ksql_server
 	# Run Debezium setup and wait for completion
@@ -188,7 +199,7 @@ run-debezium-start-test-env:
 	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
 	# Create required Kafka topics
-	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
+	$(MAKE) debezium-create-source-topics ENV_FILE=.env.test
 	# Start KSQL server
 	docker-compose --env-file .env.test up -d --build dbz_ksql_server
 	# Run Debezium setup and wait for completion
