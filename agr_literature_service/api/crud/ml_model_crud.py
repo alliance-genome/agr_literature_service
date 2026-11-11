@@ -112,7 +112,9 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         file_classes=request.file_classes,
         description=request.description,
         embedding_profile=request.embedding_profile,
-        embedding_version=request.embedding_version
+        embedding_version=request.embedding_version,
+        decision_threshold=request.decision_threshold,
+        rescale_confidence=request.rescale_confidence is not False
     )
     try:
         db.add(new_model)
@@ -216,6 +218,8 @@ def get_model_schema_from_orm(model: MLModel):
         "description": model.description,
         "embedding_profile": model.embedding_profile,
         "embedding_version": model.embedding_version,
+        "decision_threshold": model.decision_threshold,
+        "rescale_confidence": model.rescale_confidence,
         "date_created": model.date_created,
         "date_updated": model.date_updated,
         "created_by": model.created_by,
