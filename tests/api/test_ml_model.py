@@ -423,3 +423,57 @@ class TestMLModelDataContextValidation:
         db.expire_all()
         assert db.query(MLModel).filter(
             MLModel.ml_model_id == existing_id).one().production is True
+
+
+class TestMLModelDecisionThreshold:
+    """SCRUM-6482. ml_model.decision_threshold is the score from which the document
+    classifier calls a paper positive; NULL means 0.5. ml_model.rescale_confidence
+    (default true) says whether the classifier rescales the tag's confidence score so
+    the threshold maps to 0.5, or keeps the model's own score."""
+
+    def test_upload_stores_and_returns_the_threshold(self, db, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = _upload_model(client, auth_headers, test_mod, decision_threshold=0.87)
+            assert response.status_code == status.HTTP_201_CREATED
+            model_id = response.json()["ml_model_id"]
+            stored = db.query(MLModel).filter(MLModel.ml_model_id == model_id).one()
+            assert stored.decision_threshold == 0.87
+            metadata = client.get(
+                url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061",
+                headers=auth_headers)
+            assert metadata.json()["decision_threshold"] == 0.87
+            client.delete(url=f"/ml_model/{model_id}", headers=auth_headers)
+
+    def test_upload_without_a_threshold_leaves_it_null(self, db, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = _upload_model(client, auth_headers, test_mod)
+            assert response.status_code == status.HTTP_201_CREATED
+            model_id = response.json()["ml_model_id"]
+            stored = db.query(MLModel).filter(MLModel.ml_model_id == model_id).one()
+            assert stored.decision_threshold is None
+            assert stored.rescale_confidence is True
+            client.delete(url=f"/ml_model/{model_id}", headers=auth_headers)
+
+    @pytest.mark.parametrize("threshold", [0, 1, 1.5, -0.2, "high"])
+    def test_upload_rejects_a_threshold_outside_0_1(self, db, test_mod, auth_headers, threshold):  # noqa
+        with TestClient(app) as client:
+            response = _upload_model(client, auth_headers, test_mod, decision_threshold=threshold)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert "decision_threshold" in str(response.json()["detail"])
+
+    def test_upload_can_keep_the_model_score(self, db, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = _upload_model(client, auth_headers, test_mod, decision_threshold=0.87,
+                                     rescale_confidence=False)
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json()["rescale_confidence"] is False
+            model_id = response.json()["ml_model_id"]
+            stored = db.query(MLModel).filter(MLModel.ml_model_id == model_id).one()
+            assert stored.rescale_confidence is False
+            client.delete(url=f"/ml_model/{model_id}", headers=auth_headers)
+
+    def test_upload_rejects_a_non_boolean_rescale_confidence(self, db, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = _upload_model(client, auth_headers, test_mod, rescale_confidence="no")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert "rescale_confidence" in str(response.json()["detail"])

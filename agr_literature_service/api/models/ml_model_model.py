@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
+from sqlalchemy import text, Column, BigInteger, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
@@ -118,6 +118,19 @@ class MLModel(AuditedModel, Base):
     embedding_profile = Column(String, index=True, nullable=True)
 
     embedding_version = Column(Integer, nullable=True)
+
+    # Positive-class score from which the document classifier calls a paper positive
+    # (SCRUM-6482). NULL means 0.5.
+    decision_threshold = Column(Float, nullable=True)
+
+    # Whether the classifier rescales the tag's confidence score so that decision_threshold
+    # maps to 0.5 (SCRUM-6482). False keeps the model's own score (ZFIN molecular probe).
+    rescale_confidence: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("true")
+    )
 
     __table_args__ = (
         UniqueConstraint('task_type', 'mod_id', 'topic', 'version_num', name='uq_ml_model_task_mod_topic_version'),
