@@ -43,12 +43,14 @@ from sqlalchemy.orm import sessionmaker
 
 from agr_abc_document_parsers import convert_xml_to_markdown
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
+from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.crud.referencefile_utils import (
     get_s3_folder_from_md5sum,
 )
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
+from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import (
     ReferencefileSchemaPost,
 )
@@ -70,14 +72,14 @@ SOURCE_CONFIG = {
 
 NXML_QUERY = """
     SELECT DISTINCT ON (rf.reference_id)
-           rf.referencefile_id,
+           rf.id AS referencefile_id,
            rf.md5sum,
            rf.reference_id,
            rf.display_name,
            rf.file_class,
            r.curie AS reference_curie
     FROM referencefile rf
-    JOIN reference r ON r.reference_id = rf.reference_id
+    JOIN reference r ON r.id = rf.reference_id
     WHERE rf.file_class = 'nXML'
       AND rf.file_publication_status = 'final'
       AND EXISTS (
@@ -90,19 +92,19 @@ NXML_QUERY = """
           WHERE cmm.reference_id = rf.reference_id
             AND cmm.file_class = 'converted_merged_main'
       )
-    ORDER BY rf.reference_id, rf.referencefile_id DESC
+    ORDER BY rf.reference_id, rf.id DESC
 """
 
 TEI_QUERY = """
     SELECT DISTINCT ON (rf.reference_id)
-           rf.referencefile_id,
+           rf.id AS referencefile_id,
            rf.md5sum,
            rf.reference_id,
            rf.display_name,
            rf.file_class,
            r.curie AS reference_curie
     FROM referencefile rf
-    JOIN reference r ON r.reference_id = rf.reference_id
+    JOIN reference r ON r.id = rf.reference_id
     WHERE rf.file_class = 'tei'
       AND rf.file_publication_status = 'final'
       AND EXISTS (
@@ -121,19 +123,19 @@ TEI_QUERY = """
             AND nxml.file_class = 'nXML'
             AND nxml.file_publication_status = 'final'
       )
-    ORDER BY rf.reference_id, rf.referencefile_id DESC
+    ORDER BY rf.reference_id, rf.id DESC
 """
 
 BOTH_QUERY = """
     SELECT DISTINCT ON (rf.reference_id)
-           rf.referencefile_id,
+           rf.id AS referencefile_id,
            rf.md5sum,
            rf.reference_id,
            rf.display_name,
            rf.file_class,
            r.curie AS reference_curie
     FROM referencefile rf
-    JOIN reference r ON r.reference_id = rf.reference_id
+    JOIN reference r ON r.id = rf.reference_id
     WHERE rf.file_class IN ('nXML', 'tei')
       AND rf.file_publication_status = 'final'
       AND EXISTS (
@@ -148,7 +150,7 @@ BOTH_QUERY = """
       )
     ORDER BY rf.reference_id,
              CASE rf.file_class WHEN 'nXML' THEN 0 ELSE 1 END,
-             rf.referencefile_id DESC
+             rf.id DESC
 """
 
 QUERIES = {"nxml": NXML_QUERY, "tei": TEI_QUERY, "both": BOTH_QUERY}
@@ -234,6 +236,35 @@ FORMAT_FROM_CLASS = {"nXML": "jats", "tei": "tei"}
 SUFFIX_FROM_CLASS = {"nXML": "_nxml", "tei": "_tei"}
 
 
+# MODs of the files a converted file was made from: the reference's non-Markdown
+# files sharing the source's display_name (the nXML/TEI itself and, for TEI, the
+# PDF GROBID read). NULL mod_abbreviation marks a no-MOD link.
+SOURCE_MODS_QUERY = """
+    SELECT rf.id, m.abbreviation
+    FROM referencefile rf
+    LEFT JOIN referencefile_mod rfm ON rfm.referencefile_id = rf.id
+    LEFT JOIN mod m ON m.id = rfm.mod_id
+    WHERE rf.reference_id = :reference_id
+      AND rf.display_name = :display_name
+      AND rf.file_extension <> 'md'
+"""
+
+
+def source_mod_abbreviations(db, reference_id, display_name):
+    """The MODs a converted file inherits (SCRUM-6764): the sources' MODs, or
+    [None] (open to every MOD) when any source is linked to no MOD or has no
+    link at all. Linking every result to no MOD made Markdown converted from a
+    MOD's PDF readable by every MOD."""
+    mods = set()
+    for _referencefile_id, abbreviation in db.execute(
+            text(SOURCE_MODS_QUERY),
+            {"reference_id": reference_id, "display_name": display_name}):
+        if abbreviation is None:
+            return [None]
+        mods.add(abbreviation)
+    return sorted(mods) or [None]
+
+
 def convert_one(session_factory, s3_client, row, parser_format=None):
     """Convert a single XML file to Markdown. Runs in a worker thread."""
     ref_curie = row.reference_curie
@@ -277,7 +308,8 @@ def convert_one(session_factory, s3_client, row, parser_format=None):
         if md5sum_count == 0:
             upload_md_to_s3(s3_client, md_bytes, md5sum)
 
-        # Create DB record
+        # Create DB record, linked to the MODs of its source
+        mod_abbreviations = source_mod_abbreviations(db, row.reference_id, row.display_name)
         metadata = {
             "reference_curie": ref_curie,
             "display_name": display_name,
@@ -286,10 +318,13 @@ def convert_one(session_factory, s3_client, row, parser_format=None):
             "file_extension": "md",
             "pdf_type": None,
             "is_annotation": False,
-            "mod_abbreviation": None,
+            "mod_abbreviation": mod_abbreviations[0],
         }
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
-        create_metadata(db, create_request)
+        referencefile_id = create_metadata(db, create_request)
+        for mod_abbreviation in mod_abbreviations[1:]:
+            create_mod_connection(db, ReferencefileModSchemaPost(
+                referencefile_id=referencefile_id, mod_abbreviation=mod_abbreviation))
 
         return ref_curie, row.referencefile_id, None
     except Exception as exc:

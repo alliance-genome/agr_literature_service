@@ -42,6 +42,8 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     process_supplemental_office_files,
     process_supplemental_pdfs,
     pdfx_upload_order,
+    source_mod_abbreviation,
+    sync_converted_file_mods_to_sources,
     upload_pdfx_markdown,
 )
 
@@ -639,7 +641,7 @@ def process_single_reference(  # pragma: no cover
             db=db,
             nxml_ref_file=nxml_ref_file,
             reference_curie=reference_curie,
-            mod_abbreviation=mod_abbreviation
+            mod_abbreviation=source_mod_abbreviation(nxml_ref_file)
         )
         if not main_success:
             logger.warning(
@@ -681,12 +683,34 @@ def process_single_reference(  # pragma: no cover
             db, reference_id, reference_curie, token, methods_to_extract, mod_abbreviation,
         )
 
+    # Give every converted row the MODs of its source, before the embeddings
+    # copy the rows' access (SCRUM-6764)
+    _sync_converted_mods(db, reference_id, reference_curie)
+
     if main_success:
         # Generate classifier embeddings for every merged Markdown of this
         # reference (main + supplements), after the markdown is safely persisted.
         _maybe_generate_embeddings(db, reference_id, reference_curie)
         return True, None
     return False, main_error or "Main reference conversion failed"
+
+
+def _sync_converted_mods(  # pragma: no cover
+    db: Session, reference_id: int, reference_curie: str
+) -> None:
+    """Make the reference's converted Markdown carry exactly its sources'
+    MODs. A batch run uploads with one MOD, so a PDF several MODs supplied
+    would otherwise give its Markdown to only one of them. Isolated: a
+    failure is logged and never flips the conversion result."""
+    try:
+        reference = db.query(ReferenceModel).filter(
+            ReferenceModel.reference_id == reference_id).one_or_none()
+        if reference is not None:
+            db.expire(reference)
+            sync_converted_file_mods_to_sources(db, reference)
+    except Exception as e:
+        recover_session(db, e)
+        logger.error(f"Converted Markdown MOD sync failed for {reference_curie}: {e}")
 
 
 def _maybe_generate_embeddings(  # pragma: no cover

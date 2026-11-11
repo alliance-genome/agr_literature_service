@@ -450,28 +450,51 @@ def find_source_for_converted(
     return None
 
 
+def source_mod_abbreviation(source: ReferencefileModel) -> Optional[str]:
+    """The MOD to upload a file converted from ``source`` with (SCRUM-6764):
+    one of the source's own MODs, or None when the source is linked to no MOD
+    (PMC: open to every MOD). The other MODs follow from
+    sync_converted_file_mods_to_sources. Never a MOD taken from another file
+    of the paper, which let one MOD read Markdown made from another MOD's
+    supplement."""
+    mods = []
+    for ref_file_mod in source.referencefile_mods or []:
+        if ref_file_mod.mod is None:
+            return None
+        mods.append(ref_file_mod.mod.abbreviation)
+    return min(mods) if mods else None
+
+
 def sync_converted_file_mods_to_sources(
     db: Session,
     reference: ReferenceModel,
 ) -> int:
     """
-    For each converted Markdown row of this reference, ensure its
-    ``referencefile_mod`` associations include every association the source
-    file has. Idempotent: only ADDS missing associations; never removes.
+    Make each converted Markdown row of this reference carry exactly the
+    ``referencefile_mod`` associations of its source file: add the missing
+    ones and remove those the source does not have. Idempotent.
 
-    Returns the number of associations added (0 when everything is
-    already in sync).
+    Returns the number of associations added or removed (0 when everything
+    is already in sync).
 
     SCRUM-6041: when a MOD-specific batch run converts a shared file,
-    the converted output is initially associated only with that one MOD.
-    A subsequent on-demand call can use this helper to make the converted
-    output also visible to every other MOD whose source file the same
-    reference points at — including null-mod (PMC, open-access) sources.
+    the converted output is initially associated only with that one MOD;
+    this fans it out to every other MOD whose source the reference points
+    at, including null-mod (PMC, open-access) sources.
+
+    SCRUM-6764: it also removes associations the source lacks, so converted
+    Markdown is never readable by a MOD that cannot read its source. Embedding
+    parquets made from a changed row are re-synced, since their access copies
+    the row's.
     """
     from agr_literature_service.api.models.referencefile_model import (
         ReferencefileModAssociationModel,
     )
-    added = 0
+    from agr_literature_service.api.crud.referencefile_mod_utils import (
+        resync_derived_embeddings,
+    )
+    changes = 0
+    changed = []
     for ref_file in reference.referencefiles or []:
         fc = ref_file.file_class or ""
         if not fc.startswith("converted_"):
@@ -485,17 +508,32 @@ def sync_converted_file_mods_to_sources(
         )
         if source is None:
             continue
-        target_mod_ids = {a.mod_id for a in (ref_file.referencefile_mods or [])}
+        # a source with no link at all (readable only when the paper is open
+        # access) leaves its Markdown with none either
         source_mod_ids = {a.mod_id for a in (source.referencefile_mods or [])}
+        links = list(ref_file.referencefile_mods or [])
+        target_mod_ids = {a.mod_id for a in links}
+        before = changes
         for missing_mod_id in source_mod_ids - target_mod_ids:
             db.add(ReferencefileModAssociationModel(
                 referencefile_id=ref_file.referencefile_id,
                 mod_id=missing_mod_id,
             ))
-            added += 1
-    if added:
+            changes += 1
+        for link in links:
+            if link.mod_id not in source_mod_ids:
+                db.delete(link)
+                changes += 1
+        if changes > before:
+            changed.append(ref_file)
+    if changes:
+        db.flush()
+        for ref_file in changed:
+            # the resync reads the row's links through this relationship
+            db.expire(ref_file, ["referencefile_mods"])
+            resync_derived_embeddings(db, ref_file.referencefile_id)
         db.commit()
-    return added
+    return changes
 
 
 def pending_supplement_sources(
@@ -1516,12 +1554,9 @@ def _process_single_pdf_file(  # pragma: no cover
     display_name = pdf_file.display_name
     file_class = pdf_file.file_class
 
-    # Get MOD abbreviation from referencefile_mods
-    mod_abbreviation = None
-    for ref_file_mod in pdf_file.referencefile_mods:
-        if ref_file_mod.mod:
-            mod_abbreviation = ref_file_mod.mod.abbreviation
-            break
+    # the PDF's own MOD, or None when the PDF is open to every MOD; the PDF's
+    # other MODs follow from sync_converted_file_mods_to_sources
+    mod_abbreviation = source_mod_abbreviation(pdf_file)
 
     logger.info(f"Processing {file_class} PDF: {display_name} for {reference_curie}")
 
@@ -2011,11 +2046,13 @@ def process_supplemental_office_files(  # pragma: no cover
     failed = 0
     errors: List[str] = []
     for office_file in pending:
+        # the supplement's own MOD; mod_abbreviation only picks which
+        # supplements this run converts
         success, error = process_office_to_markdown(
             db=db,
             office_ref_file=office_file,
             reference_curie=reference_curie,
-            mod_abbreviation=mod_abbreviation,
+            mod_abbreviation=source_mod_abbreviation(office_file),
         )
         if success:
             succeeded += 1
