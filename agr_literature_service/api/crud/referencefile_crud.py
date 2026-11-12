@@ -10,6 +10,7 @@ from itertools import count
 from typing import List, Optional, Union
 
 import boto3  # type: ignore
+from boto3.exceptions import Boto3Error  # type: ignore
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
@@ -959,14 +960,14 @@ def fetch_stored_file(gz_file_path: str, object_name: str, referencefile) -> Non
 
     SCRUM-6855: the result of download_file_from_s3 used to be ignored, so a failed
     download went on to open a file that did not exist and ended as an unhandled
-    500. Now, as for ML model files (ml_model_crud): 404 when S3 has no such object
-    (download_file_from_s3 returns False on an S3 client error, which in practice
-    is a missing object), 502 when S3 cannot be reached (it raises).
+    500. Now 404 when S3 has no such object, and 502 when S3 could not return it:
+    any other S3 client error (access denied, throttling), a connection error, or
+    a transfer that failed part way.
     """
     try:
         downloaded = download_file_from_s3(gz_file_path, bucketname="agr-literature",
-                                           s3_file_location=object_name)
-    except (BotoCoreError, ClientError) as exc:
+                                           s3_file_location=object_name, only_missing_is_false=True)
+    except (BotoCoreError, ClientError, Boto3Error) as exc:
         logger.error("S3 download error for referencefile %s (%s): %s",
                      referencefile.referencefile_id, object_name, exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1020,6 +1021,7 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Mod
         tar_file_path = os.path.join(temp_dir, tar_file_name)
         staging_dir = os.path.join(temp_dir, "files")
         os.makedirs(staging_dir)
+        missing = []
         with tarfile.open(tar_file_path, "w:gz") as tar:
             for referencefile in all_referencefile_supp:
                 md5sum = referencefile.md5sum
@@ -1028,12 +1030,24 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Mod
                 tmp_file_gz_path = os.path.join(staging_dir, md5sum + ".gz")
                 tmp_file_name = referencefile.display_name + "." + referencefile.file_extension
                 tmp_file_path = os.path.join(staging_dir, md5sum)
-                fetch_stored_file(tmp_file_gz_path, object_name, referencefile)
+                try:
+                    fetch_stored_file(tmp_file_gz_path, object_name, referencefile)
+                except HTTPException as exc:
+                    # SCRUM-6855: a supplement S3 does not have is left out (and
+                    # logged by fetch_stored_file) so the others still download;
+                    # S3 being unreachable (502) still fails the whole request.
+                    if exc.status_code != status.HTTP_404_NOT_FOUND:
+                        raise
+                    missing.append(tmp_file_name)
+                    continue
                 with gzip.open(tmp_file_gz_path, 'rb') as f_in, open(tmp_file_path, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
                 tar.add(tmp_file_path, arcname=tmp_file_name)
                 os.remove(tmp_file_gz_path)
                 os.remove(tmp_file_path)
+        if missing and len(missing) == len(all_referencefile_supp):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"None of the additional files of {ref_curie} were found in storage")
     except BaseException:
         cleanup_temp_dir(temp_dir)
         raise

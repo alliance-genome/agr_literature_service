@@ -1,6 +1,8 @@
 import asyncio
 import gzip
 import os
+import tarfile
+from unittest.mock import MagicMock
 
 import pytest
 from starlette.testclient import TestClient
@@ -8,10 +10,11 @@ from starlette.testclient import TestClient
 from agr_cognito_py import ModAccess
 from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.main import app
-from botocore.exceptions import EndpointConnectionError  # type: ignore
+from botocore.exceptions import ClientError, EndpointConnectionError  # type: ignore
 from fastapi import HTTPException, status
 
-from agr_literature_service.api.models import ReferencefileModel
+from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
+from agr_literature_service.lit_processing.utils import s3_utils
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from .test_reference import test_reference # noqa
@@ -345,7 +348,7 @@ class TestReferencefile:
                 display_name="main_nxml", reference_curie=ref.new_ref_curie, file_class="main",
                 file_publication_status="final", file_extension="md", md5sum=md5sum))
 
-        def fake_download_file_from_s3(filepath, bucketname, s3_file_location):
+        def fake_download_file_from_s3(filepath, bucketname, s3_file_location, **kwargs):
             with gzip.open(filepath, "wb") as f_out:
                 f_out.write(s3_file_location.encode())
 
@@ -391,3 +394,61 @@ class TestReferencefile:
         with pytest.raises(HTTPException) as exc_info:
             referencefile_crud.download_file(db, file_id, ModAccess.ALL_ACCESS)
         assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
+
+    def test_s3_access_denied_is_502_not_404(self, monkeypatch, tmp_path):
+        # Only a missing object is a 404; S3 refusing the object is a storage problem.
+        def boto_client(service_name):
+            client = MagicMock()
+            client.download_file.side_effect = ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}, "GetObject")
+            return client
+
+        monkeypatch.setattr(s3_utils.boto3, "client", boto_client)
+        with pytest.raises(ClientError):
+            s3_utils.download_file_from_s3(str(tmp_path / "x.gz"), "bucket", "key", only_missing_is_false=True)
+        # the default keeps reporting it as False, for the other callers
+        assert s3_utils.download_file_from_s3(str(tmp_path / "x.gz"), "bucket", "key") is False
+
+        referencefile = MagicMock(referencefile_id=1, display_name="paper", file_extension="pdf", md5sum="m")
+        with pytest.raises(HTTPException) as exc_info:
+            referencefile_crud.fetch_stored_file(str(tmp_path / "x.gz"), "key", referencefile)
+        assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
+
+    def test_s3_missing_object_is_404(self, monkeypatch, tmp_path):
+        def boto_client(service_name):
+            client = MagicMock()
+            client.download_file.side_effect = ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject")
+            return client
+
+        monkeypatch.setattr(s3_utils.boto3, "client", boto_client)
+        referencefile = MagicMock(referencefile_id=1, display_name="paper", file_extension="pdf", md5sum="m")
+        with pytest.raises(HTTPException) as exc_info:
+            referencefile_crud.fetch_stored_file(str(tmp_path / "x.gz"), "key", referencefile)
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_tarball_leaves_out_a_supplement_missing_in_s3(self, db, test_reference, monkeypatch):  # noqa
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_reference.new_ref_curie).scalar()
+        for display_name, md5sum in (("supp_a", "md5_supp_present"), ("supp_b", "md5_supp_missing")):
+            create_metadata(db, ReferencefileSchemaPost(
+                display_name=display_name, reference_curie=test_reference.new_ref_curie,
+                file_class="supplement", file_publication_status="final", file_extension="txt", md5sum=md5sum))
+
+        def fake_download_file_from_s3(filepath, bucketname, s3_file_location, **kwargs):
+            if "md5_supp_missing" in s3_file_location:
+                return False
+            with gzip.open(filepath, "wb") as f_out:
+                f_out.write(b"content")
+            return True
+
+        monkeypatch.setattr(referencefile_crud, "download_file_from_s3", fake_download_file_from_s3)
+        response = referencefile_crud.download_additional_files_tarball(db, reference_id, ModAccess.ALL_ACCESS)
+        with tarfile.open(response.path) as tar:
+            assert tar.getnames() == ["supp_a.txt"]
+        asyncio.run(response.background())
+
+        monkeypatch.setattr(referencefile_crud, "download_file_from_s3", lambda *args, **kwargs: False)
+        with pytest.raises(HTTPException) as exc_info:
+            referencefile_crud.download_additional_files_tarball(db, reference_id, ModAccess.ALL_ACCESS)
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
