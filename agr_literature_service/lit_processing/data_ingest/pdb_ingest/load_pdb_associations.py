@@ -40,9 +40,9 @@ PAGE_REFERENCE = "reference"
 # these papers via the TET system.
 PROTEIN_STRUCTURE_ATP = "ATP:0000091"
 DATA_NOVELTY_NOT_NEW = "ATP:0000335"
-# ATP:0000325 = "experimentally studied data" (SCRUM-5697). A PDB entry is an
-# experimentally determined structure, so the paper studied it directly.
-DATA_CONTEXT_EXPERIMENTALLY_STUDIED = "ATP:0000325"
+# data_context is left to the server: create_tag fills in the owning MOD's
+# default (default_data_context_for_mod), so the deprecated ATP:0000325 that
+# this pipeline used to send is not repeated here (SCRUM-6815).
 ECO_AUTOMATIC_ASSERTION = "ECO_0006156"
 SOURCE_METHOD = "PDB association pipeline"
 SOURCE_DATA_PROVIDER = "PDB"
@@ -270,7 +270,6 @@ def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntit
         topic=PROTEIN_STRUCTURE_ATP,
         tag_source_id=source_id,
         data_novelty=DATA_NOVELTY_NOT_NEW,
-        data_context=DATA_CONTEXT_EXPERIMENTALLY_STUDIED,
         negated=False,
     )
 

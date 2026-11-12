@@ -39,7 +39,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_tag_source, tes
             "tag_source_id": test_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
-            "data_context": "ATP:0000325",
+            "data_context": "ATP:0000405",
             "note": "test note",
             "created_by": "WBPerson1",
             "date_created": "2020-01-01"
@@ -107,7 +107,7 @@ class TestTopicEntityTag:
                 "entity_id_validation": "alliance",
                 "display_tag": None,
                 "data_novelty": "ATP:0000334",
-                "data_context": "ATP:0000325",
+                "data_context": "ATP:0000405",
                 "negated": False,
                 "species": "NCBITaxon:6239"
             }
@@ -226,7 +226,7 @@ class TestTopicEntityTag:
             assert len(data["tags"][ref_curie]) >= 1
 
     def test_show_all_reference_tags_batch_data_context_filter(self, test_topic_entity_tag, auth_headers):  # noqa
-        # The fixture tag's data context is experimentally studied (ATP:0000325).
+        # The fixture tag's data context is ATP:0000405 (SCRUM-6815).
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
                 mock_build_curie_to_name_map:
@@ -242,9 +242,9 @@ class TestTopicEntityTag:
                 assert response.status_code == status.HTTP_200_OK
                 return len(response.json()["tags"][ref_curie])
 
-            assert tag_count({"data_context": ["ATP:0000325"]}) >= 1
+            assert tag_count({"data_context": ["ATP:0000405"]}) >= 1
             assert tag_count({"data_context": ["ATP:0000324"]}) == 0
-            assert tag_count({"negated_data_context": ["ATP:0000325"]}) == 0
+            assert tag_count({"negated_data_context": ["ATP:0000405"]}) == 0
             assert tag_count({"negated_data_context": ["ATP:0000324"]}) >= 1
 
     def test_show_all_reference_tags_batch_mod_filter(self, test_topic_entity_tag, test_tag_source, test_mod, auth_headers):  # noqa
@@ -328,7 +328,7 @@ class TestTopicEntityTag:
         for topic in ("ATP:0000122", "ATP:0000150"):
             db.add(TopicEntityTagModel(reference_id=reference_id, topic=topic, species="NCBITaxon:7227",
                                        tag_source_id=test_tag_source.new_source_id, negated=False,
-                                       data_novelty="ATP:0000335", data_context="ATP:0000325"))
+                                       data_novelty="ATP:0000335", data_context="ATP:0000405"))
         db.commit()
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1357,10 +1357,10 @@ class TestTopicEntityTag:
                                                 test_tag_source, test_mod):  # noqa
         """SCRUM-5746: data_context is a fifth ATP dimension in validation.
 
-        A tag on the marker-data branch (ATP:0000328 expression marker) must not validate
-        one on the mentioned-data branch (ATP:0000325 experimentally studied data).
-        Neither term is an ancestor or descendant of the other, so neither makes any claim
-        about the other. This mirrors the cross-branch block data_novelty already applies
+        A tag on the supporting-entity branch (ATP:0000328 expression marker, under
+        ATP:0000409) must not validate one on the studied-entity branch (ATP:0000406
+        experimentally studied entity). Neither term is an ancestor or descendant of the
+        other, so neither makes any claim about the other. This mirrors the cross-branch block data_novelty already applies
         between "existing data" and "novel data".
         """
         load_name_to_atp_and_relationships_mock()
@@ -1375,7 +1375,7 @@ class TestTopicEntityTag:
             }
             curator_source_id = client.post(url="/tag_source", json=curator_source,
                                             headers=auth_headers).json()["tag_source_id"]
-            # existing tag from an automated source, on the marker-data branch
+            # existing tag from an automated source, on the supporting-entity branch
             marker_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
@@ -1388,7 +1388,7 @@ class TestTopicEntityTag:
             }
             marker_id = client.post(url="/topic_entity_tag/", json=marker_tag,
                                     headers=auth_headers).json()["topic_entity_tag_id"]
-            # curator tag with the same topic/species/novelty, on the mentioned-data branch
+            # curator tag with the same topic/species/novelty, on the studied-entity branch
             studied_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
@@ -1396,7 +1396,7 @@ class TestTopicEntityTag:
                 "tag_source_id": curator_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000334",
-                "data_context": "ATP:0000325",
+                "data_context": "ATP:0000406",
                 "created_by": "WBPerson2",
             }
             studied_id = client.post(url="/topic_entity_tag/", json=studied_tag,
@@ -1412,10 +1412,10 @@ class TestTopicEntityTag:
                                                 test_tag_source, test_mod):  # noqa
         """SCRUM-5746: within one branch the generic/specific rule still validates.
 
-        A positive tag at ATP:0000325 (experimentally studied data) validates an existing
-        tag at ATP:0000323, the data context root, because the root is an ancestor of 325.
-        This is the WB shape after the SCRUM-5697 backfill -- topic tags carry the root,
-        tags with an entity carry 325 -- so it must keep working.
+        A positive tag at ATP:0000406 (experimentally studied entity) validates an
+        existing tag at ATP:0000323, the data context root, because the root is an
+        ancestor of 406. This is WB's shape after the SCRUM-6815 cutover -- topic tags
+        carry the root, tags with an entity carry 406 -- so it must keep working.
         """
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
@@ -1441,7 +1441,7 @@ class TestTopicEntityTag:
             }
             root_id = client.post(url="/topic_entity_tag/", json=root_tag,
                                   headers=auth_headers).json()["topic_entity_tag_id"]
-            studied_tag = dict(root_tag, data_context="ATP:0000325",
+            studied_tag = dict(root_tag, data_context="ATP:0000406",
                                tag_source_id=curator_source_id,
                                created_by="WBPerson2")
             studied_id = client.post(url="/topic_entity_tag/", json=studied_tag,
@@ -1450,7 +1450,7 @@ class TestTopicEntityTag:
             root_obj = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == root_id).one()
             assert int(studied_id) in {t.topic_entity_tag_id for t in root_obj.validated_by}, \
-                "ATP:0000323 is an ancestor of ATP:0000325, so the more specific tag " \
+                "ATP:0000323 is an ancestor of ATP:0000406, so the more specific tag " \
                 "should still validate the root-term tag"
 
     def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
@@ -1844,7 +1844,7 @@ class TestTopicEntityTag:
         and accepts each of the four leaf terms."""
         load_name_to_atp_and_relationships_mock()
         data_context_terms = [
-            "ATP:0000325",  # experimentally studied data
+            "ATP:0000406",  # experimentally studied entity
             "ATP:0000360",  # background information
             "ATP:0000328",  # expression marker
             "ATP:0000327",  # genetic marker
@@ -1908,8 +1908,8 @@ class TestTopicEntityTag:
     def test_data_context_defaults_when_omitted(self, test_reference, auth_headers,  # noqa
                                                 test_tag_source):  # noqa
         """SCRUM-5697: while the column is still nullable, a caller that omits
-        data_context gets the "experimentally studied data" default rather than a
-        NULL. This is what keeps the backfilled rows and newly-created ones
+        data_context gets its MOD's default rather than a NULL -- ATP:0000405
+        experimental data for a MOD without its own entry (SCRUM-6815). This is what keeps the backfilled rows and newly-created ones
         agreeing, which check_for_duplicate_tags depends on."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
@@ -1926,7 +1926,7 @@ class TestTopicEntityTag:
             assert create_resp.status_code == status.HTTP_201_CREATED
             tag_id = create_resp.json()["topic_entity_tag_id"]
             get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
-            assert get_resp.json()["data_context"] == "ATP:0000325"
+            assert get_resp.json()["data_context"] == "ATP:0000405"
 
     def test_data_context_invalid_curie_rejected(self, test_reference, auth_headers,  # noqa
                                                  test_tag_source):  # noqa
@@ -1964,7 +1964,7 @@ class TestTopicEntityTag:
             "tag_source_id": test_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
-            "data_context": "ATP:0000325",
+            "data_context": "ATP:0000405",
         }
         # The 409-detail construction on the repeat POST calls get_tet_with_names ->
         # get_curie_to_name_from_all_tets, which would instantiate the
@@ -1975,7 +1975,7 @@ class TestTopicEntityTag:
                 mock_get_curie_to_name_from_all_tets:
             mock_get_curie_to_name_from_all_tets.return_value = {
                 "ATP:0000122": "ATP:0000122",
-                "ATP:0000325": "experimentally studied data",
+                "ATP:0000405": "experimental data",
                 "NCBITaxon:6239": "Caenorhabditis elegans",
             }
             first = client.post(url="/topic_entity_tag/", json=base_tag, headers=auth_headers)
@@ -2000,7 +2000,7 @@ class TestTopicEntityTag:
 
         A tag created from a model that omits the field inherits the model's
         value rather than the module constant, so a MOD's policy (WB's topic
-        classifiers carry ATP:0000323, its entity extractors ATP:0000325) lives
+        entity extraction models carry ATP:0000406, FB's classifiers ATP:0000405) lives
         on the model row instead of being duplicated in every pipeline."""
         from agr_literature_service.api.models import MLModel
         load_name_to_atp_and_relationships_mock()
@@ -2028,7 +2028,7 @@ class TestTopicEntityTag:
                                                              test_ml_model,  # noqa
                                                              test_tag_source):  # noqa
         """SCRUM-5697: a model with no data_context of its own cannot answer, so
-        the module constant fills the gap. The test_ml_model fixture uploads no
+        the MOD's default fills the gap. The test_ml_model fixture uploads no
         data_context, which is the state every historical ml_model row is in
         until the SCRUM-5697 rollout populates them."""
         load_name_to_atp_and_relationships_mock()
@@ -2046,7 +2046,7 @@ class TestTopicEntityTag:
             assert create_resp.status_code == status.HTTP_201_CREATED
             tag_id = create_resp.json()["topic_entity_tag_id"]
             get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
-            assert get_resp.json()["data_context"] == "ATP:0000325"
+            assert get_resp.json()["data_context"] == "ATP:0000405"
 
     def test_explicit_data_context_wins_over_the_ml_model(self, db, test_reference, auth_headers,  # noqa
                                                           test_ml_model,  # noqa
@@ -4051,3 +4051,151 @@ class TestRevalidationOutcomeEmail:
     def test_bodies_render_without_a_reference(self):
         for _subject, body in self._bodies().values():
             assert "{target}" not in body.format(target="")
+
+
+class TestDeprecatedExperimentallyStudiedDataContext:
+    """SCRUM-6815: ATP:0000325 "experimentally studied data" was deprecated in the
+    2026-10-30 ATP release, with no parent, and every MOD moved off it in one
+    cutover (DATA_CONTEXT_DEFAULTS, plus a backfill of the stored tags)."""
+
+    @pytest.mark.parametrize("mod_abbreviation, has_entity, expected", [
+        ("FB", False, "ATP:0000405"),
+        ("FB", True, "ATP:0000405"),
+        ("ZFIN", False, "ATP:0000405"),
+        ("ZFIN", True, "ATP:0000406"),
+        ("WB", False, "ATP:0000405"),
+        ("WB", True, "ATP:0000406"),
+        ("SGD", False, "ATP:0000405"),
+        ("SGD", True, "ATP:0000405"),
+        (None, False, "ATP:0000405"),
+    ])
+    def test_default_data_context_for_mod(self, mod_abbreviation, has_entity, expected):
+        from agr_literature_service.api.crud.topic_entity_tag_crud import default_data_context_for_mod
+        assert default_data_context_for_mod(mod_abbreviation, has_entity) == expected
+
+    def test_fallback_reads_the_entity_from_the_payload(self):
+        # no ml_model_id, so the db is never touched
+        from agr_literature_service.api.crud.topic_entity_tag_crud import resolve_default_data_context
+        assert resolve_default_data_context(None, {"entity": "ZFIN:ZDB-GENE-990415-8"}, "ZFIN") == "ATP:0000406"
+        assert resolve_default_data_context(None, {"entity": None}, "ZFIN") == "ATP:0000405"
+
+    def test_curator_validation_uses_experimental_data(self):
+        # one value for every MOD: ATP:0000405 is the same term as FB's and ZFIN's
+        # and now WB's topic tags, sits under the ATP:0000323 root that older WB topic tags
+        # carry, and ATP:0000406 sits under it
+        from agr_literature_service.api.crud.topic_entity_tag_crud import CURATOR_VALIDATION_DATA_CONTEXT
+        assert CURATOR_VALIDATION_DATA_CONTEXT == "ATP:0000405"
+
+    @staticmethod
+    def _source_for_mod(client, auth_headers, mod_abbreviation):  # noqa
+        client.post(url="/mod/", json={"abbreviation": mod_abbreviation, "short_name": mod_abbreviation,
+                                       "full_name": f"{mod_abbreviation} test"}, headers=auth_headers)
+        source = {
+            "source_evidence_assertion": "ATP:0000036",
+            "source_method": "abc_literature_system",
+            "validation_type": "professional_biocurator",
+            "description": "curator using the ABC",
+            "data_provider": mod_abbreviation,
+            "secondary_data_provider_abbreviation": mod_abbreviation,
+        }
+        response = client.post(url="/tag_source", json=source, headers=auth_headers)
+        assert response.status_code == status.HTTP_201_CREATED, response.json()
+        return response.json()["tag_source_id"]
+
+    @pytest.mark.parametrize("mod_abbreviation, expected", [("FB", "ATP:0000405"), ("ZFIN", "ATP:0000405"),
+                                                            ("WB", "ATP:0000405")])
+    def test_topic_tag_without_data_context_gets_the_mod_default(self, test_reference, auth_headers,  # noqa
+                                                                 mod_abbreviation, expected):
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            source_id = self._source_for_mod(client, auth_headers, mod_abbreviation)
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.json()
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == expected
+
+    @pytest.mark.parametrize("existing_context", ["ATP:0000323", "ATP:0000405"])
+    def test_experimental_data_validates_root_and_same_term_tags(self, db, auth_headers, test_reference,  # noqa
+                                                                 test_tag_source, test_mod,  # noqa
+                                                                 existing_context):
+        """A curator tag at ATP:0000405 validates older WB topic tags (ATP:0000323, an
+        ancestor) and tags at ATP:0000405 (the same term)."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
+                                            headers=auth_headers).json()["tag_source_id"]
+            existing_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": existing_context,
+                "created_by": "WBPerson1",
+            }
+            existing_id = client.post(url="/topic_entity_tag/", json=existing_tag,
+                                      headers=auth_headers).json()["topic_entity_tag_id"]
+            curator_tag = dict(existing_tag, data_context="ATP:0000405",
+                               tag_source_id=curator_source_id, created_by="WBPerson2")
+            curator_id = client.post(url="/topic_entity_tag/", json=curator_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            existing_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == existing_id).one()
+            assert int(curator_id) in {t.topic_entity_tag_id for t in existing_obj.validated_by}
+
+    def test_experimental_data_does_not_validate_a_deprecated_tag(self, db, auth_headers, test_reference,  # noqa
+                                                                  test_tag_source, test_mod):  # noqa
+        """ATP:0000325 has no parent since the 2026-10-30 release, so nothing but
+        ATP:0000325 itself can validate a tag that still carries it. This is why the
+        cutover backfills every stored ATP:0000325 tag rather than leaving them."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
+                                            headers=auth_headers).json()["tag_source_id"]
+            old_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000325",
+                "created_by": "WBPerson1",
+            }
+            old_id = client.post(url="/topic_entity_tag/", json=old_tag,
+                                 headers=auth_headers).json()["topic_entity_tag_id"]
+            curator_tag = dict(old_tag, data_context="ATP:0000405",
+                               tag_source_id=curator_source_id, created_by="WBPerson2")
+            curator_id = client.post(url="/topic_entity_tag/", json=curator_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            old_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == old_id).one()
+            assert int(curator_id) not in {t.topic_entity_tag_id for t in old_obj.validated_by}

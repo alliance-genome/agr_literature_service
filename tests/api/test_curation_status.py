@@ -98,7 +98,7 @@ class TestCurationStatus:
             db.flush()
             db.add(TopicEntityTagModel(reference_id=reference_id, topic="ATP:topic1",
                                        tag_source_id=geo_source.tag_source_id, negated=False,
-                                       data_novelty="ATP:0000335", data_context="ATP:0000325"))
+                                       data_novelty="ATP:0000335", data_context="ATP:0000405"))
             db.commit()
 
             def topic1_info(mod_abbreviation):
