@@ -10,6 +10,7 @@ from starlette.testclient import TestClient
 from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.crud import topic_entity_tag_crud
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags, \
     TET_REVALIDATION_LOCK_NAMESPACE
 from agr_literature_service.api.models import ReferenceModel, TopicEntityTagModel
@@ -103,6 +104,34 @@ class TestTopicEntityTag:
         assert db.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.reference_id == reference_id,
             TopicEntityTagModel.entity == "WB:WBGene00003002").count() == 1
+
+    def test_create_corpus_step_failure_stores_nothing(self, test_topic_entity_tag, test_tag_source,  # noqa
+                                                       db, auth_headers):  # noqa
+        # SCRUM-6851: the tag, the corpus step and the workflow tag are one transaction,
+        # so an error response means nothing was stored and the caller can retry. The
+        # tag used to be committed before the corpus step and survived its failure.
+        new_tet = {
+            "reference_curie": test_topic_entity_tag.related_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003003",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "tag_source_id": test_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "data_context": "ATP:0000405",
+            "created_by": "WBPerson1"
+        }
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.add_paper_to_mod_if_not_already",
+                      side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                                detail="corpus step failed")):
+            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        db.expire_all()
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.entity == "WB:WBGene00003003").count() == 0
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -3727,6 +3756,42 @@ class TestMixedTagCompanionEntityTag:
             mixed = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
             assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
+
+    def test_companion_validation_failure_drops_companion_keeps_parent(self, db, auth_headers,  # noqa
+                                                                       test_reference, test_tag_source,  # noqa
+                                                                       test_mod):  # noqa
+        """SCRUM-6851 (was SCRUM-6473): the companion and its validation share a
+        savepoint. A failed validation drops the companion row with it -- it used to
+        stay behind, unvalidated -- and leaves the parent tag stored."""
+        load_name_to_atp_and_relationships_mock()
+        original_validate_tags = topic_entity_tag_crud.validate_tags
+
+        def fail_for_companion(db, new_tag_obj, **kwargs):  # noqa
+            if new_tag_obj.topic == new_tag_obj.entity_type:
+                raise RuntimeError("companion validation failed")
+            return original_validate_tags(db=db, new_tag_obj=new_tag_obj, **kwargs)
+
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.validate_tags",
+                      side_effect=fail_for_companion):
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": self.HUMAN_CURATOR,
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        db.expire_all()
+        mixed = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
+        assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
 
 
 class TestRevalidationInvariants:

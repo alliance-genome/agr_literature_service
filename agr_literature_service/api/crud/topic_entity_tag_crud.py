@@ -249,9 +249,15 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
-               validate_on_insert: bool = True) -> Tuple[int, bool]:
+               validate_on_insert: bool = True, commit: bool = True) -> Tuple[int, bool]:
     """
     Create a new topic entity tag.
+
+    All of it -- the tag, adding the paper to the MOD corpus, the manual indexing
+    workflow tag, validation and the companion entity tag -- is one transaction
+    (SCRUM-6851). An error therefore means nothing was stored, and the caller can
+    retry. ``commit=False`` leaves that transaction open for a caller that has
+    more to do in it (validate_topic); the caller then commits.
 
     Returns ``(topic_entity_tag_id, was_upsert)``:
       - ``(new_id, False)``       — a new tag was created (caller should return 201).
@@ -330,38 +336,37 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
     if duplicate_check_result is not None:
         logger.info("Duplicate tag absorbed as upsert, returning existing id")
+        if commit:
+            db.commit()
         return (duplicate_check_result, True)
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
         logger.info("Adding new tag to database")
         db.add(new_db_obj)
-        db.commit()
-        logger.info("Tag committed, refreshing with tag_source")
-        # Optimize: Eagerly load tag_source to avoid lazy loading during validation
-        db.refresh(new_db_obj, ['tag_source'])
+        db.flush()
+        # Optimize: Eagerly load tag_source to avoid lazy loading during validation.
+        # created_by/updated_by are the labels the audit listener resolved on insert;
+        # read back here because the companion-tag check below keys on them.
+        db.refresh(new_db_obj, ['tag_source', 'created_by', 'updated_by'])
 
         logger.info("Adding paper to MOD if needed")
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_paper_to_mod_if_not_already(db, reference_curie, reference_id,
                                         source.secondary_data_provider.abbreviation,
-                                        mod_id)
+                                        mod_id, commit=False)
         logger.info("Updating manual indexing workflow tag")
-        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
+        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft, commit=False)
         if validate_on_insert:
             logger.info("Starting tag validation")
-            # SCRUM-6474: take the same per-reference lock revalidation uses, so this
-            # tag's edges cannot be written while a PATCH or DELETE on the same paper is
-            # midway through its delete-and-rebuild. run_revalidation snapshots the
-            # reference's tag ids *after* taking the lock and then deletes every edge with
-            # one of those ids on either side; an unlocked insert landing in that window
-            # had all of its edges deleted (each has an existing tag on one side) and none
-            # recreated, because the rebuild iterates the same snapshot. The tag was left
-            # with no validation edges and stale rollups until the next sweep.
-            # Transaction-scoped, so validate_tags' own commit below releases it. Taken
-            # again here because the insert's commit above released the earlier one.
-            lock_reference_tags(db, reference_id)
-            validate_tags(db=db, new_tag_obj=new_db_obj)
+            # SCRUM-6474: this tag's edges must not be written while a PATCH or DELETE on
+            # the same paper is midway through its delete-and-rebuild. run_revalidation
+            # snapshots the reference's tag ids *after* taking the reference lock and then
+            # deletes every edge with one of those ids on either side; an unlocked insert
+            # landing in that window had all of its edges deleted and none recreated. The
+            # lock taken before the duplicate check above is still held: nothing in this
+            # transaction has committed since (SCRUM-6851).
+            validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
             logger.info("Tag validation completed")
             # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
             # create a companion pure entity tag (topic == entity_type) so they don't have
@@ -388,12 +393,17 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             if is_mixed and is_positive and not is_sgd and is_human:
                 logger.info("Creating companion entity tag for mixed topic+entity tag")
                 create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
+        if commit:
+            db.commit()
         logger.info("create_tag completed successfully")
         return (new_db_obj.topic_entity_tag_id, False)
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"invalid request: {e}")
+    except Exception:
+        db.rollback()
+        raise
 
 
 def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference_id: int):
@@ -409,11 +419,12 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
     semantically-redundant entity tag for the same entity, and it matches the
     back-fill's existence check.
 
-    Non-fatal: any failure is logged and rolled back so it never disturbs the
-    already-committed parent tag. The caller excludes SGD. The companion is itself
-    ``topic == entity_type`` so it does not re-trigger this logic.
+    Non-fatal: it runs in a savepoint, so a failure is logged and rolls back the
+    companion alone, never the parent tag in the same transaction (SCRUM-6851).
+    Nothing here commits; create_tag does. The caller excludes SGD. The companion is
+    itself ``topic == entity_type`` so it does not re-trigger this logic.
     """
-    committed = False
+    savepoint = db.begin_nested()
     try:
         entity_type = mixed_tag_data["entity_type"]
         entity = mixed_tag_data["entity"]
@@ -425,6 +436,7 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         ).first()
         if existing is not None:
             logger.info("Companion entity tag already exists; nothing to create")
+            savepoint.commit()
             return
         entity_tag_data = copy.copy(mixed_tag_data)
         entity_tag_data["topic"] = entity_type
@@ -441,21 +453,16 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
             entity_tag_data[field] = None
         new_db_obj = TopicEntityTagModel(**entity_tag_data)
         db.add(new_db_obj)
-        db.commit()
-        committed = True
+        db.flush()
         db.refresh(new_db_obj, ['tag_source'])
-        validate_tags(db=db, new_tag_obj=new_db_obj)
+        validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
+        savepoint.commit()
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
     except Exception as e:
-        # Non-fatal: the parent tag is already committed, so a companion failure must
-        # never surface to the caller. Roll back only the companion's pending work.
-        db.rollback()
-        if committed:
-            # The companion row was already written; only the post-insert validation
-            # failed, so the row persists (validation can be recomputed later).
-            logger.warning(f"Companion entity tag written but validation failed: {e}")
-        else:
-            logger.warning(f"Companion entity tag not created, skipping: {e}")
+        # Non-fatal: a companion failure must never surface to the caller or undo the
+        # parent tag. Roll back to the savepoint, which drops the companion only.
+        savepoint.rollback()
+        logger.warning(f"Companion entity tag not created, skipping: {e}")
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
@@ -466,8 +473,9 @@ def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference
     update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
 
 
-def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft):
-
+def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft, commit: bool = True):
+    """Set the reference's manual indexing workflow tag for the MOD to ``index_wft``.
+    ``commit=False`` flushes instead, for a caller that commits (create_tag)."""
     if index_wft is None:
         return
     all_manual_indexing_wf_tags = get_workflow_tags_from_process("ATP:0000273")
@@ -483,14 +491,22 @@ def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index
                                    mod_id=mod_id,
                                    workflow_tag_id=index_wft)
         db.add(wft_obj)
-        db.commit()
     elif wft.workflow_tag_id != index_wft:
         wft.workflow_tag_id = index_wft
         db.add(wft)
+    else:
+        return
+    if commit:
         db.commit()
+    else:
+        db.flush()
 
 
-def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id):
+def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id,
+                                    commit: bool = True):
+    """Put the reference in the MOD's corpus if it is not, and give it the 141 workflow tag.
+    ``commit=False`` flushes instead and leaves rolling back to the caller, which owns
+    the transaction (create_tag, SCRUM-6851)."""
     try:
         add_wft_141 = False
 
@@ -557,9 +573,13 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
                     mod_abbreviation,
                 )
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     except Exception as e:
-        db.rollback()
+        if commit:
+            db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error: '{e}' occurred when adding {reference_curie} into corpus/adding file needed tag")
 
@@ -1703,12 +1723,17 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
                 existing_tag.note = new_note
                 existing_tag.updated_by = created_by_user
                 db.add(existing_tag)
-                db.commit()
+                # Flushed, not committed: create_tag commits (SCRUM-6851). The audit
+                # listener runs on flush and stamps date_updated; reload it from the row,
+                # as the commit's expiry used to, so the comparison below sees the stored
+                # (naive) value rather than the listener's timezone-aware one.
+                db.flush()
+                db.refresh(existing_tag, ['date_updated'])
                 if date_updated and date_parser.parse(date_updated) > existing_tag.date_updated:
                     existing_tag.date_updated = date_updated
                 else:
                     existing_tag.date_updated = existing_date_updated
-                db.commit()
+                db.flush()
                 return existing_tag.topic_entity_tag_id
             except (IntegrityError, HTTPException) as e:
                 db.rollback()
