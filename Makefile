@@ -84,13 +84,16 @@ DEBEZIUM_SOURCE_TABLES = $(shell grep -o '"table.include.list": *"[^"]*"' debezi
 debezium-create-source-topics:
 	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c 'for table in $(DEBEZIUM_SOURCE_TABLES); do /kafka/bin/kafka-topics.sh --create --if-not-exists --topic "abc.public.$$table" --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092 || exit 1; done'
 
+# The connector is built from docker/debezium_connector.dockerfile, so the targets below start it
+# with --build: without it compose reuses whatever image was built last, and changes to that
+# dockerfile (e.g. the SCRUM-6805 Jersey logging config) never reach a running deployment.
 restart-debezium-local:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
 	docker-compose --env-file ${ENV_FILE} up -d postgres
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d elasticsearch
 	sleep 10
-	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
 	$(MAKE) debezium-create-source-topics ENV_FILE=${ENV_FILE}
 	sleep 5
@@ -100,7 +103,7 @@ restart-debezium-local:
 
 restart-debezium-aws:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
-	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
 	$(MAKE) debezium-create-source-topics ENV_FILE=${ENV_FILE}
 	sleep 5
@@ -166,7 +169,7 @@ run-debezium-integration-tests:
 	# Start Elasticsearch
 	docker-compose --env-file .env.test up -d elasticsearch
 	# Start Debezium stack
-	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file .env.test up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
 	# Create required Kafka topics
 	$(MAKE) debezium-create-source-topics ENV_FILE=.env.test
@@ -196,7 +199,7 @@ run-debezium-start-test-env:
 	# Start Elasticsearch
 	docker-compose --env-file .env.test up -d elasticsearch
 	# Start Debezium stack
-	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file .env.test up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
 	# Create required Kafka topics
 	$(MAKE) debezium-create-source-topics ENV_FILE=.env.test
