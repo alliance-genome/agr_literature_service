@@ -279,12 +279,13 @@ class TestCompleteJob:
 
 class TestCleanupOldJobs:
     def test_removes_old_completed_keeps_running(self, mgr):
+        # Both jobs exist before either is aged: create_or_get_job runs the cleanup
+        # itself, so creating the second one would already remove an aged first one.
         old = mgr.create_or_get_job(1, "AGRKB:1", "user")
         mgr.complete_job(old.job_id, success=True)
+        running = mgr.create_or_get_job(2, "AGRKB:2", "user")
         two_days_ago = (datetime.utcnow() - timedelta(hours=48)).isoformat()
         _set_job_field(mgr, old.job_id, started_at=two_days_ago)
-
-        running = mgr.create_or_get_job(2, "AGRKB:2", "user")
         _set_job_field(mgr, running.job_id, started_at=two_days_ago)  # old but still running
 
         removed = mgr.cleanup_old_jobs(max_age_hours=24)
@@ -307,3 +308,10 @@ class TestCleanupOldJobs:
 
     def test_missing_state_dir(self, tmp_path):
         assert ConversionJobManager(state_dir=str(tmp_path / "absent")).cleanup_old_jobs() == 0
+
+    def test_creating_a_job_cleans_up_old_ones(self, mgr):
+        old = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.complete_job(old.job_id, success=True)
+        _set_job_field(mgr, old.job_id, started_at=(datetime.utcnow() - timedelta(hours=48)).isoformat())
+        mgr.create_or_get_job(2, "AGRKB:2", "user")
+        assert mgr.get_job(old.job_id) is None
