@@ -81,6 +81,12 @@ class TestCreateOrGetJob:
         second = mgr.create_or_get_job(3, "AGRKB:1", "user")
         assert second.job_id == first.job_id
 
+    def test_start_job_says_which_caller_created_the_job(self, mgr):
+        first, first_created = mgr.start_job(3, "AGRKB:1", "user")
+        second, second_created = mgr.start_job(3, "AGRKB:1", "user")
+        assert (first_created, second_created) == (True, False)
+        assert second.job_id == first.job_id
+
     def test_creates_new_job_after_previous_completed(self, mgr):
         first = mgr.create_or_get_job(3, "AGRKB:1", "user")
         mgr.complete_job(first.job_id, success=True)

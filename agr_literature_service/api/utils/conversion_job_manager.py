@@ -39,7 +39,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -225,11 +225,21 @@ class ConversionJobManager:
 
     def create_or_get_job(self, reference_id: int, reference_curie: str, user_id: str,
                           expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None) -> ConversionJob:
+        """The running job for the reference, created if there is none. See start_job,
+        which also says whether the job was created by this call."""
+        return self.start_job(reference_id, reference_curie, user_id, expected_source_files)[0]
+
+    def start_job(self, reference_id: int, reference_curie: str, user_id: str,
+                  expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None
+                  ) -> Tuple[ConversionJob, bool]:
         """
-        Atomically return the existing running job for the reference or create a new one.
+        Atomically return the existing running job for the reference or create a new
+        one, as ``(job, created)``.
 
         This is the idempotency primitive: two concurrent callers asking for the
-        same reference, in any worker, both receive the same job.
+        same reference, in any worker, both receive the same job, and exactly one of
+        them gets ``created=True``. Only that caller may run the job: the others
+        must report it as running, or the conversion would run twice.
 
         ``expected_source_files`` — when creating a new job, seeds the job's
         ``per_file_progress`` with a ``pending`` entry for each eligible source.
@@ -248,7 +258,7 @@ class ConversionJobManager:
                 if existing is not None:
                     existing = self._fail_if_owner_gone(existing)
                     if existing.status == "running":
-                        return existing
+                        return existing, False
 
             pid = os.getpid()
             job = ConversionJob(
@@ -278,7 +288,7 @@ class ConversionJobManager:
             f"Created conversion job {job.job_id} for reference_id={reference_id} "
             f"(curie={reference_curie}, user={user_id}, pid={job.owner_pid})"
         )
-        return job
+        return job, True
 
     def get_job(self, job_id: str) -> Optional[ConversionJob]:
         job = self._load_job(job_id)

@@ -958,13 +958,24 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             started_at=now_iso, completed_at=now_iso, job=recent_job,
         )
 
-    if wait:
-        job = conversion_manager.create_or_get_job(
-            reference_id=reference.reference_id,
-            reference_curie=reference.curie,
-            user_id=user_id,
-            expected_source_files=_expected_source_files_from_assessment(assessment),
+    # SCRUM-6855: the check for a running job above is not atomic with this; two
+    # requests (in any workers) can both get here. start_job hands the job to
+    # exactly one of them; the other reports it as running rather than running the
+    # conversion a second time.
+    job, created = conversion_manager.start_job(
+        reference_id=reference.reference_id,
+        reference_curie=reference.curie,
+        user_id=user_id,
+        expected_source_files=_expected_source_files_from_assessment(assessment),
+    )
+    if not created:
+        return status.HTTP_202_ACCEPTED, _status_payload(
+            db, reference, status_str=STATUS_RUNNING,
+            converted_classes=_converted_classes_from_assessment(assessment),
+            started_at=job.started_at.isoformat(), job=job,
         )
+
+    if wait:
         run_conversion_job(
             job_id=job.job_id,
             reference_id=reference.reference_id,
@@ -1013,12 +1024,6 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             completed_at=datetime.utcnow().isoformat(), job=final_job,
         )
 
-    job = conversion_manager.create_or_get_job(
-        reference_id=reference.reference_id,
-        reference_curie=reference.curie,
-        user_id=user_id,
-        expected_source_files=_expected_source_files_from_assessment(assessment),
-    )
     background_tasks.add_task(
         run_conversion_job,
         job.job_id,

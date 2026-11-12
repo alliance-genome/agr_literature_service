@@ -641,6 +641,30 @@ class TestConvertedEndpoint:
                 body = response.json()
                 assert body["status"] == "converted"
 
+    @pytest.mark.parametrize("wait", [False, True])
+    def test_request_that_loses_the_race_does_not_run_the_job_again(
+            self, db, test_reference, auth_headers, wait):  # noqa: F811
+        """SCRUM-6855: two requests can both miss the "job already running" check (it is
+        not atomic with starting a job). The one that does not create the job must
+        report it as running, not run the conversion a second time."""
+        from agr_literature_service.api.models import ReferenceModel
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_pdf_race", pdf_type="pdf")
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_reference.new_ref_curie).scalar()
+        first, created = conversion_manager.start_job(reference_id, test_reference.new_ref_curie, "first")
+        assert created is True
+        with patch.object(conversion_manager, "get_active_job_for_reference", return_value=None), \
+                patch("agr_literature_service.api.crud.file_conversion_crud.run_conversion_job") as run_job:
+            url = (f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}"
+                   f"?wait={str(wait).lower()}")
+            with TestClient(app) as client:
+                response = client.get(url=url, headers=auth_headers)
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.json()["status"] == "running"
+        assert response.json()["job_id"] == first.job_id
+        run_job.assert_not_called()
+
     def test_reference_not_found(self, db, auth_headers):  # noqa: F811
         """Unknown curie → 404."""
         with TestClient(app) as client:
