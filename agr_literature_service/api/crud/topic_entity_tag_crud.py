@@ -81,6 +81,22 @@ TET_REVALIDATION_LOCK_NAMESPACE = 6475
 # single-reference lock can ever collide with the whole-table sweep's key.
 TET_REVALIDATION_SWEEP_KEY = 0
 
+
+def lock_reference_tags(db: Session, reference_id: int) -> None:
+    """Take the per-reference tag lock for the rest of the current transaction.
+
+    Every write to one reference's tags runs under it: tag creation, the curator
+    validate path and single-reference revalidation. It is transaction-scoped, so
+    each commit or rollback releases it, and re-entrant within one transaction, so a
+    caller that already holds it can call into code that takes it again.
+
+    Take it BEFORE writing or deleting any tag row of the reference. A transaction
+    that holds a tag row lock and then waits here can deadlock against a
+    revalidation that holds this lock and is about to update that row.
+    """
+    db.execute(select(func.pg_advisory_xact_lock(TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
+
+
 # SCRUM-6474: what the completion email says for each run_revalidation outcome. Only
 # "completed" means work was actually done -- this endpoint's email is the sole feedback
 # an admin gets, so it must not report success for a run that returned early or died.
@@ -299,6 +315,14 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
 
     logger.info("Adding audited object users")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
+    # SCRUM-6851: hold the reference's tag lock from the duplicate check through the
+    # insert's commit. Without it two identical requests in flight together (a client
+    # retrying after a timeout while the first is still running) both pass the check
+    # and both insert, since no unique constraint covers a tag. With it the second
+    # waits, then finds the first one's row and gets the usual 409 "duplicate" with
+    # its id, so a resend is safe. Taken after the user rows above on purpose: only
+    # the tag rows of this reference must never be locked before it.
+    lock_reference_tags(db, reference_id)
     logger.info("Checking for duplicate tags")
     # check_for_duplicate_tags raises HTTPException(409) on conflict branches, or
     # returns the existing tag id when the request was absorbed as an in-place note
@@ -334,9 +358,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             # had all of its edges deleted (each has an existing tag on one side) and none
             # recreated, because the rebuild iterates the same snapshot. The tag was left
             # with no validation edges and stale rollups until the next sweep.
-            # Transaction-scoped, so validate_tags' own commit below releases it.
-            db.execute(select(func.pg_advisory_xact_lock(
-                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
+            # Transaction-scoped, so validate_tags' own commit below releases it. Taken
+            # again here because the insert's commit above released the earlier one.
+            lock_reference_tags(db, reference_id)
             validate_tags(db=db, new_tag_obj=new_db_obj)
             logger.info("Tag validation completed")
             # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
@@ -1314,8 +1338,7 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
             # would poison that pooled connection for good.
             # Full sweeps are deliberately NOT excluded by this lock -- a sweep runs for
             # hours and must not block curation.
-            db.execute(select(func.pg_advisory_xact_lock(
-                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
+            lock_reference_tags(db, reference_id)
             all_tag_ids_for_reference = [res[0] for res in db.query(
                 TopicEntityTagModel.topic_entity_tag_id).filter(
                     TopicEntityTagModel.reference_id == reference_id).all()]
@@ -2693,6 +2716,13 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     current_user = get_default_user_value()
     topic_upper = str(topic or "").upper()
 
+    # SCRUM-6851: lock the reference before the prior verdict is read or deleted.
+    # create_tag below takes the same lock; taken only there, this transaction would
+    # already hold the deleted row's lock while waiting for it, and could deadlock
+    # with a PATCH or DELETE on the same paper whose revalidation holds the lock and
+    # updates that row. It also serialises two validations of the same cell, so a
+    # resend replaces the first one instead of racing it.
+    lock_reference_tags(db, reference_id)
     prior = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.reference_id == reference_id,
         func.upper(TopicEntityTagModel.topic) == topic_upper,

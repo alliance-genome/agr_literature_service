@@ -1,3 +1,5 @@
+import threading
+import time
 from collections import namedtuple
 from datetime import datetime
 from unittest.mock import patch
@@ -8,10 +10,11 @@ from starlette.testclient import TestClient
 from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags
+from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags, \
+    TET_REVALIDATION_LOCK_NAMESPACE
 from agr_literature_service.api.models import ReferenceModel, TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
-from ..fixtures import db # noqa
+from ..fixtures import db, _get_engine # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -55,6 +58,51 @@ class TestTopicEntityTag:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.json()["created_by"] == "WBPerson1"
+
+    def test_create_concurrent_identical_requests_store_one_tag(self, test_topic_entity_tag, test_tag_source,  # noqa
+                                                                 db, auth_headers):  # noqa
+        # SCRUM-6851: a client that resends a create after a timeout can have both
+        # requests in flight at once. The reference lock taken before the duplicate check
+        # makes the second wait for the first, then see its row and get the usual 409.
+        new_tet = {
+            "reference_curie": test_topic_entity_tag.related_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003002",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "tag_source_id": test_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "data_context": "ATP:0000405",
+            "created_by": "WBPerson1"
+        }
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_topic_entity_tag.related_ref_curie).scalar()
+        statuses = []
+        with TestClient(app) as client:
+            def post():
+                statuses.append(client.post(url="/topic_entity_tag/", json=new_tet,
+                                            headers=auth_headers).status_code)
+
+            # Hold the reference lock from another connection so both requests are
+            # waiting on it together, then release it and let them race.
+            with _get_engine().connect() as holder:
+                holder.execute(text("SELECT pg_advisory_xact_lock(:ns, :ref)"),
+                               {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id})
+                threads = [threading.Thread(target=post) for _ in range(2)]
+                for thread in threads:
+                    thread.start()
+                time.sleep(1)
+                assert statuses == []
+                holder.rollback()
+            for thread in threads:
+                thread.join(timeout=60)
+        assert sorted(statuses) == [status.HTTP_201_CREATED, status.HTTP_409_CONFLICT]
+        db.expire_all()
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.entity == "WB:WBGene00003002").count() == 1
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
