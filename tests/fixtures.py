@@ -246,6 +246,10 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000009': 'phenotype',
         'ATP:0000082': 'RNAi phenotype',
         'ATP:0000122': 'ATP:0000122',
+        # SGD's review topic/display tag and the topic root it is stored under
+        # (SCRUM-6852 SGD /validate test); names are not needed, only validity
+        'ATP:0000130': 'ATP:0000130',
+        'ATP:0000002': 'ATP:0000002',
         'ATP:0000084': 'overexpression phenotype',
         'ATP:0000079': 'genetic phenotype',
         'ATP:0000005': 'gene',

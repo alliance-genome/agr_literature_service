@@ -84,7 +84,12 @@ class TestTopicEntityTag:
         reference_id = db.query(ReferenceModel.reference_id).filter(
             ReferenceModel.curie == test_topic_entity_tag.related_ref_curie).scalar()
         statuses = []
-        with TestClient(app) as client:
+        # The loser's 409 detail calls get_curie_to_name_from_all_tets, which would
+        # reach the A-team API (no URL in the test environment); patched as the other
+        # 409 tests in this file do.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}):
             def post():
                 statuses.append(client.post(url="/topic_entity_tag/", json=new_tet,
                                             headers=auth_headers).status_code)
@@ -141,7 +146,9 @@ class TestTopicEntityTag:
             note="test note",
             created_by="WBPerson1",
         )
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(HTTPException) as exc_info, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}):
             topic_entity_tag_crud.create_tag(db, duplicate)
         assert exc_info.value.status_code == status.HTTP_409_CONFLICT
         reference_id = db.query(ReferenceModel.reference_id).filter(
