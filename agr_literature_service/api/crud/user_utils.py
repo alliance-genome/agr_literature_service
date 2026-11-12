@@ -1,8 +1,22 @@
-from typing import Optional, Tuple
+import logging
+import re
+from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
+# A person identifier is classified by its shape (SCRUM-6729):
+#   - PREFIX:local id is a person curie (AGRKB) or a person cross reference curie
+#     (WB:WBPerson1, ORCID:..., SGD:Colleague_..., ZFIN:ZDB-PERS-..., XenBase:...);
+#   - a WormBase person id is also accepted bare (WBPerson1843), as the Caltech
+#     pipelines send it.
+# No automation agent name contains ':', so a curie-shaped identifier never
+# means an automation agent.
+_CURIE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*:\S+$")
+_WB_PERSON_RE = re.compile(r"^(?:WB:)?WBPerson(\d+)$", re.IGNORECASE)
 
 # ----------------------------
 # Pure-SQL helpers (no ORM imports)
@@ -147,37 +161,129 @@ SELECT id, NULL FROM person WHERE curie = :curie
 RETURNING id
 """)
 
+# the person a (non-obsolete) person cross reference points at; the curie is unique among those
+_SQL_PERSON_BY_XREF = text(r"""
+SELECT p.curie
+FROM person_cross_reference x
+JOIN person p ON p.id = x.person_id
+WHERE lower(x.curie) = lower(:curie) AND NOT x.obsolete
+LIMIT 1
+""")
+
+# an automation agent standing in for a person becomes an agent of that person;
+# the records it created or updated then show the person's curie
+_SQL_CLAIM_PLACEHOLDER = text(r"""
+UPDATE agent
+SET person_id = (SELECT id FROM person WHERE curie = :curie), automation_username = NULL
+WHERE id = :agent_id
+""")
+
+
+def wb_person_placeholder(identifier: str) -> Optional[str]:
+    """The canonical bare WormBase person id (WBPerson1843) for a WB person id,
+    bare or prefixed and in any case; None for anything else. It is also the
+    name of the placeholder automation agent that stands in for the person
+    until the WB persons are in ABC."""
+    match = _WB_PERSON_RE.match(identifier.strip())
+    return f"WBPerson{match.group(1)}" if match else None
+
+
+def person_for_identifier(db: Session, identifier: str) -> Optional[str]:
+    """The curie of the person an AGRKB person curie or a person cross reference
+    names (a bare WBPerson id counts as WB:WBPerson...); None if it names no
+    person or is not curie-shaped."""
+    ident = identifier.strip()
+    placeholder = wb_person_placeholder(ident)
+    if placeholder:
+        ident = f"WB:{placeholder}"
+    elif not _CURIE_RE.match(ident):
+        return None
+    return (db.execute(_SQL_PERSON_BY_CURIE, {"curie": ident}).scalar()
+            or db.execute(_SQL_PERSON_BY_XREF, {"curie": ident}).scalar())
+
+
+def _resolve_wb_placeholder(db: Session, placeholder: str) -> str:
+    """Label for a WB person id that matches no person yet: its existing
+    placeholder automation agent (matched case-insensitively, so it is never
+    duplicated), else the bare id, which the audit listener creates."""
+    existing = db.execute(_SQL_AUTOMATION_AGENT, {"label": placeholder}).fetchone()
+    if existing:
+        return existing.automation_username
+    logger.warning(f"{placeholder} matches no person in ABC; recording it under a placeholder automation "
+                   "agent until the WB persons are imported")
+    return placeholder
+
 
 def map_to_user_id(identifier: str, db: Session) -> str:
     """
     Resolve an external identifier to the label of an agent (automation name or person curie).
 
-    Resolution order:
-      1) agent label (case-insensitive)
-      2) if contains '@': person.email -> label
-      3) else: match normalized person.display_name (full or initials+last)
+    The kind of identifier is decided by its shape (SCRUM-6729):
+      1) a person: an AGRKB person curie, a person cross reference curie
+         (WB:WBPerson1, ORCID:..., SGD:Colleague_...) or a bare WBPerson id
+         -> the person's curie. A person with no agent gets one; a WB person's
+         placeholder automation agent becomes theirs (see _person_agent).
+      2) a WB person id that matches no person -> its placeholder automation
+         agent, reused case-insensitively; a new one only for a new id.
+      3) any other curie-shaped identifier -> 422: it can only be a person, and
+         it would otherwise become a fake automation agent.
+      4) contains '@': the person with that email -> curie; 422 if none, or if
+         the email is shared and none of them has an agent.
+      5) an existing agent label (case-insensitive)
+      6) a person's display name (full or initials+last)
+      7) else echoed back: the audit listener creates an automation agent, as
+         a new script's name does.
 
     Returns: the agent label (text)
-    Raises:  HTTPException(422) if empty or not found.
+    Raises:  HTTPException(422) for an unknown person curie or email.
     """
     if not identifier or not identifier.strip():
         return ""
 
     ident = identifier.strip()
 
-    # 1) textual users.id
+    # 1) a person, by AGRKB curie or cross reference
+    placeholder = wb_person_placeholder(ident)
+    person = person_for_identifier(db, ident)
+    if person:
+        _person_agent(db, person, placeholder=placeholder)
+        return person
+
+    # 2) a WB person not in ABC yet
+    if placeholder:
+        return _resolve_wb_placeholder(db, placeholder)
+
+    # 3) an unknown person curie
+    if _CURIE_RE.match(ident):
+        raise HTTPException(
+            status_code=422,
+            detail=(f"Unknown person identifier: {identifier!r} is neither an AGRKB person curie "
+                    "nor a person cross reference in ABC."),
+        )
+
+    # 4) email
+    if "@" in ident:
+        users_id = db.execute(_SQL_MATCH_EMAIL, {"email": ident}).scalar_one_or_none()
+        if users_id:
+            return users_id
+        curies = list(db.execute(_SQL_PERSONS_BY_EMAIL, {"email": ident}).scalars())
+        if not curies:
+            raise HTTPException(status_code=422, detail=f"Unknown email: {identifier!r}.")
+        if len(curies) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail=(f"Email {identifier!r} belongs to more than one person ({', '.join(curies)}); "
+                        "use the person's AGRKB curie."),
+            )
+        _person_agent(db, curies[0])
+        return curies[0]
+
+    # 5) textual users.id
     users_id = db.execute(_SQL_MATCH_USERS_ID_TEXT, {"identifier": ident}).scalar_one_or_none()
     if users_id:
         return users_id
 
-    # 2) email
-    if "@" in ident:
-        users_id = db.execute(_SQL_MATCH_EMAIL, {"email": ident}).scalar_one_or_none()
-        if not users_id:
-            raise HTTPException(status_code=422, detail=f"Unknown email: {identifier!r}.")
-        return users_id
-
-    # 3) name (full display_name or initials+last)
+    # 6) name (full display_name or initials+last)
     users_id = db.execute(_SQL_MATCH_NAME, {"id_raw": ident}).scalar_one_or_none()
     if not users_id:
         """
@@ -216,13 +322,19 @@ def resolve_named_agent(identifier: str, db: Session) -> Tuple[int, str]:
     if not any(c.isalnum() for c in ident):
         raise HTTPException(status_code=422, detail=f"Unknown updated_by {identifier!r}: no letters or digits")
 
+    # a person curie or cross reference first: a WB person found here wins over
+    # their placeholder automation agent (SCRUM-6729)
+    curie = person_for_identifier(db, ident)
+    if curie:
+        return _person_agent(db, curie, placeholder=wb_person_placeholder(ident)), curie
+
     automation = db.execute(_SQL_AUTOMATION_AGENT, {"label": ident}).fetchone()
     if automation:
         return automation.id, automation.automation_username
 
-    curie = db.execute(_SQL_PERSON_BY_CURIE, {"curie": ident}).scalar()
-    if curie:
-        curies = [curie]
+    curies: List[str] = []
+    if _CURIE_RE.match(ident):
+        pass  # an unknown person curie or cross reference
     elif "@" in ident:
         curies = list(db.execute(_SQL_PERSONS_BY_EMAIL, {"email": ident}).scalars())
     else:
@@ -242,15 +354,45 @@ def resolve_named_agent(identifier: str, db: Session) -> Tuple[int, str]:
     return _person_agent(db, curies[0]), curies[0]
 
 
-def _person_agent(db: Session, curie: str) -> int:
+def claim_wb_placeholder(db: Session, placeholder: str) -> Optional[str]:
+    """Hand a WB placeholder automation agent to its person if ABC now has them
+    (a WB:WBPerson... cross reference); returns the person's curie, or None
+    when the person is not in ABC yet. Not committed."""
+    person = person_for_identifier(db, placeholder)
+    if person:
+        _person_agent(db, person, placeholder=wb_person_placeholder(placeholder))
+    return person
+
+
+def _placeholder_agent_id(db: Session, placeholder: Optional[str]) -> Optional[int]:
+    if placeholder is None:
+        return None
+    row = db.execute(_SQL_AUTOMATION_AGENT, {"label": placeholder}).fetchone()
+    return row.id if row else None
+
+
+def _person_agent(db: Session, curie: str, placeholder: Optional[str] = None) -> int:
     """agent.id of the person, creating their agent if they have none. A
     transaction-scoped advisory lock on the curie keeps two concurrent
-    requests from creating two agents for the same person."""
+    requests from creating two agents for the same person.
+
+    placeholder is the name of the automation agent that stood in for a WB
+    person before they were in ABC (WBPerson1843). If it exists it is claimed
+    for the person (person_id set, name cleared), so its records show the
+    person and no agent is created: it becomes the person's agent, or, when
+    the person already has one, a second agent of the same person
+    (SCRUM-6729). Only agent rows change, never the records."""
     agent_id = db.execute(_SQL_PERSON_AGENT, {"curie": curie}).scalar()
-    if agent_id is not None:
+    if agent_id is not None and _placeholder_agent_id(db, placeholder) is None:
         return agent_id
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"person_agent:{curie}"})
     agent_id = db.execute(_SQL_PERSON_AGENT, {"curie": curie}).scalar()
+    placeholder_id = _placeholder_agent_id(db, placeholder)
+    if placeholder_id is not None:
+        db.execute(_SQL_CLAIM_PLACEHOLDER, {"curie": curie, "agent_id": placeholder_id})
+        logger.info(f"agent {placeholder_id} ({placeholder}) now belongs to person {curie}")
+        if agent_id is None:
+            agent_id = placeholder_id
     if agent_id is None:
         agent_id = db.execute(_SQL_INSERT_PERSON_AGENT, {"curie": curie}).scalar()
     return agent_id
@@ -268,9 +410,11 @@ def map_to_existing_user_id(identifier: str, db: Session) -> Optional[str]:
     Cognito sub (SCRUM-6459) -- use this and drop the field when it returns
     None, letting the audited-model listener stamp the authenticated user.
 
-    Unlike map_to_user_id, an unknown EMAIL also returns None here (there it
-    raises 422) -- all no-match outcomes look the same to a caller of this
-    helper.
+    Unlike map_to_user_id, an unknown EMAIL or person curie also returns None
+    here (there it raises 422) -- all no-match outcomes look the same to a
+    caller of this helper. A real person named by curie, cross reference or
+    email does get an agent if they have none: that is the person, not a
+    made-up user.
     """
     try:
         mapped = map_to_user_id(identifier, db)
