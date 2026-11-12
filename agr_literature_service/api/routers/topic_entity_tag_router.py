@@ -1,6 +1,6 @@
 import json
 from multiprocessing import Process, Value
-from typing import List, Dict, Union, Any, Optional
+from typing import List, Dict, Union, Any, Optional, Tuple
 
 from agr_cognito_py import get_mod_access, has_mod_access
 from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
@@ -13,8 +13,9 @@ from agr_literature_service.api.crud import topic_entity_tag_crud, \
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSchemaUpdate
+from agr_literature_service.api.crud.user_utils import resolve_named_agent
 from agr_literature_service.api.models import TagSourceModel, TopicEntityTagModel
-from agr_literature_service.api.user import set_global_user_from_cognito
+from agr_literature_service.api.user import acting_as, set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user, no_read_auth_bypass
 from agr_literature_service.api.util.resource_urls import topic_entity_tag_url
 
@@ -54,16 +55,51 @@ def _source_mod(db: Session, tag_source_id: Optional[int]) -> Optional[str]:
     return source.secondary_data_provider.abbreviation if source is not None else None
 
 
+def resolve_acting_as(db: Session, user: Optional[Dict[str, Any]],
+                      name: Optional[str]) -> Optional[Tuple[int, str]]:
+    """The curator a service account names in acting_as (SCRUM-6853), as
+    (agent.id, label); None when none is named.
+
+    Every service-account token is recorded as default_user, so without it all
+    service writes share one identity: /validate, which finds the curator's earlier
+    verdict by creator, would let them replace each other's. Only a service
+    account may name someone: a curator's own login already records the curator.
+    The name is resolved strictly (resolve_named_agent, as for indexing priority in
+    SCRUM-6819): a person's AGRKB ID, email or full name, or an automation agent's
+    name; 422 if it matches no one or more than one person.
+    """
+    if name is None:
+        return None
+    if user is None or user.get("token_type") != "access":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="acting_as is only for service accounts; a curator's own login "
+                                   "already records the curator")
+    return resolve_named_agent(name, db)
+
+
+class TopicEntityTagCreateRequest(TopicEntityTagSchemaPost):
+    """POST /topic_entity_tag/ body: a tag, plus the curator a service account
+    writes it for (SCRUM-6853). Kept off TopicEntityTagSchemaPost, which also
+    describes tags nested in other payloads, where it would be ignored."""
+    acting_as: Optional[str] = None
+
+
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=TopicEntityTagSchemaShow)
-def create_tag(request: TopicEntityTagSchemaPost,
+def create_tag(request: TopicEntityTagCreateRequest,
                response: Response,
                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
     require_mod_write_access(user, _source_mod(db, request.tag_source_id))
-    new_tag_id, was_upsert = topic_entity_tag_crud.create_tag(db, request)
+    curator = resolve_acting_as(db, user, request.acting_as)
+    if curator is not None and (request.created_by or request.updated_by):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail="Send either acting_as or created_by/updated_by, not both")
+    tag = TopicEntityTagSchemaPost.model_validate(request.model_dump(exclude={"acting_as"}))
+    with acting_as(curator):
+        new_tag_id, was_upsert = topic_entity_tag_crud.create_tag(db, tag)
     # 200 when an existing tag absorbed the request (note appended in place),
     # 201 (the default declared above) when a new row was inserted.
     if was_upsert:
@@ -83,6 +119,9 @@ class ValidateTopicRequest(BaseModel):
     negated: bool = False
     note: Optional[str] = None
     species: Optional[str] = None
+    # SCRUM-6853: for a service account, the curator the verdict is recorded for
+    # (AGRKB ID, email or full name). See resolve_acting_as.
+    acting_as: Optional[str] = None
 
 
 @router.post('/validate', status_code=status.HTTP_200_OK)
@@ -96,15 +135,17 @@ def validate_topic(request: ValidateTopicRequest,
     mod_abbreviation."""
     set_global_user_from_cognito(db, user)
     require_mod_write_access(user, request.mod_abbreviation)
-    return topic_entity_tag_crud.validate_topic(
-        db,
-        reference_curie=request.reference_curie,
-        topic=request.topic,
-        mod_abbreviation=request.mod_abbreviation,
-        negated=request.negated,
-        note=request.note,
-        species=request.species,
-    )
+    curator = resolve_acting_as(db, user, request.acting_as)
+    with acting_as(curator):
+        return topic_entity_tag_crud.validate_topic(
+            db,
+            reference_curie=request.reference_curie,
+            topic=request.topic,
+            mod_abbreviation=request.mod_abbreviation,
+            negated=request.negated,
+            note=request.note,
+            species=request.species,
+        )
 
 
 @router.get('/{topic_entity_tag_id}',

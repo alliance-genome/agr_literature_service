@@ -1,6 +1,7 @@
-"""SCRUM-6853: MOD access on topic entity tag writes. Wiring only: authentication is overridden with a fake Cognito user, the
+"""SCRUM-6853: MOD access on topic entity tag writes, and acting_as for service
+accounts. Wiring only: authentication is overridden with a fake Cognito user, the
 DB session is a mock, and the crud calls are patched, so these check who may call
-what."""
+what and which identity the write runs under."""
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,9 @@ from agr_literature_service.api import database
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.main import app
 from agr_literature_service.api.routers import topic_entity_tag_router as router
+from agr_literature_service.api.user import get_global_user_id
+
+CURATOR_AGENT = (42, "AGRKB:101000000000042")
 
 TAG = {
     "reference_curie": "AGRKB:101000000000001",
@@ -65,7 +69,8 @@ class TestCreate:
         _as(user)
         with patch.object(router, "_source_mod", return_value=source_mod), \
                 patch.object(router.topic_entity_tag_crud, "create_tag", return_value=(1, False)) as create, \
-                patch.object(router.topic_entity_tag_crud, "show_tag", return_value=SHOWN):
+                patch.object(router.topic_entity_tag_crud, "show_tag", return_value=SHOWN), \
+                patch.object(router, "resolve_named_agent", return_value=CURATOR_AGENT):
             response = client.post("/topic_entity_tag/", json=body)
         return response, create
 
@@ -77,6 +82,45 @@ class TestCreate:
     def test_curator_of_another_mod_is_403(self, client):
         response, create = self._post(client, _curator("WormBaseCurator"), TAG)
         assert response.status_code == status.HTTP_403_FORBIDDEN
+        create.assert_not_called()
+
+    def test_service_account_acting_as_a_curator(self, client):
+        recorded = {}
+
+        def capture(db, tag):
+            recorded["user"] = get_global_user_id()
+            recorded["acting_as_passed_on"] = "acting_as" in tag.model_dump()
+            return (1, False)
+
+        _as(SERVICE)
+        with patch.object(router, "_source_mod", return_value="FB"), \
+                patch.object(router.topic_entity_tag_crud, "create_tag", side_effect=capture), \
+                patch.object(router.topic_entity_tag_crud, "show_tag", return_value=SHOWN), \
+                patch.object(router, "resolve_named_agent", return_value=CURATOR_AGENT) as resolve:
+            response = client.post("/topic_entity_tag/", json={**TAG, "acting_as": "curator@example.org"})
+        assert response.status_code == status.HTTP_201_CREATED
+        assert resolve.call_args.args[0] == "curator@example.org"
+        assert recorded == {"user": CURATOR_AGENT[1], "acting_as_passed_on": False}
+
+    def test_curator_cannot_act_as_someone_else(self, client):
+        response, create = self._post(client, _curator("FlyBaseCurator"), {**TAG, "acting_as": "AGRKB:101000000000099"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        create.assert_not_called()
+
+    def test_acting_as_with_created_by_is_422(self, client):
+        response, create = self._post(client, SERVICE, {**TAG, "acting_as": "AGRKB:101000000000042",
+                                                        "created_by": "AGRKB:101000000000099"})
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        create.assert_not_called()
+
+    def test_unresolvable_acting_as_is_422(self, client):
+        _as(SERVICE)
+        with patch.object(router, "_source_mod", return_value="FB"), \
+                patch.object(router.topic_entity_tag_crud, "create_tag") as create, \
+                patch.object(router, "resolve_named_agent",
+                             side_effect=HTTPException(status_code=422, detail="Unknown updated_by 'nobody'")):
+            response = client.post("/topic_entity_tag/", json={**TAG, "acting_as": "nobody"})
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         create.assert_not_called()
 
 
@@ -95,6 +139,23 @@ class TestValidate:
             response = client.post("/topic_entity_tag/validate", json=VERDICT)
         assert response.status_code == status.HTTP_200_OK
         validate.assert_called_once()
+
+    def test_service_account_acting_as_records_the_curator(self, client):
+        # Every service token is default_user; acting_as gives each curator their own
+        # identity, so the verdict lookup by creator finds that curator's verdict.
+        recorded = {}
+
+        def capture(db, **kwargs):
+            recorded["user"] = get_global_user_id()
+            return {}
+
+        _as(SERVICE)
+        with patch.object(router.topic_entity_tag_crud, "validate_topic", side_effect=capture), \
+                patch.object(router, "resolve_named_agent", return_value=CURATOR_AGENT):
+            response = client.post("/topic_entity_tag/validate",
+                                   json={**VERDICT, "acting_as": "AGRKB:101000000000042"})
+        assert response.status_code == status.HTTP_200_OK
+        assert recorded["user"] == CURATOR_AGENT[1]
 
 
 class TestPatch:
