@@ -41,18 +41,16 @@ from .fixtures import auth_headers  # noqa: F401
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def clear_global_manager():
-    """Reset the module-level singleton between tests."""
-    conversion_manager._jobs.clear()
-    conversion_manager._active_by_reference.clear()
+def clear_global_manager(tmp_path, monkeypatch):
+    """Give the module-level singleton a fresh, empty state directory per test
+    (SCRUM-6855: job state lives in files shared by the API workers)."""
+    monkeypatch.setattr(conversion_manager, "state_dir", str(tmp_path / "global_jobs"))
     yield
-    conversion_manager._jobs.clear()
-    conversion_manager._active_by_reference.clear()
 
 
 @pytest.fixture
-def manager():
-    return ConversionJobManager()
+def manager(tmp_path):
+    return ConversionJobManager(state_dir=str(tmp_path / "jobs"))
 
 
 class TestSuppressUploadGuardrails:
@@ -187,7 +185,7 @@ class TestConversionJobManager:
         job = manager.create_or_get_job(reference_id=10, reference_curie="AGRKB:X",
                                         user_id="u1")
         assert job.status == "running"
-        assert manager.get_job(job.job_id) is job
+        assert manager.get_job(job.job_id) == job
         assert manager.get_active_job_for_reference(10).job_id == job.job_id
 
     def test_create_or_get_returns_existing_running(self, manager):
