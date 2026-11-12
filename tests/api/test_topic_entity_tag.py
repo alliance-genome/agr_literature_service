@@ -846,6 +846,78 @@ class TestTopicEntityTag:
             assert cell["state"] == "positive"
             assert cell["positives"] == 1
 
+    def test_validate_topic_sgd_display_tag_topic_is_updated_in_place(self, test_topic_entity_tag,  # noqa
+                                                                       auth_headers):  # noqa
+        # SCRUM-6852: for SGD a topic that is also a display tag (review, ATP:0000130)
+        # is stored with that value in display_tag and the root topic in topic. The
+        # earlier verdict must still be found, so a resend reports "unchanged" and a
+        # flip updates it, instead of a 409 from create_tag's duplicate checks.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000130': 'ATP:0000130'}
+            sgd_mod = client.post(url="/mod/", json={"abbreviation": "SGD", "short_name": "SGD",
+                                                     "full_name": "Saccharomyces Genome Database"},
+                                  headers=auth_headers)
+            assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            verdict = {"reference_curie": ref_curie, "topic": "ATP:0000130",
+                       "mod_abbreviation": "SGD", "negated": False}
+
+            first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
+            assert first.status_code == status.HTTP_200_OK
+            assert first.json()["outcome"] == "created"
+            assert first.json()["tag"]["display_tag"] == "ATP:0000130"
+
+            resend = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
+            assert resend.status_code == status.HTTP_200_OK
+            assert resend.json()["outcome"] == "unchanged"
+            assert resend.json()["topic_entity_tag_id"] == first.json()["topic_entity_tag_id"]
+
+            flip = client.post(url="/topic_entity_tag/validate", json={**verdict, "negated": True},
+                               headers=auth_headers)
+            assert flip.status_code == status.HTTP_200_OK
+            assert flip.json()["outcome"] == "updated"
+            assert flip.json()["topic_entity_tag_id"] == first.json()["topic_entity_tag_id"]
+            assert flip.json()["tag"]["negated"] is True
+
+    def test_validate_topic_note_only_edit_skips_revalidation(self, test_topic_entity_tag, test_mod,  # noqa
+                                                              auth_headers):  # noqa
+        # SCRUM-6852: the note takes no part in validation, so changing only the note
+        # updates the verdict without rebuilding the reference's validation.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            verdict = {"reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
+                       "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
+            first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
+            assert first.status_code == status.HTTP_200_OK
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.revalidate_all_tags") as \
+                    mock_revalidate:
+                noted = client.post(url="/topic_entity_tag/validate", json={**verdict, "note": "on second look"},
+                                    headers=auth_headers)
+            assert noted.status_code == status.HTTP_200_OK
+            assert noted.json()["outcome"] == "updated"
+            assert noted.json()["tag"]["note"] == "on second look"
+            mock_revalidate.assert_not_called()
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(

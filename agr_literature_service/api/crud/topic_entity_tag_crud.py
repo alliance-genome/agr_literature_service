@@ -2755,8 +2755,10 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     and reports "unchanged", which makes a resend after a timeout safe. Any further
     verdicts left over from before (the old delete-and-insert could leave more than
     one) are deleted, and the oldest is kept. Only when there is none is a tag
-    created, through create_tag, so the paper is added to the MOD corpus and the
-    manual indexing workflow tag is set as for any new tag.
+    created, through create_tag. Either way the paper is put in the MOD corpus if it
+    is not there. The verdict is found by the topic as stored, so an SGD verdict whose
+    topic was moved into display_tag is found too. A note-only edit skips the
+    reference's revalidation, since the note takes no part in validation.
 
     All of it, and the single revalidation of the reference, is one transaction
     (SCRUM-6851): an error means nothing changed.
@@ -2767,8 +2769,16 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     stored, with the raw creator/updater ids and their display names."""
     source = get_or_create_abc_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
-    current_user = get_default_user_value()
-    topic_upper = str(topic or "").upper()
+    # The values the verdict is stored with, derived exactly as create_tag derives
+    # them. For SGD that can rewrite the topic: a topic that is also a display tag is
+    # stored as display_tag, under the entity type or the root topic.
+    wanted: Dict[str, Any] = {
+        "topic": topic, "entity": None, "entity_type": None, "display_tag": None,
+        "species": species, "negated": negated, "note": note,
+        "data_novelty": CURATOR_VALIDATION_DATA_NOVELTY,
+        "data_context": CURATOR_VALIDATION_DATA_CONTEXT,
+    }
+    set_provider_derived_fields(db, wanted, source)
 
     try:
         # SCRUM-6851: lock the reference before the earlier verdict is read or changed.
@@ -2778,35 +2788,20 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         # that row. It also serialises two validations of the same cell, so a resend
         # finds the first one's verdict instead of racing it.
         lock_reference_tags(db, reference_id)
-        prior = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.reference_id == reference_id,
-            func.upper(TopicEntityTagModel.topic) == topic_upper,
-            TopicEntityTagModel.entity.is_(None),
-            TopicEntityTagModel.tag_source_id == source.tag_source_id,
-            TopicEntityTagModel.created_by == current_user,
-        ).order_by(TopicEntityTagModel.topic_entity_tag_id).all()
+        prior = _curator_verdicts(db, reference_id, source.tag_source_id, topic, wanted)
 
         if prior:
             verdict = prior[0]
-            # The values a new verdict would be stored with, derived exactly as
-            # create_tag derives them (SGD display_tag and data_novelty, species).
-            wanted: Dict[str, Any] = {
-                "topic": verdict.topic, "entity": None, "entity_type": None,
-                "display_tag": None, "species": species, "negated": negated, "note": note,
-                "data_novelty": CURATOR_VALIDATION_DATA_NOVELTY,
-                "data_context": CURATOR_VALIDATION_DATA_CONTEXT,
-            }
-            set_provider_derived_fields(db, wanted, source)
-            changed = False
-            for field in CURATOR_VERDICT_FIELDS:
-                if getattr(verdict, field) != wanted[field]:
-                    setattr(verdict, field, wanted[field])
-                    changed = True
-            for extra in prior[1:]:
-                db.delete(extra)
-                changed = True
-            outcome = "updated" if changed else "unchanged"
+            changed_fields = _update_curator_verdict(db, prior, wanted)
+            outcome = "updated" if changed_fields else "unchanged"
             tag_id = verdict.topic_entity_tag_id
+            # Re-validating used to go through create_tag every time, which also put
+            # the paper (back) in the MOD's corpus; keep doing that for a verdict on a
+            # paper that has since left the corpus. A no-op when it is in the corpus.
+            mod_abbreviation_of_source = source.secondary_data_provider.abbreviation
+            add_paper_to_mod_if_not_already(
+                db, reference_curie, reference_id, mod_abbreviation_of_source,
+                get_mod_id_from_mod_abbreviation(db, mod_abbreviation_of_source), commit=False)
         else:
             tag = TopicEntityTagSchemaPost(
                 reference_curie=reference_curie,
@@ -2825,9 +2820,12 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
             # whole reference's edges and values once, as patch_tag/destroy_tag do.
             tag_id, _ = create_tag(db, tag, validate_on_insert=False, commit=False)
             outcome = "created"
+            changed_fields = {"created"}
 
-        if outcome != "unchanged":
-            db.flush()
+        db.flush()
+        # The note takes no part in validation, so a note-only edit leaves the
+        # reference's validation edges and values as they are.
+        if changed_fields - {"note"}:
             revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
         db.commit()
     except Exception:
@@ -2843,6 +2841,41 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         "tag": _stored_verdict(db, tag_id, reference_curie),
         **cell,
     }
+
+
+def _curator_verdicts(db: Session, reference_id: int, tag_source_id: int, topic: str,
+                      wanted: Dict[str, Any]) -> List[TopicEntityTagModel]:
+    """The current user's topic-level verdicts on the curator source for this cell,
+    oldest first. Matched on the topic as stored (``wanted``, after the provider
+    derivation), plus the display tag when the derivation moved the topic into it
+    (SGD), since several display tags then share one stored topic."""
+    query = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        func.upper(TopicEntityTagModel.topic) == str(wanted["topic"] or "").upper(),
+        TopicEntityTagModel.entity.is_(None),
+        TopicEntityTagModel.tag_source_id == tag_source_id,
+        TopicEntityTagModel.created_by == get_default_user_value(),
+    )
+    if str(wanted["topic"] or "").upper() != str(topic or "").upper():
+        query = query.filter(TopicEntityTagModel.display_tag == wanted["display_tag"])
+    return query.order_by(TopicEntityTagModel.topic_entity_tag_id).all()
+
+
+def _update_curator_verdict(db: Session, prior: List[TopicEntityTagModel],
+                            wanted: Dict[str, Any]) -> Set[str]:
+    """Bring the oldest verdict to the ``wanted`` values in place and delete any other
+    (left over from the old delete-and-insert). Returns what changed: the field
+    names, plus "extra_deleted" when leftovers were removed."""
+    verdict = prior[0]
+    changed: Set[str] = set()
+    for field in CURATOR_VERDICT_FIELDS:
+        if getattr(verdict, field) != wanted[field]:
+            setattr(verdict, field, wanted[field])
+            changed.add(field)
+    for extra in prior[1:]:
+        db.delete(extra)
+        changed.add("extra_deleted")
+    return changed
 
 
 def _stored_verdict(db: Session, topic_entity_tag_id: int, reference_curie: str) -> Dict[str, Any]:
