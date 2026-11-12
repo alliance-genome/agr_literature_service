@@ -97,7 +97,20 @@ class TestTopicEntityTag:
                 threads = [threading.Thread(target=post) for _ in range(2)]
                 for thread in threads:
                     thread.start()
-                time.sleep(1)
+                # Release only once both requests are actually queued on the lock, so
+                # the test exercises the race rather than two sequential requests.
+                waiting = 0
+                deadline = time.monotonic() + 30
+                with _get_engine().connect() as observer:
+                    while waiting < 2 and time.monotonic() < deadline:
+                        waiting = observer.execute(text(
+                            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted "
+                            "AND classid = :ns AND objid = :ref AND objsubid = 2"),
+                            {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id}).scalar()
+                        observer.rollback()
+                        if waiting < 2:
+                            time.sleep(0.05)
+                assert waiting == 2
                 assert statuses == []
                 holder.rollback()
             for thread in threads:
