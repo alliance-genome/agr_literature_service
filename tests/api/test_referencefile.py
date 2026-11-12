@@ -8,7 +8,8 @@ from starlette.testclient import TestClient
 from agr_cognito_py import ModAccess
 from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.main import app
-from fastapi import status
+from botocore.exceptions import EndpointConnectionError  # type: ignore
+from fastapi import HTTPException, status
 
 from agr_literature_service.api.models import ReferencefileModel
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost
@@ -366,3 +367,27 @@ class TestReferencefile:
         content = referencefile_crud.download_file(db, file_ids["md5_download_a"], ModAccess.ALL_ACCESS,
                                                    use_in_api=False)
         assert content.decode().endswith("md5_download_a.gz")
+
+    def test_download_file_missing_in_s3_is_404(self, db, test_reference, monkeypatch):  # noqa
+        # SCRUM-6855: a stored object S3 does not have used to end as an unhandled 500
+        file_id = create_metadata(db, ReferencefileSchemaPost(
+            display_name="main_nxml", reference_curie=test_reference.new_ref_curie, file_class="main",
+            file_publication_status="final", file_extension="md", md5sum="md5_missing_in_s3"))
+        monkeypatch.setattr(referencefile_crud, "download_file_from_s3", lambda *args, **kwargs: False)
+        with pytest.raises(HTTPException) as exc_info:
+            referencefile_crud.download_file(db, file_id, ModAccess.ALL_ACCESS)
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+        assert "md5_missing_in_s3" in exc_info.value.detail
+
+    def test_download_file_s3_unreachable_is_502(self, db, test_reference, monkeypatch):  # noqa
+        file_id = create_metadata(db, ReferencefileSchemaPost(
+            display_name="main_nxml", reference_curie=test_reference.new_ref_curie, file_class="main",
+            file_publication_status="final", file_extension="md", md5sum="md5_s3_unreachable"))
+
+        def unreachable(*args, **kwargs):
+            raise EndpointConnectionError(endpoint_url="https://s3.amazonaws.com")
+
+        monkeypatch.setattr(referencefile_crud, "download_file_from_s3", unreachable)
+        with pytest.raises(HTTPException) as exc_info:
+            referencefile_crud.download_file(db, file_id, ModAccess.ALL_ACCESS)
+        assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
