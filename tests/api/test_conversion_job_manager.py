@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from agr_literature_service.api.utils.conversion_job_manager import (
+    CLEANUP_INTERVAL,
     WORKER_GONE_ERROR,
     ConversionJob,
     ConversionJobManager,
@@ -35,6 +36,12 @@ def _set_job_field(mgr, job_id, **fields):
     data.update(fields)
     with open(path, "w") as handle:
         json.dump(data, handle)
+
+
+def _age(path, delta):
+    """Set a file's modification time ``delta`` in the past."""
+    when = (datetime.now() - delta).timestamp()
+    os.utime(path, (when, when))
 
 
 def _dead_pid():
@@ -170,6 +177,13 @@ class TestWorkerGone:
         # Same pid, different start time: a new process that got the old pid.
         job = mgr.create_or_get_job(3, "AGRKB:1", "user")
         _set_job_field(mgr, job.job_id, owner_start_time=job.owner_start_time - 1)
+        assert mgr.get_job(job.job_id).status == "failed"
+
+    def test_without_a_recorded_start_time_the_pid_decides(self, mgr):
+        job = mgr.create_or_get_job(3, "AGRKB:1", "user")
+        _set_job_field(mgr, job.job_id, owner_start_time=None)
+        assert mgr.get_job(job.job_id).status == "running"  # our own pid exists
+        _set_job_field(mgr, job.job_id, owner_pid=_dead_pid())
         assert mgr.get_job(job.job_id).status == "failed"
 
     def test_new_request_replaces_a_gone_workers_job(self, mgr):
@@ -315,9 +329,39 @@ class TestCleanupOldJobs:
     def test_missing_state_dir(self, tmp_path):
         assert ConversionJobManager(state_dir=str(tmp_path / "absent")).cleanup_old_jobs() == 0
 
-    def test_creating_a_job_cleans_up_old_ones(self, mgr):
+    def test_creating_a_job_cleans_up_old_ones_now_and_then(self, mgr):
         old = mgr.create_or_get_job(1, "AGRKB:1", "user")
         mgr.complete_job(old.job_id, success=True)
         _set_job_field(mgr, old.job_id, started_at=(datetime.utcnow() - timedelta(hours=48)).isoformat())
+        # the first creation just ran the cleanup, so the next one does not
         mgr.create_or_get_job(2, "AGRKB:2", "user")
+        assert mgr.get_job(old.job_id) is not None
+        # once the interval has passed, it does
+        _age(os.path.join(mgr.state_dir, ".last_cleanup"), CLEANUP_INTERVAL + timedelta(minutes=1))
+        mgr.create_or_get_job(3, "AGRKB:3", "user")
         assert mgr.get_job(old.job_id) is None
+
+    def test_unusable_job_file_is_ignored_then_removed(self, mgr):
+        path = os.path.join(mgr.state_dir, "job_bad.json")
+        os.makedirs(mgr.state_dir, exist_ok=True)
+        with open(path, "w") as handle:
+            json.dump({"job_id": "bad", "no_such_field": 1}, handle)  # valid JSON, wrong shape
+        assert mgr.get_job("bad") is None
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")  # not broken by it
+        assert job.status == "running"
+        mgr.cleanup_old_jobs()
+        assert os.path.exists(path)  # recent: kept for now
+        _age(path, timedelta(hours=25))
+        mgr.cleanup_old_jobs()
+        assert not os.path.exists(path)
+
+    def test_stale_temp_file_is_removed(self, mgr):
+        os.makedirs(mgr.state_dir, exist_ok=True)
+        stale = os.path.join(mgr.state_dir, ".job_x.json.abc123")
+        fresh = os.path.join(mgr.state_dir, ".job_y.json.def456")
+        for path in (stale, fresh):
+            open(path, "w").close()
+        _age(stale, timedelta(hours=2))
+        mgr.cleanup_old_jobs()
+        assert not os.path.exists(stale)
+        assert os.path.exists(fresh)

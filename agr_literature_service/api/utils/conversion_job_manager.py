@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_STATE_DIR = os.path.join(tempfile.gettempdir(), "abc_conversion_jobs")
 WORKER_GONE_ERROR = "The API worker running this conversion exited before it finished."
+# job creation runs the cleanup at most this often
+CLEANUP_INTERVAL = timedelta(minutes=10)
+# a temporary file this old is a write whose process was killed before the rename
+STALE_TEMP_FILE_AGE = timedelta(hours=1)
 
 
 @dataclass
@@ -124,9 +128,23 @@ def _process_start_time(pid: int) -> Optional[int]:
         return None
 
 
+def _pid_exists(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # it exists, owned by another user
+    return True
+
+
 def _owner_alive(job: ConversionJob) -> bool:
     if job.owner_pid is None:
         return True  # nothing recorded to check against
+    if job.owner_start_time is None:
+        # The start time could not be read when the job was created (no /proc):
+        # fall back to whether the pid exists, without the guard against reuse.
+        return _pid_exists(job.owner_pid)
     return _process_start_time(job.owner_pid) == job.owner_start_time
 
 
@@ -197,7 +215,17 @@ class ConversionJobManager:
 
     def _load_job(self, job_id: str) -> Optional[ConversionJob]:
         data = self._read(f"job_{job_id}.json")
-        return _job_from_json(data) if data is not None else None
+        if data is None:
+            return None
+        try:
+            return _job_from_json(data)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            # valid JSON in the wrong shape, e.g. left by another code version:
+            # treat it as no job rather than failing every request (cleanup
+            # removes it once it is old)
+            logger.warning(f"Unusable conversion job state file job_{job_id}.json; ignoring it",
+                           exc_info=True)
+            return None
 
     def _save_job(self, job: ConversionJob) -> None:
         self._write(f"job_{job.job_id}.json", _job_to_json(job))
@@ -249,7 +277,7 @@ class ConversionJobManager:
 
         The job is owned by the calling process, which is the one that runs it.
         """
-        self.cleanup_old_jobs()
+        self._cleanup_now_and_then()
         with self._lock():
             index = self._reference_index(reference_id)
             active_id = index.get("active")
@@ -323,9 +351,6 @@ class ConversionJobManager:
         ``source_display_name`` + ``source_file_class``). If no pending entry
         was seeded, a new entry is appended (defensive)."""
         new_status = "success" if success else "failed"
-        job = self._load_job(job_id)
-        if job is None:
-            return
         with self._lock():
             job = self._load_job(job_id)
             if job is None:
@@ -369,9 +394,6 @@ class ConversionJobManager:
             self._save_job(job)
 
     def complete_job(self, job_id: str, success: bool, error: str = "") -> None:
-        job = self._load_job(job_id)
-        if job is None:
-            return
         with self._lock():
             job = self._load_job(job_id)
             if job is None:
@@ -388,22 +410,47 @@ class ConversionJobManager:
                 self._write(f"ref_{job.reference_id}.json", index)
         logger.info(f"Conversion job {job_id} {job.status} (reference_id={job.reference_id})")
 
+    def _cleanup_now_and_then(self) -> None:
+        """Run cleanup_old_jobs from job creation, at most every CLEANUP_INTERVAL,
+        so a request does not pay for a full pass over the directory each time."""
+        marker = self._path(".last_cleanup")
+        try:
+            if datetime.now().timestamp() - os.path.getmtime(marker) < CLEANUP_INTERVAL.total_seconds():
+                return
+        except OSError:
+            pass  # no marker yet
+        self.cleanup_old_jobs()
+
     def cleanup_old_jobs(self, max_age_hours: int = 24) -> int:
         """Delete finished jobs started more than ``max_age_hours`` ago, and the
-        reference index entries that point at them. Runs on every job creation;
-        a running job is never deleted."""
+        reference index entries that point at them; a running job is never deleted.
+        Unusable job files and temporary files a killed writer left behind are
+        removed by age. Returns the number of jobs removed."""
         cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
         try:
             names = os.listdir(self.state_dir)
         except FileNotFoundError:
             return 0
+        os.makedirs(self.state_dir, exist_ok=True)
+        with open(self._path(".last_cleanup"), "w"):
+            pass  # touch: see _cleanup_now_and_then
+        now = datetime.now().timestamp()
         removed = 0
         for name in names:
+            if name.startswith(".job_") or name.startswith(".ref_"):
+                # a write that never reached its rename (the writer was killed)
+                if self._older_than(name, now, STALE_TEMP_FILE_AGE.total_seconds()):
+                    self._remove(name)
+                continue
             if not (name.startswith("job_") and name.endswith(".json")):
                 continue
             with self._lock():
                 job = self._load_job(name[len("job_"):-len(".json")])
-                if job is None or job.started_at >= cutoff:
+                if job is None:
+                    if self._older_than(name, now, max_age_hours * 3600):
+                        self._remove(name)  # unusable, see _load_job
+                    continue
+                if job.started_at >= cutoff:
                     continue
                 if self._fail_if_owner_gone(job).status == "running":
                     continue
@@ -415,6 +462,12 @@ class ConversionJobManager:
         if removed:
             logger.info(f"Cleaned up {removed} old conversion jobs")
         return removed
+
+    def _older_than(self, name: str, now: float, seconds: float) -> bool:
+        try:
+            return now - os.path.getmtime(self._path(name)) > seconds
+        except OSError:
+            return False
 
 
 conversion_manager = ConversionJobManager()
