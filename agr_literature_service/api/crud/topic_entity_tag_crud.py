@@ -2825,6 +2825,10 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         db.flush()
         # The note takes no part in validation, so a note-only edit leaves the
         # reference's validation edges and values as they are.
+        # revalidate_all_tags commits this session itself (run_revalidation), so it
+        # must stay the last step that can fail: anything added after it would leave
+        # the verdict committed when it fails, and "an error means nothing changed"
+        # would no longer hold.
         if changed_fields - {"note"}:
             revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
         db.commit()
