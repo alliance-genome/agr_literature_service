@@ -938,6 +938,46 @@ class TestTopicEntityTag:
             assert noted.json()["tag"]["note"] == "on second look"
             mock_revalidate.assert_not_called()
 
+    def test_validate_topic_for_a_named_owner_with_dates(self, test_topic_entity_tag, test_mod, db):  # noqa
+        # SCRUM-6853: a service account records a verdict for a curator (created_by)
+        # with the curator's own times. The earlier verdict is found by that owner,
+        # date_created is kept, and date_updated moves only when the verdict changes.
+        load_name_to_atp_and_relationships_mock()
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        mod = test_mod.new_mod_abbreviation
+        with patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map",
+                      return_value={'ATP:0000122': 'ATP:0000122'}):
+            first = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=False, created_by="WBPerson1",
+                date_created=datetime(2026, 11, 1, 10, 0), date_updated=datetime(2026, 11, 1, 10, 0))
+            assert first["outcome"] == "created"
+            assert first["tag"]["created_by_user_id"] == "WBPerson1"
+            assert first["tag"]["date_created"].startswith("2026-11-01T10:00")
+
+            same = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=False, created_by="WBPerson1",
+                date_updated=datetime(2026, 11, 5, 9, 0))
+            assert same["outcome"] == "unchanged"
+            assert same["tag"]["date_updated"].startswith("2026-11-01T10:00")
+
+            flipped = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=True, created_by="WBPerson1",
+                date_updated=datetime(2026, 11, 12, 9, 30))
+            assert flipped["outcome"] == "updated"
+            assert flipped["topic_entity_tag_id"] == first["topic_entity_tag_id"]
+            assert flipped["tag"]["date_updated"].startswith("2026-11-12T09:30")
+            assert flipped["tag"]["date_created"].startswith("2026-11-01T10:00")
+
+            # another owner's verdict on the same cell is a separate tag
+            other = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=False, created_by="WBPerson2")
+            assert other["outcome"] == "created"
+            assert other["topic_entity_tag_id"] != first["topic_entity_tag_id"]
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(

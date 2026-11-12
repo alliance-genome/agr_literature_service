@@ -2740,8 +2740,16 @@ CURATOR_VERDICT_FIELDS = ("negated", "note", "species", "display_tag", "data_nov
 
 def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviation: str,
                    negated: bool = False, note: Optional[str] = None,
-                   species: Optional[str] = None) -> Dict[str, Any]:
+                   species: Optional[str] = None, created_by: Optional[str] = None,
+                   date_created: Optional[datetime] = None,
+                   date_updated: Optional[datetime] = None) -> Dict[str, Any]:
     """Write path for the grid's Validation column (SCRUM-6242 increment 5).
+
+    ``created_by`` names whose verdict this is (an agent label, already resolved by
+    the caller); by default the current user. The editor recorded in updated_by is
+    always the current user, which the router sets from the request (SCRUM-6853).
+    ``date_created`` applies when the verdict is created; ``date_updated`` when it
+    is created or changed. An "unchanged" resend writes nothing, dates included.
 
     Given just the cell the curator acted on -- {reference, topic, negated, note,
     species} plus their MOD -- resolve the curator source server-side, record the
@@ -2788,11 +2796,14 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         # that row. It also serialises two validations of the same cell, so a resend
         # finds the first one's verdict instead of racing it.
         lock_reference_tags(db, reference_id)
-        prior = _curator_verdicts(db, reference_id, source.tag_source_id, topic, wanted)
+        owner = created_by or get_default_user_value()
+        prior = _curator_verdicts(db, reference_id, source.tag_source_id, topic, wanted, owner)
 
         if prior:
             verdict = prior[0]
             changed_fields = _update_curator_verdict(db, prior, wanted)
+            if changed_fields and date_updated is not None:
+                verdict.date_updated = date_updated
             outcome = "updated" if changed_fields else "unchanged"
             tag_id = verdict.topic_entity_tag_id
             # Re-validating used to go through create_tag every time, which also put
@@ -2815,6 +2826,12 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
                 note=note,
                 tag_source_id=source.tag_source_id,
                 force_insertion=True,
+                # A named owner is the creator, and the current user the updater;
+                # unnamed, the audit listener stamps the current user as both.
+                created_by=created_by,
+                updated_by=get_default_user_value() if created_by else None,
+                date_created=date_created,
+                date_updated=date_updated,
             )
             # validate_on_insert=False: the single revalidation below rebuilds the
             # whole reference's edges and values once, as patch_tag/destroy_tag do.
@@ -2848,8 +2865,8 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
 
 def _curator_verdicts(db: Session, reference_id: int, tag_source_id: int, topic: str,
-                      wanted: Dict[str, Any]) -> List[TopicEntityTagModel]:
-    """The current user's topic-level verdicts on the curator source for this cell,
+                      wanted: Dict[str, Any], owner: str) -> List[TopicEntityTagModel]:
+    """``owner``'s topic-level verdicts on the curator source for this cell,
     oldest first. Matched on the topic as stored (``wanted``, after the provider
     derivation), plus the display tag when the derivation moved the topic into it
     (SGD), since several display tags then share one stored topic."""
@@ -2858,7 +2875,7 @@ def _curator_verdicts(db: Session, reference_id: int, tag_source_id: int, topic:
         func.upper(TopicEntityTagModel.topic) == str(wanted["topic"] or "").upper(),
         TopicEntityTagModel.entity.is_(None),
         TopicEntityTagModel.tag_source_id == tag_source_id,
-        TopicEntityTagModel.created_by == get_default_user_value(),
+        TopicEntityTagModel.created_by == owner,
     )
     if str(wanted["topic"] or "").upper() != str(topic or "").upper():
         query = query.filter(TopicEntityTagModel.display_tag == wanted["display_tag"])
