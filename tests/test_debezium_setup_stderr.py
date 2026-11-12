@@ -34,3 +34,28 @@ def test_publication_drop_suppresses_notices():
     for line in drops:
         assert "client_min_messages=warning" in line, (
             f"DROP ... IF EXISTS prints a NOTICE per missing publication on stderr: {line.strip()[:120]}")
+
+
+ROOT = SETUP.parents[1]
+
+
+def test_connector_is_rebuilt_on_every_restart():
+    # The connector's image carries the Jersey logging config (SCRUM-6805). Without --build,
+    # compose reused the image built before that fix, and prod kept sending 17 Jersey startup
+    # warnings to stderr on every rebuild.
+    starts = [line.strip() for line in (ROOT / "Makefile").read_text().splitlines()
+              if re.search(r"\bup\b.*\bdbz_connector\b", line)]
+    assert starts, "Makefile no longer starts dbz_connector; update this test"
+    for line in starts:
+        assert "--build" in line, f"dbz_connector started without --build: {line}"
+
+
+def test_ksqldb_jvm_warnings_are_silenced_before_cms():
+    # ksql-run-class defaults to the CMS collector, and Java 11 warns on stderr that it is
+    # deprecated. -XX:-PrintWarnings only works if it comes before the option it would warn about.
+    dockerfile = (ROOT / "docker" / "ksqldb.dockerfile").read_text()
+    opts = re.search(r'ENV KSQL_JVM_PERFORMANCE_OPTS="([^"]*)"', dockerfile)
+    assert opts, "KSQL_JVM_PERFORMANCE_OPTS is no longer set; update this test"
+    flags = opts.group(1).split()
+    assert flags[0] == "-XX:-PrintWarnings"
+    assert "-XX:+UseConcMarkSweepGC" in flags
