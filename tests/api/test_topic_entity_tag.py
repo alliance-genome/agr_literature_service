@@ -59,6 +59,9 @@ class TestTopicEntityTag:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.json()["created_by"] == "WBPerson1"
+            # SCRUM-6852: the raw ids are returned next to the display names
+            assert response.json()["created_by_user_id"] == "WBPerson1"
+            assert response.json()["updated_by_user_id"] == "WBPerson1"
 
     def test_create_concurrent_identical_requests_store_one_tag(self, test_topic_entity_tag, test_tag_source,  # noqa
                                                                  db, auth_headers):  # noqa
@@ -219,6 +222,8 @@ class TestTopicEntityTag:
                 t["topic_entity_tag_id"] == int(test_topic_entity_tag.new_tet_id)
                 for t in tags[ref_curie]
             )
+            # SCRUM-6852: the raw creator id is returned next to the display name
+            assert all(t["created_by_user_id"] for t in tags[ref_curie])
             # per-topic counts are computed in the API for the same reference
             assert "ATP:0000122" in counts[ref_curie]
             assert counts[ref_curie]["ATP:0000122"]["entity_pos"] >= 1
@@ -582,7 +587,8 @@ class TestTopicEntityTag:
             assert stored["tag_source"]["source_method"] == "abc_literature_system"
             assert stored["tag_source"]["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
             assert stored["created_by"]
-            assert stored["updated_by"] == stored["created_by"]
+            assert stored["created_by_user_id"]
+            assert stored["updated_by_user_id"] == stored["created_by_user_id"]
             assert body["topic"] == "ATP:0000122"
             assert body["validation"]["state"] == "positive"
             assert body["validation"]["positives"] == 1
@@ -1770,6 +1776,8 @@ class TestTopicEntityTag:
             # "default_user" — none AGRKB:-prefixed — so no companion is created.
             # 5 explicit tags + fixture tag = 6.
             assert len(all_tags) == 6
+            # SCRUM-6852: by_reference keeps the raw creator id next to the display name
+            assert {tag["created_by_user_id"] for tag in all_tags} == {"WBPerson1", "default_user"}
             for tag in all_tags:
                 if tag["topic"] == "ATP:0000079":
                     assert tag["validation_by_author"] == "validation_conflict"

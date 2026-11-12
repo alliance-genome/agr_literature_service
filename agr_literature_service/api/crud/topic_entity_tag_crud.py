@@ -711,9 +711,10 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
     # Build the map and apply it
     id_to_display = get_user_display_name_map(db, user_ids)
 
-    # Replace top-level created_by/updated_by
+    # Replace top-level created_by/updated_by, keeping the raw ids alongside (SCRUM-6852)
     for k in ("created_by", "updated_by"):
         uid = topic_entity_tag_data.get(k)
+        topic_entity_tag_data[f"{k}_user_id"] = uid
         if uid and uid in id_to_display:
             topic_entity_tag_data[k] = id_to_display[uid]
 
@@ -1848,9 +1849,11 @@ def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], 
         source = tet.tag_source
         source_data = _project_orm_columns(source, source_column_keys) if source else None
         tet_data["tag_source"] = source_data
-        # Replace top-level created_by/updated_by if we have a display name
+        # Replace top-level created_by/updated_by if we have a display name, keeping
+        # the raw ids alongside (SCRUM-6852)
         for k in ("created_by", "updated_by"):
             uid = tet_data.get(k)
+            tet_data[f"{k}_user_id"] = uid
             if uid and uid in id_to_display_name:
                 tet_data[k] = id_to_display_name[uid]
         # Nested source object: replace created_by/updated_by if present
@@ -2820,8 +2823,8 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
 def _stored_verdict(db: Session, topic_entity_tag_id: int, reference_curie: str) -> Dict[str, Any]:
     """The verdict as stored, for the validate response (SCRUM-6852): its values, its
-    source, and who is recorded as creator and last updater, by raw id (the person's
-    AGRKB curie or the automation name) and by display name."""
+    source, and who is recorded as creator and last updater, by display name and by
+    raw id (the person's AGRKB curie or the automation name)."""
     tag: TopicEntityTagModel = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.tag_source)).filter(
         TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one()
@@ -2845,10 +2848,12 @@ def _stored_verdict(db: Session, topic_entity_tag_id: int, reference_curie: str)
             "data_provider": source.data_provider,
             "secondary_data_provider_abbreviation": source.secondary_data_provider.abbreviation,
         },
-        "created_by": tag.created_by,
-        "created_by_name": display_names.get(tag.created_by),
-        "updated_by": tag.updated_by,
-        "updated_by_name": display_names.get(tag.updated_by),
+        # Named as on the read endpoints: created_by/updated_by is the display name
+        # where there is one, *_user_id the raw id.
+        "created_by": display_names.get(tag.created_by, tag.created_by),
+        "created_by_user_id": tag.created_by,
+        "updated_by": display_names.get(tag.updated_by, tag.updated_by),
+        "updated_by_user_id": tag.updated_by,
         "date_created": tag.date_created.isoformat() if tag.date_created else None,
         "date_updated": tag.date_updated.isoformat() if tag.date_updated else None,
     }
