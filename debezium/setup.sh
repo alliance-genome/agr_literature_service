@@ -2,6 +2,8 @@
 
 # Source the status manager functions
 source /status_manager.sh
+# SCRUM-6850: empty-table and ksql object checks
+source /rebuild_checks.sh
 
 # Configure sleep timings based on environment
 if [[ "${ENV_STATE}" == "test" ]]; then
@@ -91,14 +93,19 @@ sleep ${CONNECTOR_SETUP_SLEEP}
 # Gate 1 (SCRUM-6231): instead of a blind ${KSQL_SETUP_SLEEP}s wait, poll until the Debezium snapshot
 # has created the source topics the ksql CTAS sources reference. Test mode keeps the fixed short sleep
 # so the integration test's timing is unchanged; in production KSQL_SETUP_SLEEP is the max-wait cap.
-# expected_count = number of tables in the connector's table.include.list (wait for all per-table
-# topics, robust to a slow snapshot on a big table); 0 if undeterminable (helper falls back to
-# topic-set stability).
+# expected_count = number of NON-EMPTY tables in the connector's table.include.list (wait for all
+# per-table topics, robust to a slow snapshot on a big table); 0 if undeterminable (helper falls
+# back to topic-set stability). An empty table produces no record, so the connector never reports
+# its topic (the Makefile pre-creates it); counting it would hold Gate 1 to its cap (SCRUM-6850).
 if [[ "${ENV_STATE}" == "test" ]]; then
     sleep ${KSQL_SETUP_SLEEP}
 else
-    EXPECTED_SOURCE_TOPICS=$(jq -r '.config["table.include.list"] // "" | select(length > 0)' /postgres-source-unified.json 2>/dev/null | awk -F',' '{print NF}')
-    [[ "${EXPECTED_SOURCE_TOPICS}" =~ ^[0-9]+$ ]] || EXPECTED_SOURCE_TOPICS=0
+    SOURCE_TABLES=$(jq -r '.config["table.include.list"] // ""' /postgres-source-unified.json 2>/dev/null)
+    if [ -n "${SOURCE_TABLES}" ] && count_nonempty_source_tables "${SOURCE_TABLES}"; then
+        EXPECTED_SOURCE_TOPICS=${NONEMPTY_SOURCE_TABLES}
+    else
+        EXPECTED_SOURCE_TOPICS=0
+    fi
     wait_for_source_topics_ready "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" \
         "postgres-source-unified" "${EXPECTED_SOURCE_TOPICS}" "${KSQL_SETUP_SLEEP}" || true
 fi
@@ -117,7 +124,7 @@ submit_ksql_statements() {
     local url="http://${DEBEZIUM_KSQLDB_HOST}:${DEBEZIUM_KSQLDB_PORT}/ksql"
     local raw="/tmp/ksql_raw.sql"
     local stmtdir="/tmp/ksql_stmts"
-    local n=0 failed=0 f label body resp attempt first ok
+    local n=0 failed=0 f label body resp code attempt first ok
 
     # 1) Unwrap the JSON ({"ksql":"<SQL>"}) to raw SQL: keep the lines between the opening
     #    quote line (a line that is just ") and the closing quote line (just ",), and
@@ -158,15 +165,19 @@ submit_ksql_statements() {
         fi
         ok=0
         for attempt in 1 2 3 4 5; do
-            resp=$(curl -s -X POST "$url" -H "Accept: application/vnd.ksql.v1+json" \
+            # SCRUM-6850: judge by the HTTP status, not the error type. A CREATE TABLE on a
+            # missing topic comes back as HTTP 400 "@type":"generic_error", which matching only
+            # "statement_error" reported as OK (manual_indexing_tag, stage 2026-11-10).
+            resp=$(curl -s -w '\n%{http_code}' -X POST "$url" -H "Accept: application/vnd.ksql.v1+json" \
                         -H "Content-Type: application/json" -d "$body")
-            if echo "$resp" | grep -q '"@type":"statement_error"'; then
-                if echo "$resp" | grep -qiE 'already exists'; then ok=1; break; fi
-                echo "  [stmt ${n} attempt ${attempt}] retry '${label}...' -> $(echo "$resp" | grep -oE '"message":"[^"]*"' | head -1)"
-                sleep 3
-            else
+            code=${resp##*$'\n'}
+            resp=${resp%$'\n'*}
+            if [ "$code" = "200" ]; then
                 ok=1; break
             fi
+            if echo "$resp" | grep -qiE 'already exists'; then ok=1; break; fi
+            echo "  [stmt ${n} attempt ${attempt}] retry '${label}...' -> HTTP ${code} $(echo "$resp" | grep -oE '"message":"[^"]*"' | head -1)"
+            sleep 3
         done
         if [ "$ok" = "1" ]; then
             echo "  [stmt ${n}] OK: ${label}..."
@@ -176,10 +187,21 @@ submit_ksql_statements() {
         fi
     done
     echo "ksql submission complete: ${n} statements submitted, ${failed} failed."
+    # SCRUM-6850: a statement can be acknowledged without creating its object, so check
+    # what ksqlDB actually has as well.
+    verify_ksql_objects "$stmtdir" "$url" || failed=$((failed+1))
     [ "$failed" = "0" ]
 }
 
-submit_ksql_statements /ksql_queries.ksql || echo "WARNING: one or more ksql statements failed; downstream topics/index may be incomplete."
+# SCRUM-6850: stop here if the pipeline is incomplete. Every statement after a failed one that
+# depends on it fails too, so the private index ends up without its topic_entity_tags, and
+# carrying on only spent up to DATA_PROCESSING_SLEEP in Gate 2 before Gate 3 refused the slot.
+# Stopping before the sinks are created leaves the alias on the previous slot.
+if ! submit_ksql_statements /ksql_queries.ksql; then
+    echo "ERROR: ksql setup is incomplete (see the FAILED / MISSING lines above); stopping before the sinks are created. The alias still points at the previous slot, which no longer receives updates until a rebuild succeeds."
+    set_reindex_status "error" "{\"message\": \"ksql setup incomplete; stopped before creating the sinks; alias not flipped\", \"slot\": \"${SLOT}\"}"
+    exit 1
+fi
 sleep ${KSQL_POST_SLEEP}
 
 # SCRUM-6240: one sink per index (no temp/permanent split -- there is no reindex). The sink

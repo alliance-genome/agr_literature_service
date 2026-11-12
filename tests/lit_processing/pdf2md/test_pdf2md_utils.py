@@ -1684,7 +1684,67 @@ class TestFindSourceForConvertedOffice:
         converted.referencefile_id = 99
         converted.referencefile_mods = [MagicMock(mod_id=1)]
         db = MagicMock()
-        added = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
+        with patch(RESYNC) as resync:
+            added = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
         assert added == 2
         assert sorted((a.mod_id for a in (c.args[0] for c in db.add.call_args_list)), key=str) == [2, None]
+        resync.assert_called_once_with(db, 99)
         db.commit.assert_called_once()
+
+
+RESYNC = "agr_literature_service.api.crud.referencefile_mod_utils.resync_derived_embeddings"
+
+
+class TestConvertedMarkdownFollowsSourceMods:
+    """SCRUM-6764: converted Markdown carries exactly its source's MODs."""
+
+    @staticmethod
+    def _file(file_class, display_name, file_extension, mod_ids, referencefile_id=None):
+        f = MagicMock(file_class=file_class, display_name=display_name, file_extension=file_extension,
+                      referencefile_id=referencefile_id)
+        f.referencefile_mods = [MagicMock(mod_id=m) for m in mod_ids]
+        return f
+
+    def _sync(self, source_mods, converted_mods):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import sync_converted_file_mods_to_sources
+        source = self._file("supplement", "Table_S1", "xlsx", source_mods)
+        converted = self._file("converted_merged_supplement", "Table_S1_xlsx", "md", converted_mods, 99)
+        db = MagicMock()
+        with patch(RESYNC) as resync:
+            changes = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
+        return db, resync, changes
+
+    def test_link_the_source_lacks_is_removed(self):
+        # Markdown of FB's supplement must not stay readable by WB
+        db, resync, changes = self._sync(source_mods=[1], converted_mods=[1, 2])
+        assert changes == 1
+        assert [c.args[0].mod_id for c in db.delete.call_args_list] == [2]
+        db.add.assert_not_called()
+        resync.assert_called_once_with(db, 99)
+
+    def test_wrong_mod_is_swapped_for_the_source_mod(self):
+        db, resync, changes = self._sync(source_mods=[1], converted_mods=[2])
+        assert changes == 2
+        assert [c.args[0].mod_id for c in db.add.call_args_list] == [1]
+        assert [c.args[0].mod_id for c in db.delete.call_args_list] == [2]
+
+    def test_in_sync_changes_nothing(self):
+        db, resync, changes = self._sync(source_mods=[1, None], converted_mods=[None, 1])
+        assert changes == 0
+        resync.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_source_without_links_leaves_the_markdown_without_links(self):
+        db, resync, changes = self._sync(source_mods=[], converted_mods=[None])
+        assert changes == 1
+        assert [c.args[0].mod_id for c in db.delete.call_args_list] == [None]
+
+    def test_source_mod_abbreviation(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import source_mod_abbreviation
+
+        def source(*abbreviations):
+            return MagicMock(referencefile_mods=[
+                MagicMock(mod=None if a is None else MagicMock(abbreviation=a)) for a in abbreviations])
+        assert source_mod_abbreviation(source("WB", "FB")) == "FB"
+        assert source_mod_abbreviation(source("FB", None)) is None
+        assert source_mod_abbreviation(source()) is None

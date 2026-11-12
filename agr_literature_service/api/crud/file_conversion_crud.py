@@ -42,6 +42,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     pending_supplement_sources,
     process_nxml_to_markdown,
     process_office_to_markdown,
+    source_mod_abbreviation,
     sync_converted_file_mods_to_sources,
 )
 
@@ -722,7 +723,7 @@ def _execute_sync_office(db: Session, reference: ReferenceModel,
             db=db,
             office_ref_file=office_file,
             reference_curie=reference.curie,
-            mod_abbreviation=assessment["mod_abbreviation"],
+            mod_abbreviation=source_mod_abbreviation(office_file),
         )
         if not success:
             errors.append(
@@ -770,7 +771,7 @@ def _execute_sync_nxml(db: Session, reference: ReferenceModel,
         db=db,
         nxml_ref_file=nxml_source,
         reference_curie=reference.curie,
-        mod_abbreviation=assessment["mod_abbreviation"],
+        mod_abbreviation=source_mod_abbreviation(nxml_source),
     )
     if success:
         # Generate classifier embeddings for the freshly-converted merged
@@ -941,6 +942,15 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
         db.expire(reference)
         reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id,
                                   load_referencefiles=True)
+        # give the new rows every MOD of their source, as the background job
+        # does (SCRUM-6764)
+        try:
+            sync_converted_file_mods_to_sources(db, reference)
+            db.expire(reference)
+            reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id,
+                                      load_referencefiles=True)
+        except Exception:
+            logger.exception(f"Post-conversion MOD sync failed for {reference.curie}")
         post_assessment = _assess_reference(db, reference)
         return status.HTTP_200_OK, _status_payload(
             db, reference, status_str=STATUS_CONVERTED,

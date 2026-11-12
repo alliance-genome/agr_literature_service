@@ -3,10 +3,12 @@ import logging
 import tarfile
 import gzip
 import shutil
+import time
 from typing import Optional
 from urllib import request
+from urllib.error import HTTPError
 import datetime
-from os import environ, path, listdir, remove, makedirs
+from os import environ, path, listdir, remove, makedirs, replace
 from os.path import join as path_join, basename
 import html
 import re
@@ -111,7 +113,57 @@ def chunks(list, size):
         yield list[i:i + size]
 
 
-def download_file(url, file, *, required=False):
+DOWNLOAD_TIMEOUT = 300
+DOWNLOAD_RETRY_WAIT = 60
+DOWNLOAD_CHUNK_SIZE = 1024 * 1024
+
+
+class IncompleteDownloadError(Exception):
+    pass
+
+
+def _is_retryable(error):
+    """A 4xx answer will not change on retry (429, too many requests, may);
+    a dropped connection, timeout or 5xx can."""
+    if isinstance(error, HTTPError):
+        return error.code >= 500 or error.code == 429
+    return True
+
+
+def download_url_to_file(url, file, *, attempts=1, retry_wait=DOWNLOAD_RETRY_WAIT,
+                         timeout=DOWNLOAD_TIMEOUT):
+    """
+    Download url to file, trying up to `attempts` times, and raise the last
+    error if every attempt fails. The file appears only once it is complete.
+
+    The body is streamed to disk and its size checked against Content-Length:
+    a read in chunks, unlike a single read(), returns a short body without
+    error when the server drops the connection. MGI's server does that to its
+    271 MB reference file now and then (SCRUM-6846), mid-transfer.
+    """
+    part_file = file + ".part"
+    for attempt in range(1, attempts + 1):
+        try:
+            with request.urlopen(url, timeout=timeout) as response, open(part_file, "wb") as fh:
+                expected = response.headers.get("Content-Length")
+                shutil.copyfileobj(response, fh, DOWNLOAD_CHUNK_SIZE)
+                received = fh.tell()
+            if expected is not None and received != int(expected):
+                raise IncompleteDownloadError(f"got {received} of {expected} bytes")
+            replace(part_file, file)
+            return
+        except Exception as e:
+            if path.exists(part_file):
+                remove(part_file)
+            if attempt == attempts or not _is_retryable(e):
+                raise
+            wait = retry_wait * attempt
+            logger.warning("Download attempt %d of %d failed for %s: %s; retrying in %d s",
+                           attempt, attempts, url, e, wait)
+            time.sleep(wait)
+
+
+def download_file(url, file, *, required=False, attempts=1):
     """
     Download file from URL to local path.
 
@@ -120,10 +172,7 @@ def download_file(url, file, *, required=False):
     """
     try:
         logger.info("Downloading %s", url)
-        req = request.urlopen(url)
-        data = req.read()
-        with open(file, "wb") as fh:
-            fh.write(data)
+        download_url_to_file(url, file, attempts=attempts)
         return True
 
     except Exception as e:
