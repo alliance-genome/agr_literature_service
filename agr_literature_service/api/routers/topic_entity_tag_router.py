@@ -2,7 +2,7 @@ import json
 from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional
 
-from agr_cognito_py import get_mod_access
+from agr_cognito_py import get_mod_access, has_mod_access
 from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from agr_literature_service.api.crud import topic_entity_tag_crud, \
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSchemaUpdate
+from agr_literature_service.api.models import TagSourceModel, TopicEntityTagModel
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user, no_read_auth_bypass
 from agr_literature_service.api.util.resource_urls import topic_entity_tag_url
@@ -29,6 +30,30 @@ db_session: Session = Depends(get_db)
 revalidate_all_tags_already_running = Value('b', False)
 
 
+def require_mod_write_access(user: Optional[Dict[str, Any]], mod_abbreviation: Optional[str]) -> None:
+    """403 unless the caller may write tags of this MOD (SCRUM-6853).
+
+    The check delete already made, applied to create, validate and patch: a
+    curator writes only their own MOD's tags. Service accounts, admins, developers
+    and the IP-bypass user have access to every MOD (has_mod_access). With no
+    authenticated user at all there is nothing to check against, as before.
+    """
+    if user is None or mod_abbreviation is None:
+        return
+    if not has_mod_access(user, mod_abbreviation):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"You do not have permission to write {mod_abbreviation} topic entity tags")
+
+
+def _source_mod(db: Session, tag_source_id: Optional[int]) -> Optional[str]:
+    """The MOD a tag source belongs to, or None if there is no such source (the
+    write path then answers its own 404)."""
+    if tag_source_id is None:
+        return None
+    source = db.get(TagSourceModel, tag_source_id)
+    return source.secondary_data_provider.abbreviation if source is not None else None
+
+
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=TopicEntityTagSchemaShow)
@@ -37,6 +62,7 @@ def create_tag(request: TopicEntityTagSchemaPost,
                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    require_mod_write_access(user, _source_mod(db, request.tag_source_id))
     new_tag_id, was_upsert = topic_entity_tag_crud.create_tag(db, request)
     # 200 when an existing tag absorbed the request (note appended in place),
     # 201 (the default declared above) when a new row was inserted.
@@ -69,6 +95,7 @@ def validate_topic(request: ValidateTopicRequest,
     The curator source is resolved (get-or-create) server-side from
     mod_abbreviation."""
     set_global_user_from_cognito(db, user)
+    require_mod_write_access(user, request.mod_abbreviation)
     return topic_entity_tag_crud.validate_topic(
         db,
         reference_curie=request.reference_curie,
@@ -97,6 +124,10 @@ def patch_tag(topic_entity_tag_id: int,
               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
               db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    tag = db.get(TopicEntityTagModel, topic_entity_tag_id)
+    if tag is not None:  # a missing tag gets patch_tag's 404
+        # the tag's MOD; a PATCH cannot move a tag to another source
+        require_mod_write_access(user, tag.tag_source.secondary_data_provider.abbreviation)
     topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
     return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
