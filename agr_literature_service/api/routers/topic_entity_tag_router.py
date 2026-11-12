@@ -134,17 +134,24 @@ def validate_topic(request: ValidateTopicRequest,
     A service account records the verdict for a curator with the AuditedObject
     fields (SCRUM-6853). Every service-account token is otherwise recorded as
     default_user, so all their verdicts would share one owner and replace each
-    other's. created_by is whose verdict it is (the earlier verdict is looked up by
-    it) and updated_by who made this change; one alone stands for both, as in the
-    audit model. date_created applies when the verdict is created, date_updated when
+    other's, so a service account must send at least one of created_by and
+    updated_by (422 otherwise). created_by is whose verdict it is (the earlier
+    verdict is looked up by it) and updated_by who made this change; one alone
+    stands for both, as in the audit model. date_created applies when the verdict is created, date_updated when
     it is created or changed."""
     set_global_user_from_cognito(db, user)
     require_mod_write_access(user, request.mod_abbreviation)
+    service_account = user is not None and user.get("token_type") == "access"
     sent = [field for field in AUDIT_FIELDS if getattr(request, field) is not None]
-    if sent and (user is None or user.get("token_type") != "access"):
+    if sent and not service_account:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail=f"{', '.join(sent)} can only be set by a service account; a curator's "
                                    "own login already records the curator and the time")
+    if service_account and request.created_by is None and request.updated_by is None:
+        # A service token alone is recorded as default_user, so every such verdict
+        # would share one owner and replace the others: refuse rather than store it.
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail="A service account must name the curator with created_by or updated_by")
     creator = resolve_person(db, request.created_by)
     updater = resolve_person(db, request.updated_by)
     creator, updater = creator or updater, updater or creator

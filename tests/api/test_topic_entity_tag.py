@@ -28,6 +28,11 @@ test_reference2 = test_reference
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
 
 
+# /validate with the admin (service) token must name the curator (SCRUM-6853). The
+# fixture tag below creates the WBPerson1 agent, so it resolves.
+VALIDATING_CURATOR = "WBPerson1"
+
+
 @pytest.fixture
 
 def test_topic_entity_tag(db, auth_headers, test_reference, test_tag_source, test_mod): # noqa
@@ -616,7 +621,7 @@ class TestTopicEntityTag:
             # the server get-or-creates the curator source for the MOD.
             resp = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": test_mod.new_mod_abbreviation,
                       "negated": False, "note": "looks right"},
                 headers=auth_headers,
@@ -653,7 +658,7 @@ class TestTopicEntityTag:
             # does not become a self-conflict, and it does not 409.
             resp2 = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": True},
                 headers=auth_headers,
             )
@@ -672,7 +677,7 @@ class TestTopicEntityTag:
             # the same verdict sent again (a resend after a timeout) changes nothing
             resp3 = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": True},
                 headers=auth_headers,
             )
@@ -725,7 +730,7 @@ class TestTopicEntityTag:
 
             y = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": False},
                 headers=auth_headers,
             )
@@ -741,7 +746,7 @@ class TestTopicEntityTag:
             # (not 409, not self-conflict): the cell flips to negative.
             n = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": True},
                 headers=auth_headers,
             )
@@ -792,7 +797,7 @@ class TestTopicEntityTag:
 
             y = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": False},
                 headers=auth_headers,
             )
@@ -803,7 +808,7 @@ class TestTopicEntityTag:
             # it succeeds and replaces.
             n = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": True},
                 headers=auth_headers,
             )
@@ -837,7 +842,7 @@ class TestTopicEntityTag:
             # seed a prior positive validation
             y = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": False},
                 headers=auth_headers,
             )
@@ -850,7 +855,7 @@ class TestTopicEntityTag:
                                                  detail="boom")):
                 n = client.post(
                     url="/topic_entity_tag/validate",
-                    json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                    json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                           "mod_abbreviation": mod, "negated": True},
                     headers=auth_headers,
                 )
@@ -889,7 +894,7 @@ class TestTopicEntityTag:
                                   headers=auth_headers)
             assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
             ref_curie = test_topic_entity_tag.related_ref_curie
-            verdict = {"reference_curie": ref_curie, "topic": "ATP:0000130",
+            verdict = {"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000130",
                        "mod_abbreviation": "SGD", "negated": False}
 
             first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
@@ -925,7 +930,7 @@ class TestTopicEntityTag:
             mock_get_descendants.return_value = []
             mock_get_curie_to_name_from_all_tets.return_value = {}
             mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
-            verdict = {"reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
+            verdict = {"created_by": VALIDATING_CURATOR, "reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
                        "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
             first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
             assert first.status_code == status.HTTP_200_OK

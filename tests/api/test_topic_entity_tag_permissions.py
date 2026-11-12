@@ -164,6 +164,19 @@ class TestValidate:
         assert recorded["date_created"].isoformat() == "2026-11-01T10:00:00"
         assert recorded["date_updated"].isoformat() == "2026-11-12T09:30:00"
 
+    def test_service_account_without_a_named_curator_is_422(self, client):
+        # The token alone would record the verdict as default_user, shared by every
+        # service-account verdict.
+        response, validate, _ = self._validate(client, SERVICE, {})
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        validate.assert_not_called()
+
+    def test_updated_by_alone_names_owner_and_editor(self, client):
+        response, _, recorded = self._validate(client, SERVICE, {"updated_by": "AGRKB:101000000000043"})
+        assert response.status_code == status.HTTP_200_OK
+        assert recorded["created_by"] == EDITOR_AGENT[1]
+        assert recorded["user"] == EDITOR_AGENT[1]
+
     @pytest.mark.parametrize("body", [{"created_by": "AGRKB:101000000000042"},
                                       {"date_updated": "2026-11-12T09:30:00"}])
     def test_a_curator_login_cannot_set_audit_fields(self, client, body):
