@@ -13,7 +13,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.crud import topic_entity_tag_crud
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags, \
     TET_REVALIDATION_LOCK_NAMESPACE
-from agr_literature_service.api.models import ReferenceModel, TopicEntityTagModel
+from agr_literature_service.api.models import PersonModel, ReferenceModel, TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
 from ..fixtures import db, _get_engine # noqa
 from .fixtures import auth_headers # noqa
@@ -28,9 +28,21 @@ test_reference2 = test_reference
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
 
 
-# /validate with the admin (service) token must name the curator (SCRUM-6853). The
-# fixture tag below creates the WBPerson1 agent, so it resolves.
-VALIDATING_CURATOR = "WBPerson1"
+# /validate with the admin (service) token must name the curator, a person
+# (SCRUM-6853); the curator_persons fixture creates them.
+VALIDATING_CURATOR = "AGRKB:test-validating-curator"
+# A human curator's id is an AGRKB: person curie; pipeline/script users are not.
+HUMAN_CURATOR = "AGRKB:test-human-curator"
+
+
+@pytest.fixture
+def curator_persons(db):  # noqa
+    """The persons the tests name as curators: a person identifier in created_by /
+    updated_by must resolve to exactly one person (SCRUM-6853)."""
+    for curie, name in ((VALIDATING_CURATOR, "Validating Curator"), (HUMAN_CURATOR, "Human Curator")):
+        if db.query(PersonModel).filter(PersonModel.curie == curie).one_or_none() is None:
+            db.add(PersonModel(display_name=name, curie=curie))
+    db.commit()
 
 
 @pytest.fixture
@@ -598,6 +610,7 @@ class TestTopicEntityTag:
             assert any(t["curie"] == "ATP:0000122" for t in discovery["topics"])
             assert all(s["method"] != "abc_literature_system" for s in discovery["sources"])
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # POST /validate is the thin write path for the grid's Validation column:
         # the server resolves the curator source (get-or-create) and creates the
@@ -687,6 +700,7 @@ class TestTopicEntityTag:
             assert resp3.json()["tag"]["date_updated"] == resp2.json()["tag"]["date_updated"]
             assert resp3.json()["validation"]["negatives"] == 1
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_reuses_existing_curator_source(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # The realistic production case: a curator source for the MOD already
         # exists (created earlier by the UI's getCuratorSourceId, validation_type
@@ -757,6 +771,7 @@ class TestTopicEntityTag:
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_flip_with_biocurator_source_does_not_409(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # Production reality: every MOD's abc curator source is
         # 'professional_biocurator'. Against such a
@@ -819,6 +834,7 @@ class TestTopicEntityTag:
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_update_is_atomic_on_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # SCRUM-6851/6852: a re-validation updates the curator's verdict in place, and
         # the update and the reference's revalidation are one transaction. If the
@@ -871,6 +887,7 @@ class TestTopicEntityTag:
             assert cell["state"] == "positive"
             assert cell["positives"] == 1
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_sgd_display_tag_topic_is_updated_in_place(self, test_topic_entity_tag,  # noqa
                                                                        auth_headers):  # noqa
         # SCRUM-6852: for SGD a topic that is also a display tag (review, ATP:0000130)
@@ -914,6 +931,7 @@ class TestTopicEntityTag:
             assert flip.json()["topic_entity_tag_id"] == first.json()["topic_entity_tag_id"]
             assert flip.json()["tag"]["negated"] is True
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_note_only_edit_skips_revalidation(self, test_topic_entity_tag, test_mod,  # noqa
                                                               auth_headers):  # noqa
         # SCRUM-6852: the note takes no part in validation, so changing only the note
@@ -930,7 +948,8 @@ class TestTopicEntityTag:
             mock_get_descendants.return_value = []
             mock_get_curie_to_name_from_all_tets.return_value = {}
             mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
-            verdict = {"created_by": VALIDATING_CURATOR, "reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
+            verdict = {"created_by": VALIDATING_CURATOR,
+                       "reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
                        "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
             first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
             assert first.status_code == status.HTTP_200_OK
@@ -3769,8 +3788,11 @@ class TestMixedTagCompanionEntityTag:
     SGD, negated, pure-entity, and pipeline-created tags do not."""
 
     EXISTING_DATA_NOVELTY = "ATP:0000334"
-    # A human curator's users.id is an AGRKB: person curie; pipeline/script users are not.
-    HUMAN_CURATOR = "AGRKB:101000000000001"
+    HUMAN_CURATOR = HUMAN_CURATOR
+
+    @pytest.fixture(autouse=True)
+    def _persons(self, curator_persons):  # noqa
+        pass
 
     def _post_tag(self, client, auth_headers, payload):  # noqa
         return client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)

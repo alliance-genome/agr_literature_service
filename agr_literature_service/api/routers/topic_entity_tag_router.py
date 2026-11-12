@@ -1,9 +1,9 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional, Tuple
 
-from agr_cognito_py import get_mod_access, has_mod_access
+from agr_cognito_py import ModAccess, get_mod_access, has_mod_access
 from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -56,20 +56,35 @@ def _source_mod(db: Session, tag_source_id: Optional[int]) -> Optional[str]:
     return source.secondary_data_provider.abbreviation if source is not None else None
 
 
-def resolve_person(db: Session, identifier: Optional[str]) -> Optional[Tuple[int, str]]:
+def resolve_person(db: Session, identifier: Optional[str], field: str,
+                   person_only: bool = False) -> Optional[Tuple[int, str]]:
     """The agent a request names in an audit field, as (agent.id, label); None when
     none is named (SCRUM-6853). Resolved strictly, as updated_by is for indexing
     priority (SCRUM-6819): a person's AGRKB ID, email or full name, or an automation
     agent's name; 422 if it matches no one or more than one person, so a typo
     cannot record a tag under a made-up name. A person who has never logged in to
-    ABC gets their agent created."""
+    ABC gets their agent created. ``person_only`` also refuses an automation agent,
+    such as default_user or a pipeline: a curator's verdict needs a curator."""
     if identifier is None:
         return None
-    return resolve_named_agent(identifier, db)
+    agent = resolve_named_agent(identifier, db, field)
+    # a person's agent is labelled with the person's AGRKB curie (SCRUM-6719)
+    if person_only and not _looks_like_person(agent[1]):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"{field} {identifier!r} names an automation agent, not a curator")
+    return agent
 
 
 def _looks_like_person(identifier: str) -> bool:
-    return identifier.startswith("AGRKB:") or "@" in identifier
+    return identifier.upper().startswith("AGRKB:") or "@" in identifier
+
+
+def _naive_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """A request timestamp as the naive UTC the DateTime columns store; one with an
+    offset is converted rather than having its offset dropped."""
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 @router.post('/',
@@ -87,7 +102,7 @@ def create_tag(request: TopicEntityTagSchemaPost,
     for field in ("created_by", "updated_by"):
         identifier = getattr(request, field)
         if identifier and _looks_like_person(identifier):
-            person = resolve_person(db, identifier)
+            person = resolve_person(db, identifier, field)
             if person is not None:
                 setattr(request, field, person[1])
     new_tag_id, was_upsert = topic_entity_tag_crud.create_tag(db, request)
@@ -152,8 +167,8 @@ def validate_topic(request: ValidateTopicRequest,
         # would share one owner and replace the others: refuse rather than store it.
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="A service account must name the curator with created_by or updated_by")
-    creator = resolve_person(db, request.created_by)
-    updater = resolve_person(db, request.updated_by)
+    creator = resolve_person(db, request.created_by, "created_by", person_only=True)
+    updater = resolve_person(db, request.updated_by, "updated_by", person_only=True)
     creator, updater = creator or updater, updater or creator
     with acting_as(updater):
         return topic_entity_tag_crud.validate_topic(
@@ -165,8 +180,8 @@ def validate_topic(request: ValidateTopicRequest,
             note=request.note,
             species=request.species,
             created_by=creator[1] if creator else None,
-            date_created=request.date_created,
-            date_updated=request.date_updated,
+            date_created=_naive_utc(request.date_created),
+            date_updated=_naive_utc(request.date_updated),
         )
 
 
@@ -201,7 +216,12 @@ def delete_tag(topic_entity_tag_id,
                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_mod_access(user) if user else [])
+    tag = db.get(TopicEntityTagModel, topic_entity_tag_id)
+    if tag is not None:  # a missing tag gets destroy_tag's 404
+        require_mod_write_access(user, tag.tag_source.secondary_data_provider.abbreviation)
+    # destroy_tag keeps its own check; with no user there is nothing to check against
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id,
+                                      get_mod_access(user) if user else ModAccess.ALL_ACCESS)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -469,6 +489,7 @@ def delete_manual_tags(reference_curie,
                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                        db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    require_mod_write_access(user, mod_abbreviation)
     topic_entity_tag_utils.delete_manual_tets(db, reference_curie, mod_abbreviation)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
