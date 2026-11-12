@@ -2706,6 +2706,11 @@ def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Di
     return {"topic": topic_upper, "validation": validation, "filter_flags": filter_flags}
 
 
+# The fields of a curator's topic verdict that a re-validation may change. The rest of
+# the row (reference, topic, source, creator) is what identifies the verdict.
+CURATOR_VERDICT_FIELDS = ("negated", "note", "species", "display_tag", "data_novelty", "data_context")
+
+
 def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviation: str,
                    negated: bool = False, note: Optional[str] = None,
                    species: Optional[str] = None) -> Dict[str, Any]:
@@ -2713,81 +2718,139 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
     Given just the cell the curator acted on -- {reference, topic, negated, note,
     species} plus their MOD -- resolve the curator source server-side, record the
-    curator's topic-level validation, and return the recomputed single cell.
+    curator's topic-level verdict, and return the recomputed single cell.
 
-    REPLACE-PRIOR semantics: a curator holds at most one validation per
-    (reference, topic). Any existing topic-level validation by this curator on the
-    curator source is deleted before the new one is inserted, so re-validating
-    REPLACES the prior assertion (flip Yes<->No, or update note/species) rather
-    than creating a second, contradictory tag. The abc curator source is
-    'professional_biocurator', which is exactly what the opposite-negation guard
-    (check_for_duplicate_tags Branch 3) fires for -- deleting the curator's prior
-    tag first means the new insert never trips that guard, so a flipped vote
-    never 409s.
+    A curator holds at most one verdict per (reference, topic) on the curator source.
+    When they already have one it is UPDATED IN PLACE and keeps its
+    topic_entity_tag_id (SCRUM-6852), so an id stored by another system keeps
+    resolving: a flip Yes<->No or a new note/species is an edit of that row, recorded
+    as such in its version history. Sending the same values again changes nothing
+    and reports "unchanged", which makes a resend after a timeout safe. Any further
+    verdicts left over from before (the old delete-and-insert could leave more than
+    one) are deleted, and the oldest is kept. Only when there is none is a tag
+    created, through create_tag, so the paper is added to the MOD corpus and the
+    manual indexing workflow tag is set as for any new tag.
 
-    The new tag is created through the normal create_tag path (force_insertion
-    bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
-    side effects still run). The prior delete is only FLUSHED, not committed, so
-    create_tag's own commit covers the delete AND the insert atomically: if
-    create_tag raises (422 invalid topic, 404 source, a 409, ...) the delete is
-    never committed and rolls back with the request, so the curator never ends up
-    with their prior validation gone and no replacement. create_tag runs with
-    validate_on_insert=False because the single revalidate_all_tags below rebuilds
-    the whole reference's validation relationships/values once -- covering both the
-    new tag and any tags affected by the delete -- exactly as patch_tag/destroy_tag
-    do."""
+    All of it, and the single revalidation of the reference, is one transaction
+    (SCRUM-6851): an error means nothing changed.
+
+    Returns the recomputed cell ({topic, validation, filter_flags}) plus
+    topic_entity_tag_id, outcome ("created", "updated" or "unchanged"), replaced
+    (an earlier verdict existed; kept for existing clients) and tag, the values
+    stored, with the raw creator/updater ids and their display names."""
     source = get_or_create_abc_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     current_user = get_default_user_value()
     topic_upper = str(topic or "").upper()
 
-    # SCRUM-6851: lock the reference before the prior verdict is read or deleted.
-    # create_tag below takes the same lock; taken only there, this transaction would
-    # already hold the deleted row's lock while waiting for it, and could deadlock
-    # with a PATCH or DELETE on the same paper whose revalidation holds the lock and
-    # updates that row. It also serialises two validations of the same cell, so a
-    # resend replaces the first one instead of racing it.
-    lock_reference_tags(db, reference_id)
-    prior = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.reference_id == reference_id,
-        func.upper(TopicEntityTagModel.topic) == topic_upper,
-        TopicEntityTagModel.entity.is_(None),
-        TopicEntityTagModel.tag_source_id == source.tag_source_id,
-        TopicEntityTagModel.created_by == current_user,
-    ).all()
-    replaced = bool(prior)
-    for old_tag in prior:
-        db.delete(old_tag)
-    if prior:
-        # Flush (NOT commit) so the delete is visible within this transaction --
-        # create_tag's check_for_duplicate_tags then won't see the prior row --
-        # while staying uncommitted until create_tag's own commit, making
-        # delete+insert atomic. If create_tag raises, the delete is rolled back
-        # with it (create_tag's except, or the request session's rollback on
-        # close), so a failed re-validation never destroys the prior one.
-        db.flush()
+    try:
+        # SCRUM-6851: lock the reference before the earlier verdict is read or changed.
+        # create_tag takes the same lock; taken only there, this transaction could
+        # already hold a tag row lock while waiting for it, and deadlock with a PATCH
+        # or DELETE on the same paper whose revalidation holds the lock and updates
+        # that row. It also serialises two validations of the same cell, so a resend
+        # finds the first one's verdict instead of racing it.
+        lock_reference_tags(db, reference_id)
+        prior = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            func.upper(TopicEntityTagModel.topic) == topic_upper,
+            TopicEntityTagModel.entity.is_(None),
+            TopicEntityTagModel.tag_source_id == source.tag_source_id,
+            TopicEntityTagModel.created_by == current_user,
+        ).order_by(TopicEntityTagModel.topic_entity_tag_id).all()
 
-    tag = TopicEntityTagSchemaPost(
-        reference_curie=reference_curie,
-        topic=topic,
-        entity=None,
-        entity_type=None,
-        species=species,
-        data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
-        data_context=CURATOR_VALIDATION_DATA_CONTEXT,
-        negated=negated,
-        note=note,
-        tag_source_id=source.tag_source_id,
-        force_insertion=True,
-    )
-    tag_id, _ = create_tag(db, tag, validate_on_insert=False)
-    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+        if prior:
+            verdict = prior[0]
+            # The values a new verdict would be stored with, derived exactly as
+            # create_tag derives them (SGD display_tag and data_novelty, species).
+            wanted: Dict[str, Any] = {
+                "topic": verdict.topic, "entity": None, "entity_type": None,
+                "display_tag": None, "species": species, "negated": negated, "note": note,
+                "data_novelty": CURATOR_VALIDATION_DATA_NOVELTY,
+                "data_context": CURATOR_VALIDATION_DATA_CONTEXT,
+            }
+            set_provider_derived_fields(db, wanted, source)
+            changed = False
+            for field in CURATOR_VERDICT_FIELDS:
+                if getattr(verdict, field) != wanted[field]:
+                    setattr(verdict, field, wanted[field])
+                    changed = True
+            for extra in prior[1:]:
+                db.delete(extra)
+                changed = True
+            outcome = "updated" if changed else "unchanged"
+            tag_id = verdict.topic_entity_tag_id
+        else:
+            tag = TopicEntityTagSchemaPost(
+                reference_curie=reference_curie,
+                topic=topic,
+                entity=None,
+                entity_type=None,
+                species=species,
+                data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
+                data_context=CURATOR_VALIDATION_DATA_CONTEXT,
+                negated=negated,
+                note=note,
+                tag_source_id=source.tag_source_id,
+                force_insertion=True,
+            )
+            # validate_on_insert=False: the single revalidation below rebuilds the
+            # whole reference's edges and values once, as patch_tag/destroy_tag do.
+            tag_id, _ = create_tag(db, tag, validate_on_insert=False, commit=False)
+            outcome = "created"
+
+        if outcome != "unchanged":
+            db.flush()
+            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
     db.expire_all()
     cell = _recompute_validation_cell(db, reference_id, topic)
     return {
         "topic_entity_tag_id": tag_id,
-        "replaced": replaced,
+        "outcome": outcome,
+        "replaced": bool(prior),
+        "tag": _stored_verdict(db, tag_id, reference_curie),
         **cell,
+    }
+
+
+def _stored_verdict(db: Session, topic_entity_tag_id: int, reference_curie: str) -> Dict[str, Any]:
+    """The verdict as stored, for the validate response (SCRUM-6852): its values, its
+    source, and who is recorded as creator and last updater, by raw id (the person's
+    AGRKB curie or the automation name) and by display name."""
+    tag: TopicEntityTagModel = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.tag_source)).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one()
+    display_names = get_user_display_name_map(db, {uid for uid in (tag.created_by, tag.updated_by) if uid})
+    source = tag.tag_source
+    return {
+        "topic_entity_tag_id": tag.topic_entity_tag_id,
+        "reference_curie": reference_curie,
+        "topic": tag.topic,
+        "negated": tag.negated,
+        "note": tag.note,
+        "species": tag.species,
+        "display_tag": tag.display_tag,
+        "data_novelty": tag.data_novelty,
+        "data_context": tag.data_context,
+        "tag_source": {
+            "tag_source_id": source.tag_source_id,
+            "source_evidence_assertion": source.source_evidence_assertion,
+            "source_method": source.source_method,
+            "validation_type": source.validation_type,
+            "data_provider": source.data_provider,
+            "secondary_data_provider_abbreviation": source.secondary_data_provider.abbreviation,
+        },
+        "created_by": tag.created_by,
+        "created_by_name": display_names.get(tag.created_by),
+        "updated_by": tag.updated_by,
+        "updated_by_name": display_names.get(tag.updated_by),
+        "date_created": tag.date_created.isoformat() if tag.date_created else None,
+        "date_updated": tag.date_updated.isoformat() if tag.date_updated else None,
     }
 
 

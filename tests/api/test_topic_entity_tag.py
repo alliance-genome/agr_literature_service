@@ -568,6 +568,21 @@ class TestTopicEntityTag:
             assert resp.status_code == status.HTTP_200_OK
             body = resp.json()
             assert isinstance(body["topic_entity_tag_id"], int)
+            # SCRUM-6852: what was stored, and under whom
+            assert body["outcome"] == "created"
+            assert body["replaced"] is False
+            stored = body["tag"]
+            assert stored["topic_entity_tag_id"] == body["topic_entity_tag_id"]
+            assert stored["reference_curie"] == ref_curie
+            assert stored["topic"] == "ATP:0000122"
+            assert stored["negated"] is False
+            assert stored["note"] == "looks right"
+            assert stored["data_novelty"] == "ATP:0000335"
+            assert stored["data_context"] is not None
+            assert stored["tag_source"]["source_method"] == "abc_literature_system"
+            assert stored["tag_source"]["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
+            assert stored["created_by"]
+            assert stored["updated_by"] == stored["created_by"]
             assert body["topic"] == "ATP:0000122"
             assert body["validation"]["state"] == "positive"
             assert body["validation"]["positives"] == 1
@@ -591,6 +606,24 @@ class TestTopicEntityTag:
             assert cell["state"] == "negative"
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
+            # SCRUM-6852: the verdict was updated in place and kept its id
+            assert resp2.json()["outcome"] == "updated"
+            assert resp2.json()["topic_entity_tag_id"] == body["topic_entity_tag_id"]
+            assert resp2.json()["tag"]["negated"] is True
+            assert resp2.json()["tag"]["note"] is None
+
+            # the same verdict sent again (a resend after a timeout) changes nothing
+            resp3 = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": True},
+                headers=auth_headers,
+            )
+            assert resp3.status_code == status.HTTP_200_OK
+            assert resp3.json()["outcome"] == "unchanged"
+            assert resp3.json()["topic_entity_tag_id"] == body["topic_entity_tag_id"]
+            assert resp3.json()["tag"]["date_updated"] == resp2.json()["tag"]["date_updated"]
+            assert resp3.json()["validation"]["negatives"] == 1
 
     def test_validate_topic_reuses_existing_curator_source(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # The realistic production case: a curator source for the MOD already
@@ -599,8 +632,8 @@ class TestTopicEntityTag:
         # unique key excludes validation_type -- and an opposite-polarity
         # re-validation by the same curator must succeed (NOT 409) even though
         # the opposite-negation guard (Branch 3) does fire for
-        # 'professional_biocurator' sources: validate_topic deletes the curator's
-        # prior validation before inserting the new one. This pins down the
+        # 'professional_biocurator' sources: validate_topic updates the curator's
+        # verdict in place instead of inserting a second one. This pins down the
         # behavior reviewers worry about (the empty-DB test above exercises only
         # the create branch).
         load_name_to_atp_and_relationships_mock()
@@ -667,9 +700,9 @@ class TestTopicEntityTag:
         # 'professional_biocurator'. Against such a
         # source, check_for_duplicate_tags Branch 3 would 409 a same-curator
         # opposite-polarity insert. validate_topic must still let a curator flip
-        # their vote: it deletes the curator's prior validation first, so the new
-        # insert never trips Branch 3. This is the regression for the original
-        # review concern.
+        # their vote: it updates the curator's verdict in place (SCRUM-6852), so no
+        # second, opposite tag is ever inserted to trip Branch 3. This is the
+        # regression for the original review concern.
         load_name_to_atp_and_relationships_mock()
         mod = test_mod.new_mod_abbreviation
         with TestClient(app) as client, \
@@ -724,11 +757,11 @@ class TestTopicEntityTag:
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
 
-    def test_validate_topic_replace_is_atomic_on_insert_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
-        # Replace-prior deletes the curator's prior validation before inserting the
-        # new one. That delete is FLUSHED, not committed, so if the insert fails
-        # the delete must roll back with the request -- the curator must never be
-        # left with their prior validation gone and no replacement.
+    def test_validate_topic_update_is_atomic_on_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # SCRUM-6851/6852: a re-validation updates the curator's verdict in place, and
+        # the update and the reference's revalidation are one transaction. If the
+        # revalidation fails the update must roll back with it -- the curator must
+        # never be left with a changed verdict the response reported as an error.
         load_name_to_atp_and_relationships_mock()
         mod = test_mod.new_mod_abbreviation
         with TestClient(app) as client, \
@@ -754,8 +787,8 @@ class TestTopicEntityTag:
             assert y.status_code == status.HTTP_200_OK
             assert y.json()["validation"]["state"] == "positive"
 
-            # a flip whose INSERT fails: the prior delete must not survive it
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.create_tag",
+            # a flip whose revalidation fails: the flip must not survive it
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.revalidate_all_tags",
                        side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                                  detail="boom")):
                 n = client.post(
@@ -766,7 +799,7 @@ class TestTopicEntityTag:
                 )
             assert n.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-            # the prior positive validation is still there (delete rolled back)
+            # the prior positive validation is still there (update rolled back)
             after = client.post(
                 url="/topic_entity_tag/by_references",
                 json={"curies_or_reference_ids": [ref_curie]},
