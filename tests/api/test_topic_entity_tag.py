@@ -108,6 +108,37 @@ class TestTopicEntityTag:
             TopicEntityTagModel.reference_id == reference_id,
             TopicEntityTagModel.entity == "WB:WBGene00003002").count() == 1
 
+    def test_create_duplicate_409_releases_reference_lock(self, test_topic_entity_tag, test_tag_source,  # noqa
+                                                          db):  # noqa
+        # SCRUM-6851: create_tag takes the reference lock before its duplicate check. A
+        # loader that catches the 409 and carries on in the same session must not keep
+        # holding it, or curators' writes on that paper would block until its next commit.
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        duplicate = TopicEntityTagSchemaPost(
+            reference_curie=test_topic_entity_tag.related_ref_curie,
+            topic="ATP:0000122",
+            entity_type="ATP:0000005",
+            entity="WB:WBGene00003001",
+            entity_id_validation="alliance",
+            species="NCBITaxon:6239",
+            tag_source_id=test_tag_source.new_source_id,
+            negated=False,
+            data_novelty="ATP:0000334",
+            data_context="ATP:0000405",
+            note="test note",
+            created_by="WBPerson1",
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            topic_entity_tag_crud.create_tag(db, duplicate)
+        assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_topic_entity_tag.related_ref_curie).scalar()
+        with _get_engine().connect() as other:
+            acquired = other.execute(text("SELECT pg_try_advisory_xact_lock(:ns, :ref)"),
+                                     {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id}).scalar()
+            other.rollback()
+        assert acquired is True
+
     def test_create_corpus_step_failure_stores_nothing(self, test_topic_entity_tag, test_tag_source,  # noqa
                                                        db, auth_headers):  # noqa
         # SCRUM-6851: the tag, the corpus step and the workflow tag are one transaction,

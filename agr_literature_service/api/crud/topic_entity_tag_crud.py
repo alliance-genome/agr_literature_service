@@ -85,8 +85,10 @@ TET_REVALIDATION_SWEEP_KEY = 0
 def lock_reference_tags(db: Session, reference_id: int) -> None:
     """Take the per-reference tag lock for the rest of the current transaction.
 
-    Every write to one reference's tags runs under it: tag creation, the curator
-    validate path and single-reference revalidation. It is transaction-scoped, so
+    Taken by tag creation, the curator validate path and single-reference
+    revalidation; patch_tag and destroy_tag get it through their revalidation. It
+    serialises those writers only: code that writes tag rows without going through
+    them is not covered, and no database constraint backs it. It is transaction-scoped, so
     each commit or rollback releases it, and re-entrant within one transaction, so a
     caller that already holds it can call into code that takes it again.
 
@@ -256,8 +258,10 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     All of it -- the tag, adding the paper to the MOD corpus, the manual indexing
     workflow tag, validation and the companion entity tag -- is one transaction
     (SCRUM-6851). An error therefore means nothing was stored, and the caller can
-    retry. ``commit=False`` leaves that transaction open for a caller that has
-    more to do in it (validate_topic); the caller then commits.
+    retry. With ``commit=True`` (the default) create_tag owns the transaction: it
+    commits on success and rolls back on any error, a 409 included. ``commit=False``
+    is for a caller that has more to do in the same transaction (validate_topic):
+    create_tag then neither commits nor rolls back, and the caller does both.
 
     Returns ``(topic_entity_tag_id, was_upsert)``:
       - ``(new_id, False)``       — a new tag was created (caller should return 201).
@@ -333,7 +337,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     # check_for_duplicate_tags raises HTTPException(409) on conflict branches, or
     # returns the existing tag id when the request was absorbed as an in-place note
     # append (upsert). Returns None when no duplicate exists.
-    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
+    duplicate_check_result = _check_for_duplicate_tags_in_transaction(
+        db, topic_entity_tag_data, source, reference_id, force_insertion, commit)
     if duplicate_check_result is not None:
         logger.info("Duplicate tag absorbed as upsert, returning existing id")
         if commit:
@@ -368,41 +373,60 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             # transaction has committed since (SCRUM-6851).
             validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
             logger.info("Tag validation completed")
-            # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
-            # create a companion pure entity tag (topic == entity_type) so they don't have
-            # to add it by hand. Gated on validate_on_insert so it only fires for the
-            # interactive create path (the router) and not for bulk reference import or
-            # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
-            # (it has its own data_novelty/display handling). Pipeline-generated tags are
-            # excluded too: the companion is only for tags a human curator made, and
-            # pipeline/script-created tags have created_by/updated_by users.id values that
-            # are not the AGRKB: curies humans get (so the curator-only auto-creation does
-            # not flood the DB with companion tags for machine-generated mixed tags).
-            is_mixed = (topic_entity_tag_data.get("entity") is not None
-                        and topic_entity_tag_data.get("entity_type") is not None
-                        and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
-            is_positive = topic_entity_tag_data.get("negated") is False
-            is_sgd = source.secondary_data_provider.abbreviation == "SGD"
-            # Read the final persisted creator/updater off the committed row: when
-            # updated_by is omitted on the request, the audited-model before_insert
-            # event copies created_by into updated_by on new_db_obj (not on the dict
-            # above), so new_db_obj holds the authoritative users.id values.
-            created_by = new_db_obj.created_by or ""
-            updated_by = new_db_obj.updated_by or ""
-            is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
-            if is_mixed and is_positive and not is_sgd and is_human:
-                logger.info("Creating companion entity tag for mixed topic+entity tag")
-                create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
+            _add_companion_entity_tag_if_needed(db, topic_entity_tag_data, source, new_db_obj, reference_id)
         if commit:
             db.commit()
         logger.info("create_tag completed successfully")
         return (new_db_obj.topic_entity_tag_id, False)
-    except (IntegrityError, HTTPException) as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"invalid request: {e}")
-    except Exception:
-        db.rollback()
+    except Exception as e:
+        if commit:
+            db.rollback()
+        if isinstance(e, (IntegrityError, HTTPException)):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                detail=f"invalid request: {e}")
+        raise
+
+
+def _add_companion_entity_tag_if_needed(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
+                                        new_db_obj: TopicEntityTagModel, reference_id: int):
+    # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
+    # create a companion pure entity tag (topic == entity_type) so they don't have
+    # to add it by hand. Gated on validate_on_insert so it only fires for the
+    # interactive create path (the router) and not for bulk reference import or
+    # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
+    # (it has its own data_novelty/display handling). Pipeline-generated tags are
+    # excluded too: the companion is only for tags a human curator made, and
+    # pipeline/script-created tags have created_by/updated_by users.id values that
+    # are not the AGRKB: curies humans get (so the curator-only auto-creation does
+    # not flood the DB with companion tags for machine-generated mixed tags).
+    is_mixed = (topic_entity_tag_data.get("entity") is not None
+                and topic_entity_tag_data.get("entity_type") is not None
+                and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
+    is_positive = topic_entity_tag_data.get("negated") is False
+    is_sgd = source.secondary_data_provider.abbreviation == "SGD"
+    # Read the final persisted creator/updater off the inserted row: when
+    # updated_by is omitted on the request, the audited-model before_insert
+    # event copies created_by into updated_by on new_db_obj (not on the dict
+    # above), so new_db_obj holds the authoritative users.id values.
+    created_by = new_db_obj.created_by or ""
+    updated_by = new_db_obj.updated_by or ""
+    is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
+    if is_mixed and is_positive and not is_sgd and is_human:
+        logger.info("Creating companion entity tag for mixed topic+entity tag")
+        create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
+
+
+def _check_for_duplicate_tags_in_transaction(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
+                                             reference_id: int, force_insertion, commit: bool):
+    """check_for_duplicate_tags, rolling back on its 409 when create_tag owns the
+    transaction (``commit``). That also releases the reference lock: loaders catch the
+    409 and carry on, and would otherwise hold one lock per duplicate reference until
+    their next commit, blocking curators on those papers (SCRUM-6851)."""
+    try:
+        return check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
+    except HTTPException:
+        if commit:
+            db.rollback()
         raise
 
 
