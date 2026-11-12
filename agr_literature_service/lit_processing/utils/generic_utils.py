@@ -43,3 +43,17 @@ def split_identifier(identifier, ignore_error=False):
         prefix = identifier_processed = separator = None
 
     return prefix, identifier_processed, separator
+
+
+def xref_lookup_key(prefix, identifier):
+    """
+    Key for an identifier in an xref_ref[prefix] lookup dict.
+
+    DOIs are case-insensitive, and the same DOI arrives in different cases from PubMed and
+    the MODs (e.g. 10.1534/GENETICS.113.157685 and 10.1534/genetics.113.157685), so DOI keys
+    are lower-cased; exact-case matching made duplicate references (SCRUM-6864). Other
+    identifiers are kept as they are.
+    """
+    if prefix == 'DOI' and identifier is not None:
+        return identifier.lower()
+    return identifier

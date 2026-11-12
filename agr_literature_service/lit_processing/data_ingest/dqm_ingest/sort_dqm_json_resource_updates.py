@@ -10,7 +10,7 @@ from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import save_resource_file
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session,\
     sqlalchemy_load_ref_xref
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_processing_utils import \
     compare_authors_or_editors
 from agr_literature_service.api.user import set_global_user_id
@@ -106,8 +106,8 @@ def update_sanitized_resources(datatype):
         prefix, identifier, separator = split_identifier(primary_id)
         # logger.info("primary_id %s pubmed %s", primary_id, resource_dict)
         if prefix in xref_ref:
-            if identifier in xref_ref[prefix]:
-                agr = xref_ref[prefix][identifier]
+            if xref_lookup_key(prefix, identifier) in xref_ref[prefix]:
+                agr = xref_ref[prefix][xref_lookup_key(prefix, identifier)]
                 if agr in resources_to_update:
                     logger.info("ERROR agr %s has multiple values to update %s %s", agr, primary_id, resources_to_update[agr]['primaryId'])
                 else:
@@ -304,8 +304,8 @@ def compare_xref(db_session, agr, resource_id, dqm_entry, xref_ref, ref_xref_val
         prefix, identifier, separator = split_identifier(curie)
         agr_db_from_xref = ''
         if prefix in xref_ref:
-            if identifier in xref_ref[prefix]:
-                agr_db_from_xref = xref_ref[prefix][identifier]
+            if xref_lookup_key(prefix, identifier) in xref_ref[prefix]:
+                agr_db_from_xref = xref_ref[prefix][xref_lookup_key(prefix, identifier)]
         # depending on what curators want for reports, these commented out logger.info should go into reports
         if agr_db_from_xref == agr:
             pass

@@ -1,4 +1,4 @@
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 
 
 class TestGenericUtils:
@@ -27,3 +27,11 @@ class TestGenericUtils:
         print_out = capfd.readouterr()[0]
         assert print_out == "Identifier does not contain ':' or '-' characters.\nSplitting identifier is not possible." \
                             "\nIdentifier: WRONG_001\n"
+
+    def test_xref_lookup_key(self):
+        # SCRUM-6864: DOIs match regardless of case, other identifiers stay exact
+        assert xref_lookup_key("DOI", "10.1534/GENETICS.113.157685") == "10.1534/genetics.113.157685"
+        assert xref_lookup_key("DOI", "10.1534/genetics.113.157685") == "10.1534/genetics.113.157685"
+        assert xref_lookup_key("WB", "WBPaper00069799") == "WBPaper00069799"
+        assert xref_lookup_key("PMCID", "PMC13356707") == "PMC13356707"
+        assert xref_lookup_key("DOI", None) is None

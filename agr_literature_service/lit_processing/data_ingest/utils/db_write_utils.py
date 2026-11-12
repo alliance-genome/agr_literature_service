@@ -11,6 +11,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.author import Autho
     authors_lists_match_for_review
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
+from agr_literature_service.lit_processing.utils.generic_utils import xref_lookup_key
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
@@ -1243,7 +1244,10 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
     else:
         fw = open(log_file, "w")
     not_loaded_pmids = []
-    for pmid in pmids:
+    # Iterate over a copy: matched PMIDs are removed from pmids below so the caller does not
+    # create them, and removing from the list being iterated skipped the PMID after each match,
+    # which then became a duplicate of its DOI record (SCRUM-6864).
+    for pmid in list(pmids):
         json_file = json_path + pmid + ".json"
         if not path.exists(json_file):
             continue
@@ -1265,8 +1269,8 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
                 is_pmcid = True
                 xref_id = xref_id.replace("PMCID:", '')
             agr = None
-            if is_doi is True and xref_id in xref_ref['DOI']:
-                agr = xref_ref['DOI'][xref_id]
+            if is_doi is True and xref_lookup_key('DOI', xref_id) in xref_ref['DOI']:
+                agr = xref_ref['DOI'][xref_lookup_key('DOI', xref_id)]
             elif is_pmcid is True and xref_id in xref_ref['PMCID']:
                 agr = xref_ref['PMCID'][xref_id]
             if agr is None:
