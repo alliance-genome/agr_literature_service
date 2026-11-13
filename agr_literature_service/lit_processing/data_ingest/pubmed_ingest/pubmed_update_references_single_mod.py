@@ -29,7 +29,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
 from agr_literature_service.lit_processing.utils.report_utils import \
     write_log_and_send_pubmed_update_report, \
     write_log_and_send_pubmed_no_update_report
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import acting_as, get_current_agent_id, get_global_user_id, \
+    set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
     CategoryInputs, load_category_inputs, resolve_category
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -58,6 +59,26 @@ batch_size = 500
 sleep_time = 10
 
 init_tmp_dir()
+
+
+def refresh_pmids_from_pubmed(pmids, logger=log):
+    """
+    Update the references of PMIDs just attached to existing references with their PubMed data.
+
+    A PMID attached to a reference that came from a MOD (e.g. found through its DOI) is not in
+    the weekly PubMed update unless PubMed revises that record, so the reference would keep the
+    MOD's title, authors etc. (SCRUM-6864). update_data sets its own script as the current user,
+    so the caller's user is restored afterwards.
+    """
+    if not pmids:
+        return
+    agent_id, label = get_current_agent_id(), get_global_user_id()
+    agent = (agent_id, label) if agent_id is not None and label is not None else None
+    try:
+        with acting_as(agent):
+            update_data(None, "|".join(sorted(pmids)))
+    except Exception as e:
+        logger.info(f"Error(s) occurred when updating {len(pmids)} attached PMIDs with data from PubMed: {e}")
 
 
 def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cover

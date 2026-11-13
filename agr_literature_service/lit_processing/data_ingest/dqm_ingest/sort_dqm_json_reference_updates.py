@@ -24,6 +24,8 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
     generate_pmid_data, aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    refresh_pmids_from_pubmed
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     get_pmids_from_exclude_list
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
@@ -632,6 +634,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
 
         ## add new cross_reference XREF IDs
         add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
+        # a PMID added to an existing reference (e.g. a MOD record found by its DOI) gets its PubMed data now
+        if live_change:
+            refresh_pmids_from_pubmed([x["curie"].replace("PMID:", "") for x in cross_reference_to_add
+                                       if x["curie"].startswith("PMID:")], logger)
 
         ## update references with md5sum changed
         curie_to_reftypesConflict = update_db_entries(mod, mod_to_mod_id,

@@ -1244,6 +1244,7 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
     else:
         fw = open(log_file, "w")
     not_loaded_pmids = []
+    attached_pmids = []
     # Iterate over a copy: matched PMIDs are removed from pmids below so the caller does not
     # create them, and removing from the list being iterated skipped the PMID after each match,
     # which then became a duplicate of its DOI record (SCRUM-6864).
@@ -1295,6 +1296,7 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
                                                     curie_prefix='PMID',
                                                     reference_id=reference_id)
                     db_session.add(cross_ref)
+                    attached_pmids.append(pmid)
                     fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with XREF_ID = " + xref_id + " in the database\n")
                 except Exception as e:
                     logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + xref_id + " is failed: " + str(e) + "\n")
@@ -1304,8 +1306,11 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
             if pmid in pmids:
                 pmids.remove(pmid)
     fw.close()
+    if attached_pmids:
+        # committed now so the caller can refresh these references from PubMed
+        db_session.commit()
 
-    return (log_path, log_url, not_loaded_pmids)
+    return (log_path, log_url, not_loaded_pmids, attached_pmids)
 
 
 def get_reference_relation_rows(db_session: Session, reference_id_from, reference_id_to):  # pragma: no cover

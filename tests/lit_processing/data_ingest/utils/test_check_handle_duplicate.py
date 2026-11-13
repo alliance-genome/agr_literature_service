@@ -28,8 +28,12 @@ def _run(tmp_path, monkeypatch, pmids, doi_records, pmid_dois):
                       for doi, (agr, found) in doi_records.items()}
     db_session = MagicMock()
     with patch(f"{MODULE}.get_reference_id_by_curie", side_effect=lambda db, curie: curie):
-        _, _, not_loaded = check_handle_duplicate(db_session, "WB", pmids, xref_ref, ref_xref_valid, logger)
+        _, _, not_loaded, attached_pmids = check_handle_duplicate(db_session, "WB", pmids, xref_ref, ref_xref_valid,
+                                                                  logger)
     attached = {(xref.curie, xref.reference_id) for xref in (c.args[0] for c in db_session.add.call_args_list)}
+    # the attached PMIDs are returned, and committed, for the caller to refresh from PubMed
+    assert sorted(attached_pmids) == sorted(curie.replace("PMID:", "") for curie, _ in attached)
+    assert db_session.commit.called == bool(attached_pmids)
     return attached, not_loaded
 
 
