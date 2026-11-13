@@ -205,3 +205,12 @@ def test_report_workflow_tags_strips_whitespace_from_the_process():
         with pytest.raises(_Reached):
             wtc.report_workflow_tags(None, " ATP:0000165 ", "FB")
     descendants.assert_called_once_with("ATP:0000165")
+
+
+def test_report_route_is_titled_for_ml_pipelines():
+    """SCRUM-6806: the Swagger title said "Get Report Workflow Tags", which read as any workflow tag."""
+    from agr_literature_service.api.main import app
+    operation = app.openapi()["paths"]["/workflow_tag/reports/{workflow_tag_id}/{mod_abbreviation}"]["get"]
+    assert operation["summary"] == "Get Report Workflow ML Pipeline Tags"
+    for process in ("ATP:0000165", "ATP:0000172", "ATP:0000311"):
+        assert process in operation["description"]
