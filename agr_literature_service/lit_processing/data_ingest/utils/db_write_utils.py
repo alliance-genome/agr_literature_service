@@ -838,8 +838,10 @@ def set_author_review_tags(db_session: Session, reference_id, authors_match: boo
     * authors match: "needed" -> "complete".
     "In progress" and "blocked" are always left for the curator.
 
-    Each MOD's change runs in a SAVEPOINT and is flushed there, so a failure rolls
-    back only that change and not the batch of reference updates the PubMed script
+    Each change is an automated transition (author review -> needed, needed <-> complete),
+    so it needs a callable row in the MOD's transition table (SCRUM-6845). Each MOD's change
+    runs in a SAVEPOINT and is flushed there, so a failure (including a refused transition)
+    rolls back only that change and not the batch of reference updates the PubMed script
     commits together. The tag rows are stamped with the script's user.
     """
     mod_rows = db_session.query(ModModel.mod_id, ModModel.abbreviation).join(
@@ -867,12 +869,9 @@ def set_author_review_tags(db_session: Session, reference_id, authors_match: boo
                     new_atp = None
                 if new_atp is None:
                     continue
-                if current_tag is None:
-                    db_session.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
-                                                    workflow_tag_id=new_atp))
-                else:
-                    current_tag.workflow_tag_id = new_atp
-                db_session.flush()
+                # through the transition table (SCRUM-6845); commit=False flushes inside the savepoint
+                transition_to_workflow_status(db_session, str(reference_id), mod_abbreviation, new_atp,
+                                              transition_type="automated", commit=False)
             _write_log_message(
                 reference_id,
                 f": AUTHOR REVIEW {mod_abbreviation} workflow tag {current_atp or 'none'} -> {new_atp}",

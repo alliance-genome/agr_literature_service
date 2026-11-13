@@ -1,9 +1,13 @@
 """Unit tests for the pure Author value object and helpers in
 ``agr_literature_service.lit_processing.data_ingest.utils.author``.
 """
+from unittest.mock import patch
+
+import pytest
 from sqlalchemy import text
 
 from agr_literature_service.api.crud.utils.author_review import (
+    AUTHOR_REVIEW,
     AUTHOR_REVIEW_BLOCKED,
     AUTHOR_REVIEW_COMPLETE,
     AUTHOR_REVIEW_IN_PROGRESS,
@@ -18,6 +22,7 @@ from agr_literature_service.api.models import (
     ReferenceModel,
     UserModel,
     WorkflowTagModel,
+    WorkflowTransitionModel,
 )
 from agr_literature_service.api.user import (
     _set_current_user,
@@ -37,6 +42,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     update_authors,
 )
 from ....fixtures import db  # noqa
+from ....fixtures import load_name_to_atp_and_relationships_mock
 
 
 def _author(**overrides):
@@ -445,7 +451,20 @@ def _get_or_create_mod(db, abbreviation):  # noqa
 
 class TestUpdateAuthorsAuthorReview:
     """SCRUM-6448: the PubMed update (flag_author_review=True) flags curator-edited
-    author lists for review with the WB author review workflow tags."""
+    author lists for review with the WB author review workflow tags, through the
+    transition table (SCRUM-6845)."""
+
+    # the automated transitions the PubMed update makes
+    TRANSITIONS = ((AUTHOR_REVIEW, AUTHOR_REVIEW_NEEDED),
+                   (AUTHOR_REVIEW_NEEDED, AUTHOR_REVIEW_COMPLETE),
+                   (AUTHOR_REVIEW_COMPLETE, AUTHOR_REVIEW_NEEDED))
+
+    @pytest.fixture(autouse=True)
+    def _atp_hierarchy(self):
+        with patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+                   load_name_to_atp_and_relationships_mock):
+            load_name_to_atp_and_relationships_mock()
+            yield
 
     DB_AUTHORS = [{"name": "Existing One", "first_name": "Existing", "last_name": "One",
                    "first_initial": "E", "author_order": 1}]
@@ -458,6 +477,10 @@ class TestUpdateAuthorsAuthorReview:
         ref = _make_reference(db, f"AGRKB:AR-TEST-{n}")
         curator = _make_curator_user(db, f"AGR:ARLINK-{n}")
         mod = _get_or_create_mod(db, mod_abbreviation)
+        if not db.query(WorkflowTransitionModel).filter_by(mod_id=mod.mod_id, transition_from=AUTHOR_REVIEW).first():
+            for transition_from, transition_to in self.TRANSITIONS:
+                db.add(WorkflowTransitionModel(mod_id=mod.mod_id, transition_from=transition_from,
+                                               transition_to=transition_to))
         db.add(ModCorpusAssociationModel(reference_id=ref.reference_id, mod_id=mod.mod_id,
                                          corpus=corpus, mod_corpus_sort_source="manual_creation"))
         db.add(AuthorModel(reference_id=ref.reference_id, author_order=1,
@@ -523,6 +546,15 @@ class TestUpdateAuthorsAuthorReview:
         ref, mod = self._curated_reference(db, 6)
         self._run(db, ref, self.MATCHING_JSON)
         assert self._review_tags(db, ref, mod) == []
+
+    def test_refused_transition_leaves_the_tag(self, db):  # noqa
+        """Without the row the change is refused and rolled back to its savepoint; the
+        reference update itself goes on."""
+        ref, mod = self._curated_reference(db, 12, tag=AUTHOR_REVIEW_NEEDED)
+        db.query(WorkflowTransitionModel).filter_by(mod_id=mod.mod_id, transition_from=AUTHOR_REVIEW_NEEDED).delete()
+        db.commit()
+        self._run(db, ref, self.MATCHING_JSON)
+        assert self._review_tags(db, ref, mod) == [AUTHOR_REVIEW_NEEDED]
 
     def test_not_flagged_without_opt_in(self, db):  # noqa
         # the DQM loads call update_authors without flag_author_review
