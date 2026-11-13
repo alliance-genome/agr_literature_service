@@ -78,5 +78,9 @@ class WorkflowTransitionSchemaPost(BaseModel):
 
     curie_or_reference_id: str
     mod_abbreviation: str
+    # A state, or the workflow process term itself to remove the paper's tag in that process
     new_workflow_tag_atp_id: str
     transition_type: str = "manual"
+    # Set on the tag when given; a transition without them keeps the tag's current values
+    curation_tag: Optional[str] = None
+    note: Optional[str] = None

@@ -117,8 +117,9 @@ def workflow_automation_init(db):  # noqa
     print("workflow_automation_init")
     test_data = [
         # [transition_from, transition_to, actions, condition]
-        # ATP:0000141 is file upload needed and hard coded in
-        ["ATP:top", "ATP:0000141", [], None],
+        # a first state needs a row from its process term (SCRUM-6845); in this mock
+        # ATP:0000141 belongs to the made-up process ATP:fileupload
+        ["ATP:fileupload", "ATP:0000141", [], None],
         ["ATP:0000141", "ATP:fileuploadinprogress", [], 'on_start'],
         ["ATP:fileuploadinprogress",
          "ATP:fileuploadcomplete",
@@ -402,7 +403,9 @@ class TestWorkflowTagAutomation:
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-            assert response.json().get("detail") == 'Transition to ATP:fileuploadcomplete not allowed as not initial state.'
+            assert response.json().get("detail") == (
+                f"ATP:fileuploadcomplete cannot be the first ATP:fileupload state for {mod.abbreviation}: "
+                f"the transition table has no row from ATP:fileupload to it.")
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -448,11 +451,12 @@ class TestWorkflowTagAutomation:
     def test_entry_transition_from_workflow_process_exposes_a_directly_set_tag(self, db, auth_headers, test_mod,  # noqa
                                                                               test_reference):  # noqa
         """SCRUM-6754: a tag the corpus code sets directly has no real incoming transition; an entry row from
-        ATP:0000177 (workflow process, held by no reference) carries its job condition so get_jobs sees it."""
+        ATP:0000177 (workflow process, held by no reference) carries its job condition so get_jobs sees it.
+        The row is of type 'action' (SCRUM-6845): get_jobs reads it, but no transition can fire it."""
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000177', transition_to='ATP:0000306',
-                                       condition='indexing_priority_job', transition_type='any'))
+                                       condition='indexing_priority_job', transition_type='action'))
         db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000306'))
         db.commit()
         with TestClient(app) as client:

@@ -185,6 +185,8 @@ def transition_to_workflow_status(
         mod_abbreviation=request.mod_abbreviation,
         new_workflow_tag_atp_id=request.new_workflow_tag_atp_id,
         transition_type=request.transition_type,
+        curation_tag=request.curation_tag,
+        note=request.note,
     )
 
 

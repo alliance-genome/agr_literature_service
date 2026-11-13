@@ -34,16 +34,20 @@ Table column guide
 ^^^^^^^^^^^^^^^^^^
 
     - transition_from:
-       ATP string from which we are starting.
+       ATP string from which we are starting. The workflow process term itself (e.g. ATP:0000273
+       manual indexing) means "the paper has no tag in this process yet": such a row is what allows
+       a state to be the paper's first one in the process.
     - transition_to:
-       ATP string to which we want to move too.
+       ATP string to which we want to move too. The workflow process term itself means "remove the
+       paper's tag in this process".
     - requirements:
        Array of strings, which list functions that must pass for this transition to be allowed.
     - transition_type:
-       Type of transitions that are allowed. These are entries like
-       any, automated, manual which specify when this transition is allowed.
-       i.e. if it is 'manual' and an automated process tries to do it then
-       it will not be allowed.
+       Type of transitions that are allowed: any, manual_only or automated_only, which specify
+       when this transition is allowed, i.e. if it is 'manual_only' and an automated process tries
+       to do it then it will not be allowed. A row of type 'action' is a job-poll connector: it
+       exists only so that get_jobs can find a job through its transition_to, and is never fired by
+       transition_to_workflow_status or by the job functions (on_start, on_success, ...).
     - actions
        Array of strings which relate to functions that will be applied after the transition is done.
        i.e. When we move to 'file uploaded' then if certain criteria are met then we will add 'file conversion needed'
@@ -97,6 +101,23 @@ Condition overview.
     This alleviates hard coding values in scripts etc and has the human readable conditions listed in one place.
     This is explained more fully in the automated job section.
 
+
+Who writes workflow tags.
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Workflow tags change only through transition_to_workflow_status() (and the job functions,
+    job_change_atp_code(), for automated processes), so every change is checked against this table
+    (SCRUM-6845). The only direct writes are the tags a paper gets when it enters a MOD's corpus.
+
+    transition_to_workflow_status() looks up one row:
+
+    - the paper has a tag in the process: the row from that tag to the new state;
+    - the paper has no tag in the process: the row from the process term to the new state;
+    - the new state is the process term: the row from the current tag to the process term, and the
+      tag is removed.
+
+    Without a row the change is refused (422). A missing transition is added to the table, not
+    bypassed in code.
 
 Viewing data in the workflow_transition Table.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

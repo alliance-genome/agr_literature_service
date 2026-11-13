@@ -169,7 +169,7 @@ class TestWorkflowTag:
     def test_transition_to_workflow_status_manual_indexing_child_without_existing_direct_needed(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000273', transition_to='ATP:0000274'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
         with TestClient(app) as client:
@@ -193,7 +193,10 @@ class TestWorkflowTag:
            load_name_to_atp_and_relationships_mock)
     def test_transition_to_workflow_status_manual_indexing_child_without_existing(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
+        """The first state comes from the row whose transition_from is the process term; the
+        "manual indexing needed" that used to be added silently first is gone (SCRUM-6845)."""
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000273', transition_to='ATP:0000275'))
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
@@ -206,13 +209,10 @@ class TestWorkflowTag:
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            assert db.query(WorkflowTagModel).filter(
-                and_(
-                    WorkflowTagModel.reference_id == reference.reference_id,
-                    WorkflowTagModel.mod_id == mod.mod_id,
-                    WorkflowTagModel.workflow_tag_id == 'ATP:0000275'
-                )
-            ).first()
+            tags = db.query(WorkflowTagModel.workflow_tag_id).filter(
+                WorkflowTagModel.reference_id == reference.reference_id,
+                WorkflowTagModel.mod_id == mod.mod_id).all()
+            assert [t.workflow_tag_id for t in tags] == ['ATP:0000275']
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -220,7 +220,7 @@ class TestWorkflowTag:
                                                         auth_headers):  # noqa
         """The transition endpoint also resolves cross-reference curies (PMID/MOD) (SCRUM-6319)."""
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000273', transition_to='ATP:0000274'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.add(CrossReferenceModel(curie="SGD:S000777777", curie_prefix="SGD",
                                    reference_id=reference.reference_id))
