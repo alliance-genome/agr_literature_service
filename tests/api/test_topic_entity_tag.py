@@ -945,7 +945,7 @@ class TestTopicEntityTag:
             columns = ", ".join(c.name for c in TopicEntityTagModel.__table__.columns if not c.primary_key)
             leftover = db.execute(text(
                 f"INSERT INTO topic_entity_tag ({columns}) SELECT {columns} FROM topic_entity_tag "
-                "WHERE topic_entity_tag_id = :id RETURNING topic_entity_tag_id"), {"id": oldest}).scalar()
+                "WHERE id = :id RETURNING id"), {"id": oldest}).scalar()
             db.commit()
 
             flipped = client.post(url="/topic_entity_tag/validate", json={**body, "negated": True},
