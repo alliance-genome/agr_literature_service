@@ -25,6 +25,7 @@ from agr_literature_service.api.crud.utils.zfin_corpus_entry import \
     PRE_INDEXING_PRIO_NEEDED, MOLECULAR_PROBE_CLASSIFICATION_NEEDED
 from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS, \
     AUTHOR_PERSON_CURATION_TAGS
+from agr_literature_service.api.crud.utils.author_person_status import author_person_corpus_entry_tags
 from typing import List, Optional, Tuple
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
@@ -182,12 +183,16 @@ def add_workflow_tags_on_patch_into_corpus(db: Session, mod_corpus_association_d
     if mod_abbreviation in CORPUS_ENTRY_TAGS:
         add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
                                        mod_corpus_association_db_obj.mod_id, mod_abbreviation)
-    # SCRUM-6487: WB's sort page asks for author-person curation per paper
+    # SCRUM-6487: WB's sort page asks for author-person curation per paper. It
+    # starts at "complete" rather than "needed" when every author already has a
+    # person, or there are no authors (SCRUM-6827).
     if mod_corpus_association_data.get('author_person_curation_needed') and \
             mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS:
         add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
                                        mod_corpus_association_db_obj.mod_id, mod_abbreviation,
-                                       tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
+                                       tags=author_person_corpus_entry_tags(
+                                           db, mod_corpus_association_db_obj.reference_id,
+                                           mod_abbreviation))
     if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
         wft_id = mod_corpus_association_data['index_wft_id']
         wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,

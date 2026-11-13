@@ -30,6 +30,7 @@ from agr_literature_service.lit_processing.utils.report_utils import \
     write_log_and_send_pubmed_update_report, \
     write_log_and_send_pubmed_no_update_report
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.crud.utils.author_person_status import apply_author_reload_statuses
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
     CategoryInputs, load_category_inputs, resolve_category
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -443,6 +444,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
 
     # db_session.rollback()
     db_session.commit()
+    # SCRUM-6827: author-person status of the papers whose authors were reloaded
+    apply_author_reload_statuses(db_session, log)
     db_session.close()
 
     if mod and len(reference_id_list) > query_cutoff:

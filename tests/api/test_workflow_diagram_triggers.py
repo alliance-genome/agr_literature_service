@@ -74,8 +74,10 @@ def test_entry_points_per_mod():
     # SGD manual indexing: on corpus entry, and from the sort page
     assert {("corpus_entry", "ATP:0000274"), ("sort_page", "ATP:0000273")} <= targets("SGD")
     # WB author workflows: the sort page checkbox and the PubMed update
-    assert {("sort_page", "ATP:0000109"), ("pubmed_update", "ATP:0000389")} <= targets("WB")
-    assert not {curie for _source, curie in targets("FB")} & {"ATP:0000109", "ATP:0000389", "ATP:0000274"}
+    assert {("sort_page", "ATP:0000109"), ("sort_page", "ATP:0000378"),
+            ("pubmed_update", "ATP:0000389")} <= targets("WB")
+    not_fb = {"ATP:0000109", "ATP:0000378", "ATP:0000389", "ATP:0000274"}
+    assert not {curie for _source, curie in targets("FB")} & not_fb
 
 
 @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",

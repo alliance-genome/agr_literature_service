@@ -24,8 +24,8 @@ from agr_literature_service.api.crud.mod_corpus_association_crud import file_nee
     manual_indexing_needed_tag_atp_id
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_NEEDED
-from agr_literature_service.api.crud.utils.corpus_entry_tags import AUTHOR_PERSON_CURATION_TAGS, \
-    CORPUS_ENTRY_TAGS
+from agr_literature_service.api.crud.utils.corpus_entry_tags import AUTHOR_PERSON_CURATION_COMPLETE, \
+    AUTHOR_PERSON_CURATION_TAGS, CORPUS_ENTRY_TAGS
 from agr_literature_service.api.crud.workflow_tag_crud import _build_process_info, \
     _resolve_process_hierarchy, get_atp_id_by_name
 from agr_literature_service.api.crud.workflow_transition_actions.first_pass_curation import \
@@ -58,6 +58,9 @@ def _entry_points(mod: str) -> List[Tuple[str, str, Optional[str]]]:
         points.append(("sort_page", MANUAL_INDEXING_PROCESS, "indexing status picked when sorting"))
     for _name, curie, _states in AUTHOR_PERSON_CURATION_TAGS.get(mod, []):
         points.append(("sort_page", curie, '"Author-Person curation" checked'))
+        # SCRUM-6827: author_person_status.author_person_corpus_entry_tags
+        points.append(("sort_page", AUTHOR_PERSON_CURATION_COMPLETE,
+                       '"Author-Person curation" checked, every author already has a person'))
     if mod in AUTHOR_REVIEW_MODS:
         points.append(("pubmed_update", AUTHOR_REVIEW_NEEDED, "curator-edited author list differs from PubMed"))
     return points

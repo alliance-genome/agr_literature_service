@@ -31,17 +31,23 @@ from typing import Dict, List, Tuple
 from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
 
 AUTHOR_PERSON_CURATION_NEEDED = "ATP:0000109"
+AUTHOR_PERSON_CURATION_COMPLETE = "ATP:0000378"
+AUTHOR_PERSON_CURATION_STATES = [
+    AUTHOR_PERSON_CURATION_NEEDED,    # author-person curation needed
+    "ATP:0000377",                    # author-person curation in progress
+    "ATP:0000376",                    # author-person curation blocked
+    AUTHOR_PERSON_CURATION_COMPLETE,  # author-person curation complete
+]
 
-# MOD -> the author-person curation tag granted on request (SCRUM-6487).
+# MOD -> the author-person curation tag granted on request (SCRUM-6487). The sort
+# page grants "complete" in its place when every author already has a person
+# (author_person_status.author_person_corpus_entry_tags, SCRUM-6827).
 AUTHOR_PERSON_CURATION_TAGS: Dict[str, List[Tuple[str, str, List[str]]]] = {
     "WB": [
         (
             "author-person curation needed",
             AUTHOR_PERSON_CURATION_NEEDED,
-            ["ATP:0000109",   # author-person curation needed
-             "ATP:0000377",   # author-person curation in progress
-             "ATP:0000376",   # author-person curation blocked
-             "ATP:0000378"],  # author-person curation complete
+            AUTHOR_PERSON_CURATION_STATES,
         ),
     ],
 }
