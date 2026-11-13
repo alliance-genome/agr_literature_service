@@ -1262,7 +1262,8 @@ def set_validation_values_to_tag(tag: TopicEntityTagModel):
 
 
 def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
-                        validation_values_only: bool = False, db: Optional[Session] = None):
+                        validation_values_only: bool = False, db: Optional[Session] = None,
+                        commit: bool = True):
     """Rebuild validation edges and/or recompute rollup values.
 
     ``db``: pass the caller's session when this runs inside a request -- patch_tag,
@@ -1272,7 +1273,13 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
 
     ``delete_all_first`` only matters for the full sweep. With ``curie_or_reference_id``
     the reference's edges are always deleted and rebuilt in one transaction (SCRUM-6472).
+
+    ``commit=False`` (single reference on the caller's ``db`` only) flushes instead of
+    committing, so a caller that owns the transaction commits once, after its own
+    remaining steps (validate_topic, SCRUM-6851 review).
     """
+    if not commit and (db is None or not curie_or_reference_id):
+        raise ValueError("commit=False needs the caller's session and a single reference")
     # SCRUM-6474: report a crash rather than going silent. The `if email:` block below sits
     # after the call, so an exception used to skip it entirely -- in the forked-process
     # sweep the child simply died and the requesting SuperAdmin got nothing, which is
@@ -1282,7 +1289,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     outcome = "failed"
     try:
         outcome = _run_revalidation_session(db, delete_all_first, curie_or_reference_id,
-                                            validation_values_only)
+                                            validation_values_only, commit)
     except Exception:
         _send_revalidation_email(email, curie_or_reference_id, outcome)
         raise
@@ -1309,11 +1316,11 @@ def _send_revalidation_email(email: Optional[str], curie_or_reference_id: Option
 
 def _run_revalidation_session(db: Optional[Session], delete_all_first: bool,
                               curie_or_reference_id: Optional[str],
-                              validation_values_only: bool) -> str:
+                              validation_values_only: bool, commit: bool = True) -> str:
     """Pick the session to run under, and guarantee the private engine is disposed."""
     if db is not None:
         return run_revalidation(db, delete_all_first, curie_or_reference_id,
-                                validation_values_only)
+                                validation_values_only, commit)
     else:
         # SCRUM-6475: this engine (and its pool) used to leak on every single call --
         # db.close() only returns the connection to the pool, it does not dispose the pool.
@@ -1346,7 +1353,7 @@ def resolve_revalidation_reference_id(db: Session, curie_or_reference_id: str):
 
 
 def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id: Optional[str],
-                     validation_values_only: bool):      # noqa: C901
+                     validation_values_only: bool, commit: bool = True):      # noqa: C901
     """Body of revalidate_all_tags, split out so the session/engine lifecycle above is
     guaranteed by a single try/finally regardless of how this returns or raises."""
     single_reference = bool(curie_or_reference_id)
@@ -1421,7 +1428,11 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
             rebuild_validation_edges(db, query_tags, delete_all_first, single_reference)
 
         recompute_validation_values(db, query_tags, single_reference)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            # single reference only (revalidate_all_tags): no batch commits ran above
+            db.flush()
         return "completed"
     finally:
         if sweep_lock_held:
@@ -1761,7 +1772,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
                 db.flush()
                 return existing_tag.topic_entity_tag_id
             except (IntegrityError, HTTPException) as e:
-                db.rollback()
+                # No rollback here: the transaction is the caller's (create_tag rolls
+                # back when it owns it; a commit=False caller decides for itself).
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"invalid request: {e}")
 
@@ -2765,8 +2777,10 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
     Returns the recomputed cell ({topic, validation, filter_flags}) plus
     topic_entity_tag_id, outcome ("created", "updated" or "unchanged"), replaced
-    (an earlier verdict existed; kept for existing clients) and tag, the values
-    stored, with the raw creator/updater ids and their display names."""
+    (an earlier verdict existed; kept for existing clients), deleted_tag_ids (the
+    leftover verdicts removed) and tag, the values stored, with the raw
+    creator/updater ids and their display names. The response is built before the
+    commit, so an error anywhere means nothing changed."""
     source = get_or_create_abc_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     # The values the verdict is stored with, derived exactly as create_tag derives
@@ -2790,6 +2804,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         lock_reference_tags(db, reference_id)
         prior = _curator_verdicts(db, reference_id, source.tag_source_id, topic, wanted)
 
+        deleted_tag_ids = [extra.topic_entity_tag_id for extra in prior[1:]]
         if prior:
             verdict = prior[0]
             changed_fields = _update_curator_verdict(db, prior, wanted)
@@ -2824,27 +2839,26 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
         db.flush()
         # The note takes no part in validation, so a note-only edit leaves the
-        # reference's validation edges and values as they are.
-        # revalidate_all_tags commits this session itself (run_revalidation), so it
-        # must stay the last step that can fail: anything added after it would leave
-        # the verdict committed when it fails, and "an error means nothing changed"
-        # would no longer hold.
+        # reference's validation edges and values as they are. commit=False: the
+        # revalidation flushes and the single commit below comes after the response
+        # is built, so a failure there (the cell's name lookups) saves nothing either.
         if changed_fields - {"note"}:
-            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db, commit=False)
+        db.expire_all()
+        cell = _recompute_validation_cell(db, reference_id, topic)
+        result = {
+            "topic_entity_tag_id": tag_id,
+            "outcome": outcome,
+            "replaced": bool(prior),
+            "deleted_tag_ids": deleted_tag_ids,
+            "tag": _stored_verdict(db, tag_id, reference_curie),
+            **cell,
+        }
         db.commit()
     except Exception:
         db.rollback()
         raise
-
-    db.expire_all()
-    cell = _recompute_validation_cell(db, reference_id, topic)
-    return {
-        "topic_entity_tag_id": tag_id,
-        "outcome": outcome,
-        "replaced": bool(prior),
-        "tag": _stored_verdict(db, tag_id, reference_curie),
-        **cell,
-    }
+    return result
 
 
 def _curator_verdicts(db: Session, reference_id: int, tag_source_id: int, topic: str,
