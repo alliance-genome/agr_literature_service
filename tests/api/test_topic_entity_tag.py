@@ -11,6 +11,7 @@ from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.crud import topic_entity_tag_crud
+from agr_literature_service.api.crud.user_utils import resolve_named_person
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags, \
     TET_REVALIDATION_LOCK_NAMESPACE
 from agr_literature_service.api.models import PersonModel, ReferenceModel, TopicEntityTagModel
@@ -908,8 +909,11 @@ class TestTopicEntityTag:
         mod = test_mod.new_mod_abbreviation
         ref_curie = test_topic_entity_tag.related_ref_curie
         reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == ref_curie).scalar()
-        # the curator source exists before the race, as it does once a MOD has validated
+        # the curator source and the curator's agent exist before the race, as they do
+        # once a MOD has validated; otherwise the second request would queue behind the
+        # first one creating them, not on the reference lock this test is about
         source_id = topic_entity_tag_crud.get_or_create_abc_source(db, mod).tag_source_id
+        resolve_named_person(VALIDATING_CURATOR, db)
         db.commit()
         body = {"reference_curie": ref_curie, "topic": "ATP:0000122", "mod_abbreviation": mod, "negated": False,
                 "created_by": VALIDATING_CURATOR}
