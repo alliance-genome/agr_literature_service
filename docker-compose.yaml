@@ -135,6 +135,7 @@ services:
       ATEAM_FETCH_TIMEOUT_SECONDS: "${ATEAM_FETCH_TIMEOUT_SECONDS:-5}"
       SGD_API_URL: "${SGD_API_URL}"
       PDFX_API_URL: "${PDFX_API_URL}"
+      PDFX_POLL_TIMEOUT: "${PDFX_POLL_TIMEOUT:-}"  # seconds to wait for a PDFX job (default 1800)
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
       LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
@@ -256,6 +257,7 @@ services:
       DEBEZIUM_KSQLDB_PORT: "${DEBEZIUM_KSQLDB_PORT}"
       TZ: "UTC"
       PDFX_API_URL: "${PDFX_API_URL}"
+      PDFX_POLL_TIMEOUT: "${PDFX_POLL_TIMEOUT:-}"  # seconds to wait for a PDFX job (default 1800)
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       SGD_API_URL: "${SGD_API_URL}"
       PERSISTENT_STORE_DB_USERNAME: "${PERSISTENT_STORE_DB_USERNAME}"
@@ -341,6 +343,7 @@ services:
       ATEAM_FETCH_TTL_SECONDS: "${ATEAM_FETCH_TTL_SECONDS:-900}"
       ATEAM_FETCH_TIMEOUT_SECONDS: "${ATEAM_FETCH_TIMEOUT_SECONDS:-5}"
       PDFX_API_URL: "${PDFX_API_URL}"
+      PDFX_POLL_TIMEOUT: "${PDFX_POLL_TIMEOUT:-}"  # seconds to wait for a PDFX job (default 1800)
       PSQL_USERNAME: "${PSQL_USERNAME}"
       PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
@@ -375,7 +378,11 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
+    build:
+      context: .
+      dockerfile: docker/debezium_zookeeper.dockerfile
+      args:
+        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
     ports:
       - 2181:2181
       - 2888:2888

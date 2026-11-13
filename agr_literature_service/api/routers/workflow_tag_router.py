@@ -253,6 +253,8 @@ def get_reference_workflow_tags(
 @router.get(
     "/reports/{workflow_tag_id}/{mod_abbreviation}",
     status_code=status.HTTP_200_OK,
+    # The default title, "Get Report Workflow Tags", suggested any workflow tag (SCRUM-6806)
+    summary="Get Report Workflow ML Pipeline Tags",
 )
 def get_report_workflow_tags(
     mod_abbreviation: str,
@@ -260,6 +262,9 @@ def get_report_workflow_tags(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """Report on an ML pipeline process: reference classification (ATP:0000165), entity
+    extraction (ATP:0000172) or curation classification (ATP:0000311). Any other
+    workflow_tag_id returns a 422."""
     return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)
 
 
