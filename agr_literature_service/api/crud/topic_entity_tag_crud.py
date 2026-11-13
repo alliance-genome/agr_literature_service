@@ -81,6 +81,24 @@ TET_REVALIDATION_LOCK_NAMESPACE = 6475
 # single-reference lock can ever collide with the whole-table sweep's key.
 TET_REVALIDATION_SWEEP_KEY = 0
 
+
+def lock_reference_tags(db: Session, reference_id: int) -> None:
+    """Take the per-reference tag lock for the rest of the current transaction.
+
+    Taken by tag creation, the curator validate path and single-reference
+    revalidation; patch_tag and destroy_tag get it through their revalidation. It
+    serialises those writers only: code that writes tag rows without going through
+    them is not covered, and no database constraint backs it. It is transaction-scoped, so
+    each commit or rollback releases it, and re-entrant within one transaction, so a
+    caller that already holds it can call into code that takes it again.
+
+    Take it BEFORE writing or deleting any tag row of the reference. A transaction
+    that holds a tag row lock and then waits here can deadlock against a
+    revalidation that holds this lock and is about to update that row.
+    """
+    db.execute(select(func.pg_advisory_xact_lock(TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
+
+
 # SCRUM-6474: what the completion email says for each run_revalidation outcome. Only
 # "completed" means work was actually done -- this endpoint's email is the sole feedback
 # an admin gets, so it must not report success for a run that returned early or died.
@@ -233,9 +251,17 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
-               validate_on_insert: bool = True) -> Tuple[int, bool]:
+               validate_on_insert: bool = True, commit: bool = True) -> Tuple[int, bool]:
     """
     Create a new topic entity tag.
+
+    All of it -- the tag, adding the paper to the MOD corpus, the manual indexing
+    workflow tag, validation and the companion entity tag -- is one transaction
+    (SCRUM-6851). An error therefore means nothing was stored, and the caller can
+    retry. With ``commit=True`` (the default) create_tag owns the transaction: it
+    commits on success and rolls back on any error, a 409 included. ``commit=False``
+    is for a caller that has more to do in the same transaction (validate_topic):
+    create_tag then neither commits nor rolls back, and the caller does both.
 
     Returns ``(topic_entity_tag_id, was_upsert)``:
       - ``(new_id, False)``       — a new tag was created (caller should return 201).
@@ -299,77 +325,109 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
 
     logger.info("Adding audited object users")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
+    # SCRUM-6851: hold the reference's tag lock from the duplicate check through the
+    # insert's commit. Without it two identical requests in flight together (a client
+    # retrying after a timeout while the first is still running) both pass the check
+    # and both insert, since no unique constraint covers a tag. With it the second
+    # waits, then finds the first one's row and gets the usual 409 "duplicate" with
+    # its id, so a resend is safe. Taken after the user rows above on purpose: only
+    # the tag rows of this reference must never be locked before it.
+    lock_reference_tags(db, reference_id)
     logger.info("Checking for duplicate tags")
     # check_for_duplicate_tags raises HTTPException(409) on conflict branches, or
     # returns the existing tag id when the request was absorbed as an in-place note
     # append (upsert). Returns None when no duplicate exists.
-    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
+    duplicate_check_result = _check_for_duplicate_tags_in_transaction(
+        db, topic_entity_tag_data, source, reference_id, force_insertion, commit)
     if duplicate_check_result is not None:
         logger.info("Duplicate tag absorbed as upsert, returning existing id")
+        if commit:
+            db.commit()
         return (duplicate_check_result, True)
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
         logger.info("Adding new tag to database")
         db.add(new_db_obj)
-        db.commit()
-        logger.info("Tag committed, refreshing with tag_source")
-        # Optimize: Eagerly load tag_source to avoid lazy loading during validation
-        db.refresh(new_db_obj, ['tag_source'])
+        db.flush()
+        # Optimize: Eagerly load tag_source to avoid lazy loading during validation.
+        # created_by/updated_by are the labels the audit listener resolved on insert;
+        # read back here because the companion-tag check below keys on them.
+        db.refresh(new_db_obj, ['tag_source', 'created_by', 'updated_by'])
 
         logger.info("Adding paper to MOD if needed")
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_paper_to_mod_if_not_already(db, reference_curie, reference_id,
                                         source.secondary_data_provider.abbreviation,
-                                        mod_id)
+                                        mod_id, commit=False)
         logger.info("Updating manual indexing workflow tag")
-        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
+        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft, commit=False)
         if validate_on_insert:
             logger.info("Starting tag validation")
-            # SCRUM-6474: take the same per-reference lock revalidation uses, so this
-            # tag's edges cannot be written while a PATCH or DELETE on the same paper is
-            # midway through its delete-and-rebuild. run_revalidation snapshots the
-            # reference's tag ids *after* taking the lock and then deletes every edge with
-            # one of those ids on either side; an unlocked insert landing in that window
-            # had all of its edges deleted (each has an existing tag on one side) and none
-            # recreated, because the rebuild iterates the same snapshot. The tag was left
-            # with no validation edges and stale rollups until the next sweep.
-            # Transaction-scoped, so validate_tags' own commit below releases it.
-            db.execute(select(func.pg_advisory_xact_lock(
-                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
-            validate_tags(db=db, new_tag_obj=new_db_obj)
+            # SCRUM-6474: this tag's edges must not be written while a PATCH or DELETE on
+            # the same paper is midway through its delete-and-rebuild. run_revalidation
+            # snapshots the reference's tag ids *after* taking the reference lock and then
+            # deletes every edge with one of those ids on either side; an unlocked insert
+            # landing in that window had all of its edges deleted and none recreated. The
+            # lock taken before the duplicate check above is still held: nothing in this
+            # transaction has committed since (SCRUM-6851).
+            validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
             logger.info("Tag validation completed")
-            # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
-            # create a companion pure entity tag (topic == entity_type) so they don't have
-            # to add it by hand. Gated on validate_on_insert so it only fires for the
-            # interactive create path (the router) and not for bulk reference import or
-            # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
-            # (it has its own data_novelty/display handling). Pipeline-generated tags are
-            # excluded too: the companion is only for tags a human curator made, and
-            # pipeline/script-created tags have created_by/updated_by users.id values that
-            # are not the AGRKB: curies humans get (so the curator-only auto-creation does
-            # not flood the DB with companion tags for machine-generated mixed tags).
-            is_mixed = (topic_entity_tag_data.get("entity") is not None
-                        and topic_entity_tag_data.get("entity_type") is not None
-                        and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
-            is_positive = topic_entity_tag_data.get("negated") is False
-            is_sgd = source.secondary_data_provider.abbreviation == "SGD"
-            # Read the final persisted creator/updater off the committed row: when
-            # updated_by is omitted on the request, the audited-model before_insert
-            # event copies created_by into updated_by on new_db_obj (not on the dict
-            # above), so new_db_obj holds the authoritative users.id values.
-            created_by = new_db_obj.created_by or ""
-            updated_by = new_db_obj.updated_by or ""
-            is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
-            if is_mixed and is_positive and not is_sgd and is_human:
-                logger.info("Creating companion entity tag for mixed topic+entity tag")
-                create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
+            _add_companion_entity_tag_if_needed(db, topic_entity_tag_data, source, new_db_obj, reference_id)
+        if commit:
+            db.commit()
         logger.info("create_tag completed successfully")
         return (new_db_obj.topic_entity_tag_id, False)
-    except (IntegrityError, HTTPException) as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"invalid request: {e}")
+    except Exception as e:
+        if commit:
+            db.rollback()
+        if isinstance(e, (IntegrityError, HTTPException)):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                detail=f"invalid request: {e}")
+        raise
+
+
+def _add_companion_entity_tag_if_needed(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
+                                        new_db_obj: TopicEntityTagModel, reference_id: int):
+    # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
+    # create a companion pure entity tag (topic == entity_type) so they don't have
+    # to add it by hand. Gated on validate_on_insert so it only fires for the
+    # interactive create path (the router) and not for bulk reference import or
+    # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
+    # (it has its own data_novelty/display handling). Pipeline-generated tags are
+    # excluded too: the companion is only for tags a human curator made, and
+    # pipeline/script-created tags have created_by/updated_by users.id values that
+    # are not the AGRKB: curies humans get (so the curator-only auto-creation does
+    # not flood the DB with companion tags for machine-generated mixed tags).
+    is_mixed = (topic_entity_tag_data.get("entity") is not None
+                and topic_entity_tag_data.get("entity_type") is not None
+                and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
+    is_positive = topic_entity_tag_data.get("negated") is False
+    is_sgd = source.secondary_data_provider.abbreviation == "SGD"
+    # Read the final persisted creator/updater off the inserted row: when
+    # updated_by is omitted on the request, the audited-model before_insert
+    # event copies created_by into updated_by on new_db_obj (not on the dict
+    # above), so new_db_obj holds the authoritative users.id values.
+    created_by = new_db_obj.created_by or ""
+    updated_by = new_db_obj.updated_by or ""
+    is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
+    if is_mixed and is_positive and not is_sgd and is_human:
+        logger.info("Creating companion entity tag for mixed topic+entity tag")
+        create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
+
+
+def _check_for_duplicate_tags_in_transaction(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
+                                             reference_id: int, force_insertion, commit: bool):
+    """check_for_duplicate_tags, rolling back on its 409 when create_tag owns the
+    transaction (``commit``). That also releases the reference lock: loaders catch the
+    409 and carry on, and would otherwise hold one lock per duplicate reference until
+    their next commit, blocking curators on those papers (SCRUM-6851)."""
+    try:
+        return check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
+    except HTTPException:
+        if commit:
+            db.rollback()
+        raise
 
 
 def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference_id: int):
@@ -385,11 +443,12 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
     semantically-redundant entity tag for the same entity, and it matches the
     back-fill's existence check.
 
-    Non-fatal: any failure is logged and rolled back so it never disturbs the
-    already-committed parent tag. The caller excludes SGD. The companion is itself
-    ``topic == entity_type`` so it does not re-trigger this logic.
+    Non-fatal: it runs in a savepoint, so a failure is logged and rolls back the
+    companion alone, never the parent tag in the same transaction (SCRUM-6851).
+    Nothing here commits; create_tag does. The caller excludes SGD. The companion is
+    itself ``topic == entity_type`` so it does not re-trigger this logic.
     """
-    committed = False
+    savepoint = db.begin_nested()
     try:
         entity_type = mixed_tag_data["entity_type"]
         entity = mixed_tag_data["entity"]
@@ -401,6 +460,7 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         ).first()
         if existing is not None:
             logger.info("Companion entity tag already exists; nothing to create")
+            savepoint.commit()
             return
         entity_tag_data = copy.copy(mixed_tag_data)
         entity_tag_data["topic"] = entity_type
@@ -417,21 +477,16 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
             entity_tag_data[field] = None
         new_db_obj = TopicEntityTagModel(**entity_tag_data)
         db.add(new_db_obj)
-        db.commit()
-        committed = True
+        db.flush()
         db.refresh(new_db_obj, ['tag_source'])
-        validate_tags(db=db, new_tag_obj=new_db_obj)
+        validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
+        savepoint.commit()
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
     except Exception as e:
-        # Non-fatal: the parent tag is already committed, so a companion failure must
-        # never surface to the caller. Roll back only the companion's pending work.
-        db.rollback()
-        if committed:
-            # The companion row was already written; only the post-insert validation
-            # failed, so the row persists (validation can be recomputed later).
-            logger.warning(f"Companion entity tag written but validation failed: {e}")
-        else:
-            logger.warning(f"Companion entity tag not created, skipping: {e}")
+        # Non-fatal: a companion failure must never surface to the caller or undo the
+        # parent tag. Roll back to the savepoint, which drops the companion only.
+        savepoint.rollback()
+        logger.warning(f"Companion entity tag not created, skipping: {e}")
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
@@ -442,8 +497,9 @@ def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference
     update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
 
 
-def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft):
-
+def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft, commit: bool = True):
+    """Set the reference's manual indexing workflow tag for the MOD to ``index_wft``.
+    ``commit=False`` flushes instead, for a caller that commits (create_tag)."""
     if index_wft is None:
         return
     all_manual_indexing_wf_tags = get_workflow_tags_from_process("ATP:0000273")
@@ -459,14 +515,22 @@ def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index
                                    mod_id=mod_id,
                                    workflow_tag_id=index_wft)
         db.add(wft_obj)
-        db.commit()
     elif wft.workflow_tag_id != index_wft:
         wft.workflow_tag_id = index_wft
         db.add(wft)
+    else:
+        return
+    if commit:
         db.commit()
+    else:
+        db.flush()
 
 
-def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id):
+def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id,
+                                    commit: bool = True):
+    """Put the reference in the MOD's corpus if it is not, and give it the 141 workflow tag.
+    ``commit=False`` flushes instead and leaves rolling back to the caller, which owns
+    the transaction (create_tag, SCRUM-6851)."""
     try:
         add_wft_141 = False
 
@@ -533,9 +597,13 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
                     mod_abbreviation,
                 )
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     except Exception as e:
-        db.rollback()
+        if commit:
+            db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"An error: '{e}' occurred when adding {reference_curie} into corpus/adding file needed tag")
 
@@ -667,9 +735,10 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
     # Build the map and apply it
     id_to_display = get_user_display_name_map(db, user_ids)
 
-    # Replace top-level created_by/updated_by
+    # Replace top-level created_by/updated_by, keeping the raw ids alongside (SCRUM-6852)
     for k in ("created_by", "updated_by"):
         uid = topic_entity_tag_data.get(k)
+        topic_entity_tag_data[f"{k}_user_id"] = uid
         if uid and uid in id_to_display:
             topic_entity_tag_data[k] = id_to_display[uid]
 
@@ -1193,7 +1262,8 @@ def set_validation_values_to_tag(tag: TopicEntityTagModel):
 
 
 def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
-                        validation_values_only: bool = False, db: Optional[Session] = None):
+                        validation_values_only: bool = False, db: Optional[Session] = None,
+                        commit: bool = True):
     """Rebuild validation edges and/or recompute rollup values.
 
     ``db``: pass the caller's session when this runs inside a request -- patch_tag,
@@ -1203,7 +1273,13 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
 
     ``delete_all_first`` only matters for the full sweep. With ``curie_or_reference_id``
     the reference's edges are always deleted and rebuilt in one transaction (SCRUM-6472).
+
+    ``commit=False`` (single reference on the caller's ``db`` only) flushes instead of
+    committing, so a caller that owns the transaction commits once, after its own
+    remaining steps (validate_topic, SCRUM-6851 review).
     """
+    if not commit and (db is None or not curie_or_reference_id):
+        raise ValueError("commit=False needs the caller's session and a single reference")
     # SCRUM-6474: report a crash rather than going silent. The `if email:` block below sits
     # after the call, so an exception used to skip it entirely -- in the forked-process
     # sweep the child simply died and the requesting SuperAdmin got nothing, which is
@@ -1213,7 +1289,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
     outcome = "failed"
     try:
         outcome = _run_revalidation_session(db, delete_all_first, curie_or_reference_id,
-                                            validation_values_only)
+                                            validation_values_only, commit)
     except Exception:
         _send_revalidation_email(email, curie_or_reference_id, outcome)
         raise
@@ -1240,11 +1316,11 @@ def _send_revalidation_email(email: Optional[str], curie_or_reference_id: Option
 
 def _run_revalidation_session(db: Optional[Session], delete_all_first: bool,
                               curie_or_reference_id: Optional[str],
-                              validation_values_only: bool) -> str:
+                              validation_values_only: bool, commit: bool = True) -> str:
     """Pick the session to run under, and guarantee the private engine is disposed."""
     if db is not None:
         return run_revalidation(db, delete_all_first, curie_or_reference_id,
-                                validation_values_only)
+                                validation_values_only, commit)
     else:
         # SCRUM-6475: this engine (and its pool) used to leak on every single call --
         # db.close() only returns the connection to the pool, it does not dispose the pool.
@@ -1277,7 +1353,7 @@ def resolve_revalidation_reference_id(db: Session, curie_or_reference_id: str):
 
 
 def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id: Optional[str],
-                     validation_values_only: bool):      # noqa: C901
+                     validation_values_only: bool, commit: bool = True):      # noqa: C901
     """Body of revalidate_all_tags, split out so the session/engine lifecycle above is
     guaranteed by a single try/finally regardless of how this returns or raises."""
     single_reference = bool(curie_or_reference_id)
@@ -1314,8 +1390,7 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
             # would poison that pooled connection for good.
             # Full sweeps are deliberately NOT excluded by this lock -- a sweep runs for
             # hours and must not block curation.
-            db.execute(select(func.pg_advisory_xact_lock(
-                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
+            lock_reference_tags(db, reference_id)
             all_tag_ids_for_reference = [res[0] for res in db.query(
                 TopicEntityTagModel.topic_entity_tag_id).filter(
                     TopicEntityTagModel.reference_id == reference_id).all()]
@@ -1353,7 +1428,11 @@ def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id:
             rebuild_validation_edges(db, query_tags, delete_all_first, single_reference)
 
         recompute_validation_values(db, query_tags, single_reference)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            # single reference only (revalidate_all_tags): no batch commits ran above
+            db.flush()
         return "completed"
     finally:
         if sweep_lock_held:
@@ -1680,15 +1759,21 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
                 existing_tag.note = new_note
                 existing_tag.updated_by = created_by_user
                 db.add(existing_tag)
-                db.commit()
+                # Flushed, not committed: create_tag commits (SCRUM-6851). The audit
+                # listener runs on flush and stamps date_updated; reload it from the row,
+                # as the commit's expiry used to, so the comparison below sees the stored
+                # (naive) value rather than the listener's timezone-aware one.
+                db.flush()
+                db.refresh(existing_tag, ['date_updated'])
                 if date_updated and date_parser.parse(date_updated) > existing_tag.date_updated:
                     existing_tag.date_updated = date_updated
                 else:
                     existing_tag.date_updated = existing_date_updated
-                db.commit()
+                db.flush()
                 return existing_tag.topic_entity_tag_id
             except (IntegrityError, HTTPException) as e:
-                db.rollback()
+                # No rollback here: the transaction is the caller's (create_tag rolls
+                # back when it owns it; a commit=False caller decides for itself).
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     detail=f"invalid request: {e}")
 
@@ -1800,9 +1885,11 @@ def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], 
         source = tet.tag_source
         source_data = _project_orm_columns(source, source_column_keys) if source else None
         tet_data["tag_source"] = source_data
-        # Replace top-level created_by/updated_by if we have a display name
+        # Replace top-level created_by/updated_by if we have a display name, keeping
+        # the raw ids alongside (SCRUM-6852)
         for k in ("created_by", "updated_by"):
             uid = tet_data.get(k)
+            tet_data[f"{k}_user_id"] = uid
             if uid and uid in id_to_display_name:
                 tet_data[k] = id_to_display_name[uid]
         # Nested source object: replace created_by/updated_by if present
@@ -2658,81 +2745,209 @@ def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Di
     return {"topic": topic_upper, "validation": validation, "filter_flags": filter_flags}
 
 
+# The fields of a curator's topic verdict that a re-validation may change. The rest of
+# the row (reference, topic, source, creator) is what identifies the verdict.
+CURATOR_VERDICT_FIELDS = ("negated", "note", "species", "display_tag", "data_novelty", "data_context")
+
+
 def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviation: str,
                    negated: bool = False, note: Optional[str] = None,
-                   species: Optional[str] = None) -> Dict[str, Any]:
+                   species: Optional[str] = None, created_by: Optional[str] = None,
+                   date_created: Optional[datetime] = None,
+                   date_updated: Optional[datetime] = None) -> Dict[str, Any]:
     """Write path for the grid's Validation column (SCRUM-6242 increment 5).
+
+    ``created_by`` names whose verdict this is (an agent label, already resolved by
+    the caller); by default the current user. The editor recorded in updated_by is
+    always the current user, which the router sets from the request (SCRUM-6853).
+    ``date_created`` applies when the verdict is created; ``date_updated`` when it
+    is created or changed. An "unchanged" resend writes nothing, dates included.
 
     Given just the cell the curator acted on -- {reference, topic, negated, note,
     species} plus their MOD -- resolve the curator source server-side, record the
-    curator's topic-level validation, and return the recomputed single cell.
+    curator's topic-level verdict, and return the recomputed single cell.
 
-    REPLACE-PRIOR semantics: a curator holds at most one validation per
-    (reference, topic). Any existing topic-level validation by this curator on the
-    curator source is deleted before the new one is inserted, so re-validating
-    REPLACES the prior assertion (flip Yes<->No, or update note/species) rather
-    than creating a second, contradictory tag. The abc curator source is
-    'professional_biocurator', which is exactly what the opposite-negation guard
-    (check_for_duplicate_tags Branch 3) fires for -- deleting the curator's prior
-    tag first means the new insert never trips that guard, so a flipped vote
-    never 409s.
+    A curator holds at most one verdict per (reference, topic) on the curator source.
+    When they already have one it is UPDATED IN PLACE and keeps its
+    topic_entity_tag_id (SCRUM-6852), so an id stored by another system keeps
+    resolving: a flip Yes<->No or a new note/species is an edit of that row, recorded
+    as such in its version history. Sending the same values again changes nothing
+    and reports "unchanged", which makes a resend after a timeout safe. Any further
+    verdicts left over from before (the old delete-and-insert could leave more than
+    one) are deleted, and the oldest is kept. Only when there is none is a tag
+    created, through create_tag. Either way the paper is put in the MOD corpus if it
+    is not there. The verdict is found by the topic as stored, so an SGD verdict whose
+    topic was moved into display_tag is found too. A note-only edit skips the
+    reference's revalidation, since the note takes no part in validation.
 
-    The new tag is created through the normal create_tag path (force_insertion
-    bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
-    side effects still run). The prior delete is only FLUSHED, not committed, so
-    create_tag's own commit covers the delete AND the insert atomically: if
-    create_tag raises (422 invalid topic, 404 source, a 409, ...) the delete is
-    never committed and rolls back with the request, so the curator never ends up
-    with their prior validation gone and no replacement. create_tag runs with
-    validate_on_insert=False because the single revalidate_all_tags below rebuilds
-    the whole reference's validation relationships/values once -- covering both the
-    new tag and any tags affected by the delete -- exactly as patch_tag/destroy_tag
-    do."""
+    All of it, and the single revalidation of the reference, is one transaction
+    (SCRUM-6851): an error means nothing changed.
+
+    Returns the recomputed cell ({topic, validation, filter_flags}) plus
+    topic_entity_tag_id, outcome ("created", "updated" or "unchanged"), replaced
+    (an earlier verdict existed; kept for existing clients), deleted_tag_ids (the
+    leftover verdicts removed) and tag, the values stored, with the raw
+    creator/updater ids and their display names. The response is built before the
+    commit, so an error anywhere means nothing changed."""
     source = get_or_create_abc_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
-    current_user = get_default_user_value()
-    topic_upper = str(topic or "").upper()
+    # The values the verdict is stored with, derived exactly as create_tag derives
+    # them. For SGD that can rewrite the topic: a topic that is also a display tag is
+    # stored as display_tag, under the entity type or the root topic.
+    wanted: Dict[str, Any] = {
+        "topic": topic, "entity": None, "entity_type": None, "display_tag": None,
+        "species": species, "negated": negated, "note": note,
+        "data_novelty": CURATOR_VALIDATION_DATA_NOVELTY,
+        "data_context": CURATOR_VALIDATION_DATA_CONTEXT,
+    }
+    set_provider_derived_fields(db, wanted, source)
 
-    prior = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.reference_id == reference_id,
-        func.upper(TopicEntityTagModel.topic) == topic_upper,
-        TopicEntityTagModel.entity.is_(None),
-        TopicEntityTagModel.tag_source_id == source.tag_source_id,
-        TopicEntityTagModel.created_by == current_user,
-    ).all()
-    replaced = bool(prior)
-    for old_tag in prior:
-        db.delete(old_tag)
-    if prior:
-        # Flush (NOT commit) so the delete is visible within this transaction --
-        # create_tag's check_for_duplicate_tags then won't see the prior row --
-        # while staying uncommitted until create_tag's own commit, making
-        # delete+insert atomic. If create_tag raises, the delete is rolled back
-        # with it (create_tag's except, or the request session's rollback on
-        # close), so a failed re-validation never destroys the prior one.
+    try:
+        # SCRUM-6851: lock the reference before the earlier verdict is read or changed.
+        # create_tag takes the same lock; taken only there, this transaction could
+        # already hold a tag row lock while waiting for it, and deadlock with a PATCH
+        # or DELETE on the same paper whose revalidation holds the lock and updates
+        # that row. It also serialises two validations of the same cell, so a resend
+        # finds the first one's verdict instead of racing it.
+        lock_reference_tags(db, reference_id)
+        owner = created_by or get_default_user_value()
+        prior = _curator_verdicts(db, reference_id, source.tag_source_id, topic, wanted, owner)
+
+        deleted_tag_ids = [extra.topic_entity_tag_id for extra in prior[1:]]
+        if prior:
+            verdict = prior[0]
+            changed_fields = _update_curator_verdict(db, prior, wanted)
+            if changed_fields and date_updated is not None:
+                verdict.date_updated = date_updated
+            outcome = "updated" if changed_fields else "unchanged"
+            tag_id = verdict.topic_entity_tag_id
+            # Re-validating used to go through create_tag every time, which also put
+            # the paper (back) in the MOD's corpus; keep doing that for a verdict on a
+            # paper that has since left the corpus. A no-op when it is in the corpus.
+            mod_abbreviation_of_source = source.secondary_data_provider.abbreviation
+            add_paper_to_mod_if_not_already(
+                db, reference_curie, reference_id, mod_abbreviation_of_source,
+                get_mod_id_from_mod_abbreviation(db, mod_abbreviation_of_source), commit=False)
+        else:
+            tag = TopicEntityTagSchemaPost(
+                reference_curie=reference_curie,
+                topic=topic,
+                entity=None,
+                entity_type=None,
+                species=species,
+                data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
+                data_context=CURATOR_VALIDATION_DATA_CONTEXT,
+                negated=negated,
+                note=note,
+                tag_source_id=source.tag_source_id,
+                force_insertion=True,
+                # A named owner is the creator, and the current user the updater;
+                # unnamed, the audit listener stamps the current user as both.
+                created_by=created_by,
+                updated_by=get_default_user_value() if created_by else None,
+                date_created=date_created,
+                date_updated=date_updated,
+            )
+            # validate_on_insert=False: the single revalidation below rebuilds the
+            # whole reference's edges and values once, as patch_tag/destroy_tag do.
+            tag_id, _ = create_tag(db, tag, validate_on_insert=False, commit=False)
+            outcome = "created"
+            changed_fields = {"created"}
+
         db.flush()
+        # The note takes no part in validation, so a note-only edit leaves the
+        # reference's validation edges and values as they are. commit=False: the
+        # revalidation flushes and the single commit below comes after the response
+        # is built, so a failure there (the cell's name lookups) saves nothing either.
+        if changed_fields - {"note"}:
+            revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db, commit=False)
+        db.expire_all()
+        cell = _recompute_validation_cell(db, reference_id, topic)
+        result = {
+            "topic_entity_tag_id": tag_id,
+            "outcome": outcome,
+            "replaced": bool(prior),
+            "deleted_tag_ids": deleted_tag_ids,
+            "tag": _stored_verdict(db, tag_id, reference_curie),
+            **cell,
+        }
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return result
 
-    tag = TopicEntityTagSchemaPost(
-        reference_curie=reference_curie,
-        topic=topic,
-        entity=None,
-        entity_type=None,
-        species=species,
-        data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
-        data_context=CURATOR_VALIDATION_DATA_CONTEXT,
-        negated=negated,
-        note=note,
-        tag_source_id=source.tag_source_id,
-        force_insertion=True,
+
+def _curator_verdicts(db: Session, reference_id: int, tag_source_id: int, topic: str,
+                      wanted: Dict[str, Any], owner: str) -> List[TopicEntityTagModel]:
+    """``owner``'s topic-level verdicts on the curator source for this cell,
+    oldest first. Matched on the topic as stored (``wanted``, after the provider
+    derivation), plus the display tag when the derivation moved the topic into it
+    (SGD), since several display tags then share one stored topic."""
+    query = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        func.upper(TopicEntityTagModel.topic) == str(wanted["topic"] or "").upper(),
+        TopicEntityTagModel.entity.is_(None),
+        TopicEntityTagModel.tag_source_id == tag_source_id,
+        TopicEntityTagModel.created_by == owner,
     )
-    tag_id, _ = create_tag(db, tag, validate_on_insert=False)
-    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
-    db.expire_all()
-    cell = _recompute_validation_cell(db, reference_id, topic)
+    if str(wanted["topic"] or "").upper() != str(topic or "").upper():
+        query = query.filter(TopicEntityTagModel.display_tag == wanted["display_tag"])
+    return query.order_by(TopicEntityTagModel.topic_entity_tag_id).all()
+
+
+def _update_curator_verdict(db: Session, prior: List[TopicEntityTagModel],
+                            wanted: Dict[str, Any]) -> Set[str]:
+    """Bring the oldest verdict to the ``wanted`` values in place and delete any other
+    (left over from the old delete-and-insert). Returns what changed: the field
+    names, plus "extra_deleted" when leftovers were removed."""
+    verdict = prior[0]
+    changed: Set[str] = set()
+    for field in CURATOR_VERDICT_FIELDS:
+        if getattr(verdict, field) != wanted[field]:
+            setattr(verdict, field, wanted[field])
+            changed.add(field)
+    for extra in prior[1:]:
+        db.delete(extra)
+        changed.add("extra_deleted")
+    return changed
+
+
+def _stored_verdict(db: Session, topic_entity_tag_id: int, reference_curie: str) -> Dict[str, Any]:
+    """The verdict as stored, for the validate response (SCRUM-6852): its values, its
+    source, and who is recorded as creator and last updater, by display name and by
+    raw id (the person's AGRKB curie or the automation name)."""
+    tag: TopicEntityTagModel = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.tag_source)).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one()
+    display_names = get_user_display_name_map(db, {uid for uid in (tag.created_by, tag.updated_by) if uid})
+    source = tag.tag_source
     return {
-        "topic_entity_tag_id": tag_id,
-        "replaced": replaced,
-        **cell,
+        "topic_entity_tag_id": tag.topic_entity_tag_id,
+        "reference_curie": reference_curie,
+        "topic": tag.topic,
+        "negated": tag.negated,
+        "note": tag.note,
+        "species": tag.species,
+        "display_tag": tag.display_tag,
+        "data_novelty": tag.data_novelty,
+        "data_context": tag.data_context,
+        "tag_source": {
+            "tag_source_id": source.tag_source_id,
+            "source_evidence_assertion": source.source_evidence_assertion,
+            "source_method": source.source_method,
+            "validation_type": source.validation_type,
+            "data_provider": source.data_provider,
+            "secondary_data_provider_abbreviation": source.secondary_data_provider.abbreviation,
+        },
+        # Named as on the read endpoints: created_by/updated_by is the display name
+        # where there is one, *_user_id the raw id.
+        "created_by": display_names.get(tag.created_by, tag.created_by),
+        "created_by_user_id": tag.created_by,
+        "updated_by": display_names.get(tag.updated_by, tag.updated_by),
+        "updated_by_user_id": tag.updated_by,
+        "date_created": tag.date_created.isoformat() if tag.date_created else None,
+        "date_updated": tag.date_updated.isoformat() if tag.date_updated else None,
     }
 
 
