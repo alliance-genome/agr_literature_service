@@ -252,6 +252,7 @@ def get_converted(curie_or_reference_id: str,
                   background_tasks: BackgroundTasks,
                   wait: bool = False,
                   overwrite_tei_md: bool = False,
+                  retry: bool = False,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     """
@@ -272,6 +273,10 @@ def get_converted(curie_or_reference_id: str,
       that are done so partial results can be consumed without waiting.
     - ``failed``: the most recent conversion attempt failed. See
       ``error_message`` and ``per_file_progress`` for details. HTTP 200.
+      A PDF conversion that failed in the last hour keeps being reported as
+      failed, without converting again, until ``retry=true`` is passed. A job
+      whose API worker exited is restarted at once; ``previous_job_id`` then
+      names the job it replaces (as it does after a retry).
     - ``no_sources``: the reference has nothing to convert (no nXML, no main
       PDF, no supplement PDFs). HTTP 200.
 
@@ -311,6 +316,7 @@ def get_converted(curie_or_reference_id: str,
         mod_access=mod_access,
         user_id=user_id,
         overwrite_tei_md=overwrite_tei_md,
+        retry=retry,
     )
     response.status_code = status_code
     return payload
