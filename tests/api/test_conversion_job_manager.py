@@ -6,6 +6,7 @@ module-level singleton is never touched. Jobs are read back from files, so a
 lookup returns an equal job, not the same object.
 """
 import json
+import multiprocessing
 import os
 import subprocess
 import sys
@@ -15,6 +16,7 @@ import pytest
 
 from agr_literature_service.api.utils.conversion_job_manager import (
     CLEANUP_INTERVAL,
+    FAILED_JOB_HOLD,
     WORKER_GONE_ERROR,
     ConversionJob,
     ConversionJobManager,
@@ -153,6 +155,96 @@ class TestSharedBetweenWorkers:
         assert last.error_message == "pdfx 500"
         assert last.per_file_progress[0].error == "pdfx 500"
         assert worker_b.get_active_job_for_reference(3) is None
+
+
+def _start_job_in_a_process(state_dir, ready, release, results):
+    """One "worker": start a job for reference 9 together with the others, report
+    what it got, and stay alive until released, as a worker running the job would."""
+    manager = ConversionJobManager(state_dir=state_dir)
+    ready.wait()
+    job, created = manager.start_job(9, "AGRKB:9", f"pid-{os.getpid()}")
+    results.put((job.job_id, created, job.owner_pid))
+    release.wait()
+
+
+class TestTwoProcesses:
+    """SCRUM-6855 review: two real processes on one directory, as two gunicorn
+    workers are. Covers the flock and the /proc start-time check across processes,
+    which two managers in one process cannot."""
+
+    def test_two_processes_starting_one_reference_share_one_job(self, tmp_path):
+        context = multiprocessing.get_context("fork")
+        ready, release, results = context.Barrier(2), context.Event(), context.Queue()
+        workers = [context.Process(target=_start_job_in_a_process,
+                                   args=(str(tmp_path), ready, release, results)) for _ in range(2)]
+        for worker in workers:
+            worker.start()
+        try:
+            got = [results.get(timeout=30) for _ in workers]
+            job_ids = {job_id for job_id, _, _ in got}
+            assert len(job_ids) == 1
+            assert sorted(created for _, created, _ in got) == [False, True]
+            owner = next(owner for _, created, owner in got if created)
+            # the owner is alive in its own process, so this process sees it running
+            manager = ConversionJobManager(state_dir=str(tmp_path))
+            job_id = job_ids.pop()
+            assert manager.get_job(job_id).status == "running"
+            assert manager.get_job(job_id).owner_pid == owner
+        finally:
+            release.set()
+            for worker in workers:
+                worker.join(timeout=30)
+        # once the owner process has exited, the job is reported failed
+        assert manager.get_job(job_id).status == "failed"
+        assert manager.get_job(job_id).error_message == WORKER_GONE_ERROR
+
+
+class TestFailedJobHold:
+    """SCRUM-6855 review: a recent failure is reported rather than started again,
+    unless the caller retries; a job whose worker exited is restarted at once."""
+
+    def _failed(self, mgr, error="pdfx 500"):
+        job, _ = mgr.start_job(3, "AGRKB:1", "user")
+        mgr.complete_job(job.job_id, success=False, error=error)
+        return job
+
+    def test_a_recent_failure_is_returned_without_starting_a_job(self, mgr):
+        failed = self._failed(mgr)
+        job, created = mgr.start_job(3, "AGRKB:1", "user", retry=False)
+        assert created is False
+        assert job.job_id == failed.job_id
+        assert job.status == "failed"
+        assert job.error_message == "pdfx 500"
+
+    def test_retry_starts_a_job_that_names_the_failed_one(self, mgr):
+        failed = self._failed(mgr)
+        job, created = mgr.start_job(3, "AGRKB:1", "user", retry=True)
+        assert created is True
+        assert job.previous_job_id == failed.job_id
+        assert job.to_dict()["previous_job_id"] == failed.job_id
+
+    def test_an_old_failure_is_started_again(self, mgr):
+        failed = self._failed(mgr)
+        _set_job_field(mgr, failed.job_id,
+                       completed_at=(datetime.utcnow() - FAILED_JOB_HOLD - timedelta(minutes=1)).isoformat())
+        job, created = mgr.start_job(3, "AGRKB:1", "user", retry=False)
+        assert created is True
+        assert job.previous_job_id == failed.job_id
+
+    def test_a_job_whose_worker_exited_is_restarted_without_retry(self, mgr):
+        first, _ = mgr.start_job(3, "AGRKB:1", "user")
+        _set_job_field(mgr, first.job_id, owner_pid=_dead_pid())
+        job, created = mgr.start_job(3, "AGRKB:1", "user", retry=False)
+        assert created is True
+        assert job.previous_job_id == first.job_id
+        assert mgr.get_job(first.job_id).error_message == WORKER_GONE_ERROR
+
+    def test_a_job_after_a_success_names_no_previous_job(self, mgr):
+        first, _ = mgr.start_job(3, "AGRKB:1", "user")
+        mgr.complete_job(first.job_id, success=True)
+        job, created = mgr.start_job(3, "AGRKB:1", "user", retry=False)
+        assert created is True
+        assert job.previous_job_id is None
 
 
 class TestWorkerGone:

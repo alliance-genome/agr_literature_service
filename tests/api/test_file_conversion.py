@@ -665,6 +665,34 @@ class TestConvertedEndpoint:
         assert response.json()["job_id"] == first.job_id
         run_job.assert_not_called()
 
+    def test_a_recent_failure_is_reported_until_retry(self, db, test_reference, auth_headers):  # noqa: F811
+        """SCRUM-6855 review: a poll without wait used to start a new job after every
+        failure, so the poller only ever saw "running". A recent failure is now
+        reported as failed, and retry=true starts again, naming the failed job."""
+        from agr_literature_service.api.models import ReferenceModel
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_pdf_failed_hold", pdf_type="pdf")
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_reference.new_ref_curie).scalar()
+        failed, _ = conversion_manager.start_job(reference_id, test_reference.new_ref_curie, "first")
+        conversion_manager.complete_job(failed.job_id, success=False, error="pdfx 500")
+        url = f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}"
+        with patch("agr_literature_service.api.crud.file_conversion_crud.run_conversion_job") as run_job, \
+                TestClient(app) as client:
+            polled = client.get(url=url, headers=auth_headers)
+            assert polled.status_code == status.HTTP_200_OK
+            assert polled.json()["status"] == "failed"
+            assert polled.json()["job_id"] == failed.job_id
+            assert "pdfx 500" in polled.json()["error_message"]
+            run_job.assert_not_called()
+
+            retried = client.get(url=f"{url}?retry=true", headers=auth_headers)
+        assert retried.status_code == status.HTTP_202_ACCEPTED
+        assert retried.json()["status"] == "running"
+        assert retried.json()["job_id"] != failed.job_id
+        assert retried.json()["previous_job_id"] == failed.job_id
+        run_job.assert_called_once()
+
     def test_reference_not_found(self, db, auth_headers):  # noqa: F811
         """Unknown curie → 404."""
         with TestClient(app) as client:

@@ -25,9 +25,17 @@ whose process is gone (gunicorn recycles workers after max_requests, a restart
 kills them all) is reported failed instead of running forever. The start time
 guards against pid reuse, which is likely in a container whose pids restart low.
 
-The directory must be shared by every worker that serves the endpoint and must
-not be shared across hosts: by default it is under /tmp inside the API container.
-If the API is ever spread over several containers or hosts, this needs a store
+A job that failed is reported as failed to the next request, for
+FAILED_JOB_HOLD, instead of being started again: a paper that always fails would
+otherwise be converted again on every poll, and the poller would only ever see
+"running". The caller passes ``retry`` to start again anyway. A job that failed
+only because its worker exited is restarted at once; the new job names it in
+``previous_job_id``, as does any job started after a failure.
+
+The directory must be shared by the workers of ONE API container only: pids
+and process start times are per container, so a live job in another container
+would look dead here. By default it is under /tmp inside the API container. If
+the API is ever spread over several containers or hosts, this needs a store
 they all reach, such as a database table.
 """
 import fcntl
@@ -49,6 +57,8 @@ WORKER_GONE_ERROR = "The API worker running this conversion exited before it fin
 CLEANUP_INTERVAL = timedelta(minutes=10)
 # a temporary file this old is a write whose process was killed before the rename
 STALE_TEMP_FILE_AGE = timedelta(hours=1)
+# a failed job is reported, not restarted, for this long unless the caller retries
+FAILED_JOB_HOLD = timedelta(hours=1)
 
 
 @dataclass
@@ -80,6 +90,8 @@ class ConversionJob:
     # together identify it even if the pid is later reused.
     owner_pid: Optional[int] = None
     owner_start_time: Optional[int] = None
+    # the failed job this one was started after, if any
+    previous_job_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -91,6 +103,7 @@ class ConversionJob:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "duration_seconds": self.duration_seconds,
             "error_message": self.error_message,
+            "previous_job_id": self.previous_job_id,
             "per_file_progress": [
                 {
                     "source_display_name": p.source_display_name,
@@ -252,14 +265,15 @@ class ConversionJobManager:
     # -- public API --------------------------------------------------------
 
     def create_or_get_job(self, reference_id: int, reference_curie: str, user_id: str,
-                          expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None) -> ConversionJob:
+                          expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None
+                          ) -> ConversionJob:
         """The running job for the reference, created if there is none. See start_job,
         which also says whether the job was created by this call."""
         return self.start_job(reference_id, reference_curie, user_id, expected_source_files)[0]
 
     def start_job(self, reference_id: int, reference_curie: str, user_id: str,
-                  expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None
-                  ) -> Tuple[ConversionJob, bool]:
+                  expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None,
+                  retry: bool = True) -> Tuple[ConversionJob, bool]:
         """
         Atomically return the existing running job for the reference or create a new
         one, as ``(job, created)``.
@@ -275,6 +289,12 @@ class ConversionJobManager:
         ``expected_converted_display_name``, ``expected_converted_file_class``.
         Seeding is skipped when an existing running job is returned.
 
+        ``retry=False``: when the reference's last job failed less than
+        FAILED_JOB_HOLD ago, for any reason but its worker exiting, return that
+        failed job with ``created=False`` instead of starting another; the caller
+        reports the failure. A job started after a failure names it in
+        ``previous_job_id``.
+
         The job is owned by the calling process, which is the one that runs it.
         """
         self._cleanup_now_and_then()
@@ -288,6 +308,16 @@ class ConversionJobManager:
                     if existing.status == "running":
                         return existing, False
 
+            last_id = index.get("last")
+            previous = self._load_job(last_id) if last_id else None
+            if previous is not None:
+                previous = self._fail_if_owner_gone(previous)
+            failed_before = previous is not None and previous.status == "failed"
+            if previous is not None and failed_before and not retry \
+                    and previous.error_message != WORKER_GONE_ERROR \
+                    and datetime.utcnow() - (previous.completed_at or previous.last_update) < FAILED_JOB_HOLD:
+                return previous, False
+
             pid = os.getpid()
             job = ConversionJob(
                 job_id=str(uuid.uuid4()),
@@ -297,6 +327,7 @@ class ConversionJobManager:
                 status="running",
                 owner_pid=pid,
                 owner_start_time=_process_start_time(pid),
+                previous_job_id=previous.job_id if failed_before and previous is not None else None,
             )
             for ef in expected_source_files or []:
                 source_id = ef.get("source_referencefile_id")
