@@ -1,4 +1,4 @@
-"""SCRUM-6487: WB author-person curation manual transitions (DB-free)."""
+"""SCRUM-6487 / SCRUM-6827: WB author-person curation transitions (DB-free)."""
 from unittest.mock import MagicMock, patch
 
 from agr_literature_service.lit_processing.oneoff_scripts import \
@@ -17,12 +17,12 @@ def _run(existing):
     return added, rows
 
 
-def test_adds_all_to_all_manual_transitions_for_wb():
+def test_adds_all_to_all_any_transitions_for_wb():
     added, rows = _run([])
     assert added == 12
     pairs = {(r.transition_from, r.transition_to) for r in rows}
     assert pairs == {(a, b) for a in STATES for b in STATES if a != b}
-    assert {(r.mod_id, r.transition_type) for r in rows} == {(7, "manual_only")}
+    assert {(r.mod_id, r.transition_type) for r in rows} == {(7, "any")}
 
 
 def test_is_idempotent():
