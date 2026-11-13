@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from starlette.testclient import TestClient
 
 from agr_literature_service.api import database
-from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.auth import DEFAULT_BYPASS_USER, get_authenticated_user, is_service_client_token
 from agr_literature_service.api.main import app
 from agr_literature_service.api.routers import topic_entity_tag_router as router
 from agr_literature_service.api.user import get_global_user_id
@@ -37,6 +37,7 @@ def _curator(*groups):
 
 
 SERVICE = {"token_type": "access", "sub": "service-client", "client_id": "service-client"}
+BYPASS = dict(DEFAULT_BYPASS_USER)
 
 
 @pytest.fixture
@@ -54,15 +55,49 @@ def _as(user):
 class TestRequireModWriteAccess:
 
     @pytest.mark.parametrize("user", [
-        _curator("FlyBaseCurator"), _curator("AllianceDeveloper"), SERVICE, None])
+        _curator("FlyBaseCurator"), _curator("AllianceDeveloper"), SERVICE, BYPASS])
     def test_allowed(self, user):
         router.require_mod_write_access(user, "FB")
 
-    @pytest.mark.parametrize("user", [_curator("WormBaseCurator"), _curator()])
-    def test_other_mod_or_no_mod_is_403(self, user):
+    @pytest.mark.parametrize("user", [_curator("WormBaseCurator"), _curator(), None])
+    def test_other_mod_no_mod_or_no_user_is_403(self, user):
         with pytest.raises(HTTPException) as exc:
             router.require_mod_write_access(user, "FB")
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.parametrize("mod", ["FB", "WB"])
+    def test_a_curator_of_two_mods_writes_both(self, mod):
+        # get_mod_access stops at the first curator group; the write check must not
+        router.require_mod_write_access(_curator("FlyBaseCurator", "WormBaseCurator"), mod)
+
+    def test_a_service_client_limited_to_one_mod_writes_only_that_mod(self, monkeypatch):
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_MODS", "service-client:WB")
+        router.require_mod_write_access(SERVICE, "WB")
+        with pytest.raises(HTTPException) as exc:
+            router.require_mod_write_access(SERVICE, "FB")
+        assert exc.value.status_code == status.HTTP_403_FORBIDDEN
+
+
+class TestServiceClientToken:
+
+    def test_a_client_credentials_token_is_a_service_client(self):
+        assert is_service_client_token(SERVICE)
+
+    @pytest.mark.parametrize("user", [
+        BYPASS,  # token_type "access" but no client: not a credential at all
+        _curator("FlyBaseCurator"),
+        {"token_type": "access", "sub": "a-user-uuid", "client_id": "ui-client"},
+        {"token_type": "access", "sub": "service-client", "client_id": "service-client",
+         "scope": "aws.cognito.signin.user.admin"},
+        None])
+    def test_anything_else_is_not(self, user):
+        assert not is_service_client_token(user)
+
+    def test_the_allowlist_applies_when_set(self, monkeypatch):
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_IDS", "another-client")
+        assert not is_service_client_token(SERVICE)
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_IDS", "another-client, service-client")
+        assert is_service_client_token(SERVICE)
 
 
 class TestCreate:
@@ -72,7 +107,7 @@ class TestCreate:
         with patch.object(router, "_source_mod", return_value=source_mod), \
                 patch.object(router.topic_entity_tag_crud, "create_tag", return_value=(1, False)) as create, \
                 patch.object(router.topic_entity_tag_crud, "show_tag", return_value=SHOWN), \
-                patch.object(router, "resolve_named_agent", return_value=CURATOR_AGENT):
+                patch.object(router, "resolve_named_person", return_value=CURATOR_AGENT):
             response = client.post("/topic_entity_tag/", json=body)
         return response, create
 
@@ -93,7 +128,7 @@ class TestCreate:
         with patch.object(router, "_source_mod", return_value="FB"), \
                 patch.object(router.topic_entity_tag_crud, "create_tag", return_value=(1, False)) as create, \
                 patch.object(router.topic_entity_tag_crud, "show_tag", return_value=SHOWN), \
-                patch.object(router, "resolve_named_agent", return_value=CURATOR_AGENT) as resolve:
+                patch.object(router, "resolve_named_person", return_value=CURATOR_AGENT) as resolve:
             response = client.post("/topic_entity_tag/", json={**TAG, "created_by": "curator@example.org"})
         assert response.status_code == status.HTTP_201_CREATED
         assert resolve.call_args.args[0] == "curator@example.org"
@@ -103,7 +138,7 @@ class TestCreate:
         _as(SERVICE)
         with patch.object(router, "_source_mod", return_value="FB"), \
                 patch.object(router.topic_entity_tag_crud, "create_tag") as create, \
-                patch.object(router, "resolve_named_agent",
+                patch.object(router, "resolve_named_person",
                              side_effect=HTTPException(status_code=422, detail="Unknown updated_by")):
             response = client.post("/topic_entity_tag/", json={**TAG, "created_by": "AGRKB:101000000000999"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -113,7 +148,7 @@ class TestCreate:
         _as(SERVICE)
         with patch.object(router, "_source_mod", return_value="FB"), \
                 patch.object(router.topic_entity_tag_crud, "create_tag") as create, \
-                patch.object(router, "resolve_named_agent",
+                patch.object(router, "resolve_named_person",
                              side_effect=HTTPException(status_code=422, detail="Unknown created_by")) as resolve:
             response = client.post("/topic_entity_tag/", json={**TAG, "created_by": "agrkb:101000000000999"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -136,6 +171,13 @@ class TestValidate:
         assert response.status_code == status.HTTP_403_FORBIDDEN
         validate.assert_not_called()
 
+    def test_curator_of_two_mods_may_validate_for_the_second(self, client):
+        _as(_curator("WormBaseCurator", "FlyBaseCurator"))
+        with patch.object(router.topic_entity_tag_crud, "validate_topic", return_value={}) as validate:
+            response = client.post("/topic_entity_tag/validate", json=VERDICT)
+        assert response.status_code == status.HTTP_200_OK
+        validate.assert_called_once()
+
     def test_curator_of_the_mod_may_validate(self, client):
         _as(_curator("FlyBaseCurator"))
         with patch.object(router.topic_entity_tag_crud, "validate_topic", return_value={}) as validate:
@@ -152,10 +194,15 @@ class TestValidate:
             return {}
 
         _as(user)
-        agents = {"AGRKB:101000000000042": CURATOR_AGENT, "AGRKB:101000000000043": EDITOR_AGENT,
-                  "default_user": (5, "default_user")}
+        agents = {"AGRKB:101000000000042": CURATOR_AGENT, "AGRKB:101000000000043": EDITOR_AGENT}
+
+        def resolve(name, db, field):
+            if name not in agents:  # resolve_named_person refuses automation agents
+                raise HTTPException(status_code=422, detail=f"{field} {name!r} names an automation agent")
+            return agents[name]
+
         with patch.object(router.topic_entity_tag_crud, "validate_topic", side_effect=capture) as validate, \
-                patch.object(router, "resolve_named_agent", side_effect=lambda name, db, field: agents[name]):
+                patch.object(router, "resolve_named_person", side_effect=resolve):
             response = client.post("/topic_entity_tag/validate", json={**VERDICT, **body})
         return response, validate, recorded
 
@@ -201,6 +248,20 @@ class TestValidate:
         assert response.status_code == status.HTTP_200_OK
         assert recorded["created_by"] == EDITOR_AGENT[1]
         assert recorded["user"] == EDITOR_AGENT[1]
+
+    def test_a_trusted_ip_without_a_token_may_name_the_curator(self, client):
+        # A bypass IP can already write any tag without a token (SCRUM-6853 review)
+        response, _, recorded = self._validate(client, BYPASS, {"created_by": "AGRKB:101000000000042"})
+        assert response.status_code == status.HTTP_200_OK
+        assert recorded["created_by"] == CURATOR_AGENT[1]
+        assert recorded["user"] == CURATOR_AGENT[1]
+
+    def test_a_trusted_ip_without_a_token_need_not_name_a_curator(self, client):
+        # Not a service client, so no 422: the verdict is default_user's, as before
+        response, validate, recorded = self._validate(client, BYPASS, {})
+        assert response.status_code == status.HTTP_200_OK
+        validate.assert_called_once()
+        assert recorded["created_by"] is None
 
     @pytest.mark.parametrize("body", [{"created_by": "AGRKB:101000000000042"},
                                       {"date_updated": "2026-11-12T09:30:00"}])
@@ -262,3 +323,21 @@ class TestDelete:
             response = client.delete("/topic_entity_tag/delete_manual_tets/AGRKB:101000000000001/FB")
         assert response.status_code == status.HTTP_204_NO_CONTENT
         delete_manual.assert_called_once()
+
+
+class TestNoTetStatus:
+
+    def test_curator_of_another_mod_is_403(self, client):
+        _as(_curator("WormBaseCurator"))
+        with patch.object(router.topic_entity_tag_crud, "set_indexing_status_for_no_tet_data") as set_status:
+            response = client.post("/topic_entity_tag/set_no_tet_status/FB/AGRKB:101000000000001/some-uid")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        set_status.assert_not_called()
+
+    def test_curator_of_the_mod_may_set_it(self, client):
+        _as(_curator("FlyBaseCurator"))
+        with patch.object(router.topic_entity_tag_crud, "set_indexing_status_for_no_tet_data",
+                          return_value={}) as set_status:
+            response = client.post("/topic_entity_tag/set_no_tet_status/FB/AGRKB:101000000000001/some-uid")
+        assert response.status_code == status.HTTP_200_OK
+        set_status.assert_called_once()

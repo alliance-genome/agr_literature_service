@@ -1002,6 +1002,38 @@ class TestTopicEntityTag:
             assert other["outcome"] == "created"
             assert other["topic_entity_tag_id"] != first["topic_entity_tag_id"]
 
+    def test_validate_topic_names_a_person_without_an_agent(self, test_topic_entity_tag, test_mod,  # noqa
+                                                            auth_headers, db):  # noqa
+        # SCRUM-6853 review: through the router with the service token. A person who
+        # never logged in to ABC gets an agent and owns the verdict; an automation
+        # agent is refused even when its label looks like a person's curie.
+        load_name_to_atp_and_relationships_mock()
+        newcomer = "AGRKB:test-curator-without-agent"
+        db.add(PersonModel(display_name="Curator Without Agent", curie=newcomer))
+        db.execute(text("INSERT INTO agent (person_id, automation_username) "
+                        "VALUES (NULL, 'AGRKB:test-automation-lookalike')"))
+        db.commit()
+        agents = text("SELECT count(*) FROM agent a JOIN person p ON p.id = a.person_id WHERE p.curie = :c")
+        assert db.execute(agents, {"c": newcomer}).scalar() == 0
+        body = {"reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
+                "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map",
+                      return_value={'ATP:0000122': 'ATP:0000122'}):
+            resp = client.post(url="/topic_entity_tag/validate", headers=auth_headers,
+                               json={**body, "created_by": newcomer})
+            assert resp.status_code == status.HTTP_200_OK, resp.text
+            assert resp.json()["tag"]["created_by_user_id"] == newcomer
+            assert db.execute(agents, {"c": newcomer}).scalar() == 1
+
+            lookalike = client.post(url="/topic_entity_tag/validate", headers=auth_headers,
+                                    json={**body, "created_by": "AGRKB:test-automation-lookalike"})
+            assert lookalike.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(
