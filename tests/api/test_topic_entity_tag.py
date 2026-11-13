@@ -866,6 +866,98 @@ class TestTopicEntityTag:
             assert cell["state"] == "positive"
             assert cell["positives"] == 1
 
+    @staticmethod
+    def _validate_patches():
+        from contextlib import ExitStack
+        stack = ExitStack()
+        for target, value in (("topic_entity_tag_utils.get_ancestors", []),
+                              ("topic_entity_tag_utils.get_descendants", []),
+                              ("topic_entity_tag_crud.get_curie_to_name_from_all_tets", {}),
+                              ("topic_entity_tag_crud.build_curie_to_name_map", {'ATP:0000122': 'ATP:0000122'})):
+            stack.enter_context(patch(f"agr_literature_service.api.crud.{target}", return_value=value))
+        return stack
+
+    def test_validate_topic_concurrent_identical_requests_store_one_verdict(self, test_topic_entity_tag,  # noqa
+                                                                           test_mod, db, auth_headers):  # noqa
+        # SCRUM-6851 review: AI Curation's main case, a resend after a timeout while the
+        # first request is still running. The reference lock makes the second wait, find
+        # the first one's verdict and report it unchanged: one row, the same id.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == ref_curie).scalar()
+        # the curator source exists before the race, as it does once a MOD has validated
+        source_id = topic_entity_tag_crud.get_or_create_abc_source(db, mod).tag_source_id
+        db.commit()
+        body = {"reference_curie": ref_curie, "topic": "ATP:0000122", "mod_abbreviation": mod, "negated": False}
+        results = []
+        with TestClient(app) as client, self._validate_patches():
+            def post():
+                response = client.post(url="/topic_entity_tag/validate", json=body, headers=auth_headers)
+                results.append((response.status_code, response.json()))
+
+            with _get_engine().connect() as holder:
+                holder.execute(text("SELECT pg_advisory_xact_lock(:ns, :ref)"),
+                               {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id})
+                threads = [threading.Thread(target=post) for _ in range(2)]
+                for thread in threads:
+                    thread.start()
+                waiting = 0
+                deadline = time.monotonic() + 30
+                with _get_engine().connect() as observer:
+                    while waiting < 2 and time.monotonic() < deadline:
+                        waiting = observer.execute(text(
+                            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted "
+                            "AND classid = :ns AND objid = :ref AND objsubid = 2"),
+                            {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id}).scalar()
+                        observer.rollback()
+                        if waiting < 2:
+                            time.sleep(0.05)
+                assert waiting == 2
+                assert results == []
+                holder.rollback()
+            for thread in threads:
+                thread.join(timeout=60)
+        assert [code for code, _ in results] == [status.HTTP_200_OK, status.HTTP_200_OK], results
+        assert sorted(payload["outcome"] for _, payload in results) == ["created", "unchanged"]
+        assert results[0][1]["topic_entity_tag_id"] == results[1][1]["topic_entity_tag_id"]
+        db.expire_all()
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.tag_source_id == source_id,
+            TopicEntityTagModel.topic == "ATP:0000122",
+            TopicEntityTagModel.entity.is_(None)).count() == 1
+
+    def test_validate_topic_removes_leftover_verdicts_keeping_the_oldest(self, test_topic_entity_tag,  # noqa
+                                                                        test_mod, db, auth_headers):  # noqa
+        # SCRUM-6851 review: the old delete-and-insert could leave a curator with more
+        # than one verdict for a cell. The next validation keeps the oldest (its id is
+        # what other systems stored), deletes the rest and says which.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        body = {"reference_curie": ref_curie, "topic": "ATP:0000122", "mod_abbreviation": mod}
+        with TestClient(app) as client, self._validate_patches():
+            first = client.post(url="/topic_entity_tag/validate", json={**body, "negated": False},
+                                headers=auth_headers)
+            assert first.status_code == status.HTTP_200_OK
+            oldest = first.json()["topic_entity_tag_id"]
+            columns = ", ".join(c.name for c in TopicEntityTagModel.__table__.columns if not c.primary_key)
+            leftover = db.execute(text(
+                f"INSERT INTO topic_entity_tag ({columns}) SELECT {columns} FROM topic_entity_tag "
+                "WHERE topic_entity_tag_id = :id RETURNING topic_entity_tag_id"), {"id": oldest}).scalar()
+            db.commit()
+
+            flipped = client.post(url="/topic_entity_tag/validate", json={**body, "negated": True},
+                                  headers=auth_headers)
+        assert flipped.status_code == status.HTTP_200_OK
+        assert flipped.json()["outcome"] == "updated"
+        assert flipped.json()["topic_entity_tag_id"] == oldest
+        assert flipped.json()["deleted_tag_ids"] == [leftover]
+        db.expire_all()
+        assert db.get(TopicEntityTagModel, leftover) is None
+        assert db.get(TopicEntityTagModel, oldest).negated is True
+
     def test_validate_topic_sgd_display_tag_topic_is_updated_in_place(self, test_topic_entity_tag,  # noqa
                                                                        auth_headers):  # noqa
         # SCRUM-6852: for SGD a topic that is also a display tag (review, ATP:0000130)
