@@ -3,9 +3,9 @@ from unittest.mock import patch
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy_continuum import versioning_manager  # type: ignore
 
 from agr_literature_service.api.crud.utils import author_person_status as aps
+from agr_literature_service.lit_processing.data_ingest.utils import author_person_status_updates as apsu
 from agr_literature_service.api.models import (
     AuthorModel,
     ModCorpusAssociationModel,
@@ -131,14 +131,14 @@ class TestChecks:
         curator = _curator(db, 1)
         automated = _reference(db, wb, 4)
         _author(db, automated, 1, _person(db, 5))
-        assert aps.curator_connected(db, automated) is False
+        assert apsu.curator_connected(db, automated) is False
         # a curator edited an author but connected nobody
         edited = _reference(db, wb, 5)
         _author(db, edited, 1, by=curator)
-        assert aps.curator_connected(db, edited) is False
+        assert apsu.curator_connected(db, edited) is False
         linked = _reference(db, wb, 6)
         _author(db, linked, 1, _person(db, 6), by=curator)
-        assert aps.curator_connected(db, linked) is True
+        assert apsu.curator_connected(db, linked) is True
 
     def test_sort_grants_complete_only_when_all_connected(self, db, wb):  # noqa
         load_name_to_atp_and_relationships_mock()
@@ -161,10 +161,10 @@ class TestCompleteWhenAllConnected:
             _author(db, ref, 1, _person(db, n))
             refs.append(ref)
         before = [_history(db, ref, COMPLETE) for ref in refs]
-        aps.complete_when_all_connected(db, refs)
+        apsu.complete_when_all_connected(db, refs)
         assert [_status(db, ref) for ref in refs] == [COMPLETE] * 3
         assert [_history(db, ref, COMPLETE) for ref in refs] == before
-        assert versioning_manager.options['versioning'] is True
+        assert 'versioning' not in WorkflowTagModel.__versioned__
 
     def test_history_written_when_a_curator_connected_an_author(self, db, wb):  # noqa
         load_name_to_atp_and_relationships_mock()
@@ -172,7 +172,7 @@ class TestCompleteWhenAllConnected:
         ref = _reference(db, wb, 20, status=NEEDED)
         _author(db, ref, 1, _person(db, 20), by=curator)
         _author(db, ref, 2, _person(db, 21))
-        aps.complete_when_all_connected(db, [ref])
+        apsu.complete_when_all_connected(db, [ref])
         assert _status(db, ref) == COMPLETE
         assert _history(db, ref, COMPLETE) == 1
 
@@ -185,24 +185,36 @@ class TestCompleteWhenAllConnected:
         _author(db, outside, 1, _person(db, 31))
         untagged = _reference(db, wb, 32)
         _author(db, untagged, 1, _person(db, 32))
-        aps.complete_when_all_connected(db, [partial, outside, untagged])
+        apsu.complete_when_all_connected(db, [partial, outside, untagged])
         assert [_status(db, partial), _status(db, outside), _status(db, untagged)] == [NEEDED, NEEDED, None]
 
     def test_dry_run_changes_nothing(self, db, wb):  # noqa
         load_name_to_atp_and_relationships_mock()
         ref = _reference(db, wb, 40, status=NEEDED)
         _author(db, ref, 1, _person(db, 40))
-        counts = aps.complete_when_all_connected(db, [ref], dry_run=True)
+        counts = apsu.complete_when_all_connected(db, [ref], dry_run=True)
         assert counts == {f"author_person_status_to_{COMPLETE}": 1}
         assert _status(db, ref) == NEEDED
 
     def test_refuses_uncommitted_changes(self, db, wb):  # noqa
         load_name_to_atp_and_relationships_mock()
         ref = _reference(db, wb, 41, status=NEEDED)
-        db.add(AuthorModel(reference_id=ref, author_order=1, name="Pending"))
+        db.add(WorkflowTagModel(reference_id=ref, mod_id=wb.mod_id, workflow_tag_id="ATP:0000141"))
         with pytest.raises(RuntimeError):
-            aps.set_author_person_status(db, ref, "WB", COMPLETE, record_history=False)
+            apsu.set_author_person_status(db, ref, "WB", COMPLETE, record_history=False)
         db.rollback()
+
+    def test_only_workflow_tag_history_is_switched_off(self, db, wb):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        ref = _reference(db, wb, 42, status=NEEDED)
+        # a pending author change is not refused: it keeps its history
+        db.add(AuthorModel(reference_id=ref, author_order=1, name="Pending", person_id=_person(db, 42)))
+        apsu.set_author_person_status(db, ref, "WB", COMPLETE, record_history=False)
+        assert _status(db, ref) == COMPLETE
+        assert _history(db, ref, COMPLETE) == 0
+        assert db.execute(text("SELECT count(*) FROM author_version WHERE reference_id = :r"),
+                          {"r": ref}).scalar() == 1
+        assert 'versioning' not in WorkflowTagModel.__versioned__
 
 
 def _json_authors(*names):
@@ -221,11 +233,11 @@ def _db_authors(db, reference_id):  # noqa
        load_name_to_atp_and_relationships_mock)
 class TestAuthorReload:
 
-    def _reload(self, db, reference_id, *names):  # noqa
+    def _reload(self, db, reference_id, *names, record_history=False):  # noqa
         update_authors(db, reference_id, _db_authors(db, reference_id), _json_authors(*names),
                        "x", {}, None, None, None, None)
         db.commit()
-        return aps.apply_author_reload_statuses(db)
+        return apsu.apply_author_reload_statuses(db, record_history=record_history)
 
     def test_complete_goes_back_to_needed_without_history(self, db, wb):  # noqa
         load_name_to_atp_and_relationships_mock()
@@ -234,6 +246,15 @@ class TestAuthorReload:
         self._reload(db, ref, "Xx X", "Yy Y")
         assert _status(db, ref) == NEEDED
         assert _history(db, ref, NEEDED) == 0
+
+    def test_curator_action_keeps_history(self, db, wb):  # noqa
+        # a reference merge in the API reloads with record_history=True
+        load_name_to_atp_and_relationships_mock()
+        ref = _reference(db, wb, 55, status=COMPLETE)
+        _author(db, ref, 1, _person(db, 55), by=AUTOMATION)
+        self._reload(db, ref, "Xx X", record_history=True)
+        assert _status(db, ref) == NEEDED
+        assert _history(db, ref, NEEDED) == 1
 
     def test_other_states_are_left_for_the_curator(self, db, wb):  # noqa
         load_name_to_atp_and_relationships_mock()
@@ -264,6 +285,6 @@ class TestAuthorReload:
         _author(db, ref, 1, _person(db, 54), by=AUTOMATION)
         update_authors(db, ref, _db_authors(db, ref), _json_authors("Xx X"), "x", {}, None, None, None, None)
         db.rollback()
-        aps.discard_author_reload_marks(db)
-        assert aps.apply_author_reload_statuses(db) == {}
+        apsu.discard_author_reload_marks(db)
+        assert apsu.apply_author_reload_statuses(db) == {}
         assert _status(db, ref) == COMPLETE

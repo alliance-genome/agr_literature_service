@@ -34,7 +34,7 @@ Afterwards (SCRUM-6827), each paper an author was linked on whose ordered author
 now all have a person moves to "author-person curation complete", from any
 author-person state, for each MOD that has it in curation. History is written
 only if a curator has made an author-person connection on the paper (see
-api.crud.utils.author_person_status).
+lit_processing.data_ingest.utils.author_person_status_updates).
 """
 
 import argparse
@@ -47,7 +47,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.author_crud import link_person
-from agr_literature_service.api.crud.utils.author_person_status import complete_when_all_connected
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
+    complete_when_all_connected
 from agr_literature_service.api.models import AuthorModel
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session

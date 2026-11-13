@@ -20,7 +20,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
-from agr_literature_service.api.crud.utils.author_person_status import mark_authors_reloaded
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import mark_authors_reloaded
 from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_STATES, \
     AUTHOR_REVIEW_NEEDED, AUTHOR_REVIEW_COMPLETE
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
@@ -746,7 +746,7 @@ def replace_authors_from_json(db_session, reference_id: int, authors_from_json: 
 
     delete_automated_author_history(db_session, reference_id)
     # SCRUM-6827: the caller moves the author-person status once its batch commits
-    # (author_person_status.apply_author_reload_statuses).
+    # (author_person_status_updates.apply_author_reload_statuses).
     mark_authors_reloaded(db_session, reference_id)
 
     # delete existing authors

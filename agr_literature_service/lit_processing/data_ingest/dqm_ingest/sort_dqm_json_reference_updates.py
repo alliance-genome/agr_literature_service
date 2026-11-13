@@ -10,7 +10,7 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 from collections import defaultdict
 
-from agr_literature_service.api.crud.utils.author_person_status import \
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
     apply_author_reload_statuses, discard_author_reload_marks
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, update_md5sum
