@@ -67,7 +67,9 @@ app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
                    allow_origins=["*"],
                    allow_methods=["*"],
-                   allow_headers=["*"])
+                   allow_headers=["*"],
+                   # readable by a browser client: the files a tarball left out
+                   expose_headers=["X-Missing-Files"])
 
 
 # Add request logging middleware
