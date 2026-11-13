@@ -1,8 +1,10 @@
 import json
+from datetime import datetime, timezone
 from multiprocessing import Process, Value
-from typing import List, Dict, Union, Any, Optional
+from typing import List, Dict, Union, Any, Optional, Tuple
 
-from agr_cognito_py import get_mod_access
+from agr_cognito_py import ModAccess, has_mod_access
+from agr_cognito_py.cognito_permissions import ADMIN_GROUPS, GROUP_TO_ACCESS, MOD_ACCESS_ABBR
 from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -13,8 +15,12 @@ from agr_literature_service.api.crud import topic_entity_tag_crud, \
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSchemaUpdate
-from agr_literature_service.api.user import set_global_user_from_cognito
-from agr_literature_service.api.auth import get_authenticated_user, no_read_auth_bypass
+from agr_literature_service.api.crud.user_utils import resolve_named_person
+from agr_literature_service.api.models import TagSourceModel, TopicEntityTagModel
+from agr_literature_service.api.user import acting_as, set_global_user_from_cognito
+from agr_literature_service.api.auth import get_authenticated_user, is_ip_bypass_user, \
+    is_service_client_token, no_read_auth_bypass
+from agr_literature_service.api.observer import service_client_mod
 from agr_literature_service.api.util.resource_urls import topic_entity_tag_url
 
 router = APIRouter(
@@ -29,6 +35,75 @@ db_session: Session = Depends(get_db)
 revalidate_all_tags_already_running = Value('b', False)
 
 
+def require_mod_write_access(user: Optional[Dict[str, Any]], mod_abbreviation: Optional[str]) -> None:
+    """403 unless the caller may write tags of this MOD (SCRUM-6853).
+
+    The check delete already made, applied to every tag write: a curator writes
+    only the tags of a MOD whose curator group they are in (any of them, not only
+    the first one get_mod_access looks at). Admins and developers write every MOD,
+    and so do service accounts and the IP-bypass user (has_mod_access), except a
+    service client that COGNITO_SERVICE_CLIENT_MODS limits to one MOD. No user at
+    all fails closed. A None MOD (an unknown source or tag) is left to the write
+    path's own 404.
+    """
+    if mod_abbreviation is None:
+        return
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Authentication is required to write topic entity tags")
+    if not _may_write_mod(user, mod_abbreviation):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"You do not have permission to write {mod_abbreviation} topic entity tags")
+
+
+def _may_write_mod(user: Dict[str, Any], mod_abbreviation: str) -> bool:
+    if user.get("token_type") == "access":
+        limited_to = service_client_mod(user)
+        if limited_to is not None:
+            return limited_to == mod_abbreviation
+        return has_mod_access(user, mod_abbreviation)
+    for group in user.get("cognito:groups") or []:
+        if group in ADMIN_GROUPS or group.endswith("Developer"):
+            return True
+        access = GROUP_TO_ACCESS.get(group)
+        if access is not None and MOD_ACCESS_ABBR.get(access) == mod_abbreviation:
+            return True
+    return False
+
+
+def _source_mod(db: Session, tag_source_id: Optional[int]) -> Optional[str]:
+    """The MOD a tag source belongs to, or None if there is no such source (the
+    write path then answers its own 404)."""
+    if tag_source_id is None:
+        return None
+    source = db.get(TagSourceModel, tag_source_id)
+    return source.secondary_data_provider.abbreviation if source is not None else None
+
+
+def resolve_person(db: Session, identifier: Optional[str], field: str) -> Optional[Tuple[int, str]]:
+    """The person a request names in an audit field, as (agent.id, curie); None when
+    none is named (SCRUM-6853). Resolved strictly, as updated_by is for indexing
+    priority (SCRUM-6819), and only to a person: their AGRKB ID or email. 422 if it
+    matches no one, more than one person, or an automation agent (default_user, a
+    pipeline) whatever its label looks like, so a typo cannot record a tag under a
+    made-up name. A person who has never logged in to ABC gets their agent created."""
+    if identifier is None:
+        return None
+    return resolve_named_person(identifier, db, field)
+
+
+def _looks_like_person(identifier: str) -> bool:
+    return identifier.upper().startswith("AGRKB:") or "@" in identifier
+
+
+def _naive_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """A request timestamp as the naive UTC the DateTime columns store; one with an
+    offset is converted rather than having its offset dropped."""
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=TopicEntityTagSchemaShow)
@@ -37,6 +112,16 @@ def create_tag(request: TopicEntityTagSchemaPost,
                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    require_mod_write_access(user, _source_mod(db, request.tag_source_id))
+    # SCRUM-6853: created_by/updated_by naming a person (AGRKB ID or email) must
+    # resolve to exactly one person. Any other label keeps the old behaviour, a new
+    # automation agent if unknown, which the pipelines and loaders rely on.
+    for field in ("created_by", "updated_by"):
+        identifier = getattr(request, field)
+        if identifier and _looks_like_person(identifier):
+            person = resolve_person(db, identifier, field)
+            if person is not None:
+                setattr(request, field, person[1])
     new_tag_id, was_upsert = topic_entity_tag_crud.create_tag(db, request)
     # 200 when an existing tag absorbed the request (note appended in place),
     # 201 (the default declared above) when a new row was inserted.
@@ -57,6 +142,15 @@ class ValidateTopicRequest(BaseModel):
     negated: bool = False
     note: Optional[str] = None
     species: Optional[str] = None
+    # SCRUM-6853: the AuditedObject fields, for a service account only. A curator's
+    # own login already identifies the curator, and the dates are when it happens.
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    date_created: Optional[datetime] = None
+    date_updated: Optional[datetime] = None
+
+
+AUDIT_FIELDS = ("created_by", "updated_by", "date_created", "date_updated")
 
 
 @router.post('/validate', status_code=status.HTTP_200_OK)
@@ -67,17 +161,50 @@ def validate_topic(request: ValidateTopicRequest,
     recomputed grid cell ({topic, validation, filter_flags}) plus the tag id, so
     the grid updates that cell without re-fetching/re-aggregating the whole batch.
     The curator source is resolved (get-or-create) server-side from
-    mod_abbreviation."""
+    mod_abbreviation.
+
+    A service account records the verdict for a curator with the AuditedObject
+    fields (SCRUM-6853). Every service-account token is otherwise recorded as
+    default_user, so all their verdicts would share one owner and replace each
+    other's, so a service account must send at least one of created_by and
+    updated_by (422 otherwise). created_by is whose verdict it is (the earlier
+    verdict is looked up by it) and updated_by who made this change; one alone
+    stands for both, as in the audit model. date_created applies when the verdict
+    is created, date_updated when it is created or changed.
+
+    A service account is a real client-credentials token (is_service_client_token).
+    A request from a trusted IP with no token, which can already write any tag, may
+    also send these fields, but need not: without them it is default_user, as
+    before. A curator's own login cannot (403): it already records the curator."""
     set_global_user_from_cognito(db, user)
-    return topic_entity_tag_crud.validate_topic(
-        db,
-        reference_curie=request.reference_curie,
-        topic=request.topic,
-        mod_abbreviation=request.mod_abbreviation,
-        negated=request.negated,
-        note=request.note,
-        species=request.species,
-    )
+    require_mod_write_access(user, request.mod_abbreviation)
+    service_account = is_service_client_token(user)
+    sent = [field for field in AUDIT_FIELDS if getattr(request, field) is not None]
+    if sent and not (service_account or is_ip_bypass_user(user)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"{', '.join(sent)} can only be set by a service account; a curator's "
+                                   "own login already records the curator and the time")
+    if service_account and request.created_by is None and request.updated_by is None:
+        # A service token alone is recorded as default_user, so every such verdict
+        # would share one owner and replace the others: refuse rather than store it.
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail="A service account must name the curator with created_by or updated_by")
+    creator = resolve_person(db, request.created_by, "created_by")
+    updater = resolve_person(db, request.updated_by, "updated_by")
+    creator, updater = creator or updater, updater or creator
+    with acting_as(updater):
+        return topic_entity_tag_crud.validate_topic(
+            db,
+            reference_curie=request.reference_curie,
+            topic=request.topic,
+            mod_abbreviation=request.mod_abbreviation,
+            negated=request.negated,
+            note=request.note,
+            species=request.species,
+            created_by=creator[1] if creator else None,
+            date_created=_naive_utc(request.date_created),
+            date_updated=_naive_utc(request.date_updated),
+        )
 
 
 @router.get('/{topic_entity_tag_id}',
@@ -97,6 +224,10 @@ def patch_tag(topic_entity_tag_id: int,
               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
               db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    tag = db.get(TopicEntityTagModel, topic_entity_tag_id)
+    if tag is not None:  # a missing tag gets patch_tag's 404
+        # the tag's MOD; a PATCH cannot move a tag to another source
+        require_mod_write_access(user, tag.tag_source.secondary_data_provider.abbreviation)
     topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
     return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
@@ -107,7 +238,12 @@ def delete_tag(topic_entity_tag_id,
                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_mod_access(user) if user else [])
+    tag = db.get(TopicEntityTagModel, topic_entity_tag_id)
+    if tag is not None:  # a missing tag gets destroy_tag's 404
+        require_mod_write_access(user, tag.tag_source.secondary_data_provider.abbreviation)
+    # The MOD was checked above, across all of the caller's groups; destroy_tag's own
+    # check only looks at the first group, so it would refuse a multi-MOD curator.
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, ModAccess.ALL_ACCESS)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -375,6 +511,7 @@ def delete_manual_tags(reference_curie,
                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                        db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    require_mod_write_access(user, mod_abbreviation)
     topic_entity_tag_utils.delete_manual_tets(db, reference_curie, mod_abbreviation)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -390,6 +527,7 @@ def set_no_tet_status(mod_abbreviation: str,
                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                       db: Session = db_session):
     set_global_user_from_cognito(db, user)
+    require_mod_write_access(user, mod_abbreviation)
     return topic_entity_tag_crud.set_indexing_status_for_no_tet_data(db,
                                                                      mod_abbreviation,
                                                                      reference_curie,
