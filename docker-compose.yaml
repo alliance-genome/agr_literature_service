@@ -375,7 +375,11 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
+    build:
+      context: .
+      dockerfile: docker/debezium_zookeeper.dockerfile
+      args:
+        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
     ports:
       - 2181:2181
       - 2888:2888

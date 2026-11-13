@@ -59,3 +59,21 @@ def test_ksqldb_jvm_warnings_are_silenced_before_cms():
     flags = opts.group(1).split()
     assert flags[0] == "-XX:-PrintWarnings"
     assert "-XX:+UseConcMarkSweepGC" in flags
+
+
+def test_zookeeper_startup_lines_are_kept_off_stderr():
+    # zkServer.sh echoes "ZooKeeper JMX enabled by default" and "Using config: ..." to
+    # stderr, so every rebuild raised two ERROR records. The service is built from a
+    # dockerfile that moves just those two lines to stdout.
+    compose = (ROOT / "docker-compose.yaml").read_text()
+    service = re.search(r"\n  dbz_zookeeper:\n((?:    .*\n|\n)*?)\n  \w", compose)
+    assert service, "docker-compose.yaml no longer defines dbz_zookeeper; update this test"
+    assert "dockerfile: docker/debezium_zookeeper.dockerfile" in service.group(1)
+    assert "image:" not in service.group(1), "dbz_zookeeper uses the stock image again"
+    dockerfile = (ROOT / "docker" / "debezium_zookeeper.dockerfile").read_text()
+    for line in ('echo "ZooKeeper JMX enabled by default"', 'echo "Using config: $ZOOCFG"'):
+        assert line in dockerfile and dockerfile.count(line) >= 2, (
+            f"the dockerfile must both patch and check {line}")
+    zookeeper_starts = [line for line in (ROOT / "Makefile").read_text().splitlines()
+                        if re.search(r"\bup\b.*\bdbz_zookeeper\b", line)]
+    assert zookeeper_starts and all("--build" in line for line in zookeeper_starts)
