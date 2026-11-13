@@ -447,6 +447,7 @@ class TestReferencefile:
         with tarfile.open(response.path) as tar:
             assert tar.getnames() == ["supp_a.txt"]
         asyncio.run(response.background())
+        assert response.headers[referencefile_crud.MISSING_FILES_HEADER] == "supp_b.txt"
 
         monkeypatch.setattr(referencefile_crud, "download_file_from_s3", lambda *args, **kwargs: False)
         with pytest.raises(HTTPException) as exc_info:

@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 from itertools import count
 from typing import List, Optional, Union
+from urllib.parse import quote
 
 import boto3  # type: ignore
 from boto3.exceptions import Boto3Error  # type: ignore
@@ -986,6 +987,10 @@ def cleanup_temp_dir(temp_dir):
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+# the files a tarball left out because storage does not have them
+MISSING_FILES_HEADER = "X-Missing-Files"
+
+
 def download_additional_files_tarball(db: Session, reference_id, mod_access: ModAccess):
     ref_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_id).one_or_none()
     if not ref_curie:
@@ -1051,5 +1056,9 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Mod
     except BaseException:
         cleanup_temp_dir(temp_dir)
         raise
+    # SCRUM-6855 review: tell the client which files were left out, each name
+    # percent-encoded (a header is latin-1, a display name may not be) and
+    # comma-separated.
+    headers = {MISSING_FILES_HEADER: ", ".join(quote(name) for name in missing)} if missing else None
     return FileResponse(path=tar_file_path, filename=tar_file_name, media_type="application/gzip",
-                        background=BackgroundTask(cleanup_temp_dir, temp_dir))
+                        headers=headers, background=BackgroundTask(cleanup_temp_dir, temp_dir))
