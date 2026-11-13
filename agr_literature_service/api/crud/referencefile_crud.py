@@ -26,7 +26,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status, is_file_upload_blocked, create as create_wft, \
+    transition_to_workflow_status, is_file_upload_blocked, \
     reset_workflow_tags_after_deleting_main_pdf
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     has_manual_tet
@@ -37,7 +37,6 @@ from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
     ReferencefileSchemaRelated, ReferencefileSchemaUpdate
-from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
@@ -728,14 +727,9 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
             curr_tag_atp_id = get_current_workflow_status(db, reference_curie,
                                                           file_upload_process_atp_id, mod)
             if change_file_status is False:
-                if curr_tag_atp_id is None:
-                    data = WorkflowTagSchemaPost(
-                        workflow_tag_id=wft_tag_atp_id,
-                        mod_abbreviation=mod,
-                        reference_curie=reference_curie
-                    )
-                    create_wft(db, data)
-                elif (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+                # without a file upload tag this is the paper's first state, through the file upload
+                # -> state row, so its actions (the text conversion gate) run too (SCRUM-6845)
+                if curr_tag_atp_id not in (wft_tag_atp_id, file_uploaded_tag_atp_id):
                     transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
             else:
                 # this should not happen, but just in case

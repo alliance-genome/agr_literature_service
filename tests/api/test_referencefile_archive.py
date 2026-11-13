@@ -57,42 +57,35 @@ def _upload_file(name="FBrf0000001.pdf", content=b"%PDF-1.4 archive"):
 
 
 class TestSetFileUploadedStatus:
-    """The status is set without transition actions: create() or a plain
-    in-place update, never transition_to_workflow_status."""
+    """The status goes through the transition table, with run_actions=False so that
+    nothing queues text conversion (SCRUM-6845)."""
 
     def _run(self, current):
         mock_db = MagicMock()
-        with patch(f"{CRUD}._get_current_workflow_tag_db_obj", return_value=current) as lookup, \
-                patch(f"{CRUD}.create_wft") as create:
+        with patch(f"{CRUD}.get_current_workflow_status", return_value=current) as lookup, \
+                patch(f"{CRUD}.transition_to_workflow_status") as transition:
             change = archive.set_file_uploaded_status(mock_db, "AGRKB:101000000000001", "WB")
         lookup.assert_called_once_with(mock_db, "AGRKB:101000000000001", "ATP:0000140", "WB")
-        return change, create, mock_db
+        return change, transition, mock_db
 
-    def test_creates_tag_when_paper_has_none(self):
-        change, create, _ = self._run(None)
+    def test_first_state_is_a_transition_without_actions(self):
+        change, transition, mock_db = self._run(None)
         assert change == "created"
-        data = create.call_args.args[1]
-        assert data.workflow_tag_id == FILES_UPLOADED
-        assert data.mod_abbreviation == "WB"
-        assert data.reference_curie == "AGRKB:101000000000001"
+        transition.assert_called_once_with(mock_db, "AGRKB:101000000000001", "WB", FILES_UPLOADED,
+                                           run_actions=False)
 
-    def test_overwrites_other_tag_in_place(self):
-        current = MagicMock(workflow_tag_id="ATP:0000141")  # file needed
-        change, create, mock_db = self._run(current)
+    def test_other_state_is_a_transition_without_actions(self):
+        change, transition, mock_db = self._run("ATP:0000141")  # file needed
         assert change == "ATP:0000141 -> ATP:0000134"
-        assert current.workflow_tag_id == FILES_UPLOADED
-        mock_db.commit.assert_called_once()
-        create.assert_not_called()
+        transition.assert_called_once_with(mock_db, "AGRKB:101000000000001", "WB", FILES_UPLOADED,
+                                           run_actions=False)
 
     def test_leaves_files_uploaded_alone(self):
-        current = MagicMock(workflow_tag_id=FILES_UPLOADED)
-        change, create, mock_db = self._run(current)
+        change, transition, _ = self._run(FILES_UPLOADED)
         assert change is None
-        mock_db.commit.assert_not_called()
-        create.assert_not_called()
+        transition.assert_not_called()
 
-    def test_module_never_imports_the_action_running_transitions(self):
-        assert not hasattr(archive, "transition_to_workflow_status")
+    def test_module_never_imports_the_action_running_upload_transition(self):
         assert not hasattr(archive, "transition_WFT_for_uploaded_file")
 
 

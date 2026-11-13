@@ -13,6 +13,7 @@ import pytest
 from fastapi import HTTPException, status
 from starlette.testclient import TestClient
 
+from agr_literature_service.api.crud import topic_entity_tag_crud as tet_crud
 from agr_literature_service.api.crud import workflow_tag_crud as wtc
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ModModel, ReferenceModel, WorkflowTagModel, WorkflowTransitionModel
@@ -210,3 +211,36 @@ class TestTransitionOptions:
         wtc.transition_to_workflow_status(db, REFERENCE_CURIE, "WB", MI_NEEDED, commit=False)
         db.rollback()
         assert _tags(db, ref, mod) == []
+
+
+@patch(ATP_MOCK, load_name_to_atp_and_relationships_mock)
+class TestTopicEntityTagPaths:
+    """The manual indexing status a curator sets with a TET (index_wft) or with "no data", and
+    the file needed a TET's corpus entry adds, go through transitions."""
+
+    def test_no_data_puts_the_paper_in_the_corpus_and_sets_complete(self, wb_ref):  # noqa
+        db, mod, ref = wb_ref  # noqa
+        _row(db, mod, MANUAL_INDEXING, MI_COMPLETE)
+        tet_crud.set_indexing_status_for_no_tet_data(db, "WB", REFERENCE_CURIE, None)
+        assert _tags(db, ref, mod) == [FILE_NEEDED, MI_COMPLETE]
+
+    def test_index_status_without_a_row_is_refused(self, wb_ref):  # noqa
+        db, mod, ref = wb_ref  # noqa
+        _tag(db, ref, mod, MI_WONT)
+        with pytest.raises(HTTPException):
+            tet_crud.update_manual_indexing_workflow_tag(db, "WB", ref.reference_id, MI_NEEDED)
+        assert _tags(db, ref, mod) == [MI_WONT]
+
+    def test_index_status_moves_the_current_state(self, wb_ref):  # noqa
+        db, mod, ref = wb_ref  # noqa
+        _tag(db, ref, mod, MI_NEEDED)
+        _row(db, mod, MI_NEEDED, MI_COMPLETE)
+        tet_crud.update_manual_indexing_workflow_tag(db, "WB", ref.reference_id, MI_COMPLETE)
+        assert _tags(db, ref, mod) == [MI_COMPLETE]
+
+    def test_index_status_already_set_needs_no_row(self, wb_ref):  # noqa
+        db, mod, ref = wb_ref  # noqa
+        _tag(db, ref, mod, MI_COMPLETE)
+        tet_crud.update_manual_indexing_workflow_tag(db, "WB", ref.reference_id, MI_COMPLETE)
+        tet_crud.update_manual_indexing_workflow_tag(db, "WB", ref.reference_id, None)
+        assert _tags(db, ref, mod) == [MI_COMPLETE]

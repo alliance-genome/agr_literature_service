@@ -28,6 +28,7 @@ from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY
 from typing import List, Optional, Tuple
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
+manual_indexing_process_atp_id = "ATP:0000273"
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
 pre_indexing_prio_needed_tag_atp_id = PRE_INDEXING_PRIO_NEEDED
 molecular_probe_classification_needed_tag_atp_id = MOLECULAR_PROBE_CLASSIFICATION_NEEDED
@@ -188,12 +189,15 @@ def add_workflow_tags_on_patch_into_corpus(db: Session, mod_corpus_association_d
         add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
                                        mod_corpus_association_db_obj.mod_id, mod_abbreviation,
                                        tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
+    # SGD's sort page: the curator's manual indexing choice is a state change like any other, so it
+    # goes through the transition table, from the paper's current state or, without one, from the
+    # manual indexing process term (SCRUM-6845)
     if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
         wft_id = mod_corpus_association_data['index_wft_id']
-        wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
-                                   mod_id=mod_corpus_association_db_obj.mod_id,
-                                   workflow_tag_id=wft_id)
-        db.add(wft_obj)
+        if get_current_workflow_status(db, str(reference_obj.reference_id), manual_indexing_process_atp_id,
+                                       mod_abbreviation) != wft_id:
+            transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, wft_id,
+                                          transition_type="manual", commit=False)
 
 
 def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_update):

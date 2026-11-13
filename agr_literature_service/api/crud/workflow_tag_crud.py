@@ -1355,39 +1355,24 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     if change_file_status is True:
         return
 
-    try:
-        sql_query = text("""
+    # files uploaded -> file upload in progress when the paper still has files for the MOD (a file
+    # without a MOD counts for every MOD), else -> file needed; the two rows' requirements
+    # (referencefiles_present / not_referencefiles_present) make the same check (SCRUM-6845)
+    files_uploaded = get_atp_id_by_name('files uploaded', fallback='ATP:0000134')
+    if get_current_workflow_status(db, str(reference_id), get_atp_id_by_name('file upload', fallback='ATP:0000140'),
+                                   mod_abbreviation) != files_uploaded:
+        return
+    file_count = db.execute(text("""
         SELECT count(*) FROM referencefile rf, referencefile_mod rfm
         WHERE rf.reference_id = :reference_id
         AND rf.id = rfm.referencefile_id
         AND (rfm.mod_id = :mod_id or rfm.mod_id is NULL)
-        """)
-        rows = db.execute(sql_query, {
-            'reference_id': reference_id,
-            'mod_id': mod_id
-        }).fetchall()
-        # files uploaded
-        curr_atp_id = get_atp_id_by_name('files uploaded', fallback='ATP:0000134')
-        # to file upload in progress or file needed
-        file_upload_in_progress = get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')
-        file_needed = get_atp_id_by_name('file needed', fallback='ATP:0000141')
-        new_atp_id = file_upload_in_progress if rows[0][0] > 0 else file_needed
-        sql_query = text("""
-        UPDATE workflow_tag
-        SET workflow_tag_id = :new_atp_id
-        WHERE reference_id = :reference_id
-        AND mod_id = :mod_id
-        AND workflow_tag_id = :curr_atp_id
-        """)
-        db.execute(sql_query, {
-            'new_atp_id': new_atp_id,
-            'reference_id': reference_id,
-            'mod_id': mod_id,
-            'curr_atp_id': curr_atp_id
-        })
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod.mod_id} and reference_id = {reference_id}. Error = {e}")
+        """), {'reference_id': reference_id, 'mod_id': mod_id}).scalar()
+    if file_count:
+        new_atp_id = get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')
+    else:
+        new_atp_id = get_atp_id_by_name('file needed', fallback='ATP:0000141')
+    transition_to_workflow_status(db, str(reference_id), mod_abbreviation, new_atp_id, commit=False)
 
 
 def get_field_and_status(atp):
