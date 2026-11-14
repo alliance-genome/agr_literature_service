@@ -16,7 +16,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.api.models import ReferenceModel, ModModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     write_json
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session, sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_dqm_loading_report
@@ -290,9 +290,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 if prefix not in dqm_xrefs:
                     dqm_xrefs[prefix] = set()
                 dqm_xrefs[prefix].add(identifier)
+                key = xref_lookup_key(prefix, identifier)
                 if prefix in xref_ref:
-                    if identifier in xref_ref[prefix]:
-                        agr = xref_ref[prefix][identifier]
+                    if key in xref_ref[prefix]:
+                        agr = xref_ref[prefix][key]
                         agrs_found.add(agr)
 
             flag_dqm_prefix_fail = False

@@ -1,4 +1,4 @@
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 
 from os import environ
 
@@ -85,8 +85,9 @@ def sqlalchemy_load_ref_xref(datatype):
                 ref_xref_valid[agr][prefix] = identifier
                 if prefix not in xref_ref:
                     xref_ref[prefix] = dict()
-                if identifier not in xref_ref[prefix]:
-                    xref_ref[prefix][identifier] = agr
+                key = xref_lookup_key(prefix, identifier)
+                if key not in xref_ref[prefix]:
+                    xref_ref[prefix][key] = agr
             else:
                 if agr not in ref_xref_obsolete:
                     ref_xref_obsolete[agr] = dict()
