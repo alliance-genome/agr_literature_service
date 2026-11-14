@@ -76,6 +76,10 @@ def test_entry_points_per_mod():
     # WB author workflows: the sort page checkbox and the PubMed update
     assert {("sort_page", "ATP:0000109"), ("pubmed_update", "ATP:0000389")} <= targets("WB")
     assert not {curie for _source, curie in targets("FB")} & {"ATP:0000109", "ATP:0000389", "ATP:0000274"}
+    # email extraction starts on corpus entry for the MODs that extract emails (SCRUM-6845)
+    for mod in ("FB", "SGD", "WB", "XB", "ZFIN"):
+        assert ("corpus_entry", "ATP:0000358") in targets(mod)
+    assert ("corpus_entry", "ATP:0000358") not in targets("MGI") | targets("RGD")
 
 
 @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",

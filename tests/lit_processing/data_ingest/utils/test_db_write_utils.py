@@ -40,6 +40,7 @@ class TestZfinCorpusEntryTags:
     PRE_INDEXING_COMPLETE = "ATP:0000303"
     PROBE_NEEDED = "ATP:0000380"
     PROBE_COMPLETE = "ATP:0000387"
+    EMAIL_NEEDED = "ATP:0000358"
 
     def _zfin_ref(self, db): # noqa
         ref = db.query(ReferenceModel).first()
@@ -78,7 +79,8 @@ class TestZfinCorpusEntryTags:
     def test_grants_both_tags(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db)
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
-        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED}
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED,
+                                                        self.EMAIL_NEEDED}
 
     def test_probe_tag_granted_when_pre_indexing_already_present(self, db, load_sanitized_references): # noqa
         """The behaviour the backfill depends on: each tag is guarded against its OWN
@@ -89,7 +91,8 @@ class TestZfinCorpusEntryTags:
 
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
 
-        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_COMPLETE, self.PROBE_NEEDED}
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_COMPLETE, self.PROBE_NEEDED,
+                                                        self.EMAIL_NEEDED}
 
     def test_is_idempotent(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db)
@@ -97,6 +100,7 @@ class TestZfinCorpusEntryTags:
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
         assert self._count(db, reference_id, mod_id, self.PROBE_NEEDED) == 1
         assert self._count(db, reference_id, mod_id, self.PRE_INDEXING_NEEDED) == 1
+        assert self._count(db, reference_id, mod_id, self.EMAIL_NEEDED) == 1
 
     def test_probe_tag_not_regranted_once_complete(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db, self.PROBE_COMPLETE)
@@ -104,7 +108,8 @@ class TestZfinCorpusEntryTags:
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
 
         # probe already entered its workflow; pre-indexing had not, so only it is granted
-        assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED}
+        assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED,
+                                                        self.EMAIL_NEEDED}
 
 
 class TestWbCorpusEntryTags:
@@ -136,10 +141,51 @@ class TestWbCorpusEntryTags:
 
     def test_other_mods_get_nothing(self, db, load_sanitized_references): # noqa
         ref = db.query(ReferenceModel).first()
-        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'FB').scalar()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'MGI').scalar()
         before = self._tags(db, ref.reference_id, mod_id)
-        add_corpus_entry_tags(db, ref.reference_id, mod_id, logger, "FB")
+        add_corpus_entry_tags(db, ref.reference_id, mod_id, logger, "MGI")
         assert self._tags(db, ref.reference_id, mod_id) == before
+
+
+class TestEmailAndSgdCorpusEntryTags:
+    """SCRUM-6845: corpus entry starts email extraction for FB/SGD/WB/XB/ZFIN, and SGD's
+    "manual indexing needed" on every path, each only when the paper has no state in
+    that workflow yet."""
+
+    EMAIL_NEEDED = "ATP:0000358"
+    EMAIL_COMPLETE = "ATP:0000355"
+    MI_NEEDED = "ATP:0000274"
+    MI_COMPLETE = "ATP:0000275"
+
+    def _ref_and_mod(self, db, mod_abbreviation, *atp_ids): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).scalar()
+        db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id, WorkflowTagModel.mod_id == mod_id).delete()
+        for atp_id in atp_ids:
+            db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id, workflow_tag_id=atp_id))
+        db.commit()
+        return ref.reference_id, mod_id
+
+    def _tags(self, db, reference_id, mod_id): # noqa
+        return sorted(t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id, WorkflowTagModel.mod_id == mod_id).all())
+
+    def test_email_mods_get_email_extraction_needed(self, db, load_sanitized_references): # noqa
+        for mod_abbreviation in ("FB", "WB", "XB"):
+            reference_id, mod_id = self._ref_and_mod(db, mod_abbreviation)
+            add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation)
+            assert self._tags(db, reference_id, mod_id) == [self.EMAIL_NEEDED]
+
+    def test_sgd_gets_manual_indexing_and_email(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._ref_and_mod(db, "SGD")
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "SGD")
+        assert self._tags(db, reference_id, mod_id) == [self.MI_NEEDED, self.EMAIL_NEEDED]
+
+    def test_a_workflow_already_entered_is_left_alone(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._ref_and_mod(db, "SGD", self.MI_COMPLETE, self.EMAIL_COMPLETE)
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "SGD")
+        assert self._tags(db, reference_id, mod_id) == [self.MI_COMPLETE, self.EMAIL_COMPLETE]
 
 
 class TestDbReadUtils:

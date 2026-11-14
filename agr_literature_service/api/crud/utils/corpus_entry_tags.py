@@ -46,6 +46,41 @@ AUTHOR_PERSON_CURATION_TAGS: Dict[str, List[Tuple[str, str, List[str]]]] = {
     ],
 }
 
+MANUAL_INDEXING_NEEDED = "ATP:0000274"
+EMAIL_EXTRACTION_NEEDED = "ATP:0000358"
+
+# SGD (SCRUM-6845): every SGD paper starts in "manual indexing needed"; for the other MODs
+# the first manual indexing state is a curator's or classifier's transition from the
+# manual indexing process term.
+MANUAL_INDEXING_ENTRY_TAG: Tuple[str, str, List[str]] = (
+    "manual indexing needed",
+    MANUAL_INDEXING_NEEDED,
+    # every child of manual indexing (ATP:0000273)
+    ["ATP:0000274",   # manual indexing needed
+     "ATP:0000275",
+     "ATP:0000276",
+     "ATP:0000336",
+     "ATP:0000343",   # won't manually index
+     "ATP:0000359"],  # manual indexing status TBD
+)
+
+# SCRUM-6845: email extraction is a job on "email extraction needed" (email_extraction_job),
+# which corpus entry starts for the MODs that extract emails; the weekly PubMed/PMC script
+# and the full-text extraction work through that job list.
+EMAIL_EXTRACTION_ENTRY_TAG: Tuple[str, str, List[str]] = (
+    "email extraction needed",
+    EMAIL_EXTRACTION_NEEDED,
+    ["ATP:0000355",   # email extraction complete
+     "ATP:0000356",   # email extraction failed
+     "ATP:0000357",   # email extraction in progress
+     "ATP:0000358"],  # email extraction needed
+)
+EMAIL_EXTRACTION_MODS = ("FB", "SGD", "WB", "XB", "ZFIN")
+
 CORPUS_ENTRY_TAGS: Dict[str, List[Tuple[str, str, List[str]]]] = {
-    "ZFIN": ZFIN_CORPUS_ENTRY_TAGS,
+    "FB": [EMAIL_EXTRACTION_ENTRY_TAG],
+    "SGD": [MANUAL_INDEXING_ENTRY_TAG, EMAIL_EXTRACTION_ENTRY_TAG],
+    "WB": [EMAIL_EXTRACTION_ENTRY_TAG],
+    "XB": [EMAIL_EXTRACTION_ENTRY_TAG],
+    "ZFIN": ZFIN_CORPUS_ENTRY_TAGS + [EMAIL_EXTRACTION_ENTRY_TAG],
 }

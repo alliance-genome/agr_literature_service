@@ -20,8 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.mod_corpus_association_crud import file_needed_tag_atp_id, \
-    manual_indexing_needed_tag_atp_id
+from agr_literature_service.api.crud.mod_corpus_association_crud import file_needed_tag_atp_id
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_NEEDED
 from agr_literature_service.api.crud.utils.corpus_entry_tags import AUTHOR_PERSON_CURATION_TAGS, \
@@ -54,7 +53,6 @@ def _entry_points(mod: str) -> List[Tuple[str, str, Optional[str]]]:
     for _name, curie, _states in CORPUS_ENTRY_TAGS.get(mod, []):
         points.append(("corpus_entry", curie, None))
     if mod == "SGD":
-        points.append(("corpus_entry", manual_indexing_needed_tag_atp_id, None))
         points.append(("sort_page", MANUAL_INDEXING_PROCESS, "indexing status picked when sorting"))
     for _name, curie, _states in AUTHOR_PERSON_CURATION_TAGS.get(mod, []):
         points.append(("sort_page", curie, '"Author-Person curation" checked'))

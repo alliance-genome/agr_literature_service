@@ -128,11 +128,6 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if mod_abbreviation in CORPUS_ENTRY_TAGS:
             add_corpus_entry_workflow_tags(db, reference.reference_id, mod.mod_id, mod_abbreviation)
             db.commit()
-        elif mod_abbreviation == 'SGD':
-            db.add(WorkflowTagModel(reference_id=reference.reference_id,
-                                    mod_id=mod.mod_id,
-                                    workflow_tag_id=manual_indexing_needed_tag_atp_id))
-            db.commit()
 
     return int(db_obj.mod_corpus_association_id)
 
