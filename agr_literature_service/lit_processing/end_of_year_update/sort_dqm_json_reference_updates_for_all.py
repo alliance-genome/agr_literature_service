@@ -9,6 +9,8 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 from collections import defaultdict
 
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
+    apply_author_reload_statuses, discard_author_reload_marks
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, save_database_md5data
 from agr_literature_service.api.models import ReferenceModel, ModModel
@@ -769,8 +771,11 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
 
         if live_change:
             db_session.commit()
+            # SCRUM-6827: author-person status of a paper whose authors were reloaded
+            apply_author_reload_statuses(db_session, logger)
         else:
             db_session.rollback()
+            discard_author_reload_marks(db_session)
     db_session.close()
 
 

@@ -10,9 +10,11 @@ author-person curation (ATP:0000375)
 
 "needed" is granted when a WB curator sorts a reference inside the corpus with
 the "Author-Person curation" checkbox checked (api.crud.utils.corpus_entry_tags);
-from there a curator moves the paper by hand, so this inserts the all-to-all manual_only transitions among the four
-states, for the WB mod only. It is idempotent: transitions already present are
-left untouched.
+from there a curator moves the paper on the person page, and the PubMed author
+update and ORCID/email linker move it between needed and complete (SCRUM-6827),
+so this inserts all-to-all transitions of type 'any' among the four states, for
+the WB mod only. It is idempotent: transitions already present are left
+untouched (prod, stage and dev were switched from manual_only to any by hand).
 
     python3 populate_workflow_transition_author_person_curation.py
 """
@@ -39,8 +41,9 @@ AUTHOR_PERSON_CURATION_STATE_NAME_TO_FALLBACK = {
 
 
 def populate_manual_transitions(db_session, mod) -> int:
-    """All-to-all manual_only transitions among the four author-person curation
-    states. Returns the number of transitions added."""
+    """All-to-all transitions (type 'any': curators and automation both move
+    papers) among the four author-person curation states. Returns the number of
+    transitions added."""
     state_atps = [
         get_atp_id_by_name(name, fallback=fallback)
         for name, fallback in AUTHOR_PERSON_CURATION_STATE_NAME_TO_FALLBACK.items()
@@ -63,12 +66,12 @@ def populate_manual_transitions(db_session, mod) -> int:
                 mod_id=mod.mod_id,
                 transition_from=from_term,
                 transition_to=to_term,
-                transition_type='manual_only',
+                transition_type='any',
                 actions=[],
             ))
             added += 1
-            log.info(f"adding manual transition ({mod.abbreviation}, {from_term}, {to_term})")
-    log.info(f"Added {added} manual author-person curation transitions for {mod.abbreviation}.")
+            log.info(f"adding transition ({mod.abbreviation}, {from_term}, {to_term})")
+    log.info(f"Added {added} author-person curation transitions for {mod.abbreviation}.")
     return added
 
 

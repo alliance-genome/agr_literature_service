@@ -84,7 +84,9 @@ def test_merge_pair_moves_the_pmid_record_onto_the_doi_record(db, monkeypatch): 
     ])
     db.commit()
     # no PubMed or ontology calls, no merge e-mail
-    monkeypatch.setattr(reference_crud, "update_data", lambda mod, pmids: None)
+    pubmed_updates = []
+    monkeypatch.setattr(reference_crud, "update_data",
+                        lambda mod, pmids, **kwargs: pubmed_updates.append((mod, pmids, kwargs)))
     monkeypatch.setattr(reference_crud, "revalidate_all_tags", lambda **kwargs: None)
     monkeypatch.setattr(reference_crud, "send_report", lambda subject, message: None)
 
@@ -93,6 +95,8 @@ def test_merge_pair_moves_the_pmid_record_onto_the_doi_record(db, monkeypatch): 
     cast(Any, script).merge_pair(db, doi_ref, pmid_ref, doi_side)
 
     assert db.query(ReferenceModel).filter(ReferenceModel.curie == "AGRKB:SCRUM6864-PMID").one_or_none() is None
+    # a merge refreshes the winner from PubMed, keeping author-person status history (SCRUM-6827)
+    assert pubmed_updates == [(None, "42438718", {"record_author_status_history": True})]
     rid = doi_ref.reference_id
     xrefs = {x.curie for x in db.query(CrossReferenceModel).filter(CrossReferenceModel.reference_id == rid).all()}
     assert xrefs == {"DOI:10.17912/micropub.biology.002193", "WB:WBPaper00069799", "PMID:42438718",

@@ -29,6 +29,12 @@ In both passes an author is skipped when:
      unlinked (a curator undid the link; do not redo it every week)
 
 A person-only stub for the person on the same paper is absorbed, as the API does.
+
+Afterwards (SCRUM-6827), each paper an author was linked on whose ordered authors
+now all have a person moves to "author-person curation complete", from any
+author-person state, for each MOD that has it in curation. History is written
+only if a curator has made an author-person connection on the paper (see
+lit_processing.data_ingest.utils.author_person_status_updates).
 """
 
 import argparse
@@ -41,6 +47,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.author_crud import link_person
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
+    complete_when_all_connected
 from agr_literature_service.api.models import AuthorModel
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -228,8 +236,10 @@ def find_email_matches(db: Session, counts: Dict[str, int],
 
 
 def apply_links(db: Session, matches: Dict[int, int], label: str,
-                counts: Dict[str, int], dry_run: bool) -> None:
-    """Link each author to its person as ``label``, one commit per link."""
+                counts: Dict[str, int], dry_run: bool,
+                linked_reference_ids: Optional[Set[int]] = None) -> None:
+    """Link each author to its person as ``label``, one commit per link. The
+    reference of each link made is added to ``linked_reference_ids``."""
     set_global_user_id(db, label)
     unlinked_before = get_previously_unlinked(db, matches.keys())
     for author_id, person_id in sorted(matches.items()):
@@ -261,6 +271,8 @@ def apply_links(db: Session, matches: Dict[int, int], label: str,
             continue
         logger.info(f"{label}: linked author_id={author_id} ({author.name}) "
                     f"reference_id={author.reference_id} to person_id={person_id}")
+        if linked_reference_ids is not None:
+            linked_reference_ids.add(author.reference_id)
         if dry_run:
             db.rollback()
         else:
@@ -270,14 +282,21 @@ def apply_links(db: Session, matches: Dict[int, int], label: str,
 
 def link_authors_to_persons(db: Session, dry_run: bool = False) -> Dict[str, int]:
     counts: Dict[str, int] = defaultdict(int)
+    linked_reference_ids: Set[int] = set()
 
     orcid_matches = find_orcid_matches(db, counts)
-    apply_links(db, orcid_matches, ORCID_USER, counts, dry_run)
+    apply_links(db, orcid_matches, ORCID_USER, counts, dry_run, linked_reference_ids)
 
     # The ORCID pass has committed, but in a dry run its links were rolled back,
     # so exclude its matches explicitly to keep the passes exclusive either way.
     email_matches = find_email_matches(db, counts, exclude_author_ids=set(orcid_matches))
-    apply_links(db, email_matches, EMAIL_USER, counts, dry_run)
+    apply_links(db, email_matches, EMAIL_USER, counts, dry_run, linked_reference_ids)
+
+    # SCRUM-6827. In a dry run the links were rolled back, so a paper whose last
+    # author was only linked in this run is not counted.
+    for key, value in complete_when_all_connected(db, linked_reference_ids, dry_run=dry_run,
+                                                  log=logger).items():
+        counts[key] += value
 
     return dict(counts)
 

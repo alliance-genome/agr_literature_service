@@ -1190,7 +1190,8 @@ def merge_references(db: Session,
         CrossReferenceModel.is_obsolete).first()
     if cross_reference is not None:
         pmid_number = cross_reference.curie.split(":")[1]
-        update_data(None, pmid_number)
+        # a curator merged these papers: keep history of any author-person status change
+        update_data(None, pmid_number, record_author_status_history=True)
 
     return new_curie
 
