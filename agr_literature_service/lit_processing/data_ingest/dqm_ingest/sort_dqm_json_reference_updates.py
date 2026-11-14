@@ -15,7 +15,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
 from agr_literature_service.api.models import ReferenceModel, ModModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     write_json
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session, sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_dqm_loading_report, \
@@ -24,6 +24,8 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
     generate_pmid_data, aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    refresh_pmids_from_pubmed
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     get_pmids_from_exclude_list
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
@@ -172,6 +174,18 @@ logger = logging.getLogger(__name__)
 base_path = environ.get('XML_PATH')
 # the crontab job name, used in the ABC-DQM-FAILED records
 DQM_JOB_NAME = path.splitext(path.basename(__file__))[0]
+
+
+def new_pmid_needs_new_reference(new_pmid, agr, xrefs_to_add):
+    """
+    For a DQM entry with a PMID not yet in the database whose other IDs (e.g. DOI) matched the
+    one reference agr: the PMID is attached to agr when it is queued in xrefs_to_add, so only
+    create a new reference when it is not. Creating one as well made a duplicate of agr that
+    could not keep the DOI (SCRUM-6864).
+    """
+    if new_pmid is None:
+        return False
+    return new_pmid not in xrefs_to_add.get(agr, {}).get('PMID', {})
 
 
 def load_pmids_not_found():
@@ -441,9 +455,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                 if prefix not in dqm_xrefs:
                     dqm_xrefs[prefix] = set()
                 dqm_xrefs[prefix].add(identifier)
+                key = xref_lookup_key(prefix, identifier)
                 if prefix in xref_ref:
-                    if identifier in xref_ref[prefix]:
-                        agr = xref_ref[prefix][identifier]
+                    if key in xref_ref[prefix]:
+                        agr = xref_ref[prefix][key]
                         agrs_found.add(agr)
 
             flag_dqm_prefix_fail = False
@@ -476,11 +491,11 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                         references_to_create.append(entry)
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
             elif len(agrs_found) == 1:
+                new_pmid = None
                 if primary_id.startswith('PMID:'):
                     identifier = primary_id.replace("PMID:", "")
                     if identifier not in xref_ref['PMID']:
-                        ## it is a new pmid, so add it
-                        references_to_create.append(entry)
+                        new_pmid = identifier
                 agr = agrs_found.pop()
                 agr_url = url_ref_curie_prefix + agr
                 flag_aggregate_biblio = False
@@ -536,6 +551,9 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                                     xrefs_to_add[agr][prefix][ident] = set()
                                 xrefs_to_add[agr][prefix][ident].add(filename)
                                 # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
+
+                if new_pmid_needs_new_reference(new_pmid, agr, xrefs_to_add):
+                    references_to_create.append(entry)
 
                 ## do not do anything if there is any XREF ID conflict
                 if xref_conflict:
@@ -616,6 +634,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
 
         ## add new cross_reference XREF IDs
         add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
+        # a PMID added to an existing reference (e.g. a MOD record found by its DOI) gets its PubMed data now
+        if live_change:
+            refresh_pmids_from_pubmed([x["curie"].replace("PMID:", "") for x in cross_reference_to_add
+                                       if x["curie"].startswith("PMID:")], logger)
 
         ## update references with md5sum changed
         curie_to_reftypesConflict = update_db_entries(mod, mod_to_mod_id,

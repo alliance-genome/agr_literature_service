@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pubmed_json import sanitize_pubmed_json_list
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    refresh_pmids_from_pubmed
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -559,11 +561,13 @@ def query_mods(input_mod, reldate):  # noqa: C901
         download_pubmed_xml(pmids_to_process)
         generate_json(pmids_to_process, [])
 
-        (log_path, log_url, not_loaded_pmids) = check_handle_duplicate(db_session, mod,
-                                                                       pmids_to_process,
-                                                                       xref_ref,
-                                                                       ref_xref_valid,
-                                                                       logger)
+        (log_path, log_url, not_loaded_pmids, attached_pmids) = check_handle_duplicate(db_session, mod,
+                                                                                       pmids_to_process,
+                                                                                       xref_ref,
+                                                                                       ref_xref_valid,
+                                                                                       logger)
+        # PMIDs attached to existing (e.g. DQM) references get their PubMed data now
+        refresh_pmids_from_pubmed(attached_pmids, logger)
 
         not_loaded_pmids4mod[mod] = not_loaded_pmids
         for pmid in pmids_to_process:
