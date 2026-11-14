@@ -68,11 +68,15 @@ def _get_or_create_fb_mod(db_session):
 def mock_load_name_to_atp_and_relationships():
     print("*** LOCAL TWA mock_load_name_to_atp_and_relationships ***")
     workflow_children = {
+        # made-up process sharing ATP:0000141 with file upload, so the tests below can walk
+        # 141 -> ATP:fileuploadinprogress. It comes BEFORE ATP:0000140: the parent map keeps the
+        # last write, so 141's parent stays ATP:0000140, and so does the process-global ATP
+        # cache this mock leaves behind for the next test in the worker (SCRUM-6845).
+        'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
         'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
         'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162'],
-        'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
         'ATP:0000165': ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169'],
         'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
         'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
@@ -117,9 +121,8 @@ def workflow_automation_init(db):  # noqa
     print("workflow_automation_init")
     test_data = [
         # [transition_from, transition_to, actions, condition]
-        # a first state needs a row from its process term (SCRUM-6845); in this mock
-        # ATP:0000141 belongs to the made-up process ATP:fileupload
-        ["ATP:fileupload", "ATP:0000141", [], None],
+        # "file needed" as a first state comes from the ATP:0000140 -> ATP:0000141 row
+        # tests/conftest.py gives every MOD (SCRUM-6845)
         ["ATP:0000141", "ATP:fileuploadinprogress", [], 'on_start'],
         ["ATP:fileuploadinprogress",
          "ATP:fileuploadcomplete",
