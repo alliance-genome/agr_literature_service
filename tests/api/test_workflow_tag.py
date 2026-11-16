@@ -365,7 +365,8 @@ class TestWorkflowTag:
                 mock_get_map_ateam_curies_to_names:
             mock_get_map_ateam_curies_to_names.return_value = {
                 'ATP:0000141': 'file needed', 'ATP:0001111': 'test',
-                'ATP:0000168': 'catalytic activity classification complete'
+                'ATP:0000168': 'catalytic activity classification complete',
+                'ATP:0000358': 'email extraction needed'
             }
             # Create additional references and MODs
             mods = ['WB', 'WB', 'FB']
@@ -427,9 +428,9 @@ class TestWorkflowTag:
             one_week_ago_date = one_week_ago.date().isoformat()
             # Test the counters endpoint with different parameters
             test_cases = [
-                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 8},
-                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 4},
-                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 8},
+                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 11},
+                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 6},
+                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 11},
             ]
 
             for case in test_cases:

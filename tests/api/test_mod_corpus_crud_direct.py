@@ -28,6 +28,7 @@ ZFIN_INDEX = "ATP:0000306"
 ZFIN_PRE_INDEXING_COMPLETE = "ATP:0000303"
 ZFIN_MOLECULAR_PROBE = "ATP:0000380"
 ZFIN_MOLECULAR_PROBE_IN_PROGRESS = "ATP:0000383"
+EMAIL_EXTRACTION_NEEDED = "ATP:0000358"
 WB_AUTHOR_PERSON_NEEDED = "ATP:0000109"
 WB_AUTHOR_PERSON_IN_PROGRESS = "ATP:0000377"
 
@@ -121,7 +122,7 @@ class TestCreate:
         tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == ref.reference_id,
             WorkflowTagModel.mod_id == mod_id).all()}
-        assert tags == {ZFIN_MOLECULAR_PROBE_IN_PROGRESS, ZFIN_PRE_INDEXING_COMPLETE}
+        assert tags == {ZFIN_MOLECULAR_PROBE_IN_PROGRESS, ZFIN_PRE_INDEXING_COMPLETE, EMAIL_EXTRACTION_NEEDED}
 
     def _create_in_corpus(self, db, ref, mod_abbreviation): # noqa
         payload = ModCorpusAssociationSchemaPost(
@@ -300,7 +301,7 @@ class TestPatch:
         update = ModCorpusAssociationSchemaUpdate(corpus=True, index_wft_id=SGD_INDEX)
         with patch(f"{HELPERS}.check_xref_and_generate_mod_id"):
             mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
-        assert _tag_ids(db, ref, mod) == [FILE_NEEDED, SGD_INDEX]
+        assert _tag_ids(db, ref, mod) == [FILE_NEEDED, SGD_INDEX, EMAIL_EXTRACTION_NEEDED]
 
     @patch(ATP_MOCK, load_name_to_atp_and_relationships_mock)
     def test_patch_sgd_index_choice_moves_an_existing_state(self, seeded): # noqa
@@ -317,7 +318,7 @@ class TestPatch:
         update = ModCorpusAssociationSchemaUpdate(corpus=True, index_wft_id=SGD_INDEX_COMPLETE)
         with patch(f"{HELPERS}.check_xref_and_generate_mod_id"):
             mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
-        assert _tag_ids(db, ref, mod) == [FILE_NEEDED, SGD_INDEX_COMPLETE]
+        assert _tag_ids(db, ref, mod) == [FILE_NEEDED, SGD_INDEX_COMPLETE, EMAIL_EXTRACTION_NEEDED]
 
         with pytest.raises(HTTPException):
             mca_crud.add_workflow_tags_on_patch_into_corpus(db, mca, ref, "SGD", {"index_wft_id": "ATP:0000343"})
