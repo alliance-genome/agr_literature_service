@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import and_
 from starlette.testclient import TestClient
-from fastapi import status
+from fastapi import HTTPException, status
 from unittest.mock import patch
 
 from agr_literature_service.api.main import app
@@ -13,7 +13,8 @@ from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, 
 from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process,
-    get_indexing_and_community_workflow_tags)
+    get_indexing_and_community_workflow_tags,
+    patch as workflow_tag_crud_patch)
 from ..fixtures import load_name_to_atp_and_relationships_mock
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
@@ -83,35 +84,32 @@ class TestWorkflowTag:
         assert ref_wt_obj.workflow_tag_id == "ATP:0001111"
 
     def test_patch_ref_wt(self, db, test_workflow_tag, auth_headers): # noqa
+        """PATCH edits only the note and the curation tag (SCRUM-6845)."""
         with TestClient(app) as client:
-            # change workflow_tag
-            xml = {"workflow_tag_id": "ATP:0003333",
-                   "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
-                   }
-            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml, headers=auth_headers)
+            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}",
+                                    json={"note": "checked", "curation_tag": "ATP:0000208"}, headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
+            assert response.json()["note"] == "checked"
+            assert response.json()["curation_tag"] == "ATP:0000208"
 
-            ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
-                WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
-            assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
-            assert ref_wt_obj.workflow_tag_id == "ATP:0003333"
-
-            transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions",
-                                      headers=auth_headers).json()
-            assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ATP:0001111'
-            assert not transactions[0]['changeset']['mod_id'][0]
-            assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ATP:0001111'
-            assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ATP:0003333'
-
-    def test_patch_ref_wt_blank_mod_abbr(self, db, test_workflow_tag, auth_headers):  # noqa
+    @pytest.mark.parametrize("field, value", [("workflow_tag_id", "ATP:0003333"), ("mod_abbreviation", ""),
+                                              ("reference_curie", "AGRKB:101000000000001")])
+    def test_patch_ref_wt_refuses_other_fields(self, db, test_workflow_tag, auth_headers, field, value): # noqa
+        """A status change goes through a transition and a merge through /workflow_tag/merge (SCRUM-6845)."""
         with TestClient(app) as client:
-            # change workflow_tag
-            patch_data = {"mod_abbreviation": ""}
-            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=patch_data,
+            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json={field: value},
                                     headers=auth_headers)
-            assert response.status_code == status.HTTP_200_OK
-            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
-            assert response.json()["mod_abbreviation"] == ""
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        ref_wt_obj = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
+        assert ref_wt_obj.workflow_tag_id == "ATP:0001111"
+        assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
+
+    def test_patch_crud_refuses_other_fields(self, db, test_workflow_tag): # noqa
+        """Internal callers of workflow_tag_crud.patch get the same rule as the API."""
+        with pytest.raises(HTTPException) as exc:
+            workflow_tag_crud_patch(db, test_workflow_tag.new_wt_id, {"workflow_tag_id": "ATP:0003333"})
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show_ref_wt(self, test_workflow_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -248,21 +246,69 @@ class TestWorkflowTag:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_patch_ref_wt_reference_by_pmid(self, db, test_workflow_tag, auth_headers):  # noqa
-        """PATCH resolves a PMID/MOD curie in reference_curie to the AGRKB reference (SCRUM-6319)."""
-        reference = db.query(ReferenceModel).filter(
-            ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
-        db.add(CrossReferenceModel(curie="PMID:77777777", curie_prefix="PMID",
-                                   reference_id=reference.reference_id))
+    def _second_reference(self, db, curie): # noqa
+        reference = ReferenceModel(curie=curie, title="merge target")
+        db.add(reference)
         db.commit()
+        return reference
+
+    def test_merge_moves_and_deletes_in_one_call(self, db, test_workflow_tag, auth_headers): # noqa
+        """A reference merge deletes the dropped tags and moves the kept ones (SCRUM-6845); the
+        surviving reference is found by PMID too (SCRUM-6319)."""
+        survivor = self._second_reference(db, "AGRKB:101000000999001")
+        db.add(CrossReferenceModel(curie="PMID:77777777", curie_prefix="PMID", reference_id=survivor.reference_id))
+        loser_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        dropped = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=test_workflow_tag.related_mod_id,
+                                   workflow_tag_id="ATP:0002222")
+        db.add(dropped)
+        db.commit()
+        dropped_id = dropped.reference_workflow_tag_id
         with TestClient(app) as client:
-            xml = {"reference_curie": "PMID:77777777"}
-            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml,
-                                    headers=auth_headers)
+            response = client.post(url="/workflow_tag/merge/PMID:77777777",
+                                   json={"delete_ids": [dropped_id], "move_ids": [test_workflow_tag.new_wt_id]},
+                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
-                WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
-            assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
+        db.expire_all()
+        moved = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
+        assert moved.reference_id == survivor.reference_id
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == dropped_id).one_or_none() is None
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_merge_refuses_a_second_state_of_one_process(self, db, test_workflow_tag, auth_headers): # noqa
+        """Moving a file upload state onto a reference that keeps its own would leave two states of one
+        workflow; nothing is changed then, not even the deletes."""
+        load_name_to_atp_and_relationships_mock()
+        survivor = self._second_reference(db, "AGRKB:101000000999002")
+        loser_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        mod_id = test_workflow_tag.related_mod_id
+        moving = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=mod_id, workflow_tag_id="ATP:0000134")
+        kept = WorkflowTagModel(reference_id=survivor.reference_id, mod_id=mod_id, workflow_tag_id="ATP:0000141")
+        db.add_all([moving, kept])
+        db.commit()
+        moving_id = moving.reference_workflow_tag_id
+        with TestClient(app) as client:
+            response = client.post(url=f"/workflow_tag/merge/{survivor.curie}",
+                                   json={"delete_ids": [test_workflow_tag.new_wt_id], "move_ids": [moving_id]},
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        db.expire_all()
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == moving_id).one().reference_id == loser_ref.reference_id
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one_or_none() is not None
+
+    def test_merge_refuses_unknown_and_overlapping_ids(self, db, test_workflow_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.post(url=f"/workflow_tag/merge/{test_workflow_tag.related_ref_curie}",
+                                   json={"move_ids": [-1]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+            wt_id = test_workflow_tag.new_wt_id
+            response = client.post(url=f"/workflow_tag/merge/{test_workflow_tag.related_ref_curie}",
+                                   json={"delete_ids": [wt_id], "move_ids": [wt_id]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)

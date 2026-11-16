@@ -12,7 +12,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, List
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -758,50 +758,70 @@ def destroy(db: Session, reference_workflow_tag_id: int) -> None:
     return None
 
 
+# SCRUM-6845: a workflow tag's status only changes through transition_to_workflow_status, so PATCH
+# edits only these fields; a reference merge moves tags with merge_into_reference.
+PATCHABLE_FIELDS = ("note", "curation_tag")
+
+
 def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
-    """
-    Update a workflow_tag
-    :param db:
-    :param reference_workflow_tag_id:
-    :param workflow_tag_update:
-    :return:
-    """
+    """Update the note and/or curation tag of a workflow tag; any other field is refused (422)."""
     workflow_tag_data = jsonable_encoder(workflow_tag_update)
-
-    if "created_by" in workflow_tag_data and workflow_tag_data["created_by"] is not None:
-        workflow_tag_data["created_by"] = map_to_user_id(workflow_tag_data["created_by"], db)
-    if "updated_by" in workflow_tag_data and workflow_tag_data["updated_by"] is not None:
-        workflow_tag_data["updated_by"] = map_to_user_id(workflow_tag_data["updated_by"], db)
-
+    refused = sorted(set(workflow_tag_data) - set(PATCHABLE_FIELDS))
+    if refused:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Only {', '.join(PATCHABLE_FIELDS)} can be changed on a workflow tag, not "
+                                   f"{', '.join(refused)}: a status change goes through "
+                                   f"/workflow_tag/transition_to_workflow_status.")
     workflow_tag_db_obj = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"WorkflowTag with workflow_tag_id {reference_workflow_tag_id} not found")
-
-    for field, value in workflow_tag_data.items():
-        if field == "reference_curie":
-            if value is not None:
-                reference_curie = normalize_reference_identifier(db, value)
-                new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-                if not new_reference:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                                        detail=f"Reference with curie {reference_curie} does not exist")
-                workflow_tag_db_obj.reference = new_reference
-        elif field == "mod_abbreviation":
-            if ((value is not None) and (len(value))) == 0:
-                workflow_tag_db_obj.mod_id = None
-            elif value is not None:
-                mod_abbreviation = value
-                new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-                if not new_mod:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                                        detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-                workflow_tag_db_obj.mod_id = new_mod.mod_id
-        else:
-            setattr(workflow_tag_db_obj, field, value)
+    for field in PATCHABLE_FIELDS:
+        if field in workflow_tag_data:
+            setattr(workflow_tag_db_obj, field, workflow_tag_data[field])
     db.commit()
     return {"message": "updated"}
+
+
+def merge_into_reference(db: Session, reference_curie: str, delete_ids: List[int], move_ids: List[int]):
+    """The workflow tags of a reference merge, in one transaction (SCRUM-6845): delete the tags the
+    curator dropped, then move the kept ones to the surviving reference. A merge is not a status
+    change, so no transition runs; a moved tag must not meet a tag of the same workflow process for
+    the same MOD on the surviving reference."""
+    if set(delete_ids) & set(move_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Workflow tags both deleted and moved: {sorted(set(delete_ids) & set(move_ids))}")
+    curie = normalize_reference_identifier(db, reference_curie)
+    target = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Reference with curie {reference_curie} does not exist")
+    ids = list(delete_ids) + list(move_ids)
+    tags = {tag.reference_workflow_tag_id: tag for tag in db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_workflow_tag_id.in_(ids)).all()} if ids else {}
+    missing = sorted(set(ids) - set(tags))
+    if missing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Workflow tags not found: {missing}")
+    for tag_id in delete_ids:
+        db.delete(tags[tag_id])
+    db.flush()
+    for tag_id in move_ids:
+        tag = tags[tag_id]
+        if tag.reference_id == target.reference_id:
+            continue
+        process_atp_id = atp_get_parent(tag.workflow_tag_id)
+        clash = _get_tag_under_process(db, target.reference_id, tag.mod_id, process_atp_id) \
+            if process_atp_id else None
+        if clash is not None:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                detail=f"Cannot move workflow tag {tag_id} ({tag.workflow_tag_id}) to {curie}: it "
+                                       f"already has {clash.workflow_tag_id} in {process_atp_id} for that MOD.")
+        tag.reference_id = target.reference_id
+        db.flush()
+    db.commit()
+    return {"message": "merged"}
 
 
 def show(db: Session, reference_workflow_tag_id: int):

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
@@ -56,17 +56,24 @@ class WorkflowTagSchemaShow(WorkflowTagSchemaRelated):
 
 
 class WorkflowTagSchemaUpdate(BaseModel):
-    """Schema for updating a workflow tag association."""
+    """Schema for updating a workflow tag: only its note and curation tag (SCRUM-6845); its status
+    changes through /workflow_tag/transition_to_workflow_status."""
     model_config = ConfigDict(
         extra='forbid',
         from_attributes=True
     )
 
-    reference_curie: Optional[str] = None
-    mod_abbreviation: Optional[str] = None
-    workflow_tag_id: Optional[str] = None
     curation_tag: Optional[str] = None
     note: Optional[str] = None
+
+
+class WorkflowTagSchemaMerge(BaseModel):
+    """The workflow tags of a reference merge: the ids to delete and the ids to move to the
+    surviving reference (SCRUM-6845)."""
+    model_config = ConfigDict(extra='forbid')
+
+    delete_ids: List[int] = []
+    move_ids: List[int] = []
 
 
 class WorkflowTransitionSchemaPost(BaseModel):
