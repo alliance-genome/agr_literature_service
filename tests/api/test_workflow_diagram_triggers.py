@@ -74,8 +74,10 @@ def test_entry_points_per_mod():
     # SGD manual indexing: on corpus entry, and from the sort page
     assert {("corpus_entry", "ATP:0000274"), ("sort_page", "ATP:0000273")} <= targets("SGD")
     # WB author workflows: the sort page checkbox and the PubMed update
-    assert {("sort_page", "ATP:0000109"), ("pubmed_update", "ATP:0000389")} <= targets("WB")
-    assert not {curie for _source, curie in targets("FB")} & {"ATP:0000109", "ATP:0000389", "ATP:0000274"}
+    assert {("sort_page", "ATP:0000109"), ("sort_page", "ATP:0000378"),
+            ("pubmed_update", "ATP:0000389")} <= targets("WB")
+    not_fb = {"ATP:0000109", "ATP:0000378", "ATP:0000389", "ATP:0000274"}
+    assert not {curie for _source, curie in targets("FB")} & not_fb
     # email extraction starts on corpus entry for the MODs that extract emails (SCRUM-6845)
     for mod in ("FB", "SGD", "WB", "XB", "ZFIN"):
         assert ("corpus_entry", "ATP:0000358") in targets(mod)

@@ -1,16 +1,23 @@
 """Tests for link_authors_to_persons (SCRUM-5744)."""
+from unittest.mock import patch
+
 from agr_literature_service.api.models import (
     AuthorModel,
+    ModCorpusAssociationModel,
+    ModModel,
     PersonCrossReferenceModel,
     PersonEmailModel,
     PersonModel,
     PersonNameModel,
     ReferenceModel,
+    WorkflowTagModel,
+    WorkflowTransitionModel,
 )
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest import (
     link_authors_to_persons as mod,
 )
-from ....fixtures import db  # noqa
+from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
+from ....fixtures import db, load_name_to_atp_and_relationships_mock  # noqa
 
 
 def _person(db, curie, last_name, orcid=None, emails=()):  # noqa
@@ -259,3 +266,55 @@ class TestEmailPass:
         assert author.person_id == person_id
         assert author.updated_by == mod.ORCID_USER
         assert counts.get(f"{mod.EMAIL_USER}_linked", 0) == 0
+
+
+AUTHOR_PERSON_STATES = ["ATP:0000109", "ATP:0000377", "ATP:0000376", "ATP:0000378"]
+
+
+def _author_person_status(db, ref_id):  # noqa
+    db.expire_all()
+    row = db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_id == ref_id,
+        WorkflowTagModel.workflow_tag_id.in_(AUTHOR_PERSON_STATES)).one()
+    return row.workflow_tag_id
+
+
+@patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+       load_name_to_atp_and_relationships_mock)
+class TestAuthorPersonStatus:
+    """SCRUM-6827: a paper whose last unlinked author the linker links moves to
+    author-person curation complete."""
+
+    def _wb_paper(self, db, curie, status):  # noqa
+        populate_test_mods()
+        mod = db.query(ModModel).filter_by(abbreviation="WB").one()
+        if not db.query(WorkflowTransitionModel).filter_by(mod_id=mod.mod_id).first():
+            for a in AUTHOR_PERSON_STATES:
+                for b in AUTHOR_PERSON_STATES:
+                    if a != b:
+                        db.add(WorkflowTransitionModel(mod_id=mod.mod_id, transition_from=a,
+                                                       transition_to=b, transition_type="any", actions=[]))
+        ref_id = _reference(db, curie)
+        db.add(ModCorpusAssociationModel(reference_id=ref_id, mod_id=mod.mod_id, corpus=True,
+                                         mod_corpus_sort_source="manual_creation"))
+        db.add(WorkflowTagModel(reference_id=ref_id, mod_id=mod.mod_id, workflow_tag_id=status))
+        db.commit()
+        return ref_id
+
+    def test_linking_the_last_author_completes(self, db):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        _person(db, "AGRKB:P6827-1", "Smith", orcid=ORCID_1)
+        ref_id = self._wb_paper(db, "AGRKB:R6827-1", "ATP:0000376")
+        _author(db, ref_id, 1, "Smith", orcid=ORCID_1)
+        counts = mod.link_authors_to_persons(db)
+        assert counts["author_person_status_to_ATP:0000378"] == 1
+        assert _author_person_status(db, ref_id) == "ATP:0000378"
+
+    def test_an_author_left_unlinked_keeps_the_status(self, db):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        _person(db, "AGRKB:P6827-2", "Smith", orcid=ORCID_2)
+        ref_id = self._wb_paper(db, "AGRKB:R6827-2", "ATP:0000109")
+        _author(db, ref_id, 1, "Smith", orcid=ORCID_2)
+        _author(db, ref_id, 2, "Jones")
+        mod.link_authors_to_persons(db)
+        assert _author_person_status(db, ref_id) == "ATP:0000109"

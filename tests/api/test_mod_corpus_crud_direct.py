@@ -8,7 +8,8 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from agr_literature_service.api.crud import mod_corpus_association_crud as mca_crud
-from agr_literature_service.api.models import (CrossReferenceModel, ModModel, ReferenceModel,
+from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel, ModModel,
+                                               PersonModel, ReferenceModel,
                                                ModCorpusAssociationModel,
                                                WorkflowTagModel, WorkflowTransitionModel)
 from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
@@ -29,8 +30,10 @@ ZFIN_PRE_INDEXING_COMPLETE = "ATP:0000303"
 ZFIN_MOLECULAR_PROBE = "ATP:0000380"
 ZFIN_MOLECULAR_PROBE_IN_PROGRESS = "ATP:0000383"
 EMAIL_EXTRACTION_NEEDED = "ATP:0000358"
+AUTHOR_PERSON_CURATION = "ATP:0000375"
 WB_AUTHOR_PERSON_NEEDED = "ATP:0000109"
 WB_AUTHOR_PERSON_IN_PROGRESS = "ATP:0000377"
+WB_AUTHOR_PERSON_COMPLETE = "ATP:0000378"
 
 
 def _reference(db, curie): # noqa
@@ -49,6 +52,18 @@ def _mca(db, reference, mod, corpus=None): # noqa
     db.commit()
     db.refresh(mca)
     return mca
+
+
+def _author(db, reference, order, linked=False): # noqa
+    person_id = None
+    if linked:
+        person = PersonModel(display_name=f"Person {order}", curie=f"AGRKB:MCAP-{reference.reference_id}-{order}")
+        db.add(person)
+        db.commit()
+        person_id = person.person_id
+    db.add(AuthorModel(reference_id=reference.reference_id, author_order=order,
+                       name=f"Author {order}", person_id=person_id))
+    db.commit()
 
 
 def _mod(db, abbreviation): # noqa
@@ -250,9 +265,18 @@ class TestPatch:
     def _patch_into_corpus(self, db, ref, mod_abbreviation, **flags): # noqa
         mod = _mod(db, mod_abbreviation)
         mca = _mca(db, ref, mod, corpus=False)
+        # the checkbox is one transition from the author-person curation process term (SCRUM-6845)
+        for state in (WB_AUTHOR_PERSON_NEEDED, WB_AUTHOR_PERSON_COMPLETE):
+            if not db.query(WorkflowTransitionModel).filter_by(
+                    mod_id=mod.mod_id, transition_from=AUTHOR_PERSON_CURATION, transition_to=state).first():
+                db.add(WorkflowTransitionModel(mod_id=mod.mod_id, transition_from=AUTHOR_PERSON_CURATION,
+                                               transition_to=state, transition_type="any"))
+        db.commit()
         update = ModCorpusAssociationSchemaUpdate(corpus=True, **flags)
-        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+        with patch(ATP_MOCK, load_name_to_atp_and_relationships_mock), \
+                patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
                 patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            load_name_to_atp_and_relationships_mock()
             mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
         return {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == ref.reference_id,
@@ -261,8 +285,26 @@ class TestPatch:
     def test_patch_wb_with_checkbox_adds_author_person_needed(self, seeded): # noqa
         """SCRUM-6487: sorting inside with the checkbox checked grants the tag."""
         db, ref = seeded  # noqa
+        _author(db, ref, 1, linked=True)
+        _author(db, ref, 2)
         tags = self._patch_into_corpus(db, ref, "WB", author_person_curation_needed=True)
         assert WB_AUTHOR_PERSON_NEEDED in tags
+        assert WB_AUTHOR_PERSON_COMPLETE not in tags
+
+    def test_patch_wb_with_checkbox_all_authors_linked_grants_complete(self, seeded): # noqa
+        """SCRUM-6827: nothing left to curate, so the paper starts at complete."""
+        db, ref = seeded  # noqa
+        _author(db, ref, 1, linked=True)
+        _author(db, ref, 2, linked=True)
+        tags = self._patch_into_corpus(db, ref, "WB", author_person_curation_needed=True)
+        assert WB_AUTHOR_PERSON_COMPLETE in tags
+        assert WB_AUTHOR_PERSON_NEEDED not in tags
+
+    def test_patch_wb_with_checkbox_no_authors_grants_complete(self, seeded): # noqa
+        db, ref = seeded  # noqa
+        tags = self._patch_into_corpus(db, ref, "WB", author_person_curation_needed=True)
+        assert WB_AUTHOR_PERSON_COMPLETE in tags
+        assert WB_AUTHOR_PERSON_NEEDED not in tags
 
     def test_patch_wb_without_checkbox_skips_author_person_needed(self, seeded): # noqa
         db, ref = seeded  # noqa
