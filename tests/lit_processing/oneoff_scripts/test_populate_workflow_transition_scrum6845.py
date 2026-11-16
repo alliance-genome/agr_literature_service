@@ -51,6 +51,11 @@ def test_adds_the_rows_and_commits_only_with_apply():
     assert (MOD_IDS["WB"], "ATP:0000375", "ATP:0000378", "any", None) in added
     assert (MOD_IDS["WB"], "ATP:0000388", "ATP:0000389", "any", None) in added
     assert not any(row[1] == "ATP:0000375" and row[0] != MOD_IDS["WB"] for row in added)
+    # the WF editor's clear: state -> process term, manual only, for the MODs that show the process
+    assert (MOD_IDS["FB"], "ATP:0000331", "ATP:0000329", "manual_only", None) in added
+    assert (MOD_IDS["WB"], "ATP:0000390", "ATP:0000388", "manual_only", None) in added
+    assert (MOD_IDS["WB"], "ATP:0000231", "ATP:0000235", "manual_only", None) in added
+    assert not any(row[2] == "ATP:0000235" and row[0] == MOD_IDS["SGD"] for row in added)
 
     db = _db([])
     script.populate(db, apply=True)

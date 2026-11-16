@@ -622,6 +622,10 @@ class TestWorkflowTag:
         assert set(wb_result['author review']['all_workflow_tags'].keys()) == {
             'ATP:0000389', 'ATP:0000390', 'ATP:0000391', 'ATP:0000392'
         }
+        # the WF editor clears a tag by a transition to its section's process term (SCRUM-6845)
+        assert wb_result['author-person curation']['workflow_process_atp_id'] == 'ATP:0000375'
+        assert wb_result['author review']['workflow_process_atp_id'] == 'ATP:0000388'
+        assert wb_result['manual indexing']['workflow_process_atp_id'] == 'ATP:0000273'
 
         for mod_abbreviation in ('FB', 'SGD', 'ZFIN'):
             result = get_indexing_and_community_workflow_tags(db, ref_curie, mod_abbreviation)

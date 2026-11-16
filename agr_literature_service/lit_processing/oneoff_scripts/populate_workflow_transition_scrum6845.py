@@ -6,6 +6,8 @@ workflow tag change goes through transition_to_workflow_status().
   state; a row from a state to the process term removes the tag.
 - Rows of type 'action' are job-poll connectors (get_jobs reads their
   condition) and are never fired as transitions.
+- The WF editor clears a tag with a manual transition to the process term, so
+  every process it shows gets state -> process rows.
 
 The script only adds missing rows, and changes transition_type on the rows
 listed in TYPE_CHANGES. Existing rows are otherwise left as they are. It is
@@ -52,6 +54,13 @@ AUTHOR_REVIEW_COMPLETE = "ATP:0000392"
 AUTHOR_PERSON_CURATION = "ATP:0000375"
 AUTHOR_PERSON_NEEDED = "ATP:0000109"
 AUTHOR_PERSON_COMPLETE = "ATP:0000378"
+COMMUNITY_CURATION = "ATP:0000235"
+COMMUNITY_CURATION_STATES = ("ATP:0000231", "ATP:0000232", "ATP:0000233", "ATP:0000234", "ATP:0000342",
+                             "ATP:0000394")
+FIRST_PASS_CURATION = "ATP:0000329"
+FIRST_PASS_CURATION_STATES = ("ATP:0000330", "ATP:0000331", "ATP:0000332", "ATP:0000333", "ATP:0000371")
+AUTHOR_PERSON_STATES = ("ATP:0000109", "ATP:0000377", "ATP:0000376", "ATP:0000378")
+AUTHOR_REVIEW_STATES = ("ATP:0000389", "ATP:0000390", "ATP:0000391", "ATP:0000392")
 ZFIN_TOP = "ATP:0000177"
 ZFIN_INDEXING_PRIORITY = "ATP:0000306"
 ZFIN_MOLECULAR_PROBE = "ATP:0000380"
@@ -89,6 +98,14 @@ def _rows() -> List[Row]:
     # WB author-person curation: the sort page checkbox starts it at "needed" or "complete"
     rows.append(Row(("WB",), AUTHOR_PERSON_CURATION, AUTHOR_PERSON_NEEDED))
     rows.append(Row(("WB",), AUTHOR_PERSON_CURATION, AUTHOR_PERSON_COMPLETE))
+    # the WF editor clears a tag with a manual transition to its process term (removal), for the
+    # processes it shows besides manual indexing
+    for mods, process, states in ((("FB", "WB"), COMMUNITY_CURATION, COMMUNITY_CURATION_STATES),
+                                  (("FB",), FIRST_PASS_CURATION, FIRST_PASS_CURATION_STATES),
+                                  (("WB",), AUTHOR_PERSON_CURATION, AUTHOR_PERSON_STATES),
+                                  (("WB",), AUTHOR_REVIEW, AUTHOR_REVIEW_STATES)):
+        for state in states:
+            rows.append(Row(mods, state, process, "manual_only"))
     return rows
 
 

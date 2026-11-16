@@ -1675,7 +1675,9 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
                 tags.append(tag)
         result[workflow_name] = {
             "current_workflow_tag": tags,
-            "all_workflow_tags": all_workflow_tags
+            "all_workflow_tags": all_workflow_tags,
+            # the WF editor clears a tag by a transition to this term (SCRUM-6845)
+            "workflow_process_atp_id": process_atp_id
         }
     return result
 
