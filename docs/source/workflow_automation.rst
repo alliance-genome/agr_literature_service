@@ -119,6 +119,11 @@ Who writes workflow tags.
     Without a row the change is refused (422). A missing transition is added to the table, not
     bypassed in code.
 
+    The rows this needs (process term to first state, state back to process term, the email
+    extraction job connector and the type changes) are added by
+    lit_processing/oneoff_scripts/populate_workflow_transition_scrum6845.py (dry run by default,
+    ``--apply`` to write).
+
 Viewing data in the workflow_transition Table.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
