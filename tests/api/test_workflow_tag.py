@@ -763,11 +763,22 @@ class TestWorkflowTagReportsAndPriority:
             }
             response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
+            # the job rows ZFIN has: needed -> complete on success, -> failed on failure (SCRUM-6845)
+            mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
+            db.add(WorkflowTransitionModel(mod=mod_obj, transition_from="ATP:0000306", transition_to="ATP:0000303",
+                                           condition="on_success"))
+            db.add(WorkflowTransitionModel(mod=mod_obj, transition_from="ATP:0000306", transition_to="ATP:0000304",
+                                           condition="on_failed"))
+            db.commit()
 
             response = client.post(
                 url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
                 headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
+            db.expire_all()
+            tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).join(ReferenceModel).filter(
+                ReferenceModel.curie == curie, WorkflowTagModel.mod_id == mod_obj.mod_id).all()}
+            assert "ATP:0000303" in tags and "ATP:0000306" not in tags
 
     def test_get_reference_workflow_tags_by_mod(self, db, auth_headers):  # noqa
         with TestClient(app) as client:

@@ -288,7 +288,11 @@ class TestAuthorPersonStatus:
     def _wb_paper(self, db, curie, status):  # noqa
         populate_test_mods()
         mod = db.query(ModModel).filter_by(abbreviation="WB").one()
-        if not db.query(WorkflowTransitionModel).filter_by(mod_id=mod.mod_id).first():
+        # WB may already have other rows (every test MOD gets the file upload rows), so look for the
+        # author-person ones themselves
+        if not db.query(WorkflowTransitionModel).filter(
+                WorkflowTransitionModel.mod_id == mod.mod_id,
+                WorkflowTransitionModel.transition_from.in_(AUTHOR_PERSON_STATES)).first():
             for a in AUTHOR_PERSON_STATES:
                 for b in AUTHOR_PERSON_STATES:
                     if a != b:

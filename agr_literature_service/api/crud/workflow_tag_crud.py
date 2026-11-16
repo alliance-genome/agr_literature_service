@@ -1564,10 +1564,6 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
         "priority_2": get_atp_id_by_name('priority 2', fallback='ATP:0000212'),
         "priority_3": get_atp_id_by_name('priority 3', fallback='ATP:0000213')
     }
-    pre_indexing_prioritization_to_atp = {
-        "failed": get_atp_id_by_name('pre-indexing prioritization failed', fallback='ATP:0000304'),
-        "success": get_atp_id_by_name('pre-indexing prioritization complete', fallback='ATP:0000303')
-    }
     pre_indexing_prio_needed_atp = get_atp_id_by_name('pre-indexing prioritization needed', fallback='ATP:0000306')
 
     priority_atp = priority_to_atp_mapping.get(priority)
@@ -1591,12 +1587,10 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
             detail=f"No workflow-tag {pre_indexing_prio_needed_atp} for paper {reference_curie} in MOD {mod_abbreviation}"
         )
 
+    # "pre-indexing prioritization needed" is the priority classifier's job: it moves to complete
+    # or failed by the job's on_success / on_failed rows (SCRUM-6845), not by a raw tag write
     if priority_atp is None:
-        patch(
-            db,
-            reference_workflow_tag_id,
-            {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
-        )
+        job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
     else:
         data = WorkflowTagSchemaPost(
             workflow_tag_id=priority_atp,
@@ -1605,17 +1599,10 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
         )
         try:
             create(db, data)
-            patch(
-                db,
-                reference_workflow_tag_id,
-                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("success")}
-            )
+            job_change_atp_code(db, reference_workflow_tag_id, "on_success")
         except Exception as e:
-            patch(
-                db,
-                reference_workflow_tag_id,
-                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
-            )
+            db.rollback()
+            job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Setting priority failed {e} for paper {reference_curie} in MOD {mod_abbreviation}"
