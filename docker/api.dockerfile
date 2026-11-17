@@ -20,7 +20,6 @@ RUN pip3 install "Cython<3.0" pyyaml --no-build-isolation
 RUN pip3 install -r requirements.txt
 
 # Which commit this image was built from (SCRUM-6878); passed in by the Makefile.
-# Kept after the installs so a new commit doesn't invalidate their cached layers.
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown
 ENV GIT_SHA=${GIT_SHA} BUILD_DATE=${BUILD_DATE}
