@@ -259,6 +259,89 @@ class TestScoringAndSort:
         assert es_body["sort"][0]["date_published_start"]["order"] == "desc"
 
 
+class TestFieldMatchScoring:
+    """SCRUM-6865: all-fields searches rank by matched fields, then recency."""
+
+    @staticmethod
+    def _field_weights(functions):
+        return {next(iter(fn["filter"]["bool"]["should"][0]["match"])): fn["weight"]
+                for fn in functions if "bool" in fn.get("filter", {})}
+
+    def test_one_function_per_field(self):
+        fns = sr.build_field_match_functions("xenobiotic", include_author=False)
+        assert self._field_weights(fns) == sr.FIELD_MATCH_WEIGHTS
+        match, prefix = fns[0]["filter"]["bool"]["should"]
+        assert match["match"]["title"]["query"] == "xenobiotic"
+        assert match["match"]["title"]["minimum_should_match"] == "100%"
+        # a prefix match counts too, as in the highlights ("Xenobiotics")
+        assert prefix == {"match_phrase_prefix": {"title": {"query": "xenobiotic"}}}
+        # no phrase bonus for a single word, no author clause when helpers are off
+        assert not any("match_phrase" in fn["filter"] for fn in fns)
+        assert not any("nested" in fn["filter"] for fn in fns)
+        assert {"filter": {"term": {"title.keyword": "xenobiotic"}},
+                "weight": sr.EXACT_TITLE_WEIGHT} in fns
+
+    def test_mesh_ranks_below_every_other_field(self):
+        others = [w for f, w in sr.FIELD_MATCH_WEIGHTS.items() if f != sr.MESH_FIELD]
+        assert sr.FIELD_MATCH_WEIGHTS[sr.MESH_FIELD] < min(others)
+
+    def test_multi_word_query_adds_phrase_bonus_except_mesh(self):
+        fns = sr.build_field_match_functions("oxidative stress", include_author=False)
+        phrase_fields = {next(iter(fn["filter"]["match_phrase"]))
+                         for fn in fns if "match_phrase" in fn["filter"]}
+        assert phrase_fields == set(sr.FIELD_MATCH_WEIGHTS) - {sr.MESH_FIELD}
+
+    def test_exact_author_match_counts_as_a_field(self):
+        fns = sr.build_field_match_functions("Jane Doe")
+        author = [fn for fn in fns if "nested" in fn["filter"]]
+        assert len(author) == 1
+        assert author[0]["weight"] == sr.AUTHOR_MATCH_WEIGHT
+
+    def test_trailing_wildcard_and_empty_query(self):
+        fns = sr.build_field_match_functions("xeno*", include_author=False)
+        assert fns[0]["filter"]["bool"]["should"][0]["match"]["title"]["query"] == "xeno"
+        assert sr.build_field_match_functions("  ") == []
+
+    def test_recency_outweighs_one_field_but_not_two(self):
+        # A much newer paper may pass one matching a single extra field, but
+        # never one matching two more fields, whatever its BM25 share (which
+        # only approaches FIELD_MATCH_RELEVANCE_MAX, so the bound is strict).
+        one_field = min(w for f, w in sr.FIELD_MATCH_WEIGHTS.items() if f != sr.MESH_FIELD)
+        assert sr.FIELD_MATCH_RECENCY_BONUS > one_field
+        assert sr.FIELD_MATCH_RECENCY_BONUS + sr.FIELD_MATCH_RELEVANCE_MAX <= 2 * one_field
+
+    def test_build_all_text_query_returns_functions(self):
+        res = sr.build_all_text_query("xenobiotic", include_id_author_helpers=False)
+        assert res["field_match_functions"] == sr.build_field_match_functions(
+            "xenobiotic", include_author=False)
+
+    def test_scoring_replaces_text_score(self):
+        fns = sr.build_field_match_functions("xenobiotic", include_author=False)
+        es_body = {"query": {"match": {"title": "xenobiotic"}}}
+        sr.apply_scoring_and_sort(es_body, is_text_search=True, uses_rescore=False,
+                                  field_match_functions=fns)
+        fs = es_body["query"]["function_score"]
+        assert fs["query"] == {"match": {"title": "xenobiotic"}}
+        assert fs["score_mode"] == "sum"
+        assert fs["boost_mode"] == "replace"
+        assert fs["functions"][:len(fns)] == fns
+        decay = next(fn for fn in fs["functions"] if "exp" in fn)
+        assert decay["filter"] == {"exists": {"field": "date_published_start"}}
+        assert decay["weight"] == sr.FIELD_MATCH_RECENCY_BONUS
+        script = next(fn for fn in fs["functions"] if "script_score" in fn)["script_score"]["script"]
+        assert script["params"] == {"max": sr.FIELD_MATCH_RELEVANCE_MAX,
+                                    "half": sr.FIELD_MATCH_RELEVANCE_HALF_SCORE}
+        assert es_body["sort"][0] == {"_score": {"order": "desc"}}
+
+    def test_explicit_date_sort_skips_field_match_scoring(self):
+        fns = sr.build_field_match_functions("xenobiotic", include_author=False)
+        es_body = {"query": {"match": {"title": "xenobiotic"}}}
+        sr.apply_scoring_and_sort(es_body, is_text_search=True, uses_rescore=False,
+                                  explicit_date_sort=True, field_match_functions=fns)
+        assert "function_score" not in es_body["query"]
+        assert es_body["sort"][0]["date_published_start"]["order"] == "desc"
+
+
 class TestContentGate:
     def test_content_tokens_drop_stopwords_and_short(self):
         toks = sr._content_tokens_for_gate("the DNA of a X")

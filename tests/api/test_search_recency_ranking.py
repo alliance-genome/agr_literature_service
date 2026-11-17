@@ -7,6 +7,9 @@ MeSH heading, and every paper older than about 12 years scored exactly 0 and
 was ordered by date alone. A paper matching in its title only also outranked
 one matching in its title, abstract, keywords and MeSH, because each query
 clause counted only its best field and the shorter title scored higher.
+
+SCRUM-6865: the all-fields search now ranks by the fields a paper matches, then
+by recency, so the cases below follow the "Xenobiotic" report on prod.
 """
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -80,6 +83,39 @@ def _title_only(curie: str, days: int) -> dict:
     }
 
 
+def _short_title(curie: str, days: int) -> dict:
+    """Matches 'xenobiotic' in a five-word title and its citation only (AGRKB:101000000991665)."""
+    title = "Transposable elements and xenobiotic resistance."
+    return {
+        "curie": curie,
+        "title": title,
+        "citation": "Ffrench-Constant RH, (2023) " + title,
+        "abstract": FILLER,
+        "mesh_terms": [{"heading_term": "Insecticide Resistance"}],
+        "date_published_start": _days_ago(days),
+    }
+
+
+def _dense(curie: str, days: int) -> dict:
+    """Matches 'xenobiotic' in a short title and repeatedly in the abstract, keywords and MeSH."""
+    return {
+        "curie": curie,
+        "title": "Xenobiotic responses of Drosophila to insecticides",
+        "abstract": "Xenobiotic response genes respond to xenobiotic exposure; the xenobiotic "
+                    "response is general. " + FILLER,
+        "keywords": ["xenobiotic response"],
+        "mesh_terms": [{"heading_term": "Xenobiotics"}],
+        "date_published_start": _days_ago(days),
+    }
+
+
+def _no_mesh(curie: str, days: int) -> dict:
+    """Matches 'xenobiotic' in the title, abstract and keywords, with no MeSH match."""
+    doc = _dense(curie, days)
+    doc["mesh_terms"] = [{"heading_term": "Lung"}]
+    return doc
+
+
 @pytest.fixture(scope="module")
 def es():
     if _is_aws_es_host(config.ELASTICSEARCH_HOST):
@@ -109,6 +145,16 @@ def es():
         _rich("TIE:new", 30), _rich("TIE:old", 3000),
         # Same age: matches in more fields beat a shorter title-only match
         _broad("BREADTH:broad", 400), _title_only("BREADTH:title", 400),
+        # SCRUM-6865: a short title-only match three years older (AGRKB:101000000991665)
+        _broad("SHORT:broad", 280), _short_title("SHORT:title", 1400),
+        # SCRUM-6865: same fields, the older paper's shorter title and repeated
+        # term favour it on BM25 (AGRKB:101000000947122 vs 101000001208210)
+        _dense("SAME:old", 1450), _broad("SAME:new", 350),
+        # SCRUM-6865: one extra MeSH match on a paper eleven years older
+        # (AGRKB:101000000257013 vs 101000001211879)
+        _dense("CLOSE:old", 4700), _no_mesh("CLOSE:new", 1000),
+        # ... but two more matching fields still win over a newer paper
+        _broad("FAR:old", 4700), _short_title("FAR:new", 30),
     ]
     for i, doc in enumerate(docs):
         client.index(index=INDEX, id=i, body=doc)
@@ -127,7 +173,8 @@ def _search(client, query: str, curie_prefix: str) -> list:
         }},
         "size": 10,
     }
-    sr.apply_scoring_and_sort(es_body, is_text_search=True, uses_rescore=False)
+    sr.apply_scoring_and_sort(es_body, is_text_search=True, uses_rescore=False,
+                              field_match_functions=bundle["field_match_functions"])
     res = client.search(index=INDEX, body=es_body)
     return [(h["_source"]["curie"], h["_score"]) for h in res["hits"]["hits"]]
 
@@ -147,9 +194,29 @@ def test_recency_breaks_ties_between_equal_matches(es):
     hits = _search(es, "hallucinogen", "TIE:")
     assert [c for c, _ in hits] == ["TIE:new", "TIE:old"]
     (_, new_score), (_, old_score) = hits
-    assert new_score / old_score <= 1.0 + sr.RECENCY_MAX_BONUS
+    assert new_score - old_score <= sr.FIELD_MATCH_RECENCY_BONUS
 
 
 def test_matches_in_more_fields_beat_shorter_title_only_match(es):
     hits = _search(es, "xenobiotic", "BREADTH:")
     assert [c for c, _ in hits] == ["BREADTH:broad", "BREADTH:title"]
+
+
+def test_more_fields_beat_older_short_title_match(es):
+    hits = _search(es, "xenobiotic", "SHORT:")
+    assert [c for c, _ in hits] == ["SHORT:broad", "SHORT:title"]
+
+
+def test_newer_paper_wins_when_the_same_fields_match(es):
+    hits = _search(es, "xenobiotic", "SAME:")
+    assert [c for c, _ in hits] == ["SAME:new", "SAME:old"]
+
+
+def test_much_newer_paper_beats_one_extra_mesh_match(es):
+    hits = _search(es, "xenobiotic", "CLOSE:")
+    assert [c for c, _ in hits] == ["CLOSE:new", "CLOSE:old"]
+
+
+def test_two_more_fields_beat_a_newer_paper(es):
+    hits = _search(es, "xenobiotic", "FAR:")
+    assert [c for c, _ in hits] == ["FAR:old", "FAR:new"]

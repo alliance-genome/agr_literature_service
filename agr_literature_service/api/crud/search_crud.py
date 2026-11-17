@@ -180,6 +180,7 @@ def search_references(
     author_filter = (author_filter or "").strip() or None
     author_exact_token_for_boost = None
     uses_rescore = False
+    field_match_functions = None
 
     # Default recency order. An explicit "asc"/"desc" means the user picked
     # "Oldest first"/"Newest first" and expects chronological ordering, not
@@ -463,6 +464,7 @@ def search_references(
         if bundle.get("rescore"):
             es_body["rescore"] = bundle["rescore"]
         uses_rescore = bool(bundle.get("uses_rescore"))
+        field_match_functions = bundle.get("field_match_functions")
 
         # ORCID support
         core = extract_orcid_core(q_raw)
@@ -743,6 +745,7 @@ def search_references(
                 uses_rescore=uses_rescore,
                 order=order,
                 explicit_date_sort=explicit_date_sort,
+                field_match_functions=field_match_functions,
             )
 
     # Execute
