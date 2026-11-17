@@ -44,6 +44,10 @@ def test_adds_the_rows_and_commits_only_with_apply():
     assert (MOD_IDS["AGR"], "ATP:0000141", "ATP:0000134", "any", None) in added
     assert (MOD_IDS["AGR"], "ATP:0000141", "ATP:0000139", "any", None) in added
     assert (MOD_IDS["AGR"], "ATP:0000139", "ATP:0000134", "any", None) in added
+    requirements = {(row.mod_id, row.transition_from, row.transition_to): row.requirements
+                    for row in (call.args[0] for call in db.add.call_args_list)}
+    assert requirements[(MOD_IDS["AGR"], "ATP:0000134", "ATP:0000139")] == ["referencefiles_present"]
+    assert requirements[(MOD_IDS["AGR"], "ATP:0000134", "ATP:0000141")] == ["not_referencefiles_present"]
     assert not any(row[0] == MOD_IDS["FB"] and row[1] == "ATP:0000141" and row[2] == "ATP:0000134"
                    for row in added)
     # manual indexing: from and back to the process term, for every MOD

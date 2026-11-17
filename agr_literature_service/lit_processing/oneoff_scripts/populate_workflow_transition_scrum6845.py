@@ -74,6 +74,7 @@ class Row(NamedTuple):
     condition: Optional[str] = None
     # copy the actions of the MOD's existing row from this state to the same transition_to
     actions_from: Optional[str] = None
+    requirements: Tuple[str, ...] = ()
 
 
 def _rows() -> List[Row]:
@@ -89,6 +90,9 @@ def _rows() -> List[Row]:
     for transition_from, transition_to in ((FILE_NEEDED, FILES_UPLOADED), (FILE_NEEDED, FILE_UPLOAD_IN_PROGRESS),
                                            (FILE_UPLOAD_IN_PROGRESS, FILES_UPLOADED)):
         rows.append(Row(("AGR",), transition_from, transition_to))
+    # ... and, like every MOD, the reset after a main PDF is deleted (a PMC file counts for every corpus MOD)
+    rows.append(Row(("AGR",), FILES_UPLOADED, FILE_UPLOAD_IN_PROGRESS, requirements=("referencefiles_present",)))
+    rows.append(Row(("AGR",), FILES_UPLOADED, FILE_NEEDED, requirements=("not_referencefiles_present",)))
     # text conversion needed on a paper with no text conversion tag (proceed_on_value actions)
     rows.append(Row(ALL_MODS, TEXT_CONVERSION, TEXT_CONVERSION_NEEDED))
     # manual indexing: first state from the process term, and removal back to it
@@ -161,7 +165,8 @@ def populate(db_session, apply: bool = False) -> Dict[str, int]:
             db_session.add(WorkflowTransitionModel(mod_id=mod_id, transition_from=row.transition_from,
                                                    transition_to=row.transition_to,
                                                    transition_type=row.transition_type,
-                                                   condition=row.condition, actions=actions))
+                                                   condition=row.condition, actions=actions,
+                                                   requirements=list(row.requirements)))
             counts["added"] += 1
     for mods, transition_from, transition_to, new_type in TYPE_CHANGES:
         for mod in mods:

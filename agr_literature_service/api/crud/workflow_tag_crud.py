@@ -788,7 +788,7 @@ def merge_into_reference(db: Session, reference_curie: str, delete_ids: List[int
     """The workflow tags of a reference merge, in one transaction (SCRUM-6845): delete the tags the
     curator dropped, then move the kept ones to the surviving reference. A merge is not a status
     change, so no transition runs; a moved tag must not meet a tag of the same workflow process for
-    the same MOD on the surviving reference."""
+    the same MOD on the surviving reference (in a process that allows several tags, the same tag)."""
     if set(delete_ids) & set(move_ids):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"Workflow tags both deleted and moved: {sorted(set(delete_ids) & set(move_ids))}")
@@ -811,8 +811,15 @@ def merge_into_reference(db: Session, reference_curie: str, delete_ids: List[int
         if tag.reference_id == target.reference_id:
             continue
         process_atp_id = atp_get_parent(tag.workflow_tag_id)
-        clash = _get_tag_under_process(db, target.reference_id, tag.mod_id, process_atp_id) \
-            if process_atp_id else None
+        if process_atp_id in process_atp_multiple_allowed:
+            # a reference may hold several tags of these processes; only the same tag clashes
+            clash = db.query(WorkflowTagModel).filter(
+                WorkflowTagModel.reference_id == target.reference_id,
+                WorkflowTagModel.mod_id == tag.mod_id,
+                WorkflowTagModel.workflow_tag_id == tag.workflow_tag_id).first()
+        else:
+            clash = _get_tag_under_process(db, target.reference_id, tag.mod_id, process_atp_id) \
+                if process_atp_id else None
         if clash is not None:
             db.rollback()
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

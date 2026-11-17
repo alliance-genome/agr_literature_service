@@ -300,6 +300,40 @@ class TestWorkflowTag:
         assert db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one_or_none() is not None
 
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_merge_allows_sibling_tags_where_a_process_allows_several(self, db, test_workflow_tag,  # noqa
+                                                                     auth_headers):  # noqa
+        """Classifier tags (ATP:0000166 and the other process_atp_multiple_allowed processes) may sit side by
+        side, so a move clashes only with the same tag."""
+        load_name_to_atp_and_relationships_mock()
+        survivor = self._second_reference(db, "AGRKB:101000000999003")
+        loser_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        mod_id = test_workflow_tag.related_mod_id
+        moving = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=mod_id, workflow_tag_id="ATP:task1_needed")
+        duplicate = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=mod_id,
+                                     workflow_tag_id="ATP:task3_needed")
+        db.add_all([moving, duplicate,
+                    WorkflowTagModel(reference_id=survivor.reference_id, mod_id=mod_id,
+                                     workflow_tag_id="ATP:task2_needed"),
+                    WorkflowTagModel(reference_id=survivor.reference_id, mod_id=mod_id,
+                                     workflow_tag_id="ATP:task3_needed")])
+        db.commit()
+        moving_id = moving.reference_workflow_tag_id
+        duplicate_id = duplicate.reference_workflow_tag_id
+        with TestClient(app) as client:
+            response = client.post(url=f"/workflow_tag/merge/{survivor.curie}",
+                                   json={"move_ids": [moving_id]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            response = client.post(url=f"/workflow_tag/merge/{survivor.curie}",
+                                   json={"move_ids": [duplicate_id]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        db.expire_all()
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == moving_id).one().reference_id == survivor.reference_id
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == duplicate_id).one().reference_id == loser_ref.reference_id
+
     def test_merge_refuses_unknown_and_overlapping_ids(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             response = client.post(url=f"/workflow_tag/merge/{test_workflow_tag.related_ref_curie}",
