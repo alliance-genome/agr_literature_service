@@ -11,6 +11,13 @@ ifndef ALEMBIC_COMMENT
 	ALEMBIC_COMMENT=""
 endif
 
+# Stamped into the api and automated_scripts images so GET /version shows the running commit
+# (SCRUM-6878). "-dirty" means tracked files other than the .env files were changed locally.
+GIT_SHA ?= $(shell git rev-parse --short=8 HEAD 2>/dev/null || echo unknown)$(shell \
+	test -n "$$(git status --porcelain --untracked-files=no -- . ':!.env*' 2>/dev/null)" && echo -dirty)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+export GIT_SHA BUILD_DATE
+
 
 login-ecr:
 	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}

@@ -40,4 +40,10 @@ COPY debezium/* /
 RUN chmod 0644 /etc/cron.d/automate_scripts_crontab
 RUN crontab /etc/cron.d/automate_scripts_crontab
 
+# Which commit this image was built from (SCRUM-6878); passed in by the Makefile.
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ENV GIT_SHA=${GIT_SHA} BUILD_DATE=${BUILD_DATE}
+LABEL org.opencontainers.image.revision=${GIT_SHA} org.opencontainers.image.created=${BUILD_DATE}
+
 CMD /bin/bash -c 'declare -p' | grep -Ev 'BASHOPTS|BASH_VERSINFO|EUID|PPID|SHELLOPTS|UID' > /container.env && cron && tail -f /dev/null
