@@ -90,6 +90,8 @@ services:
       args:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     environment:
       API_PORT: "${API_PORT}"
       API_SERVER: "${API_SERVER}"
@@ -211,6 +213,8 @@ services:
       args:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     environment:
       PYTHONPATH: "/usr/src/app"
       XML_PATH: "/usr/src/app/agr_literature_service/lit_processing/data_ingest/tmp/"
