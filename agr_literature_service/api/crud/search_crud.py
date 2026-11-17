@@ -91,8 +91,7 @@ WORKFLOW_FACETS = [
 
 CURATION_CLASSIFICATION_TAG_FACETS = [
     "predicted_indexing_priority",
-    "indexing_priority",
-    "manual_indexing_curation_tag"
+    "indexing_priority"
 ]
 
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
@@ -368,28 +367,6 @@ def search_references(
                         }
                     }
                 }
-            },
-            "manual_indexing_tags": {
-                "nested": {"path": "manual_indexing_tags"},
-                "aggs": {
-                    "by_mod_abbreviation": {
-                        "terms": {
-                            "field": "manual_indexing_tags.mod_abbreviation",
-                            "min_doc_count": 0,
-                            "size": 100
-                        },
-                        "aggs": {
-                            "curation_tags": {
-                                "terms": {
-                                    "field": "manual_indexing_tags.curation_tag",
-                                    "min_doc_count": 0,
-                                    "size": 100
-                                },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
-                            }
-                        }
-                    }
-                }
             }
         },
         "from": from_entry,
@@ -570,16 +547,12 @@ def search_references(
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
             elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
-                # curation classification tags are nested in indexing_priorities or manual_indexing_tags
+                # curation classification tags are nested in indexing_priorities
+                path = "indexing_priorities"
                 if facet_field == "predicted_indexing_priority":
-                    path = "indexing_priorities"
                     field = "indexing_priorities.predicted_indexing_priority"
-                elif facet_field == "indexing_priority":
-                    path = "indexing_priorities"
+                else:  # indexing_priority
                     field = "indexing_priorities.curator_indexing_priority"
-                else:  # manual_indexing_curation_tag
-                    path = "manual_indexing_tags"
-                    field = "manual_indexing_tags.curation_tag"
 
                 for tag in facet_list_values:
                     nested_query = {
@@ -642,15 +615,11 @@ def search_references(
                         }
                     })
             elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
+                path = "indexing_priorities"
                 if facet_field == "predicted_indexing_priority":
-                    path = "indexing_priorities"
                     field = "indexing_priorities.predicted_indexing_priority"
-                elif facet_field == "indexing_priority":
-                    path = "indexing_priorities"
+                else:  # indexing_priority
                     field = "indexing_priorities.curator_indexing_priority"
-                else:  # manual_indexing_curation_tag
-                    path = "manual_indexing_tags"
-                    field = "manual_indexing_tags.curation_tag"
 
                 for facet_value in facet_list_values:
                     es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
@@ -829,7 +798,6 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "authors": sort_authors_by_order(ref["_source"]["authors"]),
         "reference_emails": ref["_source"].get("reference_emails", []),
         "indexing_priorities": ref["_source"].get("indexing_priorities", []),
-        "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
         "large_scale_tags": extract_large_scale_tags(ref["_source"]),
@@ -1047,8 +1015,8 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
 
 def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations):  # pragma: no cover
     """
-    Process indexing_priorities and manual_indexing_tags aggregations
-    into curation classification tags facets.
+    Process the indexing_priorities aggregation into the curation classification
+    tags facets.
     """
     result: Dict[str, Any] = {}
 
@@ -1100,37 +1068,8 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
     add_curie_to_name_values(curator_result)
     result["indexing_priority"] = curator_result
 
-    # Process manual_indexing_tags
-    mit_nested = res["aggregations"].get("manual_indexing_tags", {})
-    mod_buckets = mit_nested.get("by_mod_abbreviation", {}).get("buckets", [])
-
-    curation_tag_buckets: Dict[str, Dict[str, Any]] = {}
-
-    for mod_bucket in mod_buckets:
-        mod_key = mod_bucket["key"]
-        if mod_key.upper() not in wft_mod_abbreviations:
-            continue
-
-        for bucket in mod_bucket.get("curation_tags", {}).get("buckets", []):
-            key = bucket["key"].upper() if bucket["key"] else None
-            if key:
-                count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
-                if key not in curation_tag_buckets:
-                    curation_tag_buckets[key] = {"key": key, "doc_count": 0}
-                curation_tag_buckets[key]["doc_count"] += count
-
-    curation_filtered = [b for b in curation_tag_buckets.values() if b["doc_count"] > 0]
-    curation_tag_result = {
-        "doc_count_error_upper_bound": 0,
-        "sum_other_doc_count": 0,
-        "buckets": sorted(curation_filtered, key=lambda x: x["doc_count"], reverse=True)
-    }
-    add_curie_to_name_values(curation_tag_result)
-    result["manual_indexing_curation_tag"] = curation_tag_result
-
     # Clean up raw aggregations
     res["aggregations"].pop("indexing_priorities", None)
-    res["aggregations"].pop("manual_indexing_tags", None)
 
     return result
 

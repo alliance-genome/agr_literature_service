@@ -624,19 +624,6 @@
           }
         }
       },
-      "manual_indexing_tags": {
-        "type": "nested",
-        "properties": {
-          "curation_tag": {
-            "type": "keyword",
-            "normalizer": "sortNormalizer"
-          },
-          "mod_abbreviation": {
-            "type": "keyword",
-            "normalizer": "sortNormalizer"
-          }
-        }
-      },
       "mesh_terms": {
         "properties": {
           "heading_term": {

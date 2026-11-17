@@ -176,8 +176,6 @@ by dumping `app.routes`.
 /laboratory_person/laboratory/{curie_or_laboratory_id}
 /laboratory_person/person/{curie_or_person_id}
 /laboratory_person/{laboratory_person_id}
-/manual_indexing_tag/get_manual_indexing_tag/{reference_curie}/{mod_abbreviation}
-/manual_indexing_tag/{manual_indexing_tag_id}
 /ml_model/all
 /ml_model/download/{task_type}/{mod_abbreviation}/{topic}
 /ml_model/download/{task_type}/{mod_abbreviation}/{topic}/{version}

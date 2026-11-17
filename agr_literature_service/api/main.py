@@ -31,7 +31,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 copyright_license_router, check_router,
                                                 dataset_router, ml_model_router,
                                                 image_permission_router,
-                                                manual_indexing_tag_router, person_router,
+                                                person_router,
                                                 person_cross_reference_router, person_name_router,
                                                 person_note_router, person_email_router,
                                                 person_institution_router,
@@ -168,7 +168,6 @@ app.include_router(dataset_router.router)
 app.include_router(ml_model_router.router)
 app.include_router(curation_status_router.router)
 app.include_router(indexing_priority_router.router)
-app.include_router(manual_indexing_tag_router.router)
 app.include_router(ontology_router.router)
 app.include_router(xml2md_router.router)
 app.include_router(authentication.router)

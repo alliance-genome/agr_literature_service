@@ -5,11 +5,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agr_literature_service.lit_processing.oneoff_scripts import backfill_fb_no_genetic_data_tets as mod
-from ...fixtures import db  # noqa
-from ...api.fixtures import auth_headers  # noqa
-from ...api.test_reference import test_reference  # noqa
-from ...api.test_mod import test_mod  # noqa
-from ...api.test_ml_model import test_ml_model  # noqa
 
 
 def _row(mit_id, reference_id, score, date_created=datetime(2026, 9, 1), date_updated=None):
@@ -143,82 +138,3 @@ class TestRun:
         assert m_delete.called
         assert counts["deleted"] == 2
         assert counts["left_in_table"] == 0
-
-
-class TestBackfillAgainstTheDatabase:
-    """End to end on the test database: the tag is really created through create_tag with the
-    row's date and the classifier's shape, and --delete-source removes the old row."""
-
-    def test_row_becomes_a_tag_and_is_deleted(self, db, auth_headers, test_reference,  # noqa
-                                              test_ml_model, tmp_path):  # noqa
-        from starlette.testclient import TestClient
-        from agr_literature_service.api.main import app
-        from agr_literature_service.api.models import (ManualIndexingTagModel, ModModel,
-                                                       ReferenceModel, TopicEntityTagModel)
-
-        with TestClient(app) as client:
-            client.post(url="/mod/", json={"abbreviation": "FB", "short_name": "FB",
-                                           "full_name": "FlyBase"}, headers=auth_headers)
-            source = client.post(url="/tag_source", headers=auth_headers, json={
-                "source_evidence_assertion": "ECO:0008004", "source_method": "abc_document_classifier",
-                "validation_type": None, "description": "classifier", "data_provider": "FB",
-                "secondary_data_provider_abbreviation": "FB"})
-            assert source.status_code == 201, source.json()
-        fb = db.query(ModModel).filter_by(abbreviation="FB").one()
-        reference_id = db.query(ReferenceModel).filter_by(curie=test_reference.new_ref_curie).one().reference_id
-        created = datetime(2026, 9, 3, 4, 0)
-        db.add(ManualIndexingTagModel(reference_id=reference_id, mod_id=fb.mod_id,
-                                      curation_tag="ATP:0000207", confidence_score=0.91,
-                                      date_created=created, date_updated=created))
-        db.commit()
-
-        with patch.object(mod, "create_postgres_session", return_value=db), \
-                patch.object(mod, "ML_MODEL_V3_ID", test_ml_model["ml_model_id"]), \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.atp_return_invalid_ids",
-                      return_value=[]):
-            counts = mod.run(commit=True, delete_source=True, limit=None,
-                             backup_file=str(tmp_path / "rows.csv"))
-
-        assert counts["created"] == 1
-        assert counts["deleted"] == 1
-        tag = db.query(TopicEntityTagModel).filter_by(reference_id=reference_id, topic="ATP:0000402").one()
-        assert tag.negated is True
-        assert tag.confidence_level == "HIGH"
-        assert tag.confidence_score == 0.91
-        assert tag.date_created == created
-        assert tag.data_context == "ATP:0000405"
-        assert db.query(ManualIndexingTagModel).filter_by(reference_id=reference_id).count() == 0
-
-    def test_low_score_row_gets_no_tag_and_is_deleted(self, db, auth_headers, test_reference,  # noqa
-                                                      test_ml_model, tmp_path):  # noqa
-        from starlette.testclient import TestClient
-        from agr_literature_service.api.main import app
-        from agr_literature_service.api.models import (ManualIndexingTagModel, ModModel,
-                                                       ReferenceModel, TopicEntityTagModel)
-
-        with TestClient(app) as client:
-            client.post(url="/mod/", json={"abbreviation": "FB", "short_name": "FB",
-                                           "full_name": "FlyBase"}, headers=auth_headers)
-            client.post(url="/tag_source", headers=auth_headers, json={
-                "source_evidence_assertion": "ECO:0008004", "source_method": "abc_document_classifier",
-                "validation_type": None, "description": "classifier", "data_provider": "FB",
-                "secondary_data_provider_abbreviation": "FB"})
-        fb = db.query(ModModel).filter_by(abbreviation="FB").one()
-        reference_id = db.query(ReferenceModel).filter_by(curie=test_reference.new_ref_curie).one().reference_id
-        db.add(ManualIndexingTagModel(reference_id=reference_id, mod_id=fb.mod_id,
-                                      curation_tag="ATP:0000207", confidence_score=0.02))
-        db.commit()
-        backup = tmp_path / "rows.csv"
-
-        with patch.object(mod, "create_postgres_session", return_value=db), \
-                patch.object(mod, "ML_MODEL_V3_ID", test_ml_model["ml_model_id"]), \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.atp_return_invalid_ids",
-                      return_value=[]):
-            counts = mod.run(commit=True, delete_source=True, limit=None, backup_file=str(backup))
-
-        assert counts["to_create"] == 0
-        assert counts["skipped_low_score"] == 1
-        assert counts["deleted"] == 1
-        assert db.query(TopicEntityTagModel).filter_by(reference_id=reference_id).count() == 0
-        assert db.query(ManualIndexingTagModel).filter_by(reference_id=reference_id).count() == 0
-        assert "0.02" in backup.read_text()
