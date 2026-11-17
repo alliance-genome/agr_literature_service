@@ -7,13 +7,11 @@ changes (author reload, ORCID/email linker), which may switch off workflow_tag
 history, live in lit_processing.data_ingest.utils.author_person_status_updates
 and must never switch it off in the API process.
 """
-from typing import List, Tuple
-
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.utils.corpus_entry_tags import (
     AUTHOR_PERSON_CURATION_COMPLETE,
-    AUTHOR_PERSON_CURATION_TAGS,
+    AUTHOR_PERSON_CURATION_NEEDED,
 )
 from agr_literature_service.api.models import AuthorModel
 
@@ -28,13 +26,10 @@ def all_authors_connected(db: Session, reference_id: int) -> bool:
     ).first() is None
 
 
-def author_person_corpus_entry_tags(db: Session, reference_id: int,
-                                    mod_abbreviation: str) -> List[Tuple[str, str, List[str]]]:
-    """The author-person tag the sort page grants: the MOD's "needed" entry from
-    AUTHOR_PERSON_CURATION_TAGS, or "complete" in its place when every ordered
-    author already has a person (or there are none)."""
-    tags = AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation]
-    if not all_authors_connected(db, reference_id):
-        return tags
-    return [("author-person curation complete", AUTHOR_PERSON_CURATION_COMPLETE, states)
-            for _name, _atp, states in tags]
+def author_person_entry_state(db: Session, reference_id: int) -> str:
+    """The author-person state the sort page's checkbox moves a paper to from the
+    author-person curation process term (SCRUM-6845): "needed", or "complete"
+    when every ordered author already has a person (or there are none)."""
+    if all_authors_connected(db, reference_id):
+        return AUTHOR_PERSON_CURATION_COMPLETE
+    return AUTHOR_PERSON_CURATION_NEEDED

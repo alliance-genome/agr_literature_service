@@ -3,15 +3,22 @@ get_emails_from_pubmed_pmc.py
 =============================
 
 Get author emails for corpus references from PubMed metadata and PMC
-full-text XML, and set the email-extraction workflow tag accordingly
-(SCRUM-6430).
+full-text XML (SCRUM-6430), working through the email extraction job list
+(SCRUM-6845).
 
-Workflow (per the ticket):
-    get reference -> download emails ->
-        emails found -> load them + set "email extraction complete"
-        no emails    -> set "email extraction needed"
-so the Markdown/full-text extraction pipeline (extract_emails.py) only has
-to handle the papers these free structured sources cannot cover.
+Workflow:
+    corpus entry sets "email extraction needed" for the MODs that extract
+    emails; that tag is a job (email_extraction_job, the condition of the row
+    into it). For each job:
+        emails found     -> load them; the job succeeds ("complete")
+        no emails        -> the job stays "needed" for the Markdown/full-text
+                            extraction (extract_emails.py), which handles the
+                            papers these free structured sources cannot cover
+        no emails for 2 years after corpus entry (--give-up-after-days)
+                         -> the job succeeds without an email: extraction is
+                            done, nothing more is retried
+so the script writes no workflow tag itself: every change is a job function
+call (job_change_atp_code), checked against the transition table.
 
 Two tiers, cheapest first (no AI, no PDF parsing):
   1. PubMed E-utilities efetch: AffiliationInfo strings often carry the
@@ -22,21 +29,10 @@ Two tiers, cheapest first (no AI, no PDF parsing):
      email to the contributor instead. Only papers tier 1 found nothing for
      are fetched from PMC unless --pmc-all is given.
 
-Selection: references in the corpus (mod_corpus_association.corpus IS TRUE)
-of the MODs that run email extraction (detected from the workflow_transition
-table; currently FB, WB, ZFIN, SGD and XB), whose corpus association was
-created in the --since/--until window (default: 2024-01-01 to current), that
-have a non-obsolete PMID cross_reference and no automation-added
-reference_email rows yet (papers whose only emails were entered by a curator
-ARE picked up -- the curator rows are never modified, see below). Untagged
-reference+mod pairs and pairs pending in "email extraction needed"/"failed"
-are processed; pairs already "complete"/"in progress" are never touched, so
-repeated runs only process new papers and still-unresolved pairs: the first
-run doubles as the backfill (verified against the production database
-2026-08-17: ~10.9k/5.1k/4.9k email-less reference+mod pairs added in
-2024/2025/2026; 2023 and earlier were left out -- nothing before 2024 was
-ever email-processed and the 2022 numbers (~340k) are the initial bulk corpus
-import, a separate decision).
+Selection: the email_extraction_job list -- reference+mod pairs holding
+"email extraction needed" in a MOD whose transition into it carries the job
+condition, with the paper still in that MOD's corpus. Papers without a PMID are
+selected too, only for the give-up rule (there is nothing to download).
 
 Every candidate address goes through the same normalization / role-account /
 garbage filtering as the Markdown extraction (extract_emails.py), so the two
@@ -44,19 +40,6 @@ pipelines accept the same addresses. Addresses are loaded through
 set_reference_emails(), which -- exactly as in extract_emails.py -- never
 deletes or duplicates human (curator)-added rows: only automation-added rows
 are replaced.
-
-Tagging per reference+mod pair (transition_to_workflow_status for every state
-change; a direct WorkflowTagModel insert only seeds the initial "needed" tag,
-which the transition function cannot create):
-    emails found:  "email extraction needed" is transitioned to "email
-                   extraction complete" (untagged pairs are seeded "needed"
-                   first; "failed" pairs walk the retry transition
-                   "failed" -> "needed" first).
-    no emails:     "needed" stays "needed" -- the full-text pipeline
-                   (extract_emails.py) processes the paper once a converted
-                   file is available; untagged pairs are seeded "needed".
-The proceed_on_value idempotency guard (SCRUM-6166) keeps the text-conversion
-action from seeding a second "needed" tag later for pairs this script marked.
 
 The default (no --commit) is a dry run: emails are downloaded and the planned
 changes are reported, but nothing is written to the database.
@@ -68,33 +51,29 @@ a single comma-joined list makes NCBI pool every input into one LinkSet and
 almost no paper appears to have a PMCID.
 
 Usage:
-    # dry run (default): 2024-01-01 to current, all email MODs
+    # dry run (default): every pending job
     python get_emails_from_pubmed_pmc.py
 
     # apply
     python get_emails_from_pubmed_pmc.py --commit
 
-    # limit to specific MODs and/or a narrower window
-    python get_emails_from_pubmed_pmc.py --commit --mods SGD,WB --since 2026-01-01
+    # limit to specific MODs
+    python get_emails_from_pubmed_pmc.py --commit --mods SGD,WB
 """
 import argparse
 import logging
 import time
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from os import environ, path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from xml.etree import ElementTree
 
 import requests
 from dotenv import load_dotenv
 from sqlalchemy import text
 
-from agr_literature_service.api.crud.reference_crud import (
-    CURATOR_USER_ID_PREFIX,
-    set_reference_emails,
-)
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status
-from agr_literature_service.api.models import WorkflowTagModel
+from agr_literature_service.api.crud.reference_crud import set_reference_emails
+from agr_literature_service.api.crud.workflow_tag_crud import job_change_atp_code
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.full_text.extract_emails import (
     extract_emails_fallback,
@@ -113,27 +92,15 @@ load_dotenv()
 EUTILS_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 NCBI_API_KEY = environ.get("NCBI_API_KEY", "")
 
-# Email-extraction process (ATP:0000354) and its sub-states.
-EMAIL_PROCESS_PARENT = "ATP:0000354"          # email extraction
-EMAIL_IN_PROGRESS = "ATP:0000357"             # email extraction in progress
-EMAIL_COMPLETE = "ATP:0000355"                # email extraction complete
-EMAIL_FAILED = "ATP:0000356"                  # email extraction failed
 EMAIL_NEEDED = "ATP:0000358"                  # email extraction needed
-
-EMAIL_TAGS: List[str] = [
-    EMAIL_PROCESS_PARENT,
-    EMAIL_IN_PROGRESS,
-    EMAIL_COMPLETE,
-    EMAIL_FAILED,
-    EMAIL_NEEDED,
-]
-# Pairs in one of these states are settled; never re-processed.
-EMAIL_SETTLED_TAGS: List[str] = [EMAIL_PROCESS_PARENT, EMAIL_IN_PROGRESS, EMAIL_COMPLETE]
+EMAIL_COMPLETE = "ATP:0000355"                # email extraction complete
+EMAIL_EXTRACTION_JOB = "email_extraction_job"
 
 SOURCE_PUBMED = "pubmed_metadata"
 SOURCE_PMC = "pmc_corresp"
 
-DEFAULT_SINCE = "2024-01-01"
+# a paper that has yielded no email this long after it entered the corpus is done
+DEFAULT_GIVE_UP_AFTER_DAYS = 730
 
 REQUEST_TIMEOUT = 300
 REQUEST_RETRIES = 3
@@ -353,150 +320,80 @@ def download_emails(pmids: List[str], pmc_all: bool = False) -> Dict[str, Tuple[
 # ----------------------------------------------------------------------
 # Selection
 # ----------------------------------------------------------------------
-def get_email_extraction_mods(db) -> Dict[int, str]:
-    """Return {mod_id: abbreviation} for MODs that run email extraction, i.e.
-    those that have any workflow_transition within the email-extraction
-    process (currently FB, WB, ZFIN, SGD, XB)."""
-    rows = db.execute(
-        text(
-            """
-            SELECT DISTINCT m.id AS mod_id, m.abbreviation
-            FROM workflow_transition wt
-            JOIN mod m ON m.id = wt.mod_id
-            WHERE wt.transition_from = ANY(:email_tags)
-               OR wt.transition_to = ANY(:email_tags)
-               OR array_to_string(wt.actions, ',') LIKE '%email extraction%'
-            ORDER BY m.id
-            """
-        ),
-        {"email_tags": EMAIL_TAGS},
-    ).fetchall()
-    return {row[0]: row[1] for row in rows}
+# (reference_workflow_tag_id, reference_id, curie, pmid or None, mod_abbreviation, corpus entry date)
+Job = Tuple[int, int, str, Optional[str], str, datetime]
 
 
-def get_candidates(db, mod_ids: List[int], since: str, until: str,
-                   limit: Optional[int] = None) -> List[Tuple[int, str, str, int, str, bool, bool]]:
-    """Return [(reference_id, curie, pmid, mod_id, mod_abbreviation,
-    has_needed, has_failed), ...] for in-corpus references of the given MODs
-    with a non-obsolete PMID, no automation-added reference_email rows
-    (curator-only or none), whose corpus association was created in
-    [since, until).
-
-    Untagged reference+mod pairs and pairs whose extraction is pending or
-    failed ("needed"/"failed") are returned. Pairs already settled
-    ("complete"/"in progress"/parent) never are.
-    """
-    limit_clause = "LIMIT :limit" if limit else ""
+def get_jobs(db, only_mods: Optional[List[str]] = None, limit: Optional[int] = None) -> List[Job]:
+    """Return the pending email_extraction_job list: reference+mod pairs holding
+    "email extraction needed" in a MOD whose transition into it carries the job
+    condition (the join get_jobs uses), with the paper still in that MOD's
+    corpus. pmid is None for a paper without a non-obsolete PMID."""
+    params: Dict[str, Any] = {"needed": EMAIL_NEEDED, "job_like": f"%{EMAIL_EXTRACTION_JOB}%"}
+    mod_clause = limit_clause = ""
+    if only_mods:
+        mod_clause = "AND m.abbreviation = ANY(:mods)"
+        params["mods"] = [m.strip().upper() for m in only_mods]
+    if limit:
+        limit_clause = "LIMIT :limit"
+        params["limit"] = limit
     rows = db.execute(
         text(
             f"""
-            SELECT r.id AS reference_id, r.curie, MIN(cr.curie) AS pmid_curie,
-                   mca.mod_id, m.abbreviation, st.has_needed, st.has_failed
-            FROM mod_corpus_association mca
-            JOIN mod m ON m.id = mca.mod_id
-            JOIN reference r ON r.id = mca.reference_id
-            JOIN cross_reference cr ON cr.reference_id = r.id
+            SELECT wt.id, r.id, r.curie, MIN(cr.curie), m.abbreviation, mca.date_created
+            FROM workflow_tag wt
+            JOIN mod m ON m.id = wt.mod_id
+            JOIN reference r ON r.id = wt.reference_id
+            JOIN mod_corpus_association mca ON mca.reference_id = wt.reference_id
+                 AND mca.mod_id = wt.mod_id AND mca.corpus IS TRUE
+            LEFT JOIN cross_reference cr ON cr.reference_id = r.id
                  AND cr.curie_prefix = 'PMID' AND cr.obsolete IS FALSE
-            JOIN LATERAL (
-                 SELECT EXISTS (SELECT 1 FROM workflow_tag wt
-                                WHERE wt.reference_id = r.id
-                                  AND wt.mod_id = mca.mod_id
-                                  AND wt.workflow_tag_id = :needed) AS has_needed,
-                        EXISTS (SELECT 1 FROM workflow_tag wt
-                                WHERE wt.reference_id = r.id
-                                  AND wt.mod_id = mca.mod_id
-                                  AND wt.workflow_tag_id = :failed) AS has_failed,
-                        EXISTS (SELECT 1 FROM workflow_tag wt
-                                WHERE wt.reference_id = r.id
-                                  AND wt.mod_id = mca.mod_id
-                                  AND wt.workflow_tag_id = ANY(:settled_tags)) AS is_settled
-            ) st ON TRUE
-            WHERE mca.corpus IS TRUE
-              AND mca.mod_id = ANY(:mod_ids)
-              AND mca.date_created >= :since
-              AND mca.date_created < :until
-              AND NOT st.is_settled
-              AND NOT EXISTS (SELECT 1 FROM reference_email re
-                              WHERE re.reference_id = r.id
-                                AND (re.updated_by_id IS NULL
-                                     OR re.updated_by_id NOT IN (
-                                         SELECT a.id FROM agent a
-                                         LEFT JOIN person p ON p.id = a.person_id
-                                         WHERE COALESCE(a.automation_username, p.curie) LIKE :curator_like)))
-            GROUP BY r.id, r.curie, mca.mod_id, m.abbreviation,
-                     st.has_needed, st.has_failed
-            ORDER BY r.id, mca.mod_id
+            WHERE wt.workflow_tag_id = :needed
+              AND EXISTS (SELECT 1 FROM workflow_transition tr
+                          WHERE tr.mod_id = wt.mod_id
+                            AND tr.transition_to = wt.workflow_tag_id
+                            AND tr.condition LIKE :job_like)
+              {mod_clause}
+            GROUP BY wt.id, r.id, r.curie, m.abbreviation, mca.date_created
+            ORDER BY r.id, wt.id
             {limit_clause}
             """
         ),
-        {
-            "mod_ids": mod_ids,
-            "since": since,
-            "until": until,
-            "needed": EMAIL_NEEDED,
-            "failed": EMAIL_FAILED,
-            "settled_tags": EMAIL_SETTLED_TAGS,
-            "curator_like": CURATOR_USER_ID_PREFIX + "%",
-            **({"limit": limit} if limit else {}),
-        },
+        params,
     ).fetchall()
-    return [(row[0], row[1], row[2].replace("PMID:", ""), row[3], row[4],
-             row[5], row[6]) for row in rows]
+    return [(row[0], row[1], row[2], row[3].replace("PMID:", "") if row[3] else None, row[4], row[5])
+            for row in rows]
 
 
-# ----------------------------------------------------------------------
-# Tagging plan
-# ----------------------------------------------------------------------
-def plan_tag_actions(has_needed: bool, has_failed: bool,
-                     emails_found: bool) -> List[Tuple[str, str]]:
-    """Return the ordered tag operations for one reference+mod pair as
-    (operation, tag) tuples; operation is 'seed' (insert a WorkflowTagModel
-    row -- transition_to_workflow_status cannot create the first tag of a
-    process) or 'transition' (transition_to_workflow_status call).
-
-    emails found:  untagged pairs are seeded "needed" then transitioned to
-                   "complete" so the normal state machine path is walked;
-                   "failed" pairs walk the retry transition first.
-    no emails:     untagged pairs are seeded "needed" for the full-text
-                   pipeline; pairs already "needed"/"failed" are left alone.
-    """
-    if emails_found:
-        actions: List[Tuple[str, str]] = []
-        if not has_needed:
-            if has_failed:
-                actions.append(("transition", EMAIL_NEEDED))   # failed -> needed (retry)
-            else:
-                actions.append(("seed", EMAIL_NEEDED))
-        actions.append(("transition", EMAIL_COMPLETE))
-        return actions
-    if not has_needed and not has_failed:
-        return [("seed", EMAIL_NEEDED)]
-    return []
+def job_is_done(emails_found: bool, entered_corpus: datetime, give_up_before: datetime) -> bool:
+    """Whether the job succeeds now: emails were found, or none have been for so long
+    after corpus entry that the extraction is given up."""
+    return emails_found or entered_corpus < give_up_before
 
 
 # ----------------------------------------------------------------------
 # Apply
 # ----------------------------------------------------------------------
-def apply_results(db, candidates: List[Tuple[int, str, str, int, str, bool, bool]],
-                  results: Dict[str, Tuple[List[str], str]],
-                  dry_run: bool) -> Dict[str, int]:
-    """Load the downloaded emails and set the workflow tags. Returns counters.
+def apply_results(db, jobs: List[Job], results: Dict[str, Tuple[List[str], str]],
+                  give_up_before: datetime, dry_run: bool) -> Dict[str, int]:
+    """Load the downloaded emails and finish the jobs that are done. Returns counters.
 
     reference_email rows are per reference (mod-independent) and are set once;
-    workflow tags are set per reference+mod pair. Every touched reference is
-    committed on its own so one failure cannot poison the batch.
+    jobs are per reference+mod pair. Every touched reference is committed on its
+    own so one failure cannot poison the batch.
     """
-    counters = {"emails_loaded": 0, "tagged_complete": 0, "tagged_needed": 0, "errors": 0}
+    counters = {"emails_loaded": 0, "complete_with_emails": 0, "complete_without_emails": 0,
+                "still_needed": 0, "errors": 0}
 
-    by_reference: Dict[int, List[Tuple[int, str, str, int, str, bool, bool]]] = {}
-    for cand in candidates:
-        by_reference.setdefault(cand[0], []).append(cand)
+    by_reference: Dict[int, List[Job]] = {}
+    for job in jobs:
+        by_reference.setdefault(job[1], []).append(job)
 
     for reference_id in sorted(by_reference):
-        mod_rows = by_reference[reference_id]
-        curie = mod_rows[0][1]
-        pmid = mod_rows[0][2]
-        emails, source = results.get(pmid, ([], ""))
+        reference_jobs = by_reference[reference_id]
+        curie = reference_jobs[0][2]
+        pmid = reference_jobs[0][3]
+        emails, source = results.get(pmid, ([], "")) if pmid else ([], "")
         try:
             if emails:
                 counters["emails_loaded"] += 1
@@ -505,26 +402,18 @@ def apply_results(db, candidates: List[Tuple[int, str, str, int, str, bool, bool
                 if not dry_run:
                     set_reference_emails(db, curie, emails)
 
-            for (_ref_id, _curie, _pmid, mod_id, mod_abbr,
-                 has_needed, has_failed) in mod_rows:
-                for operation, tag in plan_tag_actions(has_needed, has_failed, bool(emails)):
-                    logger.info("%s PMID:%s mod=%s: %s %s",
-                                curie, pmid, mod_abbr, operation, tag)
-                    if dry_run:
-                        continue
-                    if operation == "seed":
-                        db.add(WorkflowTagModel(reference_id=reference_id,
-                                                mod_id=mod_id,
-                                                workflow_tag_id=tag))
-                        db.commit()
-                    else:
-                        transition_to_workflow_status(db, str(reference_id), mod_abbr,
-                                                      tag, transition_type="automated")
-                        db.commit()
-                if emails:
-                    counters["tagged_complete"] += 1
-                elif not has_needed and not has_failed:
-                    counters["tagged_needed"] += 1
+            for (reference_workflow_tag_id, _ref_id, _curie, _pmid, mod_abbr, entered_corpus) in reference_jobs:
+                if not job_is_done(bool(emails), entered_corpus, give_up_before):
+                    counters["still_needed"] += 1
+                    continue
+                counter = "complete_with_emails" if emails else "complete_without_emails"
+                logger.info("%s PMID:%s mod=%s: email extraction job done (%s)",
+                            curie, pmid, mod_abbr, counter)
+                counters[counter] += 1
+                if not dry_run:
+                    job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+            if not dry_run:
+                db.commit()
         except Exception:
             counters["errors"] += 1
             db.rollback()
@@ -536,65 +425,52 @@ def apply_results(db, candidates: List[Tuple[int, str, str, int, str, bool, bool
 # ----------------------------------------------------------------------
 # Driver
 # ----------------------------------------------------------------------
-def run(since: str, until: str, only_mods: Optional[List[str]] = None,
-        limit: Optional[int] = None,
-        pmc_all: bool = False, dry_run: bool = True) -> Dict[str, int]:
+def run(only_mods: Optional[List[str]] = None, limit: Optional[int] = None,
+        pmc_all: bool = False, give_up_after_days: int = DEFAULT_GIVE_UP_AFTER_DAYS,
+        dry_run: bool = True) -> Dict[str, int]:
     db = create_postgres_session(False)
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
     try:
-        mod_id_to_abbr = get_email_extraction_mods(db)
-        if only_mods:
-            wanted = {m.strip().upper() for m in only_mods}
-            mod_id_to_abbr = {mid: abbr for mid, abbr in mod_id_to_abbr.items()
-                              if abbr.upper() in wanted}
-        if not mod_id_to_abbr:
-            logger.warning("No email-extraction-enabled MODs selected; nothing to do.")
+        jobs = get_jobs(db, only_mods=only_mods, limit=limit)
+        pmids: List[str] = sorted({job[3] for job in jobs if job[3] is not None})
+        logger.info("Email extraction jobs (dry_run=%s, mods=%s): %d reference+mod pairs, "
+                    "%d distinct papers with a PMID", dry_run, only_mods or "all", len(jobs), len(pmids))
+        if not jobs:
             return {}
 
-        logger.info("Getting emails from PubMed/PMC (dry_run=%s) for MODs %s, "
-                    "corpus additions in [%s, %s)",
-                    dry_run, ", ".join(sorted(mod_id_to_abbr.values())), since, until)
+        results = download_emails(pmids, pmc_all=pmc_all) if pmids else {}
+        if pmids:
+            logger.info("Emails downloaded for %d/%d papers (%.0f%%)",
+                        len(results), len(pmids), 100 * len(results) / len(pmids))
 
-        candidates = get_candidates(db, list(mod_id_to_abbr), since, until, limit=limit)
-        pmids = sorted({cand[2] for cand in candidates})
-        logger.info("%d reference+mod pairs (%d distinct papers) to process",
-                    len(candidates), len(pmids))
-        if not candidates:
-            return {}
-
-        results = download_emails(pmids, pmc_all=pmc_all)
-        logger.info("Emails downloaded for %d/%d papers (%.0f%%)",
-                    len(results), len(pmids), 100 * len(results) / len(pmids))
-
-        counters = apply_results(db, candidates, results, dry_run)
-        logger.info("%s: references with emails loaded: %s; pairs tagged complete: %s; "
-                    "pairs tagged needed: %s; errors: %s",
+        give_up_before = datetime.now() - timedelta(days=give_up_after_days)
+        counters = apply_results(db, jobs, results, give_up_before, dry_run)
+        logger.info("%s: references with emails loaded: %s; jobs complete with emails: %s; "
+                    "jobs complete without emails (given up): %s; still needed: %s; errors: %s",
                     "DRY RUN - nothing written" if dry_run else "COMMITTED",
-                    counters["emails_loaded"], counters["tagged_complete"],
-                    counters["tagged_needed"], counters["errors"])
+                    counters["emails_loaded"], counters["complete_with_emails"],
+                    counters["complete_without_emails"], counters["still_needed"], counters["errors"])
         return counters
     finally:
         db.close()
 
 
 def parse_args() -> argparse.Namespace:
-    default_until = str(date.today() + timedelta(days=1))
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("-s", "--since", default=DEFAULT_SINCE,
-                   help=f"Corpus-addition window start, inclusive (default: {DEFAULT_SINCE})")
-    p.add_argument("-u", "--until", default=default_until,
-                   help=f"Corpus-addition window end, exclusive (default: {default_until})")
     p.add_argument("--mods", default=None,
                    help="Comma-separated MOD abbreviations to limit to (e.g. SGD,WB); "
-                        "default: all MODs with email-extraction workflow transitions")
+                        "default: every MOD with email extraction jobs")
     p.add_argument("--limit", type=int, default=None,
                    help="Cap the number of reference+mod pairs (testing)")
     p.add_argument("--pmc-all", action="store_true",
                    help="Fetch PMC XML for every paper with a PMCID, not only the "
                         "papers PubMed metadata found no email for, and union both "
                         "sources' addresses (slower: more NCBI requests)")
+    p.add_argument("--give-up-after-days", type=int, default=DEFAULT_GIVE_UP_AFTER_DAYS,
+                   help="A job with no email this many days after corpus entry is done "
+                        f"(default: {DEFAULT_GIVE_UP_AFTER_DAYS})")
     p.add_argument("--commit", action="store_true",
                    help="Apply the changes. Without this flag the script only "
                         "downloads and reports (dry run).")
@@ -606,8 +482,8 @@ def main() -> None:
     args = parse_args()
     logger.setLevel(getattr(logging, args.log_level.upper(), logging.INFO))
     only_mods = args.mods.split(",") if args.mods else None
-    run(since=args.since, until=args.until, only_mods=only_mods,
-        limit=args.limit, pmc_all=args.pmc_all, dry_run=not args.commit)
+    run(only_mods=only_mods, limit=args.limit, pmc_all=args.pmc_all,
+        give_up_after_days=args.give_up_after_days, dry_run=not args.commit)
 
 
 if __name__ == "__main__":  # pragma: no cover

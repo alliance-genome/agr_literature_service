@@ -144,9 +144,9 @@ class TestChecks:
         load_name_to_atp_and_relationships_mock()
         ref = _reference(db, wb, 7)
         _author(db, ref, 1)
-        assert [t[1] for t in aps.author_person_corpus_entry_tags(db, ref, "WB")] == [NEEDED]
+        assert aps.author_person_entry_state(db, ref) == NEEDED
         empty = _reference(db, wb, 8)
-        assert [t[1] for t in aps.author_person_corpus_entry_tags(db, empty, "WB")] == [COMPLETE]
+        assert aps.author_person_entry_state(db, empty) == COMPLETE
 
 
 @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",

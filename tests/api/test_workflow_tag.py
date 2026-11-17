@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import and_
 from starlette.testclient import TestClient
-from fastapi import status
+from fastapi import HTTPException, status
 from unittest.mock import patch
 
 from agr_literature_service.api.main import app
@@ -13,7 +13,8 @@ from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, 
 from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process,
-    get_indexing_and_community_workflow_tags)
+    get_indexing_and_community_workflow_tags,
+    patch as workflow_tag_crud_patch)
 from ..fixtures import load_name_to_atp_and_relationships_mock
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
@@ -83,35 +84,32 @@ class TestWorkflowTag:
         assert ref_wt_obj.workflow_tag_id == "ATP:0001111"
 
     def test_patch_ref_wt(self, db, test_workflow_tag, auth_headers): # noqa
+        """PATCH edits only the note and the curation tag (SCRUM-6845)."""
         with TestClient(app) as client:
-            # change workflow_tag
-            xml = {"workflow_tag_id": "ATP:0003333",
-                   "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
-                   }
-            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml, headers=auth_headers)
+            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}",
+                                    json={"note": "checked", "curation_tag": "ATP:0000208"}, headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
+            assert response.json()["note"] == "checked"
+            assert response.json()["curation_tag"] == "ATP:0000208"
 
-            ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
-                WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
-            assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
-            assert ref_wt_obj.workflow_tag_id == "ATP:0003333"
-
-            transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions",
-                                      headers=auth_headers).json()
-            assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ATP:0001111'
-            assert not transactions[0]['changeset']['mod_id'][0]
-            assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ATP:0001111'
-            assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ATP:0003333'
-
-    def test_patch_ref_wt_blank_mod_abbr(self, db, test_workflow_tag, auth_headers):  # noqa
+    @pytest.mark.parametrize("field, value", [("workflow_tag_id", "ATP:0003333"), ("mod_abbreviation", ""),
+                                              ("reference_curie", "AGRKB:101000000000001")])
+    def test_patch_ref_wt_refuses_other_fields(self, db, test_workflow_tag, auth_headers, field, value): # noqa
+        """A status change goes through a transition and a merge through /workflow_tag/merge (SCRUM-6845)."""
         with TestClient(app) as client:
-            # change workflow_tag
-            patch_data = {"mod_abbreviation": ""}
-            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=patch_data,
+            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json={field: value},
                                     headers=auth_headers)
-            assert response.status_code == status.HTTP_200_OK
-            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
-            assert response.json()["mod_abbreviation"] == ""
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        ref_wt_obj = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
+        assert ref_wt_obj.workflow_tag_id == "ATP:0001111"
+        assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
+
+    def test_patch_crud_refuses_other_fields(self, db, test_workflow_tag): # noqa
+        """Internal callers of workflow_tag_crud.patch get the same rule as the API."""
+        with pytest.raises(HTTPException) as exc:
+            workflow_tag_crud_patch(db, test_workflow_tag.new_wt_id, {"workflow_tag_id": "ATP:0003333"})
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show_ref_wt(self, test_workflow_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -169,7 +167,7 @@ class TestWorkflowTag:
     def test_transition_to_workflow_status_manual_indexing_child_without_existing_direct_needed(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000273', transition_to='ATP:0000274'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
         with TestClient(app) as client:
@@ -193,7 +191,10 @@ class TestWorkflowTag:
            load_name_to_atp_and_relationships_mock)
     def test_transition_to_workflow_status_manual_indexing_child_without_existing(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
+        """The first state comes from the row whose transition_from is the process term; the
+        "manual indexing needed" that used to be added silently first is gone (SCRUM-6845)."""
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000273', transition_to='ATP:0000275'))
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
@@ -206,13 +207,10 @@ class TestWorkflowTag:
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            assert db.query(WorkflowTagModel).filter(
-                and_(
-                    WorkflowTagModel.reference_id == reference.reference_id,
-                    WorkflowTagModel.mod_id == mod.mod_id,
-                    WorkflowTagModel.workflow_tag_id == 'ATP:0000275'
-                )
-            ).first()
+            tags = db.query(WorkflowTagModel.workflow_tag_id).filter(
+                WorkflowTagModel.reference_id == reference.reference_id,
+                WorkflowTagModel.mod_id == mod.mod_id).all()
+            assert [t.workflow_tag_id for t in tags] == ['ATP:0000275']
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -220,7 +218,7 @@ class TestWorkflowTag:
                                                         auth_headers):  # noqa
         """The transition endpoint also resolves cross-reference curies (PMID/MOD) (SCRUM-6319)."""
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000273', transition_to='ATP:0000274'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.add(CrossReferenceModel(curie="SGD:S000777777", curie_prefix="SGD",
                                    reference_id=reference.reference_id))
@@ -248,21 +246,103 @@ class TestWorkflowTag:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_patch_ref_wt_reference_by_pmid(self, db, test_workflow_tag, auth_headers):  # noqa
-        """PATCH resolves a PMID/MOD curie in reference_curie to the AGRKB reference (SCRUM-6319)."""
-        reference = db.query(ReferenceModel).filter(
-            ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
-        db.add(CrossReferenceModel(curie="PMID:77777777", curie_prefix="PMID",
-                                   reference_id=reference.reference_id))
+    def _second_reference(self, db, curie): # noqa
+        reference = ReferenceModel(curie=curie, title="merge target")
+        db.add(reference)
         db.commit()
+        return reference
+
+    def test_merge_moves_and_deletes_in_one_call(self, db, test_workflow_tag, auth_headers): # noqa
+        """A reference merge deletes the dropped tags and moves the kept ones (SCRUM-6845); the
+        surviving reference is found by PMID too (SCRUM-6319)."""
+        survivor = self._second_reference(db, "AGRKB:101000000999001")
+        db.add(CrossReferenceModel(curie="PMID:77777777", curie_prefix="PMID", reference_id=survivor.reference_id))
+        loser_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        dropped = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=test_workflow_tag.related_mod_id,
+                                   workflow_tag_id="ATP:0002222")
+        db.add(dropped)
+        db.commit()
+        dropped_id = dropped.reference_workflow_tag_id
         with TestClient(app) as client:
-            xml = {"reference_curie": "PMID:77777777"}
-            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml,
-                                    headers=auth_headers)
+            response = client.post(url="/workflow_tag/merge/PMID:77777777",
+                                   json={"delete_ids": [dropped_id], "move_ids": [test_workflow_tag.new_wt_id]},
+                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
-                WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
-            assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
+        db.expire_all()
+        moved = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
+        assert moved.reference_id == survivor.reference_id
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == dropped_id).one_or_none() is None
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_merge_refuses_a_second_state_of_one_process(self, db, test_workflow_tag, auth_headers): # noqa
+        """Moving a file upload state onto a reference that keeps its own would leave two states of one
+        workflow; nothing is changed then, not even the deletes."""
+        load_name_to_atp_and_relationships_mock()
+        survivor = self._second_reference(db, "AGRKB:101000000999002")
+        loser_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        mod_id = test_workflow_tag.related_mod_id
+        moving = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=mod_id, workflow_tag_id="ATP:0000134")
+        kept = WorkflowTagModel(reference_id=survivor.reference_id, mod_id=mod_id, workflow_tag_id="ATP:0000141")
+        db.add_all([moving, kept])
+        db.commit()
+        moving_id = moving.reference_workflow_tag_id
+        with TestClient(app) as client:
+            response = client.post(url=f"/workflow_tag/merge/{survivor.curie}",
+                                   json={"delete_ids": [test_workflow_tag.new_wt_id], "move_ids": [moving_id]},
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        db.expire_all()
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == moving_id).one().reference_id == loser_ref.reference_id
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one_or_none() is not None
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_merge_allows_sibling_tags_where_a_process_allows_several(self, db, test_workflow_tag,  # noqa
+                                                                     auth_headers):  # noqa
+        """Classifier tags (ATP:0000166 and the other process_atp_multiple_allowed processes) may sit side by
+        side, so a move clashes only with the same tag."""
+        load_name_to_atp_and_relationships_mock()
+        survivor = self._second_reference(db, "AGRKB:101000000999003")
+        loser_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        mod_id = test_workflow_tag.related_mod_id
+        moving = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=mod_id, workflow_tag_id="ATP:task1_needed")
+        duplicate = WorkflowTagModel(reference_id=loser_ref.reference_id, mod_id=mod_id,
+                                     workflow_tag_id="ATP:task3_needed")
+        db.add_all([moving, duplicate,
+                    WorkflowTagModel(reference_id=survivor.reference_id, mod_id=mod_id,
+                                     workflow_tag_id="ATP:task2_needed"),
+                    WorkflowTagModel(reference_id=survivor.reference_id, mod_id=mod_id,
+                                     workflow_tag_id="ATP:task3_needed")])
+        db.commit()
+        moving_id = moving.reference_workflow_tag_id
+        duplicate_id = duplicate.reference_workflow_tag_id
+        with TestClient(app) as client:
+            response = client.post(url=f"/workflow_tag/merge/{survivor.curie}",
+                                   json={"move_ids": [moving_id]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            response = client.post(url=f"/workflow_tag/merge/{survivor.curie}",
+                                   json={"move_ids": [duplicate_id]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        db.expire_all()
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == moving_id).one().reference_id == survivor.reference_id
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == duplicate_id).one().reference_id == loser_ref.reference_id
+
+    def test_merge_refuses_unknown_and_overlapping_ids(self, db, test_workflow_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            response = client.post(url=f"/workflow_tag/merge/{test_workflow_tag.related_ref_curie}",
+                                   json={"move_ids": [-1]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+            wt_id = test_workflow_tag.new_wt_id
+            response = client.post(url=f"/workflow_tag/merge/{test_workflow_tag.related_ref_curie}",
+                                   json={"delete_ids": [wt_id], "move_ids": [wt_id]}, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
@@ -365,7 +445,8 @@ class TestWorkflowTag:
                 mock_get_map_ateam_curies_to_names:
             mock_get_map_ateam_curies_to_names.return_value = {
                 'ATP:0000141': 'file needed', 'ATP:0001111': 'test',
-                'ATP:0000168': 'catalytic activity classification complete'
+                'ATP:0000168': 'catalytic activity classification complete',
+                'ATP:0000358': 'email extraction needed'
             }
             # Create additional references and MODs
             mods = ['WB', 'WB', 'FB']
@@ -427,9 +508,9 @@ class TestWorkflowTag:
             one_week_ago_date = one_week_ago.date().isoformat()
             # Test the counters endpoint with different parameters
             test_cases = [
-                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 8},
-                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 4},
-                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 8},
+                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 11},
+                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 6},
+                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 11},
             ]
 
             for case in test_cases:
@@ -575,6 +656,10 @@ class TestWorkflowTag:
         assert set(wb_result['author review']['all_workflow_tags'].keys()) == {
             'ATP:0000389', 'ATP:0000390', 'ATP:0000391', 'ATP:0000392'
         }
+        # the WF editor clears a tag by a transition to its section's process term (SCRUM-6845)
+        assert wb_result['author-person curation']['workflow_process_atp_id'] == 'ATP:0000375'
+        assert wb_result['author review']['workflow_process_atp_id'] == 'ATP:0000388'
+        assert wb_result['manual indexing']['workflow_process_atp_id'] == 'ATP:0000273'
 
         for mod_abbreviation in ('FB', 'SGD', 'ZFIN'):
             result = get_indexing_and_community_workflow_tags(db, ref_curie, mod_abbreviation)
@@ -712,11 +797,22 @@ class TestWorkflowTagReportsAndPriority:
             }
             response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
+            # the job rows ZFIN has: needed -> complete on success, -> failed on failure (SCRUM-6845)
+            mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
+            db.add(WorkflowTransitionModel(mod=mod_obj, transition_from="ATP:0000306", transition_to="ATP:0000303",
+                                           condition="on_success"))
+            db.add(WorkflowTransitionModel(mod=mod_obj, transition_from="ATP:0000306", transition_to="ATP:0000304",
+                                           condition="on_failed"))
+            db.commit()
 
             response = client.post(
                 url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
                 headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
+            db.expire_all()
+            tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).join(ReferenceModel).filter(
+                ReferenceModel.curie == curie, WorkflowTagModel.mod_id == mod_obj.mod_id).all()}
+            assert "ATP:0000303" in tags and "ATP:0000306" not in tags
 
     def test_get_reference_workflow_tags_by_mod(self, db, auth_headers):  # noqa
         with TestClient(app) as client:

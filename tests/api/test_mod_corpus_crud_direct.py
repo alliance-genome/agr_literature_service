@@ -11,20 +11,26 @@ from agr_literature_service.api.crud import mod_corpus_association_crud as mca_c
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel, ModModel,
                                                PersonModel, ReferenceModel,
                                                ModCorpusAssociationModel,
-                                               WorkflowTagModel)
+                                               WorkflowTagModel, WorkflowTransitionModel)
 from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
                                                 ModCorpusAssociationSchemaUpdate,
                                                 ModCorpusSortSourceType)
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import db # noqa
+from ..fixtures import load_name_to_atp_and_relationships_mock
 
 HELPERS = "agr_literature_service.api.crud.mod_corpus_association_crud"
 FILE_NEEDED = "ATP:0000141"
 SGD_INDEX = "ATP:0000274"
+SGD_INDEX_COMPLETE = "ATP:0000275"
+MANUAL_INDEXING = "ATP:0000273"
+ATP_MOCK = "agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships"
 ZFIN_INDEX = "ATP:0000306"
 ZFIN_PRE_INDEXING_COMPLETE = "ATP:0000303"
 ZFIN_MOLECULAR_PROBE = "ATP:0000380"
 ZFIN_MOLECULAR_PROBE_IN_PROGRESS = "ATP:0000383"
+EMAIL_EXTRACTION_NEEDED = "ATP:0000358"
+AUTHOR_PERSON_CURATION = "ATP:0000375"
 WB_AUTHOR_PERSON_NEEDED = "ATP:0000109"
 WB_AUTHOR_PERSON_IN_PROGRESS = "ATP:0000377"
 WB_AUTHOR_PERSON_COMPLETE = "ATP:0000378"
@@ -62,6 +68,12 @@ def _author(db, reference, order, linked=False): # noqa
 
 def _mod(db, abbreviation): # noqa
     return db.query(ModModel).filter(ModModel.abbreviation == abbreviation).first()
+
+
+def _tag_ids(db, ref, mod): # noqa
+    db.expire_all()
+    return sorted(t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_id == ref.reference_id, WorkflowTagModel.mod_id == mod.mod_id).all())
 
 
 @pytest.fixture
@@ -125,7 +137,7 @@ class TestCreate:
         tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == ref.reference_id,
             WorkflowTagModel.mod_id == mod_id).all()}
-        assert tags == {ZFIN_MOLECULAR_PROBE_IN_PROGRESS, ZFIN_PRE_INDEXING_COMPLETE}
+        assert tags == {ZFIN_MOLECULAR_PROBE_IN_PROGRESS, ZFIN_PRE_INDEXING_COMPLETE, EMAIL_EXTRACTION_NEEDED}
 
     def _create_in_corpus(self, db, ref, mod_abbreviation): # noqa
         payload = ModCorpusAssociationSchemaPost(
@@ -253,9 +265,18 @@ class TestPatch:
     def _patch_into_corpus(self, db, ref, mod_abbreviation, **flags): # noqa
         mod = _mod(db, mod_abbreviation)
         mca = _mca(db, ref, mod, corpus=False)
+        # the checkbox is one transition from the author-person curation process term (SCRUM-6845)
+        for state in (WB_AUTHOR_PERSON_NEEDED, WB_AUTHOR_PERSON_COMPLETE):
+            if not db.query(WorkflowTransitionModel).filter_by(
+                    mod_id=mod.mod_id, transition_from=AUTHOR_PERSON_CURATION, transition_to=state).first():
+                db.add(WorkflowTransitionModel(mod_id=mod.mod_id, transition_from=AUTHOR_PERSON_CURATION,
+                                               transition_to=state, transition_type="any"))
+        db.commit()
         update = ModCorpusAssociationSchemaUpdate(corpus=True, **flags)
-        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+        with patch(ATP_MOCK, load_name_to_atp_and_relationships_mock), \
+                patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
                 patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            load_name_to_atp_and_relationships_mock()
             mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
         return {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == ref.reference_id,
@@ -308,18 +329,41 @@ class TestPatch:
         tags = self._patch_into_corpus(db, ref, "FB", author_person_curation_needed=True)
         assert WB_AUTHOR_PERSON_NEEDED not in tags
 
+    @patch(ATP_MOCK, load_name_to_atp_and_relationships_mock)
     def test_patch_sgd_corpus_true_adds_index_tag(self, seeded): # noqa
+        """The sort page's indexing choice is the paper's first manual indexing state, through
+        the manual indexing -> state row (SCRUM-6845)."""
         db, ref = seeded  # noqa
+        load_name_to_atp_and_relationships_mock()
         mod = _mod(db, "SGD")
         mca = _mca(db, ref, mod, corpus=False)
+        db.add(WorkflowTransitionModel(mod_id=mod.mod_id, transition_from=MANUAL_INDEXING,
+                                       transition_to=SGD_INDEX))
+        db.commit()
         update = ModCorpusAssociationSchemaUpdate(corpus=True, index_wft_id=SGD_INDEX)
-        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
-                patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"):
             mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
-        tag = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == ref.reference_id,
-            WorkflowTagModel.workflow_tag_id == SGD_INDEX).first()
-        assert tag is not None
+        assert _tag_ids(db, ref, mod) == [FILE_NEEDED, SGD_INDEX, EMAIL_EXTRACTION_NEEDED]
+
+    @patch(ATP_MOCK, load_name_to_atp_and_relationships_mock)
+    def test_patch_sgd_index_choice_moves_an_existing_state(self, seeded): # noqa
+        """A paper that already has a manual indexing state is moved from it, never given a
+        second one; a choice the transition table does not allow is refused."""
+        db, ref = seeded  # noqa
+        load_name_to_atp_and_relationships_mock()
+        mod = _mod(db, "SGD")
+        mca = _mca(db, ref, mod, corpus=False)
+        db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod.mod_id, workflow_tag_id=SGD_INDEX))
+        db.add(WorkflowTransitionModel(mod_id=mod.mod_id, transition_from=SGD_INDEX,
+                                       transition_to=SGD_INDEX_COMPLETE))
+        db.commit()
+        update = ModCorpusAssociationSchemaUpdate(corpus=True, index_wft_id=SGD_INDEX_COMPLETE)
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"):
+            mca_crud.patch(db, mca.mod_corpus_association_id, update.model_dump(exclude_unset=True))
+        assert _tag_ids(db, ref, mod) == [FILE_NEEDED, SGD_INDEX_COMPLETE, EMAIL_EXTRACTION_NEEDED]
+
+        with pytest.raises(HTTPException):
+            mca_crud.add_workflow_tags_on_patch_into_corpus(db, mca, ref, "SGD", {"index_wft_id": "ATP:0000343"})
 
 
 class TestShowErrors:

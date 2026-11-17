@@ -195,7 +195,9 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000015': ['ATP:0000068', 'ATP:0000069', 'ATP:0000070'],
         'ATP:0000068': ['ATP:0000071'],
 
-        'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
+        # made-up process; ATP:0000141 is NOT listed here, so its parent stays ATP:0000140 (the
+        # parent map keeps the last write) and the file upload -> file needed row applies (SCRUM-6845)
+        'ATP:fileupload': ['ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
         'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
         'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],

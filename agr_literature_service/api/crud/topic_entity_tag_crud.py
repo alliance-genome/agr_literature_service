@@ -28,13 +28,13 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_user_display_name_map
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
-    TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
+    TopicEntityTagModel, ModCorpusAssociationModel,
     ReferenceModel, TagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.models.topic_entity_tag_model import topic_entity_tag_validation
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
-    get_current_workflow_status
+from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
+    transition_to_workflow_status
 from agr_literature_service.api.models.audited_model import (
     audited_columns_sql,
     get_default_user_value,
@@ -123,6 +123,10 @@ REVALIDATION_EMAIL_BODIES = {
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species',
                     'data_context']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
+
+# workflow terms the TET paths set through transitions (SCRUM-6845)
+MANUAL_INDEXING_PROCESS_ATP = "ATP:0000273"
+FILE_NEEDED_ATP = "ATP:0000141"
 
 # SCRUM-6183: data_novelty term "existing data" used on the companion pure entity
 # tag auto-created from a positive mixed topic+entity tag.
@@ -361,7 +365,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
                                         source.secondary_data_provider.abbreviation,
                                         mod_id, commit=False)
         logger.info("Updating manual indexing workflow tag")
-        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft, commit=False)
+        update_manual_indexing_workflow_tag(db, source.secondary_data_provider.abbreviation, reference_id,
+                                            index_wft, commit=False)
         if validate_on_insert:
             logger.info("Starting tag validation")
             # SCRUM-6474: this tag's edges must not be written while a PATCH or DELETE on
@@ -494,36 +499,20 @@ def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     mod_id = get_mod_id_from_mod_abbreviation(db, mod_abbreviation)
     add_paper_to_mod_if_not_already(db, reference_curie, reference_id, mod_abbreviation, mod_id)
-    update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
+    update_manual_indexing_workflow_tag(db, mod_abbreviation, reference_id, "ATP:0000275")
 
 
-def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft, commit: bool = True):
-    """Set the reference's manual indexing workflow tag for the MOD to ``index_wft``.
+def update_manual_indexing_workflow_tag(db: Session, mod_abbreviation: str, reference_id, index_wft,
+                                        commit: bool = True):
+    """Move the reference's manual indexing status for the MOD to ``index_wft``, through the
+    transition table like any curator change (SCRUM-6845); a no-op when it already is.
     ``commit=False`` flushes instead, for a caller that commits (create_tag)."""
     if index_wft is None:
         return
-    all_manual_indexing_wf_tags = get_workflow_tags_from_process("ATP:0000273")
-    wft = db.query(WorkflowTagModel).filter(
-        and_(
-            WorkflowTagModel.workflow_tag_id.in_(all_manual_indexing_wf_tags),
-            WorkflowTagModel.reference_id == reference_id,
-            WorkflowTagModel.mod_id == mod_id
-        )
-    ).one_or_none()
-    if wft is None:
-        wft_obj = WorkflowTagModel(reference_id=reference_id,
-                                   mod_id=mod_id,
-                                   workflow_tag_id=index_wft)
-        db.add(wft_obj)
-    elif wft.workflow_tag_id != index_wft:
-        wft.workflow_tag_id = index_wft
-        db.add(wft)
-    else:
+    if get_current_workflow_status(db, str(reference_id), MANUAL_INDEXING_PROCESS_ATP, mod_abbreviation) == index_wft:
         return
-    if commit:
-        db.commit()
-    else:
-        db.flush()
+    transition_to_workflow_status(db, str(reference_id), mod_abbreviation, index_wft, transition_type="manual",
+                                  commit=commit)
 
 
 def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id,
@@ -578,18 +567,10 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
             )
 
             if current_status is None:
-                """
-                transition_to_workflow_status(
-                    db,
-                    reference_curie,
-                    mod_abbreviation,
-                    "ATP:0000141",
-                )
-                """
-                new_wft = WorkflowTagModel(reference_id=reference_id,
-                                           mod_id=mod_id,
-                                           workflow_tag_id='ATP:0000141')
-                db.add(new_wft)
+                # file upload -> file needed, which every MOD's transition table has (SCRUM-6845);
+                # the commit, or flush, is this function's own, below
+                transition_to_workflow_status(db, str(reference_id), mod_abbreviation, FILE_NEEDED_ATP,
+                                              commit=False)
                 logger.info(
                     "Transitioned workflow status to ATP:0000141 "
                     "(reference=%s, mod=%s)",
