@@ -14,7 +14,7 @@ Targets (``--scope``):
 
   * ``reclassification`` (FB): references carrying any FB per-data-type
     "classification complete" workflow tag (ATP:0000167 / ATP:0000244 /
-    ATP:0000307) or a "no genetic data" manual-indexing tag (ATP:0000207).
+    ATP:0000307).
   * ``training`` (SCRUM-6143, WB): the MOD's topic-classifier training sets (latest
     dataset version per topic), optionally date-filtered with
     ``--filter-date-before`` -- the same set ``embed_training_set_references``
@@ -73,22 +73,20 @@ SOURCE_FILE_CLASS = "converted_merged_main"
 DEFAULT_SOURCE_API = "https://literature-rest.alliancegenome.org"
 
 # FB reference-classification "complete" workflow tags (their union = every
-# previously classified FB reference) + the "no genetic data" manual-indexing tag.
+# previously classified FB reference). The "no genetic data" (ATP:0000207) rows of
+# manual_indexing_tag used to be added too; that table was dropped in SCRUM-6861, and on
+# prod (2026-11-17) every FB paper with a "no genetic data" tag already had one of these.
 FB_COMPLETE_TAGS = ("ATP:0000167", "ATP:0000244", "ATP:0000307")
-NO_GEN_DATA_TAG = "ATP:0000207"
 
 
 def reclassification_target_ids(db: Session, mod: str) -> Set[int]:
-    """Reference ids carrying a "classification complete" workflow tag or the
-    "no genetic data" manual-indexing tag for ``mod`` (the FB reclassification set)."""
+    """Reference ids carrying a "classification complete" workflow tag for ``mod``
+    (the FB reclassification set)."""
     rows = db.execute(text("""
-        WITH m AS (SELECT id FROM mod WHERE abbreviation = :mod)
-        SELECT reference_id FROM workflow_tag
-          WHERE mod_id = (SELECT id FROM m) AND workflow_tag_id = ANY(:tags)
-        UNION
-        SELECT reference_id FROM manual_indexing_tag
-          WHERE mod_id = (SELECT id FROM m) AND curation_tag = :ngd
-    """), {"mod": mod, "tags": list(FB_COMPLETE_TAGS), "ngd": NO_GEN_DATA_TAG}).fetchall()
+        SELECT DISTINCT reference_id FROM workflow_tag
+          WHERE mod_id = (SELECT id FROM mod WHERE abbreviation = :mod)
+            AND workflow_tag_id = ANY(:tags)
+    """), {"mod": mod, "tags": list(FB_COMPLETE_TAGS)}).fetchall()
     return {int(r[0]) for r in rows}
 
 
