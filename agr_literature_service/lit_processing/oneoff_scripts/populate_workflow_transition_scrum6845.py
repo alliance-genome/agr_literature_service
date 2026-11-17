@@ -72,15 +72,23 @@ class Row(NamedTuple):
     transition_to: str
     transition_type: str = "any"
     condition: Optional[str] = None
+    # copy the actions of the MOD's existing row from this state to the same transition_to
+    actions_from: Optional[str] = None
 
 
 def _rows() -> List[Row]:
     rows: List[Row] = []
-    # file upload: the first state (corpus entry, TET, file upload), every MOD including AGR
+    # file upload: the first state (corpus entry, TET, file upload), every MOD including AGR; a
+    # first file runs the same actions (the text conversion gate) as one arriving at "file needed"
     for state in (FILE_NEEDED, FILE_UPLOAD_IN_PROGRESS, FILES_UPLOADED):
-        rows.append(Row(ALL_MODS + ("AGR",), FILE_UPLOAD, state))
+        rows.append(Row(ALL_MODS + ("AGR",), FILE_UPLOAD, state, actions_from=FILE_NEEDED))
     # the UI tracker's "file unavailable" for a paper still at "file needed"
     rows.append(Row(ALL_MODS, FILE_NEEDED, FILE_UNAVAILABLE))
+    # AGR had no file upload rows past its first state, so an upload with no MOD (PMC), which moves
+    # every corpus MOD's tag, was refused for AGR; no actions, AGR has no text conversion
+    for transition_from, transition_to in ((FILE_NEEDED, FILES_UPLOADED), (FILE_NEEDED, FILE_UPLOAD_IN_PROGRESS),
+                                           (FILE_UPLOAD_IN_PROGRESS, FILES_UPLOADED)):
+        rows.append(Row(("AGR",), transition_from, transition_to))
     # text conversion needed on a paper with no text conversion tag (proceed_on_value actions)
     rows.append(Row(ALL_MODS, TEXT_CONVERSION, TEXT_CONVERSION_NEEDED))
     # manual indexing: first state from the process term, and removal back to it
@@ -106,6 +114,15 @@ def _rows() -> List[Row]:
                                   (("WB",), AUTHOR_REVIEW, AUTHOR_REVIEW_STATES)):
         for state in states:
             rows.append(Row(mods, state, process, "manual_only"))
+    # community curation and first pass curation are set by hand in the WF editor, whose menu
+    # offers every state: a first state from the process term, and every move between states
+    for mods, process, states in ((("FB", "WB"), COMMUNITY_CURATION, COMMUNITY_CURATION_STATES),
+                                  (("FB",), FIRST_PASS_CURATION, FIRST_PASS_CURATION_STATES)):
+        for state in states:
+            rows.append(Row(mods, process, state, "manual_only"))
+            for other in states:
+                if other != state:
+                    rows.append(Row(mods, state, other, "manual_only"))
     return rows
 
 
@@ -137,12 +154,14 @@ def populate(db_session, apply: bool = False) -> Dict[str, int]:
             if (mod_id, row.transition_from, row.transition_to) in existing:
                 counts["present"] += 1
                 continue
+            source = existing.get((mod_id, row.actions_from, row.transition_to)) if row.actions_from else None
+            actions = list(source.actions or []) if source is not None else []
             log.info(f"add {mod} {row.transition_from} -> {row.transition_to} "
-                     f"type={row.transition_type} condition={row.condition}")
+                     f"type={row.transition_type} condition={row.condition} actions={actions}")
             db_session.add(WorkflowTransitionModel(mod_id=mod_id, transition_from=row.transition_from,
                                                    transition_to=row.transition_to,
                                                    transition_type=row.transition_type,
-                                                   condition=row.condition, actions=[]))
+                                                   condition=row.condition, actions=actions))
             counts["added"] += 1
     for mods, transition_from, transition_to, new_type in TYPE_CHANGES:
         for mod in mods:
