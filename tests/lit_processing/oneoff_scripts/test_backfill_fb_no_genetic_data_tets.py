@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agr_literature_service.lit_processing.oneoff_scripts import backfill_fb_no_genetic_data_tets as mod
-from ...fixtures import db  # noqa
+from ...fixtures import db, load_name_to_atp_and_relationships_mock  # noqa
 from ...api.fixtures import auth_headers  # noqa
 from ...api.test_reference import test_reference  # noqa
 from ...api.test_mod import test_mod  # noqa
@@ -155,6 +155,12 @@ class TestBackfillAgainstTheDatabase:
         from agr_literature_service.api.main import app
         from agr_literature_service.api.models import (ManualIndexingTagModel, ModModel,
                                                        ReferenceModel, TopicEntityTagModel)
+
+        # create_tag adds the paper to FB's corpus, whose file upload -> file needed transition
+        # reads the ATP workflow hierarchy. Load it here: without this the test only passed when
+        # an earlier test in the same xdist worker had loaded it, and otherwise reached the
+        # unconfigured A-team client and the tag was not created (created == 0).
+        load_name_to_atp_and_relationships_mock()
 
         with TestClient(app) as client:
             client.post(url="/mod/", json={"abbreviation": "FB", "short_name": "FB",
