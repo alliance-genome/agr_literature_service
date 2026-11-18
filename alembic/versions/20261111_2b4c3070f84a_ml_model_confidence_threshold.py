@@ -1,7 +1,7 @@
 """ml_model_confidence_threshold
 
 Revision ID: 2b4c3070f84a
-Revises: c4e1a7d90b23
+Revises: 91b69ba4ab92
 Create Date: 2026-11-11
 
 Adds two ml_model columns (SCRUM-6482):
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 
 revision = "2b4c3070f84a"
-down_revision = "c4e1a7d90b23"
+down_revision = "91b69ba4ab92"
 branch_labels = None
 depends_on = None
 
