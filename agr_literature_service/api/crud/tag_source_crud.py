@@ -123,9 +123,9 @@ def get_or_create_abc_source(db: Session, mod_abbreviation: str) -> TagSourceMod
 
     The opposite-negation guard in check_for_duplicate_tags (Branch 3) fires for
     'professional_biocurator' sources, which is now every ABC source.
-    validate_topic does not rely on the validation_type either way -- it deletes
-    the curator's prior validation before inserting the new one, so a flipped
-    re-validation never trips Branch 3 (regression test:
+    validate_topic does not rely on the validation_type either way -- it updates
+    the curator's existing verdict in place (SCRUM-6852) instead of inserting a
+    second one, so a flipped re-validation never trips Branch 3 (regression test:
     test_validate_topic_flip_with_biocurator_source_does_not_409)."""
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
     if mod is None:

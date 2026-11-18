@@ -106,7 +106,32 @@ species — in SCRUM-5746.** SCRUM-5697 added the
 column to every tag; SCRUM-5746 made `validate_tags` read it, through
 `data_context_compatible` at each of the eight `add_validation_to_db` guard sites.
 
-It is a **hierarchy**, not a flat set:
+It is a **hierarchy**, not a flat set. As of the 2026-10-30 ATP release:
+
+```
+ATP:0000323  data context
+├── ATP:0000324  mentioned data
+│   ├── ATP:0000360  background information
+│   └── ATP:0000405  experimental data
+│       ├── ATP:0000406  experimentally studied entity
+│       │   ├── ATP:0000407  primary studied entity
+│       │   └── ATP:0000408  additional studied entity
+│       └── ATP:0000409  supporting experimental entity
+│           ├── ATP:0000327  genetic marker
+│           ├── ATP:0000328  expression marker
+│           └── ATP:0000410  experimental control
+└── ATP:0000404  nomenclature error
+```
+
+**SCRUM-6815: that release deprecated `ATP:0000325` experimentally studied data and
+`ATP:0000326` marker data, with no parent and no replacement.** A parentless term
+validates nothing but itself, so every MOD moved off `ATP:0000325` in one cutover: the
+per-MOD defaults (`DATA_CONTEXT_DEFAULTS` in `topic_entity_tag_crud`), the curator
+validation tag (`ATP:0000405` for every MOD) and a backfill of the stored tags all
+changed together. The rest of this section describes the tree as it was when
+SCRUM-5746 landed.
+
+The SCRUM-5746 tree was:
 
 ```
 ATP:0000323  data context

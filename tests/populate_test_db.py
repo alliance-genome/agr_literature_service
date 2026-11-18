@@ -402,7 +402,7 @@ class MockDataFactory:
             species="NCBITaxon:10090",
             negated=False,
             data_novelty="ATP:0000334",
-            data_context="ATP:0000325"
+            data_context="ATP:0000405"
         )
         db_session.add(tag)
         return tag

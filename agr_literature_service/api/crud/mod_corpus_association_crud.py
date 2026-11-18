@@ -25,9 +25,11 @@ from agr_literature_service.api.crud.utils.zfin_corpus_entry import \
     PRE_INDEXING_PRIO_NEEDED, MOLECULAR_PROBE_CLASSIFICATION_NEEDED
 from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS, \
     AUTHOR_PERSON_CURATION_TAGS
+from agr_literature_service.api.crud.utils.author_person_status import author_person_entry_state
 from typing import List, Optional, Tuple
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
+manual_indexing_process_atp_id = "ATP:0000273"
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
 pre_indexing_prio_needed_tag_atp_id = PRE_INDEXING_PRIO_NEEDED
 molecular_probe_classification_needed_tag_atp_id = MOLECULAR_PROBE_CLASSIFICATION_NEEDED
@@ -127,11 +129,6 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if mod_abbreviation in CORPUS_ENTRY_TAGS:
             add_corpus_entry_workflow_tags(db, reference.reference_id, mod.mod_id, mod_abbreviation)
             db.commit()
-        elif mod_abbreviation == 'SGD':
-            db.add(WorkflowTagModel(reference_id=reference.reference_id,
-                                    mod_id=mod.mod_id,
-                                    workflow_tag_id=manual_indexing_needed_tag_atp_id))
-            db.commit()
 
     return int(db_obj.mod_corpus_association_id)
 
@@ -168,6 +165,16 @@ def destroy(db: Session, mod_corpus_association_id: int) -> None:
     return None
 
 
+def _has_author_person_state(db: Session, mod_corpus_association_db_obj: ModCorpusAssociationModel,
+                             mod_abbreviation: str) -> bool:
+    states = [state for _name, _atp, mod_states in AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation]
+              for state in mod_states]
+    return db.query(WorkflowTagModel.reference_workflow_tag_id).filter(
+        WorkflowTagModel.reference_id == mod_corpus_association_db_obj.reference_id,
+        WorkflowTagModel.mod_id == mod_corpus_association_db_obj.mod_id,
+        WorkflowTagModel.workflow_tag_id.in_(states)).first() is not None
+
+
 def add_workflow_tags_on_patch_into_corpus(db: Session, mod_corpus_association_db_obj: ModCorpusAssociationModel,
                                            reference_obj: ReferenceModel, mod_abbreviation: str,
                                            mod_corpus_association_data: dict) -> None:
@@ -182,18 +189,26 @@ def add_workflow_tags_on_patch_into_corpus(db: Session, mod_corpus_association_d
     if mod_abbreviation in CORPUS_ENTRY_TAGS:
         add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
                                        mod_corpus_association_db_obj.mod_id, mod_abbreviation)
-    # SCRUM-6487: WB's sort page asks for author-person curation per paper
+    # SCRUM-6487: WB's sort page asks for author-person curation per paper. It
+    # starts at "complete" rather than "needed" when every author already has a
+    # person, or there are no authors (SCRUM-6827).
+    # It is one transition from the author-person curation process term, and only for a paper
+    # with no author-person state yet: one WB curators already moved on keeps its state (SCRUM-6845).
     if mod_corpus_association_data.get('author_person_curation_needed') and \
-            mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS:
-        add_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
-                                       mod_corpus_association_db_obj.mod_id, mod_abbreviation,
-                                       tags=AUTHOR_PERSON_CURATION_TAGS[mod_abbreviation])
+            mod_abbreviation in AUTHOR_PERSON_CURATION_TAGS and \
+            not _has_author_person_state(db, mod_corpus_association_db_obj, mod_abbreviation):
+        transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation,
+                                      author_person_entry_state(db, reference_obj.reference_id),
+                                      transition_type="manual", commit=False)
+    # SGD's sort page: the curator's manual indexing choice is a state change like any other, so it
+    # goes through the transition table, from the paper's current state or, without one, from the
+    # manual indexing process term (SCRUM-6845)
     if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
         wft_id = mod_corpus_association_data['index_wft_id']
-        wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
-                                   mod_id=mod_corpus_association_db_obj.mod_id,
-                                   workflow_tag_id=wft_id)
-        db.add(wft_obj)
+        if get_current_workflow_status(db, str(reference_obj.reference_id), manual_indexing_process_atp_id,
+                                       mod_abbreviation) != wft_id:
+            transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, wft_id,
+                                          transition_type="manual", commit=False)
 
 
 def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_update):

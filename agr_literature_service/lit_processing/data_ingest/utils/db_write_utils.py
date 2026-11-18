@@ -11,6 +11,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.author import Autho
     authors_lists_match_for_review
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
+from agr_literature_service.lit_processing.utils.generic_utils import xref_lookup_key
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
@@ -20,6 +21,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import mark_authors_reloaded
 from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_STATES, \
     AUTHOR_REVIEW_NEEDED, AUTHOR_REVIEW_COMPLETE
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
@@ -744,6 +746,9 @@ def delete_automated_author_history(db_session, reference_id: int) -> int:
 def replace_authors_from_json(db_session, reference_id: int, authors_from_json: List[Author]):
 
     delete_automated_author_history(db_session, reference_id)
+    # SCRUM-6827: the caller moves the author-person status once its batch commits
+    # (author_person_status_updates.apply_author_reload_statuses).
+    mark_authors_reloaded(db_session, reference_id)
 
     # delete existing authors
     db_session.query(AuthorModel)\
@@ -838,8 +843,10 @@ def set_author_review_tags(db_session: Session, reference_id, authors_match: boo
     * authors match: "needed" -> "complete".
     "In progress" and "blocked" are always left for the curator.
 
-    Each MOD's change runs in a SAVEPOINT and is flushed there, so a failure rolls
-    back only that change and not the batch of reference updates the PubMed script
+    Each change is an automated transition (author review -> needed, needed <-> complete),
+    so it needs a callable row in the MOD's transition table (SCRUM-6845). Each MOD's change
+    runs in a SAVEPOINT and is flushed there, so a failure (including a refused transition)
+    rolls back only that change and not the batch of reference updates the PubMed script
     commits together. The tag rows are stamped with the script's user.
     """
     mod_rows = db_session.query(ModModel.mod_id, ModModel.abbreviation).join(
@@ -867,12 +874,9 @@ def set_author_review_tags(db_session: Session, reference_id, authors_match: boo
                     new_atp = None
                 if new_atp is None:
                     continue
-                if current_tag is None:
-                    db_session.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
-                                                    workflow_tag_id=new_atp))
-                else:
-                    current_tag.workflow_tag_id = new_atp
-                db_session.flush()
+                # through the transition table (SCRUM-6845); commit=False flushes inside the savepoint
+                transition_to_workflow_status(db_session, str(reference_id), mod_abbreviation, new_atp,
+                                              transition_type="automated", commit=False)
             _write_log_message(
                 reference_id,
                 f": AUTHOR REVIEW {mod_abbreviation} workflow tag {current_atp or 'none'} -> {new_atp}",
@@ -1054,8 +1058,9 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
 
 
 def add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation):
-    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers); a
-    no-op for any other MOD. WB's author-person curation needed (SCRUM-6487) is
+    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers, SGD's
+    manual indexing needed, email extraction needed for the MODs that extract
+    emails); a no-op for any other MOD. WB's author-person curation needed (SCRUM-6487) is
     never granted on ingest: it is opt-in from the sort page only.
 
     The tag table lives in api.crud.utils.corpus_entry_tags so this and the API
@@ -1243,7 +1248,11 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
     else:
         fw = open(log_file, "w")
     not_loaded_pmids = []
-    for pmid in pmids:
+    attached_pmids = []
+    # Iterate over a copy: matched PMIDs are removed from pmids below so the caller does not
+    # create them, and removing from the list being iterated skipped the PMID after each match,
+    # which then became a duplicate of its DOI record (SCRUM-6864).
+    for pmid in list(pmids):
         json_file = json_path + pmid + ".json"
         if not path.exists(json_file):
             continue
@@ -1265,8 +1274,8 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
                 is_pmcid = True
                 xref_id = xref_id.replace("PMCID:", '')
             agr = None
-            if is_doi is True and xref_id in xref_ref['DOI']:
-                agr = xref_ref['DOI'][xref_id]
+            if is_doi is True and xref_lookup_key('DOI', xref_id) in xref_ref['DOI']:
+                agr = xref_ref['DOI'][xref_lookup_key('DOI', xref_id)]
             elif is_pmcid is True and xref_id in xref_ref['PMCID']:
                 agr = xref_ref['PMCID'][xref_id]
             if agr is None:
@@ -1291,6 +1300,7 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
                                                     curie_prefix='PMID',
                                                     reference_id=reference_id)
                     db_session.add(cross_ref)
+                    attached_pmids.append(pmid)
                     fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with XREF_ID = " + xref_id + " in the database\n")
                 except Exception as e:
                     logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + xref_id + " is failed: " + str(e) + "\n")
@@ -1300,8 +1310,11 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
             if pmid in pmids:
                 pmids.remove(pmid)
     fw.close()
+    if attached_pmids:
+        # committed now so the caller can refresh these references from PubMed
+        db_session.commit()
 
-    return (log_path, log_url, not_loaded_pmids)
+    return (log_path, log_url, not_loaded_pmids, attached_pmids)
 
 
 def get_reference_relation_rows(db_session: Session, reference_id_from, reference_id_to):  # pragma: no cover

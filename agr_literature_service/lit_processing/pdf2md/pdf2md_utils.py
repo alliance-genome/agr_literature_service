@@ -759,10 +759,34 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     raise RuntimeError("PDFX submission failed: no exception captured")
 
 
-def poll_pdfx_status(  # pragma: no cover
+# How long to wait for one PDFX job (SCRUM-6863). It used to be a fixed 15 minutes, but
+# PDFX takes ~19 minutes for some large PDFs and carries on after we stop waiting, so
+# those papers were marked "conversion failed" with nothing left to retry them.
+# PDFX_POLL_TIMEOUT overrides it (seconds).
+PDFX_POLL_TIMEOUT_DEFAULT = 1800
+
+
+def pdfx_poll_timeout() -> int:
+    """Seconds to wait for a PDFX job: PDFX_POLL_TIMEOUT if it is a positive integer,
+    else PDFX_POLL_TIMEOUT_DEFAULT."""
+    value = os.environ.get("PDFX_POLL_TIMEOUT", "").strip()
+    if not value:
+        return PDFX_POLL_TIMEOUT_DEFAULT
+    try:
+        seconds = int(value)
+    except ValueError:
+        seconds = 0
+    if seconds <= 0:
+        logger.warning(f"Ignoring PDFX_POLL_TIMEOUT={value!r} (not a positive number of seconds); "
+                       f"waiting {PDFX_POLL_TIMEOUT_DEFAULT}s")
+        return PDFX_POLL_TIMEOUT_DEFAULT
+    return seconds
+
+
+def poll_pdfx_status(
     process_id: str,
     token: str,
-    timeout: int = 900,
+    timeout: Optional[int] = None,
     poll_interval: int = 10
 ) -> Dict:
     """
@@ -771,7 +795,7 @@ def poll_pdfx_status(  # pragma: no cover
     Args:
         process_id: The process ID to check.
         token: The bearer token for authentication.
-        timeout: Maximum time to wait in seconds (default 15 minutes).
+        timeout: Maximum time to wait in seconds (default: pdfx_poll_timeout()).
         poll_interval: Time between polls in seconds.
 
     Returns:
@@ -781,6 +805,8 @@ def poll_pdfx_status(  # pragma: no cover
         TimeoutError: If job doesn't complete within timeout.
         requests.RequestException: If polling request fails.
     """
+    if timeout is None:
+        timeout = pdfx_poll_timeout()
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}"
 
@@ -815,7 +841,9 @@ def poll_pdfx_status(  # pragma: no cover
             logger.warning(f"Unknown PDFX status: {current_status}")
             time.sleep(poll_interval)
 
-    raise TimeoutError(f"PDFX job {process_id} timed out after {timeout} seconds")
+    # PDFX does not cancel the job; say so, since a retry with a longer wait may then succeed.
+    raise TimeoutError(f"PDFX job {process_id} timed out after {timeout} seconds; PDFX may still "
+                       f"complete it (set PDFX_POLL_TIMEOUT to wait longer)")
 
 
 def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # pragma: no cover

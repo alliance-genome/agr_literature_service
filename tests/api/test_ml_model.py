@@ -477,3 +477,85 @@ class TestMLModelDecisionThreshold:
             response = _upload_model(client, auth_headers, test_mod, rescale_confidence="no")
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert "rescale_confidence" in str(response.json()["detail"])
+
+
+def test_concurrent_uploads_of_the_same_version_do_not_collide(monkeypatch, tmp_path):
+    # SCRUM-6888: upload gzipped the file into "<version>.gz" in the working directory, so
+    # two uploads of the same version at once (pytest-xdist workers share a working
+    # directory and all upload version 1) wrote and deleted the same file and the second
+    # os.remove raised FileNotFoundError. The barrier holds both uploads inside the S3 call
+    # together, so the old code fails every time instead of now and then.
+    import gzip
+    import threading
+    from unittest.mock import MagicMock
+    from agr_literature_service.api.schemas.ml_model_schemas import MLModelSchemaPost
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ml_model_crud, "get_mod", lambda _db, _abbreviation: MagicMock(mod_id=1))
+    monkeypatch.setattr(ml_model_crud, "get_model_schema_from_orm", lambda model: model.version_num)
+
+    barrier = threading.Barrier(2, timeout=10)
+    uploaded = {}
+    gz_paths = []
+
+    def fake_upload(s3_client, file_obj, bucket, folder, object_name=None, **kwargs):
+        gz_paths.append(file_obj.name)
+        barrier.wait()  # both uploads have written their .gz before either removes it
+        uploaded.setdefault(object_name, []).append(gzip.decompress(file_obj.read()))
+        return True
+
+    monkeypatch.setattr(ml_model_crud, "upload_file_to_bucket", fake_upload)
+
+    results, errors = [], []
+
+    def do_upload(payload):
+        request = MLModelSchemaPost(task_type="document_classification", mod_abbreviation="WB",
+                                    topic="ATP:0000061", version_num=1, model_type="test",
+                                    file_extension="joblib", production=False)
+        upload_file = MagicMock()
+        upload_file.file = io.BytesIO(payload)
+        try:
+            results.append(ml_model_crud.upload(MagicMock(), request, upload_file))
+        except Exception as e:  # collected and asserted below
+            errors.append(e)
+
+    threads = [threading.Thread(target=do_upload, args=(payload,)) for payload in (b"model A", b"model B")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert results == [1, 1]
+    # each upload sent its own file, under the same S3 object name as before
+    assert sorted(uploaded["1.gz"]) == [b"model A", b"model B"]
+    # nothing written to the working directory, and every temporary file removed
+    assert list(tmp_path.iterdir()) == []
+    assert len(set(gz_paths)) == 2
+    assert not any(os.path.exists(p) for p in gz_paths)
+
+
+def test_upload_removes_its_temporary_file_when_the_s3_upload_fails(monkeypatch, tmp_path):
+    from unittest.mock import MagicMock
+    from agr_literature_service.api.schemas.ml_model_schemas import MLModelSchemaPost
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ml_model_crud, "get_mod", lambda _db, _abbreviation: MagicMock(mod_id=1))
+    gz_paths = []
+
+    def failing_upload(s3_client, file_obj, **kwargs):
+        gz_paths.append(file_obj.name)
+        raise RuntimeError("S3 unavailable")
+
+    monkeypatch.setattr(ml_model_crud, "upload_file_to_bucket", failing_upload)
+    request = MLModelSchemaPost(task_type="document_classification", mod_abbreviation="WB",
+                                topic="ATP:0000061", version_num=1, model_type="test",
+                                file_extension="joblib", production=False)
+    upload_file = MagicMock()
+    upload_file.file = io.BytesIO(b"model")
+
+    with pytest.raises(RuntimeError):
+        ml_model_crud.upload(MagicMock(), request, upload_file)
+    assert len(gz_paths) == 1
+    assert not os.path.exists(gz_paths[0])
+    assert list(tmp_path.iterdir()) == []

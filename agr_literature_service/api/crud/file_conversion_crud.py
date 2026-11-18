@@ -696,6 +696,7 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
         "reference_curie": reference.curie,
         "status": status_str,
         "job_id": job.job_id if job else None,
+        "previous_job_id": job.previous_job_id if job else None,
         "error_message": error_message,
         "started_at": started_at,
         "completed_at": completed_at,
@@ -836,10 +837,21 @@ def delete_tei_derived_md_rows(db: Session, reference: ReferenceModel,
     return removed
 
 
+def _job_error_detail(job: Optional[ConversionJob]) -> str:
+    """The job's error and each failed file's, joined; "" when it recorded none."""
+    if job is None:
+        return ""
+    errors = [job.error_message] if job.error_message else []
+    errors += [f"{p.source_display_name}: {p.error}"
+               for p in job.per_file_progress if p.status == "failed" and p.error]
+    return "; ".join(errors)
+
+
 def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: bool,
                               background_tasks: BackgroundTasks, mod_access: ModAccess,
                               user_id: str,
-                              overwrite_tei_md: bool = False
+                              overwrite_tei_md: bool = False,
+                              retry: bool = False
                               ) -> Tuple[int, Dict[str, Any]]:
     """
     Orchestrator for
@@ -855,6 +867,10 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
     deciding whether the reference is already converted, so a fresh nXML /
     PDFX conversion runs. After a successful new conversion, the TEI-derived
     rows are deleted.
+
+    ``retry`` — a PDF conversion that failed less than FAILED_JOB_HOLD ago is
+    reported as failed (200) rather than started again, unless this is True
+    (SCRUM-6855 review). A job whose worker exited is restarted regardless.
     """
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id,
                               load_referencefiles=True)
@@ -958,13 +974,35 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             started_at=now_iso, completed_at=now_iso, job=recent_job,
         )
 
-    if wait:
-        job = conversion_manager.create_or_get_job(
-            reference_id=reference.reference_id,
-            reference_curie=reference.curie,
-            user_id=user_id,
-            expected_source_files=_expected_source_files_from_assessment(assessment),
+    # SCRUM-6855: the check for a running job above is not atomic with this; two
+    # requests (in any workers) can both get here. start_job hands the job to
+    # exactly one of them; the other reports it as running rather than running the
+    # conversion a second time.
+    job, created = conversion_manager.start_job(
+        reference_id=reference.reference_id,
+        reference_curie=reference.curie,
+        user_id=user_id,
+        expected_source_files=_expected_source_files_from_assessment(assessment),
+        retry=retry,
+    )
+    if not created and job.status == "failed":
+        # it failed recently: report that rather than converting it again
+        return status.HTTP_200_OK, _status_payload(
+            db, reference, status_str=STATUS_FAILED,
+            converted_classes=_converted_classes_from_assessment(assessment),
+            error_message=_job_error_detail(job) or "Conversion failed",
+            started_at=job.started_at.isoformat(),
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            job=job,
         )
+    if not created:
+        return status.HTTP_202_ACCEPTED, _status_payload(
+            db, reference, status_str=STATUS_RUNNING,
+            converted_classes=_converted_classes_from_assessment(assessment),
+            started_at=job.started_at.isoformat(), job=job,
+        )
+
+    if wait:
         run_conversion_job(
             job_id=job.job_id,
             reference_id=reference.reference_id,
@@ -982,20 +1020,8 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             or (final_job is not None and final_job.status == "failed")
         )
         if failed:
-            error_detail = ""
-            if final_job is not None:
-                if final_job.error_message:
-                    error_detail = final_job.error_message
-                per_file_errors = [
-                    f"{p.source_display_name}: {p.error}"
-                    for p in final_job.per_file_progress
-                    if p.status == "failed" and p.error
-                ]
-                if per_file_errors:
-                    error_detail = (error_detail + "; " if error_detail else "") \
-                        + "; ".join(per_file_errors)
-            if not error_detail:
-                error_detail = "Conversion completed but some files are still missing."
+            error_detail = _job_error_detail(final_job) \
+                or "Conversion completed but some files are still missing."
             completed_at = (final_job.completed_at.isoformat()
                             if final_job and final_job.completed_at
                             else now_iso)
@@ -1013,12 +1039,6 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             completed_at=datetime.utcnow().isoformat(), job=final_job,
         )
 
-    job = conversion_manager.create_or_get_job(
-        reference_id=reference.reference_id,
-        reference_curie=reference.curie,
-        user_id=user_id,
-        expected_source_files=_expected_source_files_from_assessment(assessment),
-    )
     background_tasks.add_task(
         run_conversion_job,
         job.job_id,

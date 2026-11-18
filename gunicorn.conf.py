@@ -92,7 +92,11 @@ def on_starting(server):
 
 def when_ready(server):
     """Called just after the server is started."""
-    msg = f"Server is ready. Spawning {server.cfg.workers} workers"
+    # The commit makes each deploy findable in the log store (SCRUM-6878)
+    from agr_literature_service.api.build_info import get_build_info
+    build = get_build_info()
+    msg = (f"Server is ready. Spawning {server.cfg.workers} workers "
+           f"(commit {build['commit']}, built {build['build_date']})")
     server.log.info(msg)
     print(msg, flush=True)
 

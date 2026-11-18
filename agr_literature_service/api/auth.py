@@ -46,6 +46,20 @@ def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
     """
     if user.get("token_type") != "access":
         return
+    if _is_user_session_access_token(user):
+        raise HTTPException(
+            status_code=401,
+            detail="User-session access tokens are not accepted; "
+                   "authenticate with your ID token.",
+        )
+    if not _client_is_allowed(user):
+        raise HTTPException(
+            status_code=401,
+            detail="Access token client is not an authorized service account.",
+        )
+
+
+def _is_user_session_access_token(user: Dict[str, Any]) -> bool:
     # Two discriminators, either sufficient (SCRUM-6431 review):
     # - aws.cognito.signin.user.admin scope: present on InitiateAuth
     #   (SRP/USER_PASSWORD_AUTH) access tokens, never on client-credentials.
@@ -53,32 +67,40 @@ def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
     #   the requested OAuth scopes (openid email profile), but any USER token
     #   has the user's UUID as sub, while client-credentials tokens have
     #   sub == client_id.
-    scope = user.get("scope") or ""
-    sub = user.get("sub")
-    client_id = user.get("client_id")
     # Missing sub/client_id fails CLOSED (treated as a user session): Cognito
     # access tokens always carry both, so an access token without them is not
     # a recognizable service account.
-    is_user_session = (
-        "aws.cognito.signin.user.admin" in scope
-        or sub is None
-        or client_id is None
-        or sub != client_id
-    )
-    if is_user_session:
-        raise HTTPException(
-            status_code=401,
-            detail="User-session access tokens are not accepted; "
-                   "authenticate with your ID token.",
-        )
+    scope = user.get("scope") or ""
+    sub = user.get("sub")
+    client_id = user.get("client_id")
+    return ("aws.cognito.signin.user.admin" in scope
+            or sub is None
+            or client_id is None
+            or sub != client_id)
+
+
+def _client_is_allowed(user: Dict[str, Any]) -> bool:
+    """COGNITO_SERVICE_CLIENT_IDS, when set, is the allowlist of service clients."""
     allowed = os.environ.get("COGNITO_SERVICE_CLIENT_IDS", "")
-    if allowed:
-        allowed_ids = {c.strip() for c in allowed.split(",") if c.strip()}
-        if user.get("client_id") not in allowed_ids:
-            raise HTTPException(
-                status_code=401,
-                detail="Access token client is not an authorized service account.",
-            )
+    if not allowed:
+        return True
+    return user.get("client_id") in {c.strip() for c in allowed.split(",") if c.strip()}
+
+
+def is_service_client_token(user: Optional[Dict[str, Any]]) -> bool:
+    """True only for a real client-credentials (machine) token: an access token
+    whose client is its subject, and on the allowlist when one is set. The
+    IP-bypass user also has token_type "access" (so it gets every MOD), but no
+    client, so it is not a service client (SCRUM-6853 review)."""
+    if not user or user.get("token_type") != "access":
+        return False
+    return not _is_user_session_access_token(user) and _client_is_allowed(user)
+
+
+def is_ip_bypass_user(user: Optional[Dict[str, Any]]) -> bool:
+    """True for the user a full- or read-bypass IP gets when it sends no token."""
+    return (user is not None and user.get("sub") == DEFAULT_BYPASS_USER["sub"]
+            and user.get("token_type") == "access" and user.get("client_id") is None)
 
 
 # Session cookie name - must match authentication.py

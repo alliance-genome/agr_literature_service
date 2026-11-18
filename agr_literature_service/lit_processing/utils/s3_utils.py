@@ -45,13 +45,18 @@ def file_exist_from_s3(bucketname, s3_file_location):
     return True
 
 
-def download_file_from_s3(filepath, bucketname, s3_file_location):
+def download_file_from_s3(filepath, bucketname, s3_file_location, only_missing_is_false=False):
     """
+    Download an S3 object to a local file.
 
     :param filepath:
     :param bucketname:
     :param s3_file_location:
-    :return:
+    :param only_missing_is_false: by default every S3 client error is logged and
+        reported as False. When True, only a missing object (404) is; any other
+        client error (access denied, throttling, ...) is raised, so a caller can
+        tell "not there" from "could not get it" (SCRUM-6855).
+    :return: True when downloaded, False when not (see only_missing_is_false)
     """
 
     s3_client = boto3.client('s3')
@@ -60,6 +65,8 @@ def download_file_from_s3(filepath, bucketname, s3_file_location):
         if response is not None:
             logger.info("boto 3 downloaded response: %s", response)
     except ClientError as e:
+        if only_missing_is_false and e.response.get("Error", {}).get("Code") not in ("404", "NoSuchKey", "NotFound"):
+            raise
         logging.error(e)
         return False
 

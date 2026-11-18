@@ -1,7 +1,7 @@
 """ml_model_decision_threshold
 
 Revision ID: 2b4c3070f84a
-Revises: 9923dad57b42
+Revises: c4e1a7d90b23
 Create Date: 2026-11-11
 
 Adds two ml_model columns (SCRUM-6482):
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 
 revision = "2b4c3070f84a"
-down_revision = "9923dad57b42"
+down_revision = "c4e1a7d90b23"
 branch_labels = None
 depends_on = None
 

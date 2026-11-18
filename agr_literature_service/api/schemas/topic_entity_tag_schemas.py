@@ -97,6 +97,11 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     has_curator_validating_tag: bool = False
     ml_model_id: Optional[int] = None
     ml_model_version: Optional[int] = None
+    # created_by / updated_by carry the person's display name where there is one;
+    # these keep the raw id (the person's AGRKB curie or the automation name) so a
+    # caller can match a tag to a person (SCRUM-6852).
+    created_by_user_id: Optional[str] = None
+    updated_by_user_id: Optional[str] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):

@@ -12,6 +12,7 @@ stores each output as a separate file; nXML conversion produces a single
 merged-style markdown output.
 """
 import logging
+import os
 import time
 from typing import Dict, List, Optional, Tuple
 
@@ -1078,6 +1079,16 @@ def main(  # pragma: no cover
         db.close()
 
 
+def set_pdfx_timeout(seconds: int) -> None:  # pragma: no cover
+    """Apply --pdfx-timeout (SCRUM-6863). Every PDFX wait, for main PDFs and supplements,
+    reads it through pdfx_poll_timeout()."""
+    if seconds <= 0:
+        print("Error: --pdfx-timeout must be a positive number of seconds.")
+        exit(1)
+    os.environ["PDFX_POLL_TIMEOUT"] = str(seconds)
+    print(f"Waiting up to {seconds}s for each PDFX job.")
+
+
 if __name__ == '__main__':
     # Configure logging
     logging.basicConfig(
@@ -1112,6 +1123,9 @@ Examples:
 
   # Process newest references, skipping those with XML files
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50 --skip-xml
+
+  # Retry one slow PDF, waiting up to an hour for PDFX
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --limit 1 --pdfx-timeout 3600
         """
     )
     parser.add_argument(
@@ -1155,8 +1169,20 @@ Examples:
         action="store_false",
         help="Skip supplemental PDFs (default: process all supplemental PDFs)"
     )
+    parser.add_argument(
+        "--pdfx-timeout",
+        type=int,
+        metavar="SECONDS",
+        help=(
+            "How long to wait for each PDFX job (default: the PDFX_POLL_TIMEOUT "
+            "environment variable, else 1800)"
+        )
+    )
 
     args = parser.parse_args()
+
+    if args.pdfx_timeout is not None:
+        set_pdfx_timeout(args.pdfx_timeout)
 
     if args.newest and args.since:
         print("Error: Cannot use --newest and --since together. Choose one.")

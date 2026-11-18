@@ -194,7 +194,7 @@ def map_to_user_id(identifier: str, db: Session) -> str:
     return users_id
 
 
-def resolve_named_agent(identifier: str, db: Session) -> Tuple[int, str]:
+def resolve_named_agent(identifier: str, db: Session, field: str = "updated_by") -> Tuple[int, str]:
     """
     Resolve a curator a service account names as the author of a change
     (SCRUM-6819) to (agent.id, label).
@@ -207,14 +207,15 @@ def resolve_named_agent(identifier: str, db: Session) -> Tuple[int, str]:
     change under a made-up name.
 
     Raises HTTPException(422) when the identifier is empty, matches no one, or
-    (an email or a name) matches more than one person.
+    (an email or a name) matches more than one person. ``field`` is the request
+    field the identifier came from, for those messages.
     """
     ident = (identifier or "").strip()
     if not ident:
-        raise HTTPException(status_code=422, detail="updated_by cannot be empty")
+        raise HTTPException(status_code=422, detail=f"{field} cannot be empty")
     # punctuation alone normalizes to '' and would match a person with no name
     if not any(c.isalnum() for c in ident):
-        raise HTTPException(status_code=422, detail=f"Unknown updated_by {identifier!r}: no letters or digits")
+        raise HTTPException(status_code=422, detail=f"Unknown {field} {identifier!r}: no letters or digits")
 
     automation = db.execute(_SQL_AUTOMATION_AGENT, {"label": ident}).fetchone()
     if automation:
@@ -230,16 +231,50 @@ def resolve_named_agent(identifier: str, db: Session) -> Tuple[int, str]:
     if not curies:
         raise HTTPException(
             status_code=422,
-            detail=(f"Unknown updated_by {identifier!r}: expected a person's AGRKB ID, "
+            detail=(f"Unknown {field} {identifier!r}: expected a person's AGRKB ID, "
                     "email or full name"),
         )
     if len(curies) > 1:
         raise HTTPException(
             status_code=422,
-            detail=(f"updated_by {identifier!r} matches more than one person "
+            detail=(f"{field} {identifier!r} matches more than one person "
                     f"({', '.join(curies)}); use the person's AGRKB ID or email"),
         )
     return _person_agent(db, curies[0]), curies[0]
+
+
+def resolve_named_person(identifier: str, db: Session, field: str = "created_by") -> Tuple[int, str]:
+    """
+    Resolve the curator a verdict is recorded for (SCRUM-6853) to (agent.id,
+    person curie). Stricter than resolve_named_agent: only a person's AGRKB ID
+    or email is accepted, never an automation agent (default_user, a pipeline)
+    and never a display name, which can match the wrong person. A person who
+    has no agent yet gets one.
+
+    Raises HTTPException(422) when the identifier names no person, an
+    automation agent, or (an email) more than one person.
+    """
+    ident = (identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=422, detail=f"{field} cannot be empty")
+    curie = db.execute(_SQL_PERSON_BY_CURIE, {"curie": ident}).scalar()
+    if curie:
+        return _person_agent(db, curie), curie
+    if "@" in ident:
+        curies = list(db.execute(_SQL_PERSONS_BY_EMAIL, {"email": ident}).scalars())
+        if len(curies) == 1:
+            return _person_agent(db, curies[0]), curies[0]
+        if len(curies) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail=(f"{field} {identifier!r} matches more than one person "
+                        f"({', '.join(curies)}); use the person's AGRKB ID"),
+            )
+    if db.execute(_SQL_AUTOMATION_AGENT, {"label": ident}).fetchone():
+        raise HTTPException(status_code=422,
+                            detail=f"{field} {identifier!r} names an automation agent, not a curator")
+    raise HTTPException(status_code=422,
+                        detail=f"Unknown {field} {identifier!r}: expected a person's AGRKB ID or email")
 
 
 def _person_agent(db: Session, curie: str) -> int:

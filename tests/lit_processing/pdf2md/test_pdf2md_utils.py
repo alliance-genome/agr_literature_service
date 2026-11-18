@@ -293,6 +293,67 @@ class TestPollPdfxStatus:
         with pytest.raises(TimeoutError):
             poll_pdfx_status("abc123", "test_token", timeout=10)
 
+    @staticmethod
+    def _pdfx_finishing_after(seconds, mock_get, mock_time):
+        """PDFX reports "started" until `seconds` have passed, then "complete"."""
+        clock = itertools.count(0, 10)
+        now = {"t": 0}
+
+        def tick():
+            now["t"] = next(clock)
+            return now["t"]
+
+        def respond(*args, **kwargs):
+            response = MagicMock()
+            response.json.return_value = {"status": "complete" if now["t"] >= seconds else "started"}
+            return response
+
+        mock_time.side_effect = tick
+        mock_get.side_effect = respond
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_default_wait_covers_a_19_minute_job(self, mock_get, mock_time, mock_sleep, monkeypatch):
+        # SCRUM-6863: AGRKB:101000001317051 took PDFX 19m16s and failed twice under the old
+        # fixed 900s wait, although PDFX completed it both times.
+        monkeypatch.delenv("PDFX_POLL_TIMEOUT", raising=False)
+        self._pdfx_finishing_after(19 * 60 + 16, mock_get, mock_time)
+        assert poll_pdfx_status("abc123", "test_token")["status"] == "complete"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_environment_sets_the_wait_and_the_error_says_pdfx_continues(
+            self, mock_get, mock_time, mock_sleep, monkeypatch):
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", "600")
+        self._pdfx_finishing_after(19 * 60 + 16, mock_get, mock_time)
+        with pytest.raises(TimeoutError) as exc_info:
+            poll_pdfx_status("abc123", "test_token")
+        assert "timed out after 600 seconds" in str(exc_info.value)
+        assert "may still complete it" in str(exc_info.value)
+
+
+class TestPdfxPollTimeout:
+    """SCRUM-6863: PDFX_POLL_TIMEOUT, else the default."""
+
+    def test_default_when_unset_or_blank(self, monkeypatch):
+        monkeypatch.delenv("PDFX_POLL_TIMEOUT", raising=False)
+        assert pdf2md_utils.pdfx_poll_timeout() == pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT
+        # docker-compose passes "${PDFX_POLL_TIMEOUT:-}", i.e. an empty string when unset
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", "")
+        assert pdf2md_utils.pdfx_poll_timeout() == pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT
+        assert pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT > 19 * 60 + 16
+
+    def test_uses_a_positive_value(self, monkeypatch):
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", " 3600 ")
+        assert pdf2md_utils.pdfx_poll_timeout() == 3600
+
+    @pytest.mark.parametrize("value", ["0", "-5", "an hour", "1.5"])
+    def test_ignores_an_invalid_value(self, monkeypatch, value):
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", value)
+        assert pdf2md_utils.pdfx_poll_timeout() == pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT
+
 
 class TestDownloadPdfxResult:
     """Test download_pdfx_result function."""
