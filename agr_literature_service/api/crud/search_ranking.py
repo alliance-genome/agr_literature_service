@@ -165,12 +165,13 @@ RECENCY_OFFSET: str = "180d"
 # One more matched field (1.0) can be outweighed by recency, so a much newer
 # paper wins over one matching a single extra field; two more fields (2.0) can't
 # be, so a paper matching in many more fields always wins. MeSH still ranks below
-# every other text field (SCRUM-6490).
+# every other text field (SCRUM-6490). The citation is left out: it is built from
+# the authors, year, title and journal, so it would count a title match (or an
+# author match) twice. It still contributes to the BM25 share.
 FIELD_MATCH_WEIGHTS: Dict[str, float] = {
     "title": 1.0,
     "keywords": 1.0,
     "abstract": 1.0,
-    "citation": 1.0,
     MESH_FIELD: 0.5,
 }
 # Extra weight when a multi-word query appears as a phrase in a field

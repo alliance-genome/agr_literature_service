@@ -4,6 +4,8 @@
 Every function here is a pure transform (query string / config -> ES DSL dict),
 so no DB, ES, or network access is needed.
 """
+import json
+
 from agr_literature_service.api.crud import search_ranking as sr
 
 
@@ -280,6 +282,12 @@ class TestFieldMatchScoring:
         assert not any("nested" in fn["filter"] for fn in fns)
         assert {"filter": {"term": {"title.keyword": "xenobiotic"}},
                 "weight": sr.EXACT_TITLE_WEIGHT} in fns
+
+    def test_citation_is_not_counted_as_a_field(self):
+        # the citation repeats the title and authors, so it would count them twice
+        assert "citation" not in sr.FIELD_MATCH_WEIGHTS
+        fns = sr.build_field_match_functions("oxidative stress", include_author=False)
+        assert "citation" not in json.dumps(fns)
 
     def test_mesh_ranks_below_every_other_field(self):
         others = [w for f, w in sr.FIELD_MATCH_WEIGHTS.items() if f != sr.MESH_FIELD]

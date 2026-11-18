@@ -84,7 +84,7 @@ def _title_only(curie: str, days: int) -> dict:
 
 
 def _short_title(curie: str, days: int) -> dict:
-    """Matches 'xenobiotic' in a five-word title and its citation only (AGRKB:101000000991665)."""
+    """Matches 'xenobiotic' in a five-word title (and so its citation) only (AGRKB:101000000991665)."""
     title = "Transposable elements and xenobiotic resistance."
     return {
         "curie": curie,
@@ -157,6 +157,8 @@ def es():
         _broad("FAR:old", 4700), _short_title("FAR:new", 30),
     ]
     for i, doc in enumerate(docs):
+        # As in the real index, the citation repeats the title
+        doc.setdefault("citation", "Doe J, (2020) " + doc["title"])
         client.index(index=INDEX, id=i, body=doc)
     client.indices.refresh(index=INDEX)
     yield client
