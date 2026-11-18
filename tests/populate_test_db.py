@@ -39,7 +39,6 @@ from agr_literature_service.api.models.workflow_tag_model import WorkflowTagMode
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel  # noqa: E402
 from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel  # noqa: E402
 from agr_literature_service.api.models.indexing_priority_model import IndexingPriorityModel  # noqa: E402
-from agr_literature_service.api.models.manual_indexing_tag_model import ManualIndexingTagModel  # noqa: E402
 from agr_literature_service.api.models.curation_status_model import CurationStatusModel  # noqa: E402
 from agr_literature_service.api.models.curation_status_source_association_model import \
     CurationStatusSourceAssociationModel  # noqa: E402
@@ -224,19 +223,6 @@ class MockDataFactory:
         )
         db_session.add(priority)
         return priority
-
-    def create_manual_indexing_tag(self, db_session, reference: ReferenceModel,
-                                   mod: ModModel, tag_id: int) -> ManualIndexingTagModel:
-        """Create a manual indexing tag for testing."""
-        tags = ["ATP:0000201", "ATP:0000202"]  # e.g., no genetic data tag
-        tag = ManualIndexingTagModel(
-            reference_id=reference.reference_id,
-            mod_id=mod.mod_id,
-            curation_tag=tags[tag_id % len(tags)],
-            confidence_score=0.75 + (tag_id % 4) * 0.05
-        )
-        db_session.add(tag)
-        return tag
 
     def create_curation_status(self, db_session, reference: ReferenceModel,
                                mod: ModModel, status_id: int) -> CurationStatusModel:
@@ -512,11 +498,6 @@ def _create_references_with_associations(db, factory, resources, citations,
             ip_mod = mods[i % len(mods)]
             factory.create_indexing_priority(db, reference, ip_mod, i)
 
-        # Add manual indexing tags (for some references)
-        if i % 4 == 0:  # Add to every fourth reference
-            mit_mod = mods[i % len(mods)]
-            factory.create_manual_indexing_tag(db, reference, mit_mod, i)
-
         # Add curation statuses - REQUIRED for Debezium: without at least one row the
         # abc.public.curation_status topic is never created, so the ksql curation_tags
         # table (and everything joined onto it, including reference_joined) fails to build
@@ -656,7 +637,6 @@ def populate_database():
         mesh_count = db.query(MeshDetailModel).count()
         email_count = db.query(ReferenceEmailModel).count()
         indexing_priority_count = db.query(IndexingPriorityModel).count()
-        manual_indexing_tag_count = db.query(ManualIndexingTagModel).count()
         mod_count = db.query(ModModel).count()
         mod_corpus_count = db.query(ModCorpusAssociationModel).count()
         ref_type_count = db.query(ReferencetypeModel).count()
@@ -670,7 +650,7 @@ def populate_database():
         print("Mock data population completed successfully!")
         print(f"Created: {ref_count} references, {author_count} authors, {xref_count} cross-refs")
         print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms, {email_count} emails")
-        print(f"Created: {indexing_priority_count} indexing priorities, {manual_indexing_tag_count} manual indexing tags")
+        print(f"Created: {indexing_priority_count} indexing priorities")
         print(f"Created: {mod_count} MODs, {mod_corpus_count} MOD corpus associations")
         print(f"Created: {ref_type_count} reference types, {mod_ref_type_count} MOD-ref type assocs")
         print(f"Created: {ref_mod_ref_type_count} reference-MOD-ref type associations")

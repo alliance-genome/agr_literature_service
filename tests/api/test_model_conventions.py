@@ -35,6 +35,8 @@ def _revision(filename):
 
 PRIMARY_KEYS = _revision('20261016_80595e1e0d4d_primary_keys_to_id.py')
 BIGINT_IDS = _revision('20261022_039dbc7de1ef_id_columns_to_bigint.py')
+# Tables those revisions changed that a later revision dropped, so they have no model any more
+DROPPED_TABLES = {'manual_indexing_tag'}  # 20261117_91b69ba4ab92 (SCRUM-6861)
 
 
 def _function_source(name):
@@ -52,7 +54,8 @@ def test_every_renamed_table_has_id_primary_key():
 
 
 def test_every_renamed_table_is_mapped():
-    assert [table for table in PRIMARY_KEYS.PK_RENAMES if table not in Base.metadata.tables] == []
+    assert [table for table in PRIMARY_KEYS.PK_RENAMES
+            if table not in Base.metadata.tables and table not in DROPPED_TABLES] == []
 
 
 def test_no_foreign_key_targets_an_old_primary_key():

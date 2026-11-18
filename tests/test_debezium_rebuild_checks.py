@@ -47,7 +47,8 @@ def test_makefile_table_list_matches_the_connector():
     tables = subprocess.run(["bash", "-c", command], cwd=ROOT, capture_output=True, text=True,
                             check=True).stdout.split()
     assert tables == _include_list()
-    assert "manual_indexing_tag" in tables
+    assert "indexing_priority" in tables
+    assert "manual_indexing_tag" not in tables  # retired in SCRUM-6861
 
 
 @pytest.mark.parametrize("target", ["restart-debezium-local", "restart-debezium-aws",
