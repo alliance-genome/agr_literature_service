@@ -121,9 +121,9 @@ class MLModel(AuditedModel, Base):
 
     # Positive-class score from which the document classifier calls a paper positive
     # (SCRUM-6482). NULL means 0.5.
-    decision_threshold = Column(Float, nullable=True)
+    confidence_threshold = Column(Float, nullable=True)
 
-    # Whether the classifier rescales the tag's confidence score so that decision_threshold
+    # Whether the classifier rescales the tag's confidence score so that confidence_threshold
     # maps to 0.5 (SCRUM-6482). False keeps the model's own score (ZFIN molecular probe).
     rescale_confidence: Mapped[bool] = mapped_column(
         Boolean,

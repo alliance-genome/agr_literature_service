@@ -55,7 +55,7 @@ def upload_model(
         description: str = None,
         embedding_profile: str = None,
         embedding_version: int = None,
-        decision_threshold: float = None,
+        confidence_threshold: float = None,
         rescale_confidence: bool = True):
     model_data = None
     if task_type and mod_abbreviation:
@@ -81,7 +81,7 @@ def upload_model(
             "description": description,
             "embedding_profile": embedding_profile,
             "embedding_version": embedding_version,
-            "decision_threshold": decision_threshold,
+            "confidence_threshold": confidence_threshold,
             "rescale_confidence": rescale_confidence
         }
     elif model_data_file:
@@ -93,11 +93,11 @@ def upload_model(
     if not model_data:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="The provided model data is not valid")
-    threshold = model_data.get("decision_threshold")
+    threshold = model_data.get("confidence_threshold")
     if threshold is not None and (isinstance(threshold, bool) or not isinstance(threshold, (int, float))
                                   or not 0 < threshold < 1):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"decision_threshold must be a number between 0 and 1, got {threshold!r}")
+                            detail=f"confidence_threshold must be a number between 0 and 1, got {threshold!r}")
     if model_data.get("rescale_confidence") not in (None, True, False):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"rescale_confidence must be true or false, "
@@ -123,7 +123,7 @@ def upload_model(
         description=model_data.get("description"),
         embedding_profile=model_data.get("embedding_profile"),
         embedding_version=model_data.get("embedding_version"),
-        decision_threshold=model_data.get("decision_threshold"),
+        confidence_threshold=model_data.get("confidence_threshold"),
         rescale_confidence=model_data.get("rescale_confidence", True)
     )
     set_global_user_from_cognito(db, user)

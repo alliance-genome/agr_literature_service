@@ -1,4 +1,4 @@
-"""ml_model_decision_threshold
+"""ml_model_confidence_threshold
 
 Revision ID: 2b4c3070f84a
 Revises: c4e1a7d90b23
@@ -6,10 +6,10 @@ Create Date: 2026-11-11
 
 Adds two ml_model columns (SCRUM-6482):
 
-- decision_threshold: the positive-class score from which the document classifier
+- confidence_threshold: the positive-class score from which the document classifier
   calls a paper positive. NULL means the default 0.5.
 - rescale_confidence: whether the classifier rescales the tag's confidence score so
-  that decision_threshold maps to 0.5 (default), or keeps the model's own score.
+  that confidence_threshold maps to 0.5 (default), or keeps the model's own score.
 
 Sets the ZFIN molecular probe models (ATP:0000370) to 0.87, the cut-off the
 classifier used to hard-code for them (SCRUM-5764), with the model's own score kept
@@ -26,12 +26,12 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('ml_model', sa.Column('decision_threshold', sa.Float(), nullable=True))
+    op.add_column('ml_model', sa.Column('confidence_threshold', sa.Float(), nullable=True))
     op.add_column('ml_model', sa.Column('rescale_confidence', sa.Boolean(), nullable=False,
                                         server_default=sa.text('true')))
     op.execute("""
         UPDATE ml_model
-           SET decision_threshold = 0.87,
+           SET confidence_threshold = 0.87,
                rescale_confidence = false
           FROM mod
          WHERE mod.id = ml_model.mod_id
@@ -42,4 +42,4 @@ def upgrade():
 
 def downgrade():
     op.drop_column('ml_model', 'rescale_confidence')
-    op.drop_column('ml_model', 'decision_threshold')
+    op.drop_column('ml_model', 'confidence_threshold')
