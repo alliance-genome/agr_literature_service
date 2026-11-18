@@ -472,6 +472,23 @@ class TestMLModelConfidenceThreshold:
             assert stored.rescale_confidence is False
             client.delete(url=f"/ml_model/{model_id}", headers=auth_headers)
 
+    def test_upload_with_query_parameters_stores_the_threshold(self, db, test_mod, auth_headers):  # noqa
+        """The router's other branch: metadata sent as query parameters instead of a model_data_file."""
+        upload_headers = auth_headers.copy()
+        del upload_headers["Content-Type"]
+        params = {"task_type": "document_classification", "mod_abbreviation": test_mod.new_mod_abbreviation,
+                  "topic": "ATP:0000061", "file_extension": "joblib", "model_type": "MLP",
+                  "confidence_threshold": 0.87, "rescale_confidence": "false"}
+        files = {"file": ("file.joblib", io.BytesIO(model_file_test_content), "application/octet-stream")}
+        with TestClient(app) as client:
+            response = client.post(url="/ml_model/upload", params=params, files=files, headers=upload_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            model_id = response.json()["ml_model_id"]
+            stored = db.query(MLModel).filter(MLModel.ml_model_id == model_id).one()
+            assert stored.confidence_threshold == 0.87
+            assert stored.rescale_confidence is False
+            client.delete(url=f"/ml_model/{model_id}", headers=auth_headers)
+
     def test_upload_rejects_a_non_boolean_rescale_confidence(self, db, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response = _upload_model(client, auth_headers, test_mod, rescale_confidence="no")
