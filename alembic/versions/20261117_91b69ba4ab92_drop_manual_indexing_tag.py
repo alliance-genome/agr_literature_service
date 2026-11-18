@@ -1,7 +1,7 @@
 """drop_manual_indexing_tag
 
 Revision ID: 91b69ba4ab92
-Revises: 9923dad57b42
+Revises: c4e1a7d90b23
 Create Date: 2026-11-17
 
 Retires the manual_indexing_tag table (SCRUM-6861). It only ever held FlyBase's
@@ -21,7 +21,7 @@ from alembic import op
 
 
 revision = "91b69ba4ab92"
-down_revision = "9923dad57b42"
+down_revision = "c4e1a7d90b23"
 branch_labels = None
 depends_on = None
 

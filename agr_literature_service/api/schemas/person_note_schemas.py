@@ -9,6 +9,9 @@ class PersonNoteSchemaCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     note: str
+    # internal: a private curator note; false (the default) is public
+    internal: bool = False
+    obsolete: bool = False
 
     @field_validator("note")
     @classmethod
@@ -27,14 +30,18 @@ class PersonNoteSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     note: Optional[str] = None
+    internal: Optional[bool] = None
+    obsolete: Optional[bool] = None
 
     @model_validator(mode="before")
     @classmethod
-    def _reject_null_note(cls, data: Any) -> Any:
-        # note is NOT NULL in the DB — reject explicit null from clients.
-        # Omitting the field is still fine (PATCH no-op for that field).
-        if isinstance(data, dict) and "note" in data and data["note"] is None:
-            raise ValueError("note cannot be null; omit the field to leave it unchanged")
+    def _reject_null(cls, data: Any) -> Any:
+        # note, internal and obsolete are NOT NULL in the DB — reject explicit null
+        # from clients. Omitting a field is still fine (PATCH no-op for that field).
+        if isinstance(data, dict):
+            for field in ("note", "internal", "obsolete"):
+                if field in data and data[field] is None:
+                    raise ValueError(f"{field} cannot be null; omit the field to leave it unchanged")
         return data
 
     @field_validator("note")
@@ -54,6 +61,8 @@ class PersonNoteSchemaShow(AuditedObjectModelSchema):
     person_id: int
     person_curie: Optional[str] = None
     note: str
+    internal: bool
+    obsolete: bool
 
 
 class PersonNoteSchemaRelated(AuditedObjectModelSchema):
@@ -62,3 +71,5 @@ class PersonNoteSchemaRelated(AuditedObjectModelSchema):
     person_note_id: int
     person_curie: Optional[str] = None
     note: str
+    internal: bool
+    obsolete: bool
