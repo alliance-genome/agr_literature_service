@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MLModelSchemaBase(BaseModel):
@@ -32,11 +32,16 @@ class MLModelSchemaBase(BaseModel):
     # ABC-embedding recipe (SCRUM-5781); NULL for legacy BioWordVec models.
     embedding_profile: Optional[str] = None
     embedding_version: Optional[int] = None
+    # Score from which the classifier calls a paper positive (SCRUM-6482); NULL means 0.5.
+    confidence_threshold: Optional[float] = None
+    # Rescale the tag's confidence score so confidence_threshold maps to 0.5; False keeps the model's score.
+    rescale_confidence: Optional[bool] = None
 
 
 class MLModelSchemaPost(MLModelSchemaBase):
     """Schema used when posting a new ML model entry."""
-    pass
+    # The (0, 1) range is checked on the way in only, so a stored value outside it can still be read back.
+    confidence_threshold: Optional[float] = Field(default=None, gt=0, lt=1)
 
 
 class MLModelSchemaShow(MLModelSchemaBase):
