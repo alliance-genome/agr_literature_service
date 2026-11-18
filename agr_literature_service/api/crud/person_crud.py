@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, undefer
 
 from agr_literature_service.api.models import (
     PersonModel,
@@ -219,6 +219,8 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
                 PersonNoteModel(
                     person_id=obj.person_id,
                     note=n["note"],
+                    internal=bool(n.get("internal", False)),
+                    obsolete=bool(n.get("obsolete", False)),
                 )
             )
 
@@ -308,7 +310,8 @@ def show(db: Session, curie_or_person_id: str) -> PersonModel:
             selectinload(PersonModel.institutions),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
-            selectinload(PersonModel.notes),
+            selectinload(PersonModel.notes).options(
+                undefer(PersonNoteModel.internal), undefer(PersonNoteModel.obsolete)),
             selectinload(PersonModel.lab_persons).selectinload(LaboratoryPersonModel.laboratory),
         )
         .filter(PersonModel.person_id == person_id)
@@ -338,7 +341,8 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
             selectinload(PersonModel.institutions),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
-            selectinload(PersonModel.notes),
+            selectinload(PersonModel.notes).options(
+                undefer(PersonNoteModel.internal), undefer(PersonNoteModel.obsolete)),
             selectinload(PersonModel.lab_persons).selectinload(LaboratoryPersonModel.laboratory),
         )
         .filter(func.lower(PersonEmailModel.email_address) == email_norm.lower())
@@ -363,7 +367,8 @@ def find_by_name(db: Session, name: str) -> List[PersonModel]:
             selectinload(PersonModel.institutions),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
-            selectinload(PersonModel.notes),
+            selectinload(PersonModel.notes).options(
+                undefer(PersonNoteModel.internal), undefer(PersonNoteModel.obsolete)),
             selectinload(PersonModel.lab_persons).selectinload(LaboratoryPersonModel.laboratory),
         )
         .filter(
