@@ -318,6 +318,13 @@ class TestFieldMatchScoring:
         assert sr.FIELD_MATCH_RECENCY_BONUS > one_field
         assert sr.FIELD_MATCH_RECENCY_BONUS + sr.FIELD_MATCH_RELEVANCE_MAX <= 2 * one_field
 
+    def test_title_match_outweighs_recency(self):
+        # a brand-new paper without the term in its title can at best tie an
+        # older one matching the same other fields plus the title
+        assert sr.FIELD_MATCH_WEIGHTS["title"] >= sr.FIELD_MATCH_RECENCY_BONUS
+        others = [w for f, w in sr.FIELD_MATCH_WEIGHTS.items() if f != "title"]
+        assert sr.FIELD_MATCH_WEIGHTS["title"] > max(others)
+
     def test_build_all_text_query_returns_functions(self):
         res = sr.build_all_text_query("xenobiotic", include_id_author_helpers=False)
         assert res["field_match_functions"] == sr.build_field_match_functions(

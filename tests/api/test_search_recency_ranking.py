@@ -116,6 +116,13 @@ def _no_mesh(curie: str, days: int) -> dict:
     return doc
 
 
+def _no_title(curie: str, days: int) -> dict:
+    """Matches 'xenobiotic' in the abstract, keywords and MeSH, but not the title."""
+    doc = _dense(curie, days)
+    doc["title"] = "Inflammation-driven downregulation of CYP2E1 in hepatocarcinogenesis"
+    return doc
+
+
 @pytest.fixture(scope="module")
 def es():
     if _is_aws_es_host(config.ELASTICSEARCH_HOST):
@@ -155,6 +162,9 @@ def es():
         _dense("CLOSE:old", 4700), _no_mesh("CLOSE:new", 1000),
         # ... but two more matching fields still win over a newer paper
         _broad("FAR:old", 4700), _short_title("FAR:new", 30),
+        # A title match beats a brand-new paper matching the other fields only
+        # (like "Inflammation-Driven Downregulation of CYP2E1", 2026)
+        _dense("TITLE:old", 3200), _no_title("TITLE:new", 30),
     ]
     for i, doc in enumerate(docs):
         # As in the real index, the citation repeats the title
@@ -222,3 +232,8 @@ def test_much_newer_paper_beats_one_extra_mesh_match(es):
 def test_two_more_fields_beat_a_newer_paper(es):
     hits = _search(es, "xenobiotic", "FAR:")
     assert [c for c, _ in hits] == ["FAR:old", "FAR:new"]
+
+
+def test_title_match_beats_newer_paper_without_one(es):
+    hits = _search(es, "xenobiotic", "TITLE:")
+    assert [c for c, _ in hits] == ["TITLE:old", "TITLE:new"]
