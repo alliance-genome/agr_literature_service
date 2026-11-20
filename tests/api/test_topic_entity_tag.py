@@ -4675,3 +4675,331 @@ class TestDeprecatedExperimentallyStudiedDataContext:
             old_obj = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == old_id).one()
             assert int(curator_id) not in {t.topic_entity_tag_id for t in old_obj.validated_by}
+
+
+class TestTopicEntityTagBatch:
+    """SCRUM-4141: creates, updates and deletes of one reference's tags in one
+    transaction, revalidated once."""
+
+    @staticmethod
+    def _payload(ref_curie, source_id, **overrides):
+        payload = {
+            "reference_curie": ref_curie,
+            "topic": "ATP:0000005",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00000002",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "tag_source_id": source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "note": "batch note",
+            "created_by": "WBPerson1",
+        }
+        payload.update(overrides)
+        return payload
+
+    @staticmethod
+    def _reference_id(db, curie):  # noqa
+        return db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie).scalar()
+
+    @staticmethod
+    def _state(db, reference_id):  # noqa
+        """the reference's tags (id, negated, note) and its validation edges"""
+        db.expire_all()
+        tags = {(t.topic_entity_tag_id, t.negated, t.note) for t in db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id).all()}
+        ids = [t[0] for t in tags]
+        edges = set(db.execute(text(
+            "SELECT validating_topic_entity_tag_id, validated_topic_entity_tag_id "
+            "FROM topic_entity_tag_validation WHERE validating_topic_entity_tag_id = ANY(:ids) "
+            "OR validated_topic_entity_tag_id = ANY(:ids)"), {"ids": ids}).fetchall()) if ids else set()
+        return tags, edges
+
+    def _batch(self, db, ref_curie, create=(), update=(), delete=()):  # noqa
+        from agr_literature_service.api.schemas import (TopicEntityTagBatchRequest, TopicEntityTagBatchUpdate,
+                                                        TopicEntityTagSchemaPost, TopicEntityTagSchemaUpdate)
+        request = TopicEntityTagBatchRequest(
+            reference_curie=ref_curie,
+            create=[TopicEntityTagSchemaPost(**payload) for payload in create],
+            update=[TopicEntityTagBatchUpdate(topic_entity_tag_id=tag_id,
+                                              changes=TopicEntityTagSchemaUpdate(**changes))
+                    for tag_id, changes in update],
+            delete=list(delete))
+        with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                   return_value={}):
+            return topic_entity_tag_crud.apply_tag_batch(db, request)
+
+    def test_batch_create_update_delete_in_one_call(self, db, test_topic_entity_tag, test_tag_source,  # noqa
+                                                    auth_headers):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        source = test_tag_source.new_source_id
+        with TestClient(app) as client:
+            third = client.post("/topic_entity_tag/", headers=auth_headers, json=self._payload(
+                ref, source, entity="WB:WBGene00000003")).json()["topic_entity_tag_id"]
+            result = self._batch(db, ref,
+                                 create=[self._payload(ref, source, force_insertion=True)],
+                                 update=[(test_topic_entity_tag.new_tet_id, {"negated": True, "note": None})],
+                                 delete=[third])
+        assert len(result.created) == 1 and result.updated == 1 and result.deleted == 1
+        db.expire_all()
+        fixture = db.get(TopicEntityTagModel, test_topic_entity_tag.new_tet_id)
+        assert fixture.negated is True and fixture.note is None
+        assert db.get(TopicEntityTagModel, third) is None
+        assert db.get(TopicEntityTagModel, result.created[0]).entity == "WB:WBGene00000002"
+
+    def test_batch_omitted_field_is_left_unchanged(self, db, test_topic_entity_tag):  # noqa
+        with TestClient(app):
+            self._batch(db, test_topic_entity_tag.related_ref_curie,
+                        update=[(test_topic_entity_tag.new_tet_id, {"negated": True})])
+        db.expire_all()
+        fixture = db.get(TopicEntityTagModel, test_topic_entity_tag.new_tet_id)
+        assert fixture.negated is True and fixture.note == "test note"
+
+    def test_batch_failure_stores_nothing(self, db, test_topic_entity_tag, test_tag_source):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        reference_id = self._reference_id(db, ref)
+        before = self._state(db, reference_id)
+        creates = [self._payload(ref, test_tag_source.new_source_id, entity=f"WB:WBGene0000010{i}",
+                                 force_insertion=True) for i in range(3)]
+        with TestClient(app), pytest.raises(HTTPException) as exc_info:
+            self._batch(db, ref, create=creates,
+                        update=[(test_topic_entity_tag.new_tet_id, {"note": "changed"})], delete=[999999999])
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+        assert exc_info.value.detail["change"] == {"kind": "delete", "index": 0}
+        assert self._state(db, reference_id) == before
+
+    def test_batch_failure_with_a_new_label_stores_nothing(self, db, test_topic_entity_tag,  # noqa
+                                                           test_tag_source):  # noqa
+        # a label never seen before is created as an agent with a commit; inside the batch that commit
+        # would store the changes made before it and release the reference lock (review C1)
+        from agr_literature_service.api.models.user_model import UserModel
+        ref = test_topic_entity_tag.related_ref_curie
+        reference_id = self._reference_id(db, ref)
+        before = self._state(db, reference_id)
+        label = f"WBPerson{int(time.time() * 1000)}"
+        with TestClient(app), pytest.raises(HTTPException) as exc_info:
+            self._batch(db, ref,
+                        create=[self._payload(ref, test_tag_source.new_source_id, entity="WB:WBGene00000077",
+                                              created_by=label, updated_by=label, force_insertion=True)],
+                        delete=[test_topic_entity_tag.new_tet_id, 999999999])
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+        assert exc_info.value.detail["change"] == {"kind": "delete", "index": 1}
+        assert self._state(db, reference_id) == before
+        # the agent itself may stay: it is created before the batch, as a single create does
+        db.expire_all()
+        assert db.query(UserModel).filter_by(automation_username=label).one_or_none() is not None
+
+    def test_batch_create_never_upserts(self, db, test_topic_entity_tag, test_tag_source):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        same_but_note = self._payload(ref, test_tag_source.new_source_id, topic="ATP:0000122",
+                                      entity="WB:WBGene00003001", data_context="ATP:0000405",
+                                      note="another note", date_created="2020-01-01")
+        with TestClient(app), pytest.raises(HTTPException) as exc_info:
+            self._batch(db, ref, create=[same_but_note])
+        assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+        assert exc_info.value.detail["change"] == {"kind": "create", "index": 0}
+        db.expire_all()
+        assert db.get(TopicEntityTagModel, test_topic_entity_tag.new_tet_id).note == "test note"
+
+    def test_batch_force_insertion_copies_for_two_creators(self, db, test_reference, test_tag_source):  # noqa
+        ref = test_reference.new_ref_curie
+        copies = [self._payload(ref, test_tag_source.new_source_id, created_by=who, updated_by=who,
+                                force_insertion=True) for who in ("WBPerson1", "WBPerson2")]
+        with TestClient(app):
+            load_name_to_atp_and_relationships_mock()
+            result = self._batch(db, ref, create=copies)
+        assert len(result.created) == 2
+        db.expire_all()
+        assert [db.get(TopicEntityTagModel, tag_id).created_by for tag_id in result.created] == \
+            ["WBPerson1", "WBPerson2"]
+
+    def test_batch_rejects_tag_of_another_reference(self, db, test_topic_entity_tag, test_reference2):  # noqa
+        with TestClient(app), pytest.raises(HTTPException) as exc_info:
+            self._batch(db, test_reference2.new_ref_curie,
+                        update=[(test_topic_entity_tag.new_tet_id, {"negated": True})])
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert exc_info.value.detail["change"] == {"kind": "update", "index": 0}
+        db.expire_all()
+        assert db.get(TopicEntityTagModel, test_topic_entity_tag.new_tet_id).negated is False
+
+    def test_batch_rejects_create_on_another_reference(self, db, test_topic_entity_tag, test_reference2,  # noqa
+                                                       test_tag_source):  # noqa
+        with TestClient(app), pytest.raises(HTTPException) as exc_info:
+            self._batch(db, test_reference2.new_ref_curie, create=[self._payload(
+                test_topic_entity_tag.related_ref_curie, test_tag_source.new_source_id)])
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert exc_info.value.detail["change"] == {"kind": "create", "index": 0}
+
+    def test_batch_over_cap_is_refused(self, db, test_topic_entity_tag):  # noqa
+        with TestClient(app), pytest.raises(HTTPException) as exc_info, \
+                patch.object(topic_entity_tag_crud, "lock_reference_tags") as lock:
+            self._batch(db, test_topic_entity_tag.related_ref_curie,
+                        delete=list(range(1, topic_entity_tag_crud.MAX_TAG_BATCH_CHANGES + 2)))
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert "5000" in exc_info.value.detail["message"]
+        lock.assert_not_called()
+
+    def test_batch_revalidates_once(self, db, test_topic_entity_tag, test_tag_source):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        source = test_tag_source.new_source_id
+        with TestClient(app):
+            setup = self._batch(db, ref, create=[self._payload(ref, source, entity="WB:WBGene00000009",
+                                                               force_insertion=True)])
+            with patch.object(topic_entity_tag_crud, "revalidate_all_tags",
+                              wraps=topic_entity_tag_crud.revalidate_all_tags) as revalidate:
+                self._batch(db, ref,
+                            create=[self._payload(ref, source, entity=f"WB:WBGene0000020{i}", force_insertion=True)
+                                    for i in range(2)],
+                            update=[(test_topic_entity_tag.new_tet_id, {"note": "revalidated once"})],
+                            delete=[setup.created[0]])
+        revalidate.assert_called_once()
+        assert revalidate.call_args.kwargs["commit"] is False
+        assert revalidate.call_args.kwargs["curie_or_reference_id"] == str(self._reference_id(db, ref))
+
+    def test_batch_empty_is_a_no_op(self, db, test_topic_entity_tag):  # noqa
+        with TestClient(app), patch.object(topic_entity_tag_crud, "revalidate_all_tags") as revalidate:
+            result = self._batch(db, test_topic_entity_tag.related_ref_curie)
+        assert result.created == [] and result.updated == 0 and result.deleted == 0
+        revalidate.assert_not_called()
+
+    def test_create_tag_companion_default_unchanged(self, db, test_reference, test_tag_source,  # noqa
+                                                    curator_persons):  # noqa
+        # bulk import / merge copies call create_tag(validate_on_insert=False): still no companion
+        from agr_literature_service.api.schemas import TopicEntityTagSchemaPost
+        with TestClient(app):
+            load_name_to_atp_and_relationships_mock()
+            topic_entity_tag_crud.create_tag(db, TopicEntityTagSchemaPost(**self._payload(
+                test_reference.new_ref_curie, test_tag_source.new_source_id, topic="ATP:0000122",
+                created_by=HUMAN_CURATOR, updated_by=HUMAN_CURATOR)), validate_on_insert=False)
+        reference_id = self._reference_id(db, test_reference.new_ref_curie)
+        assert db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id,
+                                                    TopicEntityTagModel.topic == "ATP:0000005").count() == 0
+
+
+class TestTopicEntityTagBatchEndpoint:
+    """SCRUM-4141: POST /topic_entity_tag/batch through HTTP."""
+
+    _payload = staticmethod(TestTopicEntityTagBatch._payload)
+    _reference_id = staticmethod(TestTopicEntityTagBatch._reference_id)
+    _state = staticmethod(TestTopicEntityTagBatch._state)
+
+    @staticmethod
+    def _post(client, auth_headers, ref, create=(), update=(), delete=()):  # noqa
+        with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                   return_value={}):
+            return client.post("/topic_entity_tag/batch", headers=auth_headers, json={
+                "reference_curie": ref, "create": list(create),
+                "update": [{"topic_entity_tag_id": tag_id, "changes": changes} for tag_id, changes in update],
+                "delete": list(delete)})
+
+    @staticmethod
+    def _companions(db, reference_id, entity):  # noqa
+        db.expire_all()
+        return db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.topic == "ATP:0000005",
+            TopicEntityTagModel.entity_type == "ATP:0000005",
+            TopicEntityTagModel.entity == entity,
+            TopicEntityTagModel.data_novelty == "ATP:0000334").all()
+
+    def test_batch_endpoint_round_trip(self, test_topic_entity_tag, test_tag_source, auth_headers):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, ref,
+                                  create=[self._payload(ref, test_tag_source.new_source_id, force_insertion=True)],
+                                  update=[(test_topic_entity_tag.new_tet_id, {"note": None, "negated": True})])
+            assert response.status_code == status.HTTP_200_OK
+            body = response.json()
+            assert body["reference_curie"] == ref
+            assert body["updated"] == 1 and body["deleted"] == 0 and len(body["created"]) == 1
+            shown = client.get(f"/topic_entity_tag/{body['created'][0]}", headers=auth_headers).json()
+            assert shown["entity"] == "WB:WBGene00000002"
+            patched = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                 headers=auth_headers).json()
+            assert patched["negated"] is True and patched["note"] is None
+
+    def test_batch_endpoint_upsert_refused_409(self, db, test_topic_entity_tag, test_tag_source,  # noqa
+                                               auth_headers):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, ref, create=[self._payload(
+                ref, test_tag_source.new_source_id, topic="ATP:0000122", entity="WB:WBGene00003001",
+                data_context="ATP:0000405", note="another note", date_created="2020-01-01")])
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert response.json()["detail"]["change"] == {"kind": "create", "index": 0}
+        db.expire_all()
+        assert db.get(TopicEntityTagModel, test_topic_entity_tag.new_tet_id).note == "test note"
+
+    def test_batch_endpoint_failure_stores_nothing(self, db, test_topic_entity_tag, test_tag_source,  # noqa
+                                                   auth_headers):  # noqa
+        ref = test_topic_entity_tag.related_ref_curie
+        reference_id = self._reference_id(db, ref)
+        before = self._state(db, reference_id)
+        creates = [self._payload(ref, test_tag_source.new_source_id, entity=f"WB:WBGene00001{i:03d}",
+                                 force_insertion=True) for i in range(100)]
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, ref, create=creates, delete=[999999999])
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"]["change"] == {"kind": "delete", "index": 0}
+        assert self._state(db, reference_id) == before
+
+    def test_batch_endpoint_over_cap_422(self, test_topic_entity_tag, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, test_topic_entity_tag.related_ref_curie,
+                                  delete=list(range(1, 5002)))
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert "5000" in response.json()["detail"]["message"]
+
+    def test_batch_endpoint_extra_field_422(self, test_topic_entity_tag, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.post("/topic_entity_tag/batch", headers=auth_headers, json={
+                "reference_curie": test_topic_entity_tag.related_ref_curie, "upsert": []})
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_batch_creates_companion_entity_tag(self, db, test_reference, test_tag_source,  # noqa
+                                                auth_headers, curator_persons):  # noqa
+        ref = test_reference.new_ref_curie
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, ref, create=[self._payload(
+                ref, test_tag_source.new_source_id, topic="ATP:0000122", entity="WB:WBGene00003001",
+                data_novelty="ATP:0000335", note="mixed", created_by=HUMAN_CURATOR, updated_by=HUMAN_CURATOR)])
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.json()["created"]) == 1  # the companion is not listed
+        reference_id = self._reference_id(db, ref)
+        companions = self._companions(db, reference_id, "WB:WBGene00003001")
+        assert len(companions) == 1
+        companion = companions[0]
+        assert companion.negated is False and companion.note is None
+        assert companion.created_by == HUMAN_CURATOR
+
+    def test_batch_companion_not_duplicated(self, db, test_reference, test_tag_source, auth_headers,  # noqa
+                                            curator_persons):  # noqa
+        ref = test_reference.new_ref_curie
+        load_name_to_atp_and_relationships_mock()
+        mixed = [self._payload(ref, test_tag_source.new_source_id, topic=topic, entity="WB:WBGene00003001",
+                               data_novelty="ATP:0000335", created_by=HUMAN_CURATOR, updated_by=HUMAN_CURATOR)
+                 for topic in ("ATP:0000122", "ATP:0000068")]
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, ref, create=mixed)
+        assert response.status_code == status.HTTP_200_OK
+        assert len(self._companions(db, self._reference_id(db, ref), "WB:WBGene00003001")) == 1
+
+    def test_batch_no_companion_for_negated_or_pipeline(self, db, test_reference, test_tag_source,  # noqa
+                                                        auth_headers, curator_persons):  # noqa
+        ref = test_reference.new_ref_curie
+        load_name_to_atp_and_relationships_mock()
+        creates = [
+            self._payload(ref, test_tag_source.new_source_id, topic="ATP:0000122", entity="WB:WBGene00000011",
+                          negated=True, data_novelty="ATP:0000335", created_by=HUMAN_CURATOR,
+                          updated_by=HUMAN_CURATOR),
+            self._payload(ref, test_tag_source.new_source_id, topic="ATP:0000122", entity="WB:WBGene00000012",
+                          data_novelty="ATP:0000335", created_by="some_pipeline", updated_by="some_pipeline"),
+        ]
+        with TestClient(app) as client:
+            response = self._post(client, auth_headers, ref, create=creates)
+        assert response.status_code == status.HTTP_200_OK
+        reference_id = self._reference_id(db, ref)
+        assert self._companions(db, reference_id, "WB:WBGene00000011") == []
+        assert self._companions(db, reference_id, "WB:WBGene00000012") == []
