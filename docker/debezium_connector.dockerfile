@@ -2,6 +2,11 @@ ARG DEBEZIUM_VERSION=2.7
 FROM quay.io/debezium/connect:${DEBEZIUM_VERSION}
 ENV KAFKA_CONNECT_ES_DIR=$KAFKA_CONNECT_PLUGINS_DIR/kafka-connect-elasticsearch
 
+# Keep Jersey's harmless startup warnings off stderr (see the properties file). The image's
+# entrypoint appends its own options to KAFKA_OPTS rather than replacing it.
+COPY docker/debezium_jul_logging.properties $KAFKA_HOME/config/jul-logging.properties
+ENV KAFKA_OPTS="-Djava.util.logging.config.file=$KAFKA_HOME/config/jul-logging.properties"
+
 ARG KAFKA_ELASTICSEARCH_VERSION=5.3.2
 
 # Deploy Confluent Elasticsearch sink connector

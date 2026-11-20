@@ -59,13 +59,17 @@ def check_pattern(key: str, curie: str) -> Union[bool, None]:
         logger.error(f"Unable to find '{key}' in pattern list")
         return None
     curie_prefix = curie.split(':')[0]
+    # SCRUM-6796: an unknown prefix or a non-matching curie is a validation result, not a
+    # failure -- every caller handles None/False itself (the routers return 400, the ingest
+    # logs and skips the curie). Logging it at ERROR here sent an alert for every PubMed paper
+    # added, whose journal NLM/ISSN ids are expected to be skipped.
     if curie_prefix not in patterns[key]:
-        logger.error(f"Unable to find CURIE prefix '{curie_prefix}' in pattern list for '{key}'")
+        logger.debug(f"Unable to find CURIE prefix '{curie_prefix}' in pattern list for '{key}'")
         return None
 
     pattern = patterns[key][curie_prefix]
     if re.match(pattern, curie):
         return True
     else:
-        logger.error(f"CURIE '{curie}' does not match the pattern for '{curie_prefix}'")
+        logger.debug(f"CURIE '{curie}' does not match the pattern for '{curie_prefix}'")
         return False

@@ -5,8 +5,8 @@ author_model.py
 
 from typing import Dict
 
-from sqlalchemy import (ARRAY, Boolean, CheckConstraint, Column, ForeignKey,
-                        Index, Integer, String, UniqueConstraint)
+from sqlalchemy import (ARRAY, Boolean, CheckConstraint, Column, ForeignKey, Index, BigInteger, Integer,
+                        String, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,14 +21,15 @@ class AuthorModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     author_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -100,8 +101,8 @@ class AuthorModel(Base, AuditedModel):
     )
 
     person_id = Column(
-        Integer,
-        ForeignKey("person.person_id", ondelete="RESTRICT", name="author_person_id_fkey"),
+        BigInteger,
+        ForeignKey("person.id", ondelete="RESTRICT", name="author_person_id_fkey"),
         index=True,
         nullable=True
     )

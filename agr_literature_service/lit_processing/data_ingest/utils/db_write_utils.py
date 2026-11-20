@@ -7,9 +7,11 @@ from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
-from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal
+from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
+    authors_lists_match_for_review
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
+from agr_literature_service.lit_processing.utils.generic_utils import xref_lookup_key
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_reference_id_by_curie, get_reference_id_by_pmid
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
@@ -18,7 +20,10 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
     TopicEntityTagModel, TagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
-from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
+from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import mark_authors_reloaded
+from agr_literature_service.api.crud.utils.author_review import AUTHOR_REVIEW_MODS, AUTHOR_REVIEW_STATES, \
+    AUTHOR_REVIEW_NEEDED, AUTHOR_REVIEW_COMPLETE
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -31,6 +36,9 @@ file_uploaded_tag_atp_id = "ATP:0000134"  # files uploaded
 text_conversion_process_atp_id = "ATP:0000161"  # text conversion
 file_converted_to_text_tag_atp_id = "ATP:0000163"  # file converted to text
 text_conversion_needed_tag_atp_id = "ATP:0000162"  # text conversion needed
+# retracted (ATP:0000346) and fully retracted (ATP:0000348); partially retracted
+# (ATP:0000347) papers keep their workflow tags
+full_retraction_status_atp_ids = ("ATP:0000346", "ATP:0000348")
 
 # One "Lastname, Initials" pair.
 # - last: anything up to a comma (handles hyphens, apostrophes, spaces like "van der Ven")
@@ -55,7 +63,7 @@ def add_file_uploaded_workflow(db_session: Session, curie_or_reference_id, mod=N
     if mod is None:
         rows = db_session.execute(text(f"SELECT m.abbreviation "
                                        f"FROM mod m, mod_corpus_association mca "
-                                       f"WHERE m.mod_id = mca.mod_id "
+                                       f"WHERE m.id = mca.mod_id "
                                        f"AND mca.reference_id = {ref.reference_id} "
                                        f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
@@ -115,6 +123,16 @@ def add_file_needed_for_new_papers(db_session: Session, mod, curie_or_reference_
     else:
         reference_ids = {curie_or_reference_id}
 
+    # Fully retracted papers get no "file needed": process_retracted_papers deletes
+    # all their workflow tags except the two "won't ..." ones, so adding it here
+    # put it back every night, and also wiped any real file upload status the
+    # paper had (SCRUM-6733). restore_file_upload_workflow_tags sets the status
+    # again if the retraction is reversed.
+    fully_retracted_ids = {
+        row.reference_id for row in db_session.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.retraction_status.in_(full_retraction_status_atp_ids)).all()
+    }
+
     if logger:
         logger.info(f"Total reference_ids to process: {len(reference_ids)}")
         logger.info(f"Total reference_ids with existing workflow tags: {len(reference_ids_with_wft)}")
@@ -127,7 +145,7 @@ def add_file_needed_for_new_papers(db_session: Session, mod, curie_or_reference_
     try:
         count = 0
         for reference_id in reference_ids:
-            if reference_id not in reference_ids_with_wft:
+            if reference_id not in reference_ids_with_wft and reference_id not in fully_retracted_ids:
                 count += 1
                 transition_to_workflow_status(db_session, str(reference_id), mod, file_needed_tag_atp_id, transition_type)
                 if logger:
@@ -463,7 +481,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
     cr_rows = db_session.execute(text(f"SELECT reference_id "
                                       f"FROM cross_reference "
                                       f"WHERE curie_prefix = '{curie_prefix}' "
-                                      f"AND is_obsolete is False")).fetchall()
+                                      f"AND obsolete is False")).fetchall()
     valid_reference_ids = {row[0] for row in cr_rows}
 
     # NEW: for FB only, detect references that have *any* FB curie at all
@@ -477,11 +495,11 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
         """)).fetchall()
         ref_ids_with_any_mod_curie = {row[0] for row in any_rows}
 
-    mca_rows = db_session.execute(text(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
+    mca_rows = db_session.execute(text(f"SELECT mca.id AS mod_corpus_association_id, mca.reference_id "
                                        f"FROM mod_corpus_association mca, reference r "
                                        f"WHERE mca.mod_id = {mod_id} "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.reference_id = r.reference_id "
+                                       f"AND mca.reference_id = r.id "
                                        f"AND r.prepublication_pipeline is False")).fetchall()
     try:
         # update those that are no longer valid
@@ -498,7 +516,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                 text("""
                     UPDATE mod_corpus_association
                        SET corpus = False
-                    WHERE mod_corpus_association_id = :assoc_id
+                    WHERE id = :assoc_id
                 """),
                 {"assoc_id": assoc_id}
             )
@@ -517,7 +535,7 @@ def _is_prepublication_pipeline(db_session: Session, reference_id):  # pragma: n
 
     rows = db_session.execute(text(f"SELECT prepublication_pipeline "
                                    f"FROM   reference "
-                                   f"WHERE  reference_id = {reference_id}")).fetchall()
+                                   f"WHERE  id = {reference_id}")).fetchall()
     return rows[0][0]
 
 
@@ -624,7 +642,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
     db_session = create_postgres_session(False)
 
     ref_curies = ", ".join(["'" + x + "'" for x in ref_curie_list])
-    rs = db_session.execute(text("SELECT reference_id, curie FROM reference WHERE curie IN (" + ref_curies + ")"))
+    rs = db_session.execute(text("SELECT id, curie FROM reference WHERE curie IN (" + ref_curies + ")"))
     rows = rs.fetchall()
     curie_to_reference_id = {}
     for x in rows:
@@ -654,7 +672,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
             continue
         just_added.add(entry["curie"])
 
-        rs = db_session.execute(text("SELECT reference_id, resource_id, is_obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'"))
+        rs = db_session.execute(text("SELECT reference_id, resource_id, obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'"))
         rows = rs.fetchall()
         if len(rows) > 0:
             for x in rows:
@@ -711,7 +729,26 @@ def looks_like_multiple_authors_in_one_name(name: str) -> bool:
     return len(pairs) >= 2
 
 
+def delete_automated_author_history(db_session, reference_id: int) -> int:
+    """SCRUM-6753: before a drop-and-reload, delete this reference's author
+    history written by automation (PubMed/DQM loads, ORCID/email linking),
+    so author_version keeps only the reload's own INSERT rows instead of a
+    copy of every previous load. History written by a person (a transaction
+    whose agent is person-backed) is kept. Returns the rows deleted."""
+    result = db_session.execute(text(
+        "DELETE FROM author_version av USING transaction t "
+        "WHERE av.reference_id = :reference_id AND t.id = av.transaction_id "
+        "AND NOT EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.person_id IS NOT NULL)"),
+        {"reference_id": reference_id})
+    return result.rowcount
+
+
 def replace_authors_from_json(db_session, reference_id: int, authors_from_json: List[Author]):
+
+    delete_automated_author_history(db_session, reference_id)
+    # SCRUM-6827: the caller moves the author-person status once its batch commits
+    # (author_person_status_updates.apply_author_reload_statuses).
+    mark_authors_reloaded(db_session, reference_id)
 
     # delete existing authors
     db_session.query(AuthorModel)\
@@ -784,8 +821,8 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     return db_session.query(AuthorModel.author_id).join(
         UserModel,
         or_(
-            UserModel.id == AuthorModel.created_by,
-            UserModel.id == AuthorModel.updated_by,
+            UserModel.user_id == AuthorModel.created_by_id,
+            UserModel.user_id == AuthorModel.updated_by_id,
         ),
     ).filter(
         AuthorModel.reference_id == reference_id,
@@ -793,7 +830,71 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     ).first() is not None
 
 
-def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def set_author_review_tags(db_session: Session, reference_id, authors_match: bool,
+                           pubmed_record_changed: bool = False, logger=None, fw=None, pmid=None) -> None:
+    """SCRUM-6448: keep the author review workflow tag of a curator-edited reference
+    in step with PubMed, for each AUTHOR_REVIEW_MODS corpus it is in (see
+    api.crud.utils.author_review).
+
+    * authors differ: no tag -> "needed"; "complete" -> back to "needed" only when
+      pubmed_record_changed. A curator who reviewed the paper and kept ABC's authors
+      on purpose leaves them different from PubMed, so without that check every
+      PubMed run (which reprocesses every reference) would reopen the review.
+    * authors match: "needed" -> "complete".
+    "In progress" and "blocked" are always left for the curator.
+
+    Each change is an automated transition (author review -> needed, needed <-> complete),
+    so it needs a callable row in the MOD's transition table (SCRUM-6845). Each MOD's change
+    runs in a SAVEPOINT and is flushed there, so a failure (including a refused transition)
+    rolls back only that change and not the batch of reference updates the PubMed script
+    commits together. The tag rows are stamped with the script's user.
+    """
+    mod_rows = db_session.query(ModModel.mod_id, ModModel.abbreviation).join(
+        ModCorpusAssociationModel,
+        ModCorpusAssociationModel.mod_id == ModModel.mod_id
+    ).filter(
+        ModCorpusAssociationModel.reference_id == reference_id,
+        ModCorpusAssociationModel.corpus.is_(True),
+        ModModel.abbreviation.in_(AUTHOR_REVIEW_MODS)
+    ).all()
+    for mod_id, mod_abbreviation in mod_rows:
+        try:
+            with db_session.begin_nested():
+                current_tag = db_session.query(WorkflowTagModel).filter(
+                    WorkflowTagModel.reference_id == reference_id,
+                    WorkflowTagModel.mod_id == mod_id,
+                    WorkflowTagModel.workflow_tag_id.in_(AUTHOR_REVIEW_STATES)
+                ).first()
+                current_atp = current_tag.workflow_tag_id if current_tag else None
+                if authors_match:
+                    new_atp = AUTHOR_REVIEW_COMPLETE if current_atp == AUTHOR_REVIEW_NEEDED else None
+                elif current_atp is None or (current_atp == AUTHOR_REVIEW_COMPLETE and pubmed_record_changed):
+                    new_atp = AUTHOR_REVIEW_NEEDED
+                else:
+                    new_atp = None
+                if new_atp is None:
+                    continue
+                # through the transition table (SCRUM-6845); commit=False flushes inside the savepoint
+                transition_to_workflow_status(db_session, str(reference_id), mod_abbreviation, new_atp,
+                                              transition_type="automated", commit=False)
+            _write_log_message(
+                reference_id,
+                f": AUTHOR REVIEW {mod_abbreviation} workflow tag {current_atp or 'none'} -> {new_atp}",
+                pmid,
+                logger,
+                fw
+            )
+        except Exception as e:
+            _write_log_message(
+                reference_id,
+                f": ERROR setting {mod_abbreviation} author review workflow tag: {e}",
+                pmid,
+                logger,
+                fw
+            )
+
+
+def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None, flag_author_review: bool = False, pubmed_record_changed: bool = False):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -809,6 +910,12 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     tags set to true. We will address authors with these tags and those connected to PERSON
     in the future simultaneously.
     Skip these authors during the update and send a report to the curators.
+
+    flag_author_review (SCRUM-6448, set by the PubMed update): when the reference's
+    authors were edited by a curator, flag differences for review with the author
+    review workflow tags instead of silently skipping it; see set_author_review_tags.
+    pubmed_record_changed: the PubMed record changed since the previous run, which
+    is what lets a completed author review be reopened.
     """
 
     if author_list_in_json is None:
@@ -827,6 +934,10 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     # mutation path below -- both the merged-author-string replace and the main
     # drop-and-reload. (Runs for every reference; correctness over micro-optimization.)
     if _reference_touched_by_curator(db_session, reference_id):
+        if flag_author_review:
+            set_author_review_tags(db_session, reference_id,
+                                   authors_lists_match_for_review(authors_from_json, authors_from_db),
+                                   pubmed_record_changed, logger, fw, pmid)
         return []
 
     if any(
@@ -937,17 +1048,25 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
             except Exception as e:
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
                 return
-        if mod == "ZFIN" and json_mca_entry.get("corpus"):
-            add_zfin_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger)
+        if mod in CORPUS_ENTRY_TAGS and json_mca_entry.get("corpus"):
+            add_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger, mod)
 
 
 def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
-    """Grant ZFIN's corpus-entry workflow tags.
+    """Grant ZFIN's corpus-entry workflow tags (see add_corpus_entry_tags)."""
+    add_corpus_entry_tags(db, reference_id, mod_id, logger, "ZFIN")
 
-    The tag table lives in api.crud.utils.zfin_corpus_entry so this and the API
+
+def add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation):
+    """Grant the MOD's corpus-entry workflow tags (ZFIN's two classifiers, SGD's
+    manual indexing needed, email extraction needed for the MODs that extract
+    emails); a no-op for any other MOD. WB's author-person curation needed (SCRUM-6487) is
+    never granted on ingest: it is opt-in from the sort page only.
+
+    The tag table lives in api.crud.utils.corpus_entry_tags so this and the API
     path (mod_corpus_association_crud) guard the same tags against the same
-    workflow state sets and cannot drift; see that module for why the probe state
-    list is non-contiguous and cannot be derived from the ontology.
+    workflow state sets and cannot drift; see zfin_corpus_entry for why the probe
+    state list is non-contiguous and cannot be derived from the ontology.
 
     Each tag is guarded independently against its own workflow's states, so a
     reference that already holds one still picks up the other -- which is what
@@ -968,7 +1087,7 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
     reference anyway.
     """
     added = False
-    for _atp_name, atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
+    for _atp_name, atpid, already_entered in CORPUS_ENTRY_TAGS.get(mod_abbreviation, []):
         try:
             with db.begin_nested():
                 existing = (
@@ -988,11 +1107,11 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
                     # caught here rather than at the final commit below.
                     db.flush()
                     added = True
-                    logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
+                    logger.info(f"Adding {mod_abbreviation} corpus-entry tag: {atpid}")
                 else:
-                    logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
+                    logger.info(f"{mod_abbreviation} corpus-entry tag already exists: {existing.workflow_tag_id}")
         except Exception as e:
-            logger.error(f"Error when adding ZFIN corpus-entry tag {atpid}: {e}")
+            logger.error(f"Error when adding {mod_abbreviation} corpus-entry tag {atpid}: {e}")
     if added:
         db.commit()
 
@@ -1129,7 +1248,11 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
     else:
         fw = open(log_file, "w")
     not_loaded_pmids = []
-    for pmid in pmids:
+    attached_pmids = []
+    # Iterate over a copy: matched PMIDs are removed from pmids below so the caller does not
+    # create them, and removing from the list being iterated skipped the PMID after each match,
+    # which then became a duplicate of its DOI record (SCRUM-6864).
+    for pmid in list(pmids):
         json_file = json_path + pmid + ".json"
         if not path.exists(json_file):
             continue
@@ -1151,8 +1274,8 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
                 is_pmcid = True
                 xref_id = xref_id.replace("PMCID:", '')
             agr = None
-            if is_doi is True and xref_id in xref_ref['DOI']:
-                agr = xref_ref['DOI'][xref_id]
+            if is_doi is True and xref_lookup_key('DOI', xref_id) in xref_ref['DOI']:
+                agr = xref_ref['DOI'][xref_lookup_key('DOI', xref_id)]
             elif is_pmcid is True and xref_id in xref_ref['PMCID']:
                 agr = xref_ref['PMCID'][xref_id]
             if agr is None:
@@ -1177,6 +1300,7 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
                                                     curie_prefix='PMID',
                                                     reference_id=reference_id)
                     db_session.add(cross_ref)
+                    attached_pmids.append(pmid)
                     fw.write(str(datetime.now()) + ": adding PMID:" + pmid + " to the row with XREF_ID = " + xref_id + " in the database\n")
                 except Exception as e:
                     logger.info(str(datetime.now()) + ": adding " + pmid + " to the row with " + xref_id + " is failed: " + str(e) + "\n")
@@ -1186,8 +1310,11 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
             if pmid in pmids:
                 pmids.remove(pmid)
     fw.close()
+    if attached_pmids:
+        # committed now so the caller can refresh these references from PubMed
+        db_session.commit()
 
-    return (log_path, log_url, not_loaded_pmids)
+    return (log_path, log_url, not_loaded_pmids, attached_pmids)
 
 
 def get_reference_relation_rows(db_session: Session, reference_id_from, reference_id_to):  # pragma: no cover
@@ -1246,12 +1373,12 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     rows = db_session.execute(text(f"SELECT get_most_current_email(u.person_id) AS email "
-                                   f"FROM reference_relation_version rcc, transaction t, users u "
+                                   f"FROM reference_relation_version rcc, transaction t, agent u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND u.user_id = t.user_id")).mappings().fetchall()
+                                   f"AND u.id = t.user_id")).mappings().fetchall()
     if len(rows) == 0:
         return None
     for row in rows:
@@ -1264,13 +1391,13 @@ def _is_reference_relation_added_by_mod_dqm(db_session: Session, reference_id_fr
 
     user_id = "sort_dqm_json_reference_updates"
     rows = db_session.execute(text(f"SELECT * "
-                                   f"FROM reference_relation_version rcc, transaction t, users u "
+                                   f"FROM reference_relation_version rcc, transaction t, agent u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND t.user_id = u.user_id "
-                                   f"AND u.id = '{user_id}'")).fetchall()
+                                   f"AND t.user_id = u.id "
+                                   f"AND u.automation_username = '{user_id}'")).fetchall()
     if len(rows) > 0:
         return True
     return False
@@ -1694,41 +1821,6 @@ def insert_referencefile(db_session: Session, pmid, file_class, file_publication
         logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + " an error occurred when loading data into Referencefile table. error: " + str(e))
 
     return referencefile_id
-
-
-def set_category_for_fb_note_papers(db, logger):
-    stmt = text("""
-        UPDATE reference
-        SET category = 'Comment'
-        WHERE reference_id IN (
-            SELECT rmrt.reference_id
-              FROM reference_mod_referencetype rmrt
-              JOIN mod_referencetype mrt
-                ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id
-              JOIN referencetype rt
-                ON mrt.referencetype_id = rt.referencetype_id
-              JOIN mod m
-                ON mrt.mod_id = m.mod_id
-             WHERE rt.label = 'note'
-               AND m.abbreviation = 'FB'
-        )
-          AND reference_id NOT IN (
-            SELECT mca.reference_id
-              FROM mod_corpus_association mca
-              JOIN mod m2
-                ON mca.mod_id = m2.mod_id
-             WHERE mca.corpus = TRUE
-               AND m2.abbreviation <> 'FB'
-        )
-          AND category <> 'Comment'
-    """)
-    try:
-        result: Result = db.execute(stmt)
-        db.commit()
-        logger.info(f"Set category='Comment' for {result.rowcount} FB paper(s) with 'note' reference type")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to set category for FB note papers. Error={e}")
 
 
 def update_title_cleanup_tags_for_retracted_papers(db, logger):
@@ -2489,9 +2581,9 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     try:
         # Get all MODs associated with this reference (corpus=True), excluding AGR
         mods_query = text("""
-            SELECT m.mod_id, m.abbreviation
+            SELECT m.id AS mod_id, m.abbreviation
             FROM mod m
-            JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+            JOIN mod_corpus_association mca ON m.id = mca.mod_id
             WHERE mca.reference_id = :reference_id
             AND mca.corpus = TRUE
             AND m.abbreviation != 'AGR'
@@ -2517,7 +2609,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                 main_pdf_query = text("""
                     SELECT COUNT(*)
                     FROM referencefile rf
-                    JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                    JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
                     WHERE rf.reference_id = :reference_id
                     AND rf.file_class = 'main'
                     AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
@@ -2535,7 +2627,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                     any_file_query = text("""
                         SELECT COUNT(*)
                         FROM referencefile rf
-                        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                        JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
                         WHERE rf.reference_id = :reference_id
                         AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
                     """)
@@ -2595,7 +2687,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                     SUM(CASE WHEN rf.file_class = 'main' THEN 1 ELSE 0 END) AS main_pdf_count,
                     SUM(CASE WHEN rf.file_class = 'converted_merged_main' THEN 1 ELSE 0 END) AS text_file_count
                 FROM referencefile rf
-                JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
                 WHERE rf.reference_id = :reference_id
                 AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
             """)

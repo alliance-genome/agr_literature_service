@@ -37,6 +37,11 @@ COPY --from=upstream --chown=appuser:appuser /etc/ksqldb/ /etc/ksqldb/
 COPY --from=build /ksql-rocksdb-config-setter.jar \
      /usr/share/java/ksqldb-rest-app/ksql-rocksdb-config-setter.jar
 RUN chmod +x /usr/bin/docker/run /usr/bin/docker/configure /usr/bin/ksql*
+# ksqlDB 0.26's ksql-run-class defaults KSQL_JVM_PERFORMANCE_OPTS to the CMS collector, and Java 11
+# prints "Option UseConcMarkSweepGC was deprecated" on stderr at every start, which the GELF driver
+# files as ERROR. -XX:-PrintWarnings silences JVM warnings; it only takes effect before the option
+# that triggers them, so it leads. The rest is ksql-run-class's own default, unchanged: same GC.
+ENV KSQL_JVM_PERFORMANCE_OPTS="-XX:-PrintWarnings -server -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+CMSScavengeBeforeRemark -XX:+ExplicitGCInvokesConcurrent -XX:NewRatio=1 -Djava.awt.headless=true"
 USER appuser
 WORKDIR /home/appuser
 CMD ["/usr/bin/docker/run"]

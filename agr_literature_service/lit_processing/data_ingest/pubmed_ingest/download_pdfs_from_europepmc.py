@@ -320,10 +320,10 @@ def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, 
         cr.curie as pmcid
     FROM cross_reference cr
     INNER JOIN mod_corpus_association mca ON cr.reference_id = mca.reference_id
-    INNER JOIN mod m ON mca.mod_id = m.mod_id
-    INNER JOIN reference r ON r.reference_id = cr.reference_id
+    INNER JOIN mod m ON mca.mod_id = m.id
+    INNER JOIN reference r ON r.id = cr.reference_id
     WHERE cr.curie_prefix = 'PMCID'
-      AND cr.is_obsolete = false
+      AND cr.obsolete = false
       AND mca.corpus = true
       AND m.abbreviation != 'AGR'
       AND (
@@ -333,7 +333,7 @@ def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, 
       AND NOT EXISTS (
           SELECT 1
           FROM referencefile rf
-          INNER JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+          INNER JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
           WHERE rf.reference_id = cr.reference_id
             AND rfm.mod_id IS NULL
             AND rf.file_class = 'main'
@@ -778,7 +778,7 @@ def fetch_rf_info_by_key(db, reference_id: int, md5sum: str) -> Optional[RfInfo]
     row = db.execute(
         text(
             """
-            SELECT referencefile_id, file_class, file_extension, file_publication_status, pdf_type, display_name
+            SELECT id AS referencefile_id, file_class, file_extension, file_publication_status, pdf_type, display_name
             FROM referencefile
             WHERE reference_id = :rid AND md5sum = :md5
             LIMIT 1
@@ -932,7 +932,7 @@ def repair_nxml_named_supplement_pdfs(  # pragma: no cover
             """
             SELECT DISTINCT rf.reference_id
             FROM referencefile rf
-            INNER JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+            INNER JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
             WHERE rf.reference_id = ANY(:ref_ids)
               AND rfm.mod_id IS NULL
               AND lower(rf.file_class) = 'main'
@@ -949,7 +949,7 @@ def repair_nxml_named_supplement_pdfs(  # pragma: no cover
     supp_rows = db.execute(
         text(
             """
-            SELECT sp.reference_id, sp.referencefile_id, sp.md5sum
+            SELECT sp.reference_id, sp.id AS referencefile_id, sp.md5sum
             FROM referencefile sp
             INNER JOIN referencefile nx
               ON nx.reference_id = sp.reference_id
@@ -959,7 +959,7 @@ def repair_nxml_named_supplement_pdfs(  # pragma: no cover
               AND lower(sp.file_extension) = 'pdf'
               AND sp.display_name IS NOT NULL
               AND lower(nx.file_extension) = 'nxml'
-            ORDER BY sp.reference_id, sp.referencefile_id
+            ORDER BY sp.reference_id, sp.id
             """
         ),
         {"ref_ids": list(reference_ids)},

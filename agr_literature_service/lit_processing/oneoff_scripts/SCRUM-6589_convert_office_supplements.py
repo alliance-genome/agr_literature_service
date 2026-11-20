@@ -111,7 +111,7 @@ DEFAULT_EXCLUDED_MODS = ("RGD", "AGR")
 # sqlalchemy-continuum history of mod_corpus_association (no mapped class).
 mod_corpus_association_version = table(
     "mod_corpus_association_version",
-    column("mod_corpus_association_id"),
+    column("id"),  # its mod_corpus_association_id (SCRUM-6719)
     column("corpus"),
     column("corpus_mod"),
     column("date_updated"),
@@ -154,7 +154,7 @@ def entered_corpus_reference_ids(db: Session, years: Iterable[int],
     version = mod_corpus_association_version.c
     last_became_true = (
         select(func.max(version.date_updated))
-        .where(version.mod_corpus_association_id == mca.mod_corpus_association_id,
+        .where(version.id == mca.mod_corpus_association_id,
                version.corpus.is_(True),
                version.corpus_mod.is_(True))
         .correlate(mca)

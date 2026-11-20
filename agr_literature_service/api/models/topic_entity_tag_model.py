@@ -5,7 +5,7 @@ topic_entity_tag_model.py
 
 from typing import List
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Float, \
+from sqlalchemy import BigInteger, Column, ForeignKey, String, Float, \
     and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
 from sqlalchemy.orm import relationship, Mapped
 
@@ -25,14 +25,14 @@ topic_entity_tag_validation = Table(
     Base.metadata,
     Column(
         "validated_topic_entity_tag_id",
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        ForeignKey("topic_entity_tag.id", ondelete='CASCADE'),
         index=True,
         primary_key=True
     ),
 
     Column(
         "validating_topic_entity_tag_id",
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        ForeignKey("topic_entity_tag.id", ondelete='CASCADE'),
         index=True,
         primary_key=True,
     ),
@@ -49,14 +49,15 @@ class TopicEntityTagModel(AuditedModel, Base):
     }
 
     topic_entity_tag_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -68,8 +69,8 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     tag_source_id = Column(
-        Integer,
-        ForeignKey("tag_source.tag_source_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("tag_source.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -153,11 +154,11 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     # SCRUM-5697. What kind of data the tag represents, as an ATP term drawn
-    # from a hierarchy rather than a flat set: the ATP:0000323 "data context"
-    # root over ATP:0000324 mentioned data (ATP:0000360 background information,
-    # ATP:0000325 experimentally studied data) and ATP:0000326 marker data
-    # (ATP:0000328 expression marker, ATP:0000327 genetic marker). The four
-    # leaves are the editor's curation choices; WB topic tags store the root.
+    # from a hierarchy rather than a flat set under the ATP:0000323 "data
+    # context" root; WB topic tags store the root itself. The tree was reworked
+    # in the 2026-10-30 ATP release (ATP:0000405 experimental data and below;
+    # ATP:0000325 deprecated) -- see the comment above DATA_CONTEXT_DEFAULTS in
+    # topic_entity_tag_crud (SCRUM-6815).
     # Declared non-null to match data_novelty; the database constraint lands in
     # a follow-up revision once every producer sends a value and the existing
     # rows have been backfilled.
@@ -190,8 +191,8 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     ml_model_id = Column(
-        Integer,
-        ForeignKey("ml_model.ml_model_id", ondelete="SET NULL"),
+        BigInteger,
+        ForeignKey("ml_model.id", ondelete="SET NULL"),
         index=True,
         nullable=True
     )

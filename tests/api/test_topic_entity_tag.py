@@ -1,3 +1,5 @@
+import threading
+import time
 from collections import namedtuple
 from datetime import datetime
 from unittest.mock import patch
@@ -8,10 +10,13 @@ from starlette.testclient import TestClient
 from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags
-from agr_literature_service.api.models import ReferenceModel, TopicEntityTagModel
+from agr_literature_service.api.crud import topic_entity_tag_crud
+from agr_literature_service.api.crud.user_utils import resolve_named_person
+from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags, \
+    TET_REVALIDATION_LOCK_NAMESPACE
+from agr_literature_service.api.models import PersonModel, ReferenceModel, TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
-from ..fixtures import db # noqa
+from ..fixtures import db, _get_engine # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -22,6 +27,23 @@ from ..fixtures import load_name_to_atp_and_relationships_mock
 test_reference2 = test_reference
 
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
+
+
+# /validate with the admin (service) token must name the curator, a person
+# (SCRUM-6853); the curator_persons fixture creates them.
+VALIDATING_CURATOR = "AGRKB:test-validating-curator"
+# A human curator's id is an AGRKB: person curie; pipeline/script users are not.
+HUMAN_CURATOR = "AGRKB:test-human-curator"
+
+
+@pytest.fixture
+def curator_persons(db):  # noqa
+    """The persons the tests name as curators: a person identifier in created_by /
+    updated_by must resolve to exactly one person (SCRUM-6853)."""
+    for curie, name in ((VALIDATING_CURATOR, "Validating Curator"), (HUMAN_CURATOR, "Human Curator")):
+        if db.query(PersonModel).filter(PersonModel.curie == curie).one_or_none() is None:
+            db.add(PersonModel(display_name=name, curie=curie))
+    db.commit()
 
 
 @pytest.fixture
@@ -39,7 +61,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_tag_source, tes
             "tag_source_id": test_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
-            "data_context": "ATP:0000325",
+            "data_context": "ATP:0000405",
             "note": "test note",
             "created_by": "WBPerson1",
             "date_created": "2020-01-01"
@@ -55,6 +77,133 @@ class TestTopicEntityTag:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.json()["created_by"] == "WBPerson1"
+            # SCRUM-6852: the raw ids are returned next to the display names
+            assert response.json()["created_by_user_id"] == "WBPerson1"
+            assert response.json()["updated_by_user_id"] == "WBPerson1"
+
+    def test_create_concurrent_identical_requests_store_one_tag(self, test_topic_entity_tag, test_tag_source,  # noqa
+                                                                 db, auth_headers):  # noqa
+        # SCRUM-6851: a client that resends a create after a timeout can have both
+        # requests in flight at once. The reference lock taken before the duplicate check
+        # makes the second wait for the first, then see its row and get the usual 409.
+        new_tet = {
+            "reference_curie": test_topic_entity_tag.related_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003002",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "tag_source_id": test_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "data_context": "ATP:0000405",
+            "created_by": "WBPerson1"
+        }
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_topic_entity_tag.related_ref_curie).scalar()
+        statuses = []
+        # The loser's 409 detail calls get_curie_to_name_from_all_tets, which would
+        # reach the A-team API (no URL in the test environment); patched as the other
+        # 409 tests in this file do.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}):
+            def post():
+                statuses.append(client.post(url="/topic_entity_tag/", json=new_tet,
+                                            headers=auth_headers).status_code)
+
+            # Hold the reference lock from another connection so both requests are
+            # waiting on it together, then release it and let them race.
+            with _get_engine().connect() as holder:
+                holder.execute(text("SELECT pg_advisory_xact_lock(:ns, :ref)"),
+                               {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id})
+                threads = [threading.Thread(target=post) for _ in range(2)]
+                for thread in threads:
+                    thread.start()
+                # Release only once both requests are actually queued on the lock, so
+                # the test exercises the race rather than two sequential requests.
+                waiting = 0
+                deadline = time.monotonic() + 30
+                with _get_engine().connect() as observer:
+                    while waiting < 2 and time.monotonic() < deadline:
+                        waiting = observer.execute(text(
+                            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted "
+                            "AND classid = :ns AND objid = :ref AND objsubid = 2"),
+                            {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id}).scalar()
+                        observer.rollback()
+                        if waiting < 2:
+                            time.sleep(0.05)
+                assert waiting == 2
+                assert statuses == []
+                holder.rollback()
+            for thread in threads:
+                thread.join(timeout=60)
+        assert sorted(statuses) == [status.HTTP_201_CREATED, status.HTTP_409_CONFLICT]
+        db.expire_all()
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.entity == "WB:WBGene00003002").count() == 1
+
+    def test_create_duplicate_409_releases_reference_lock(self, test_topic_entity_tag, test_tag_source,  # noqa
+                                                          db):  # noqa
+        # SCRUM-6851: create_tag takes the reference lock before its duplicate check. A
+        # loader that catches the 409 and carries on in the same session must not keep
+        # holding it, or curators' writes on that paper would block until its next commit.
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        duplicate = TopicEntityTagSchemaPost(
+            reference_curie=test_topic_entity_tag.related_ref_curie,
+            topic="ATP:0000122",
+            entity_type="ATP:0000005",
+            entity="WB:WBGene00003001",
+            entity_id_validation="alliance",
+            species="NCBITaxon:6239",
+            tag_source_id=test_tag_source.new_source_id,
+            negated=False,
+            data_novelty="ATP:0000334",
+            data_context="ATP:0000405",
+            note="test note",
+            created_by="WBPerson1",
+        )
+        with pytest.raises(HTTPException) as exc_info, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}):
+            topic_entity_tag_crud.create_tag(db, duplicate)
+        assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_topic_entity_tag.related_ref_curie).scalar()
+        with _get_engine().connect() as other:
+            acquired = other.execute(text("SELECT pg_try_advisory_xact_lock(:ns, :ref)"),
+                                     {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id}).scalar()
+            other.rollback()
+        assert acquired is True
+
+    def test_create_corpus_step_failure_stores_nothing(self, test_topic_entity_tag, test_tag_source,  # noqa
+                                                       db, auth_headers):  # noqa
+        # SCRUM-6851: the tag, the corpus step and the workflow tag are one transaction,
+        # so an error response means nothing was stored and the caller can retry. The
+        # tag used to be committed before the corpus step and survived its failure.
+        new_tet = {
+            "reference_curie": test_topic_entity_tag.related_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003003",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "tag_source_id": test_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "data_context": "ATP:0000405",
+            "created_by": "WBPerson1"
+        }
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.add_paper_to_mod_if_not_already",
+                      side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                                detail="corpus step failed")):
+            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        db.expire_all()
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.entity == "WB:WBGene00003003").count() == 0
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -107,7 +256,7 @@ class TestTopicEntityTag:
                 "entity_id_validation": "alliance",
                 "display_tag": None,
                 "data_novelty": "ATP:0000334",
-                "data_context": "ATP:0000325",
+                "data_context": "ATP:0000405",
                 "negated": False,
                 "species": "NCBITaxon:6239"
             }
@@ -142,6 +291,8 @@ class TestTopicEntityTag:
                 t["topic_entity_tag_id"] == int(test_topic_entity_tag.new_tet_id)
                 for t in tags[ref_curie]
             )
+            # SCRUM-6852: the raw creator id is returned next to the display name
+            assert all(t["created_by_user_id"] for t in tags[ref_curie])
             # per-topic counts are computed in the API for the same reference
             assert "ATP:0000122" in counts[ref_curie]
             assert counts[ref_curie]["ATP:0000122"]["entity_pos"] >= 1
@@ -225,6 +376,28 @@ class TestTopicEntityTag:
             data = response.json()
             assert len(data["tags"][ref_curie]) >= 1
 
+    def test_show_all_reference_tags_batch_data_context_filter(self, test_topic_entity_tag, auth_headers):  # noqa
+        # The fixture tag's data context is ATP:0000405 (SCRUM-6815).
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_build_curie_to_name_map.return_value = {}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            def tag_count(filters):
+                response = client.post(
+                    url="/topic_entity_tag/by_references",
+                    json={"curies_or_reference_ids": [ref_curie], "filters": filters},
+                    headers=auth_headers,
+                )
+                assert response.status_code == status.HTTP_200_OK
+                return len(response.json()["tags"][ref_curie])
+
+            assert tag_count({"data_context": ["ATP:0000405"]}) >= 1
+            assert tag_count({"data_context": ["ATP:0000324"]}) == 0
+            assert tag_count({"negated_data_context": ["ATP:0000405"]}) == 0
+            assert tag_count({"negated_data_context": ["ATP:0000324"]}) >= 1
+
     def test_show_all_reference_tags_batch_mod_filter(self, test_topic_entity_tag, test_tag_source, test_mod, auth_headers):  # noqa
         # The grid must show only the selected MOD's tags. A tag's owning MOD is
         # its source's secondary_data_provider (the field create_or_update uses for
@@ -306,7 +479,7 @@ class TestTopicEntityTag:
         for topic in ("ATP:0000122", "ATP:0000150"):
             db.add(TopicEntityTagModel(reference_id=reference_id, topic=topic, species="NCBITaxon:7227",
                                        tag_source_id=test_tag_source.new_source_id, negated=False,
-                                       data_novelty="ATP:0000335", data_context="ATP:0000325"))
+                                       data_novelty="ATP:0000335", data_context="ATP:0000405"))
         db.commit()
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -438,6 +611,7 @@ class TestTopicEntityTag:
             assert any(t["curie"] == "ATP:0000122" for t in discovery["topics"])
             assert all(s["method"] != "abc_literature_system" for s in discovery["sources"])
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # POST /validate is the thin write path for the grid's Validation column:
         # the server resolves the curator source (get-or-create) and creates the
@@ -461,7 +635,7 @@ class TestTopicEntityTag:
             # the server get-or-creates the curator source for the MOD.
             resp = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": test_mod.new_mod_abbreviation,
                       "negated": False, "note": "looks right"},
                 headers=auth_headers,
@@ -469,6 +643,22 @@ class TestTopicEntityTag:
             assert resp.status_code == status.HTTP_200_OK
             body = resp.json()
             assert isinstance(body["topic_entity_tag_id"], int)
+            # SCRUM-6852: what was stored, and under whom
+            assert body["outcome"] == "created"
+            assert body["replaced"] is False
+            stored = body["tag"]
+            assert stored["topic_entity_tag_id"] == body["topic_entity_tag_id"]
+            assert stored["reference_curie"] == ref_curie
+            assert stored["topic"] == "ATP:0000122"
+            assert stored["negated"] is False
+            assert stored["note"] == "looks right"
+            assert stored["data_novelty"] == "ATP:0000335"
+            assert stored["data_context"] is not None
+            assert stored["tag_source"]["source_method"] == "abc_literature_system"
+            assert stored["tag_source"]["secondary_data_provider_abbreviation"] == test_mod.new_mod_abbreviation
+            assert stored["created_by"]
+            assert stored["created_by_user_id"]
+            assert stored["updated_by_user_id"] == stored["created_by_user_id"]
             assert body["topic"] == "ATP:0000122"
             assert body["validation"]["state"] == "positive"
             assert body["validation"]["positives"] == 1
@@ -482,7 +672,7 @@ class TestTopicEntityTag:
             # does not become a self-conflict, and it does not 409.
             resp2 = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": True},
                 headers=auth_headers,
             )
@@ -492,7 +682,26 @@ class TestTopicEntityTag:
             assert cell["state"] == "negative"
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
+            # SCRUM-6852: the verdict was updated in place and kept its id
+            assert resp2.json()["outcome"] == "updated"
+            assert resp2.json()["topic_entity_tag_id"] == body["topic_entity_tag_id"]
+            assert resp2.json()["tag"]["negated"] is True
+            assert resp2.json()["tag"]["note"] is None
 
+            # the same verdict sent again (a resend after a timeout) changes nothing
+            resp3 = client.post(
+                url="/topic_entity_tag/validate",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": True},
+                headers=auth_headers,
+            )
+            assert resp3.status_code == status.HTTP_200_OK
+            assert resp3.json()["outcome"] == "unchanged"
+            assert resp3.json()["topic_entity_tag_id"] == body["topic_entity_tag_id"]
+            assert resp3.json()["tag"]["date_updated"] == resp2.json()["tag"]["date_updated"]
+            assert resp3.json()["validation"]["negatives"] == 1
+
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_reuses_existing_curator_source(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # The realistic production case: a curator source for the MOD already
         # exists (created earlier by the UI's getCuratorSourceId, validation_type
@@ -500,8 +709,8 @@ class TestTopicEntityTag:
         # unique key excludes validation_type -- and an opposite-polarity
         # re-validation by the same curator must succeed (NOT 409) even though
         # the opposite-negation guard (Branch 3) does fire for
-        # 'professional_biocurator' sources: validate_topic deletes the curator's
-        # prior validation before inserting the new one. This pins down the
+        # 'professional_biocurator' sources: validate_topic updates the curator's
+        # verdict in place instead of inserting a second one. This pins down the
         # behavior reviewers worry about (the empty-DB test above exercises only
         # the create branch).
         load_name_to_atp_and_relationships_mock()
@@ -536,7 +745,7 @@ class TestTopicEntityTag:
 
             y = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": False},
                 headers=auth_headers,
             )
@@ -552,7 +761,7 @@ class TestTopicEntityTag:
             # (not 409, not self-conflict): the cell flips to negative.
             n = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": True},
                 headers=auth_headers,
             )
@@ -563,14 +772,15 @@ class TestTopicEntityTag:
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
 
+    @pytest.mark.usefixtures("curator_persons")
     def test_validate_topic_flip_with_biocurator_source_does_not_409(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # Production reality: every MOD's abc curator source is
         # 'professional_biocurator'. Against such a
         # source, check_for_duplicate_tags Branch 3 would 409 a same-curator
         # opposite-polarity insert. validate_topic must still let a curator flip
-        # their vote: it deletes the curator's prior validation first, so the new
-        # insert never trips Branch 3. This is the regression for the original
-        # review concern.
+        # their vote: it updates the curator's verdict in place (SCRUM-6852), so no
+        # second, opposite tag is ever inserted to trip Branch 3. This is the
+        # regression for the original review concern.
         load_name_to_atp_and_relationships_mock()
         mod = test_mod.new_mod_abbreviation
         with TestClient(app) as client, \
@@ -603,7 +813,7 @@ class TestTopicEntityTag:
 
             y = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": False},
                 headers=auth_headers,
             )
@@ -614,7 +824,7 @@ class TestTopicEntityTag:
             # it succeeds and replaces.
             n = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": True},
                 headers=auth_headers,
             )
@@ -625,11 +835,12 @@ class TestTopicEntityTag:
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
 
-    def test_validate_topic_replace_is_atomic_on_insert_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
-        # Replace-prior deletes the curator's prior validation before inserting the
-        # new one. That delete is FLUSHED, not committed, so if the insert fails
-        # the delete must roll back with the request -- the curator must never be
-        # left with their prior validation gone and no replacement.
+    @pytest.mark.usefixtures("curator_persons")
+    def test_validate_topic_update_is_atomic_on_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # SCRUM-6851/6852: a re-validation updates the curator's verdict in place, and
+        # the update and the reference's revalidation are one transaction. If the
+        # revalidation fails the update must roll back with it -- the curator must
+        # never be left with a changed verdict the response reported as an error.
         load_name_to_atp_and_relationships_mock()
         mod = test_mod.new_mod_abbreviation
         with TestClient(app) as client, \
@@ -648,26 +859,26 @@ class TestTopicEntityTag:
             # seed a prior positive validation
             y = client.post(
                 url="/topic_entity_tag/validate",
-                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                       "mod_abbreviation": mod, "negated": False},
                 headers=auth_headers,
             )
             assert y.status_code == status.HTTP_200_OK
             assert y.json()["validation"]["state"] == "positive"
 
-            # a flip whose INSERT fails: the prior delete must not survive it
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.create_tag",
+            # a flip whose revalidation fails: the flip must not survive it
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.revalidate_all_tags",
                        side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                                  detail="boom")):
                 n = client.post(
                     url="/topic_entity_tag/validate",
-                    json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                    json={"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000122",
                           "mod_abbreviation": mod, "negated": True},
                     headers=auth_headers,
                 )
             assert n.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-            # the prior positive validation is still there (delete rolled back)
+            # the prior positive validation is still there (update rolled back)
             after = client.post(
                 url="/topic_entity_tag/by_references",
                 json={"curies_or_reference_ids": [ref_curie]},
@@ -676,6 +887,252 @@ class TestTopicEntityTag:
             cell = after.json()["validation"][ref_curie]["ATP:0000122"]
             assert cell["state"] == "positive"
             assert cell["positives"] == 1
+
+    @staticmethod
+    def _validate_patches():
+        from contextlib import ExitStack
+        stack = ExitStack()
+        for target, value in (("topic_entity_tag_utils.get_ancestors", []),
+                              ("topic_entity_tag_utils.get_descendants", []),
+                              ("topic_entity_tag_crud.get_curie_to_name_from_all_tets", {}),
+                              ("topic_entity_tag_crud.build_curie_to_name_map", {'ATP:0000122': 'ATP:0000122'})):
+            stack.enter_context(patch(f"agr_literature_service.api.crud.{target}", return_value=value))
+        return stack
+
+    @pytest.mark.usefixtures("curator_persons")
+    def test_validate_topic_concurrent_identical_requests_store_one_verdict(self, test_topic_entity_tag,  # noqa
+                                                                           test_mod, db, auth_headers):  # noqa
+        # SCRUM-6851 review: AI Curation's main case, a resend after a timeout while the
+        # first request is still running. The reference lock makes the second wait, find
+        # the first one's verdict and report it unchanged: one row, the same id.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == ref_curie).scalar()
+        # the curator source and the curator's agent exist before the race, as they do
+        # once a MOD has validated; otherwise the second request would queue behind the
+        # first one creating them, not on the reference lock this test is about
+        source_id = topic_entity_tag_crud.get_or_create_abc_source(db, mod).tag_source_id
+        resolve_named_person(VALIDATING_CURATOR, db)
+        db.commit()
+        body = {"reference_curie": ref_curie, "topic": "ATP:0000122", "mod_abbreviation": mod, "negated": False,
+                "created_by": VALIDATING_CURATOR}
+        results = []
+        with TestClient(app) as client, self._validate_patches():
+            def post():
+                response = client.post(url="/topic_entity_tag/validate", json=body, headers=auth_headers)
+                results.append((response.status_code, response.json()))
+
+            with _get_engine().connect() as holder:
+                holder.execute(text("SELECT pg_advisory_xact_lock(:ns, :ref)"),
+                               {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id})
+                threads = [threading.Thread(target=post) for _ in range(2)]
+                for thread in threads:
+                    thread.start()
+                waiting = 0
+                deadline = time.monotonic() + 30
+                with _get_engine().connect() as observer:
+                    while waiting < 2 and time.monotonic() < deadline:
+                        waiting = observer.execute(text(
+                            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted "
+                            "AND classid = :ns AND objid = :ref AND objsubid = 2"),
+                            {"ns": TET_REVALIDATION_LOCK_NAMESPACE, "ref": reference_id}).scalar()
+                        observer.rollback()
+                        if waiting < 2:
+                            time.sleep(0.05)
+                assert waiting == 2
+                assert results == []
+                holder.rollback()
+            for thread in threads:
+                thread.join(timeout=60)
+        assert [code for code, _ in results] == [status.HTTP_200_OK, status.HTTP_200_OK], results
+        assert sorted(payload["outcome"] for _, payload in results) == ["created", "unchanged"]
+        assert results[0][1]["topic_entity_tag_id"] == results[1][1]["topic_entity_tag_id"]
+        db.expire_all()
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.tag_source_id == source_id,
+            TopicEntityTagModel.topic == "ATP:0000122",
+            TopicEntityTagModel.entity.is_(None)).count() == 1
+
+    @pytest.mark.usefixtures("curator_persons")
+    def test_validate_topic_removes_leftover_verdicts_keeping_the_oldest(self, test_topic_entity_tag,  # noqa
+                                                                        test_mod, db, auth_headers):  # noqa
+        # SCRUM-6851 review: the old delete-and-insert could leave a curator with more
+        # than one verdict for a cell. The next validation keeps the oldest (its id is
+        # what other systems stored), deletes the rest and says which.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        body = {"reference_curie": ref_curie, "topic": "ATP:0000122", "mod_abbreviation": mod,
+                "created_by": VALIDATING_CURATOR}
+        with TestClient(app) as client, self._validate_patches():
+            first = client.post(url="/topic_entity_tag/validate", json={**body, "negated": False},
+                                headers=auth_headers)
+            assert first.status_code == status.HTTP_200_OK
+            oldest = first.json()["topic_entity_tag_id"]
+            columns = ", ".join(c.name for c in TopicEntityTagModel.__table__.columns if not c.primary_key)
+            leftover = db.execute(text(
+                f"INSERT INTO topic_entity_tag ({columns}) SELECT {columns} FROM topic_entity_tag "
+                "WHERE id = :id RETURNING id"), {"id": oldest}).scalar()
+            db.commit()
+
+            flipped = client.post(url="/topic_entity_tag/validate", json={**body, "negated": True},
+                                  headers=auth_headers)
+        assert flipped.status_code == status.HTTP_200_OK
+        assert flipped.json()["outcome"] == "updated"
+        assert flipped.json()["topic_entity_tag_id"] == oldest
+        assert flipped.json()["deleted_tag_ids"] == [leftover]
+        db.expire_all()
+        assert db.get(TopicEntityTagModel, leftover) is None
+        assert db.get(TopicEntityTagModel, oldest).negated is True
+
+    @pytest.mark.usefixtures("curator_persons")
+    def test_validate_topic_sgd_display_tag_topic_is_updated_in_place(self, test_topic_entity_tag,  # noqa
+                                                                       auth_headers):  # noqa
+        # SCRUM-6852: for SGD a topic that is also a display tag (review, ATP:0000130)
+        # is stored with that value in display_tag and the root topic in topic. The
+        # earlier verdict must still be found, so a resend reports "unchanged" and a
+        # flip updates it, instead of a 409 from create_tag's duplicate checks.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000130': 'ATP:0000130'}
+            sgd_mod = client.post(url="/mod/", json={"abbreviation": "SGD", "short_name": "SGD",
+                                                     "full_name": "Saccharomyces Genome Database"},
+                                  headers=auth_headers)
+            assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            verdict = {"created_by": VALIDATING_CURATOR, "reference_curie": ref_curie, "topic": "ATP:0000130",
+                       "mod_abbreviation": "SGD", "negated": False}
+
+            first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
+            assert first.status_code == status.HTTP_200_OK
+            assert first.json()["outcome"] == "created"
+            assert first.json()["tag"]["display_tag"] == "ATP:0000130"
+
+            resend = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
+            assert resend.status_code == status.HTTP_200_OK
+            assert resend.json()["outcome"] == "unchanged"
+            assert resend.json()["topic_entity_tag_id"] == first.json()["topic_entity_tag_id"]
+
+            flip = client.post(url="/topic_entity_tag/validate", json={**verdict, "negated": True},
+                               headers=auth_headers)
+            assert flip.status_code == status.HTTP_200_OK
+            assert flip.json()["outcome"] == "updated"
+            assert flip.json()["topic_entity_tag_id"] == first.json()["topic_entity_tag_id"]
+            assert flip.json()["tag"]["negated"] is True
+
+    @pytest.mark.usefixtures("curator_persons")
+    def test_validate_topic_note_only_edit_skips_revalidation(self, test_topic_entity_tag, test_mod,  # noqa
+                                                              auth_headers):  # noqa
+        # SCRUM-6852: the note takes no part in validation, so changing only the note
+        # updates the verdict without rebuilding the reference's validation.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            verdict = {"created_by": VALIDATING_CURATOR,
+                       "reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
+                       "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
+            first = client.post(url="/topic_entity_tag/validate", json=verdict, headers=auth_headers)
+            assert first.status_code == status.HTTP_200_OK
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.revalidate_all_tags") as \
+                    mock_revalidate:
+                noted = client.post(url="/topic_entity_tag/validate", json={**verdict, "note": "on second look"},
+                                    headers=auth_headers)
+            assert noted.status_code == status.HTTP_200_OK
+            assert noted.json()["outcome"] == "updated"
+            assert noted.json()["tag"]["note"] == "on second look"
+            mock_revalidate.assert_not_called()
+
+    def test_validate_topic_for_a_named_owner_with_dates(self, test_topic_entity_tag, test_mod, db):  # noqa
+        # SCRUM-6853: a service account records a verdict for a curator (created_by)
+        # with the curator's own times. The earlier verdict is found by that owner,
+        # date_created is kept, and date_updated moves only when the verdict changes.
+        load_name_to_atp_and_relationships_mock()
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        mod = test_mod.new_mod_abbreviation
+        with patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map",
+                      return_value={'ATP:0000122': 'ATP:0000122'}):
+            first = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=False, created_by="WBPerson1",
+                date_created=datetime(2026, 11, 1, 10, 0), date_updated=datetime(2026, 11, 1, 10, 0))
+            assert first["outcome"] == "created"
+            assert first["tag"]["created_by_user_id"] == "WBPerson1"
+            assert first["tag"]["date_created"].startswith("2026-11-01T10:00")
+
+            same = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=False, created_by="WBPerson1",
+                date_updated=datetime(2026, 11, 5, 9, 0))
+            assert same["outcome"] == "unchanged"
+            assert same["tag"]["date_updated"].startswith("2026-11-01T10:00")
+
+            flipped = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=True, created_by="WBPerson1",
+                date_updated=datetime(2026, 11, 12, 9, 30))
+            assert flipped["outcome"] == "updated"
+            assert flipped["topic_entity_tag_id"] == first["topic_entity_tag_id"]
+            assert flipped["tag"]["date_updated"].startswith("2026-11-12T09:30")
+            assert flipped["tag"]["date_created"].startswith("2026-11-01T10:00")
+
+            # another owner's verdict on the same cell is a separate tag
+            other = topic_entity_tag_crud.validate_topic(
+                db, ref_curie, "ATP:0000122", mod, negated=False, created_by="WBPerson2")
+            assert other["outcome"] == "created"
+            assert other["topic_entity_tag_id"] != first["topic_entity_tag_id"]
+
+    def test_validate_topic_names_a_person_without_an_agent(self, test_topic_entity_tag, test_mod,  # noqa
+                                                            auth_headers, db):  # noqa
+        # SCRUM-6853 review: through the router with the service token. A person who
+        # never logged in to ABC gets an agent and owns the verdict; an automation
+        # agent is refused even when its label looks like a person's curie.
+        load_name_to_atp_and_relationships_mock()
+        newcomer = "AGRKB:test-curator-without-agent"
+        db.add(PersonModel(display_name="Curator Without Agent", curie=newcomer))
+        db.execute(text("INSERT INTO agent (person_id, automation_username) "
+                        "VALUES (NULL, 'AGRKB:test-automation-lookalike')"))
+        db.commit()
+        agents = text("SELECT count(*) FROM agent a JOIN person p ON p.id = a.person_id WHERE p.curie = :c")
+        assert db.execute(agents, {"c": newcomer}).scalar() == 0
+        body = {"reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
+                "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", return_value=[]), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets",
+                      return_value={}), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map",
+                      return_value={'ATP:0000122': 'ATP:0000122'}):
+            resp = client.post(url="/topic_entity_tag/validate", headers=auth_headers,
+                               json={**body, "created_by": newcomer})
+            assert resp.status_code == status.HTTP_200_OK, resp.text
+            assert resp.json()["tag"]["created_by_user_id"] == newcomer
+            assert db.execute(agents, {"c": newcomer}).scalar() == 1
+
+            lookalike = client.post(url="/topic_entity_tag/validate", headers=auth_headers,
+                                    json={**body, "created_by": "AGRKB:test-automation-lookalike"})
+            assert lookalike.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -732,7 +1189,7 @@ class TestTopicEntityTag:
             TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
         assert tag.note == "entity corrected again"
         assert tag.updated_by not in (cognito_sub, "nobody@example.org")
-        assert db.query(UserModel).filter_by(id=cognito_sub).one_or_none() is None
+        assert db.query(UserModel).filter_by(automation_username=cognito_sub).one_or_none() is None
 
     def test_patch_keeps_resolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
         """Counterpart to test_patch_drops_unresolvable_updated_by: an
@@ -742,10 +1199,10 @@ class TestTopicEntityTag:
         time, so the audit listener would stamp the authenticated user and
         the assertion couldn't tell honored from dropped."""
         from agr_literature_service.api.models.user_model import UserModel
-        # users rows survive the per-test cleanup, so get-or-create this seed
+        # agents survive the per-test cleanup, so get-or-create this seed
         # user to keep the suite re-runnable against a persistent DB.
-        if db.query(UserModel).filter_by(id="WBPerson2").one_or_none() is None:
-            db.add(UserModel(id="WBPerson2", automation_username="WBPerson2"))
+        if db.query(UserModel).filter_by(automation_username="WBPerson2").one_or_none() is None:
+            db.add(UserModel(automation_username="WBPerson2"))
             db.commit()
         with TestClient(app) as client:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
@@ -1335,10 +1792,10 @@ class TestTopicEntityTag:
                                                 test_tag_source, test_mod):  # noqa
         """SCRUM-5746: data_context is a fifth ATP dimension in validation.
 
-        A tag on the marker-data branch (ATP:0000328 expression marker) must not validate
-        one on the mentioned-data branch (ATP:0000325 experimentally studied data).
-        Neither term is an ancestor or descendant of the other, so neither makes any claim
-        about the other. This mirrors the cross-branch block data_novelty already applies
+        A tag on the supporting-entity branch (ATP:0000328 expression marker, under
+        ATP:0000409) must not validate one on the studied-entity branch (ATP:0000406
+        experimentally studied entity). Neither term is an ancestor or descendant of the
+        other, so neither makes any claim about the other. This mirrors the cross-branch block data_novelty already applies
         between "existing data" and "novel data".
         """
         load_name_to_atp_and_relationships_mock()
@@ -1353,7 +1810,7 @@ class TestTopicEntityTag:
             }
             curator_source_id = client.post(url="/tag_source", json=curator_source,
                                             headers=auth_headers).json()["tag_source_id"]
-            # existing tag from an automated source, on the marker-data branch
+            # existing tag from an automated source, on the supporting-entity branch
             marker_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
@@ -1366,7 +1823,7 @@ class TestTopicEntityTag:
             }
             marker_id = client.post(url="/topic_entity_tag/", json=marker_tag,
                                     headers=auth_headers).json()["topic_entity_tag_id"]
-            # curator tag with the same topic/species/novelty, on the mentioned-data branch
+            # curator tag with the same topic/species/novelty, on the studied-entity branch
             studied_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
@@ -1374,7 +1831,7 @@ class TestTopicEntityTag:
                 "tag_source_id": curator_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000334",
-                "data_context": "ATP:0000325",
+                "data_context": "ATP:0000406",
                 "created_by": "WBPerson2",
             }
             studied_id = client.post(url="/topic_entity_tag/", json=studied_tag,
@@ -1390,10 +1847,10 @@ class TestTopicEntityTag:
                                                 test_tag_source, test_mod):  # noqa
         """SCRUM-5746: within one branch the generic/specific rule still validates.
 
-        A positive tag at ATP:0000325 (experimentally studied data) validates an existing
-        tag at ATP:0000323, the data context root, because the root is an ancestor of 325.
-        This is the WB shape after the SCRUM-5697 backfill -- topic tags carry the root,
-        tags with an entity carry 325 -- so it must keep working.
+        A positive tag at ATP:0000406 (experimentally studied entity) validates an
+        existing tag at ATP:0000323, the data context root, because the root is an
+        ancestor of 406. This is WB's shape after the SCRUM-6815 cutover -- topic tags
+        carry the root, tags with an entity carry 406 -- so it must keep working.
         """
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
@@ -1419,7 +1876,7 @@ class TestTopicEntityTag:
             }
             root_id = client.post(url="/topic_entity_tag/", json=root_tag,
                                   headers=auth_headers).json()["topic_entity_tag_id"]
-            studied_tag = dict(root_tag, data_context="ATP:0000325",
+            studied_tag = dict(root_tag, data_context="ATP:0000406",
                                tag_source_id=curator_source_id,
                                created_by="WBPerson2")
             studied_id = client.post(url="/topic_entity_tag/", json=studied_tag,
@@ -1428,7 +1885,7 @@ class TestTopicEntityTag:
             root_obj = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == root_id).one()
             assert int(studied_id) in {t.topic_entity_tag_id for t in root_obj.validated_by}, \
-                "ATP:0000323 is an ancestor of ATP:0000325, so the more specific tag " \
+                "ATP:0000323 is an ancestor of ATP:0000406, so the more specific tag " \
                 "should still validate the root-term tag"
 
     def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
@@ -1638,6 +2095,8 @@ class TestTopicEntityTag:
             # "default_user" — none AGRKB:-prefixed — so no companion is created.
             # 5 explicit tags + fixture tag = 6.
             assert len(all_tags) == 6
+            # SCRUM-6852: by_reference keeps the raw creator id next to the display name
+            assert {tag["created_by_user_id"] for tag in all_tags} == {"WBPerson1", "default_user"}
             for tag in all_tags:
                 if tag["topic"] == "ATP:0000079":
                     assert tag["validation_by_author"] == "validation_conflict"
@@ -1822,7 +2281,7 @@ class TestTopicEntityTag:
         and accepts each of the four leaf terms."""
         load_name_to_atp_and_relationships_mock()
         data_context_terms = [
-            "ATP:0000325",  # experimentally studied data
+            "ATP:0000406",  # experimentally studied entity
             "ATP:0000360",  # background information
             "ATP:0000328",  # expression marker
             "ATP:0000327",  # genetic marker
@@ -1886,8 +2345,8 @@ class TestTopicEntityTag:
     def test_data_context_defaults_when_omitted(self, test_reference, auth_headers,  # noqa
                                                 test_tag_source):  # noqa
         """SCRUM-5697: while the column is still nullable, a caller that omits
-        data_context gets the "experimentally studied data" default rather than a
-        NULL. This is what keeps the backfilled rows and newly-created ones
+        data_context gets its MOD's default rather than a NULL -- ATP:0000405
+        experimental data for a MOD without its own entry (SCRUM-6815). This is what keeps the backfilled rows and newly-created ones
         agreeing, which check_for_duplicate_tags depends on."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
@@ -1904,7 +2363,7 @@ class TestTopicEntityTag:
             assert create_resp.status_code == status.HTTP_201_CREATED
             tag_id = create_resp.json()["topic_entity_tag_id"]
             get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
-            assert get_resp.json()["data_context"] == "ATP:0000325"
+            assert get_resp.json()["data_context"] == "ATP:0000405"
 
     def test_data_context_invalid_curie_rejected(self, test_reference, auth_headers,  # noqa
                                                  test_tag_source):  # noqa
@@ -1942,7 +2401,7 @@ class TestTopicEntityTag:
             "tag_source_id": test_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
-            "data_context": "ATP:0000325",
+            "data_context": "ATP:0000405",
         }
         # The 409-detail construction on the repeat POST calls get_tet_with_names ->
         # get_curie_to_name_from_all_tets, which would instantiate the
@@ -1953,7 +2412,7 @@ class TestTopicEntityTag:
                 mock_get_curie_to_name_from_all_tets:
             mock_get_curie_to_name_from_all_tets.return_value = {
                 "ATP:0000122": "ATP:0000122",
-                "ATP:0000325": "experimentally studied data",
+                "ATP:0000405": "experimental data",
                 "NCBITaxon:6239": "Caenorhabditis elegans",
             }
             first = client.post(url="/topic_entity_tag/", json=base_tag, headers=auth_headers)
@@ -1978,7 +2437,7 @@ class TestTopicEntityTag:
 
         A tag created from a model that omits the field inherits the model's
         value rather than the module constant, so a MOD's policy (WB's topic
-        classifiers carry ATP:0000323, its entity extractors ATP:0000325) lives
+        entity extraction models carry ATP:0000406, FB's classifiers ATP:0000405) lives
         on the model row instead of being duplicated in every pipeline."""
         from agr_literature_service.api.models import MLModel
         load_name_to_atp_and_relationships_mock()
@@ -2006,7 +2465,7 @@ class TestTopicEntityTag:
                                                              test_ml_model,  # noqa
                                                              test_tag_source):  # noqa
         """SCRUM-5697: a model with no data_context of its own cannot answer, so
-        the module constant fills the gap. The test_ml_model fixture uploads no
+        the MOD's default fills the gap. The test_ml_model fixture uploads no
         data_context, which is the state every historical ml_model row is in
         until the SCRUM-5697 rollout populates them."""
         load_name_to_atp_and_relationships_mock()
@@ -2024,7 +2483,7 @@ class TestTopicEntityTag:
             assert create_resp.status_code == status.HTTP_201_CREATED
             tag_id = create_resp.json()["topic_entity_tag_id"]
             get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
-            assert get_resp.json()["data_context"] == "ATP:0000325"
+            assert get_resp.json()["data_context"] == "ATP:0000405"
 
     def test_explicit_data_context_wins_over_the_ml_model(self, db, test_reference, auth_headers,  # noqa
                                                           test_ml_model,  # noqa
@@ -3461,8 +3920,11 @@ class TestMixedTagCompanionEntityTag:
     SGD, negated, pure-entity, and pipeline-created tags do not."""
 
     EXISTING_DATA_NOVELTY = "ATP:0000334"
-    # A human curator's users.id is an AGRKB: person curie; pipeline/script users are not.
-    HUMAN_CURATOR = "AGRKB:101000000000001"
+    HUMAN_CURATOR = HUMAN_CURATOR
+
+    @pytest.fixture(autouse=True)
+    def _persons(self, curator_persons):  # noqa
+        pass
 
     def _post_tag(self, client, auth_headers, payload):  # noqa
         return client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
@@ -3658,6 +4120,42 @@ class TestMixedTagCompanionEntityTag:
                 TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
             assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
 
+    def test_companion_validation_failure_drops_companion_keeps_parent(self, db, auth_headers,  # noqa
+                                                                       test_reference, test_tag_source,  # noqa
+                                                                       test_mod):  # noqa
+        """SCRUM-6851 (was SCRUM-6473): the companion and its validation share a
+        savepoint. A failed validation drops the companion row with it -- it used to
+        stay behind, unvalidated -- and leaves the parent tag stored."""
+        load_name_to_atp_and_relationships_mock()
+        original_validate_tags = topic_entity_tag_crud.validate_tags
+
+        def fail_for_companion(db, new_tag_obj, **kwargs):  # noqa
+            if new_tag_obj.topic == new_tag_obj.entity_type:
+                raise RuntimeError("companion validation failed")
+            return original_validate_tags(db=db, new_tag_obj=new_tag_obj, **kwargs)
+
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.validate_tags",
+                      side_effect=fail_for_companion):
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": self.HUMAN_CURATOR,
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        db.expire_all()
+        mixed = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
+        assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
+
 
 class TestRevalidationInvariants:
     """SCRUM-6471/6474/6475: guards for the revalidation path.
@@ -3718,7 +4216,7 @@ class TestRevalidationInvariants:
         edges = set(session.execute(text(
             "SELECT v.validated_topic_entity_tag_id, v.validating_topic_entity_tag_id "
             "FROM topic_entity_tag_validation v "
-            "JOIN topic_entity_tag t ON t.topic_entity_tag_id = v.validated_topic_entity_tag_id "
+            "JOIN topic_entity_tag t ON t.id = v.validated_topic_entity_tag_id "
             "WHERE t.reference_id = :r"), {"r": reference_id}).all())
         return rollups, edges
 
@@ -4029,3 +4527,151 @@ class TestRevalidationOutcomeEmail:
     def test_bodies_render_without_a_reference(self):
         for _subject, body in self._bodies().values():
             assert "{target}" not in body.format(target="")
+
+
+class TestDeprecatedExperimentallyStudiedDataContext:
+    """SCRUM-6815: ATP:0000325 "experimentally studied data" was deprecated in the
+    2026-10-30 ATP release, with no parent, and every MOD moved off it in one
+    cutover (DATA_CONTEXT_DEFAULTS, plus a backfill of the stored tags)."""
+
+    @pytest.mark.parametrize("mod_abbreviation, has_entity, expected", [
+        ("FB", False, "ATP:0000405"),
+        ("FB", True, "ATP:0000405"),
+        ("ZFIN", False, "ATP:0000405"),
+        ("ZFIN", True, "ATP:0000406"),
+        ("WB", False, "ATP:0000405"),
+        ("WB", True, "ATP:0000406"),
+        ("SGD", False, "ATP:0000405"),
+        ("SGD", True, "ATP:0000405"),
+        (None, False, "ATP:0000405"),
+    ])
+    def test_default_data_context_for_mod(self, mod_abbreviation, has_entity, expected):
+        from agr_literature_service.api.crud.topic_entity_tag_crud import default_data_context_for_mod
+        assert default_data_context_for_mod(mod_abbreviation, has_entity) == expected
+
+    def test_fallback_reads_the_entity_from_the_payload(self):
+        # no ml_model_id, so the db is never touched
+        from agr_literature_service.api.crud.topic_entity_tag_crud import resolve_default_data_context
+        assert resolve_default_data_context(None, {"entity": "ZFIN:ZDB-GENE-990415-8"}, "ZFIN") == "ATP:0000406"
+        assert resolve_default_data_context(None, {"entity": None}, "ZFIN") == "ATP:0000405"
+
+    def test_curator_validation_uses_experimental_data(self):
+        # one value for every MOD: ATP:0000405 is the same term as FB's and ZFIN's
+        # and now WB's topic tags, sits under the ATP:0000323 root that older WB topic tags
+        # carry, and ATP:0000406 sits under it
+        from agr_literature_service.api.crud.topic_entity_tag_crud import CURATOR_VALIDATION_DATA_CONTEXT
+        assert CURATOR_VALIDATION_DATA_CONTEXT == "ATP:0000405"
+
+    @staticmethod
+    def _source_for_mod(client, auth_headers, mod_abbreviation):  # noqa
+        client.post(url="/mod/", json={"abbreviation": mod_abbreviation, "short_name": mod_abbreviation,
+                                       "full_name": f"{mod_abbreviation} test"}, headers=auth_headers)
+        source = {
+            "source_evidence_assertion": "ATP:0000036",
+            "source_method": "abc_literature_system",
+            "validation_type": "professional_biocurator",
+            "description": "curator using the ABC",
+            "data_provider": mod_abbreviation,
+            "secondary_data_provider_abbreviation": mod_abbreviation,
+        }
+        response = client.post(url="/tag_source", json=source, headers=auth_headers)
+        assert response.status_code == status.HTTP_201_CREATED, response.json()
+        return response.json()["tag_source_id"]
+
+    @pytest.mark.parametrize("mod_abbreviation, expected", [("FB", "ATP:0000405"), ("ZFIN", "ATP:0000405"),
+                                                            ("WB", "ATP:0000405")])
+    def test_topic_tag_without_data_context_gets_the_mod_default(self, test_reference, auth_headers,  # noqa
+                                                                 mod_abbreviation, expected):
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            source_id = self._source_for_mod(client, auth_headers, mod_abbreviation)
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.json()
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == expected
+
+    @pytest.mark.parametrize("existing_context", ["ATP:0000323", "ATP:0000405"])
+    def test_experimental_data_validates_root_and_same_term_tags(self, db, auth_headers, test_reference,  # noqa
+                                                                 test_tag_source, test_mod,  # noqa
+                                                                 existing_context):
+        """A curator tag at ATP:0000405 validates older WB topic tags (ATP:0000323, an
+        ancestor) and tags at ATP:0000405 (the same term)."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
+                                            headers=auth_headers).json()["tag_source_id"]
+            existing_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": existing_context,
+                "created_by": "WBPerson1",
+            }
+            existing_id = client.post(url="/topic_entity_tag/", json=existing_tag,
+                                      headers=auth_headers).json()["topic_entity_tag_id"]
+            curator_tag = dict(existing_tag, data_context="ATP:0000405",
+                               tag_source_id=curator_source_id, created_by="WBPerson2")
+            curator_id = client.post(url="/topic_entity_tag/", json=curator_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            existing_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == existing_id).one()
+            assert int(curator_id) in {t.topic_entity_tag_id for t in existing_obj.validated_by}
+
+    def test_experimental_data_does_not_validate_a_deprecated_tag(self, db, auth_headers, test_reference,  # noqa
+                                                                  test_tag_source, test_mod):  # noqa
+        """ATP:0000325 has no parent since the 2026-10-30 release, so nothing but
+        ATP:0000325 itself can validate a tag that still carries it. This is why the
+        cutover backfills every stored ATP:0000325 tag rather than leaving them."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/tag_source", json=curator_source,
+                                            headers=auth_headers).json()["tag_source_id"]
+            old_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "tag_source_id": test_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000325",
+                "created_by": "WBPerson1",
+            }
+            old_id = client.post(url="/topic_entity_tag/", json=old_tag,
+                                 headers=auth_headers).json()["topic_entity_tag_id"]
+            curator_tag = dict(old_tag, data_context="ATP:0000405",
+                               tag_source_id=curator_source_id, created_by="WBPerson2")
+            curator_id = client.post(url="/topic_entity_tag/", json=curator_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+
+            old_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == old_id).one()
+            assert int(curator_id) not in {t.topic_entity_tag_id for t in old_obj.validated_by}

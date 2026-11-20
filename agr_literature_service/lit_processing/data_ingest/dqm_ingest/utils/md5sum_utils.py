@@ -174,7 +174,7 @@ def save_database_md5data(md5dict):
         mod_ids = {
             mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"]
             for mod_abbr_id in db_session.execute(
-                text("select abbreviation, mod_id from mod")
+                text("select abbreviation, id AS mod_id from mod")
             ).mappings().fetchall()
         }
 
@@ -188,7 +188,7 @@ def save_database_md5data(md5dict):
                         select reference_id
                         from cross_reference r
                         where r.curie = :primary_id
-                        and is_obsolete = 'false'
+                        and obsolete = 'false'
                     """),
                     {"primary_id": primary_id}
                 ).mappings().fetchall()
@@ -200,7 +200,7 @@ def save_database_md5data(md5dict):
 
                 md5sum_data = db_session.execute(
                     text(f"""
-                        select md5sum, reference_mod_md5sum_id
+                        select md5sum, id AS reference_mod_md5sum_id
                         from reference_mod_md5sum
                         where {mod_id_sql} and reference_id = :reference_id
                     """),
@@ -228,7 +228,7 @@ def save_database_md5data(md5dict):
                             text("""
                                 update reference_mod_md5sum
                                 set md5sum = :md5sum
-                                where reference_mod_md5sum_id = :reference_mod_md5sum_id
+                                where id = :reference_mod_md5sum_id
                             """),
                             {
                                 "md5sum": md5sum,
@@ -265,7 +265,7 @@ def load_database_md5data(mods):
     md5dict = defaultdict(dict)
     db_session = create_postgres_session(False)
     mod_ids = {mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"] for
-               mod_abbr_id in db_session.execute(text("select abbreviation, mod_id from mod")).mappings().fetchall()}
+               mod_abbr_id in db_session.execute(text("select abbreviation, id AS mod_id from mod")).mappings().fetchall()}
     for mod in mods:
         mod_id = mod_ids.get(mod)
         prefix = 'Xenbase' if mod == 'XB' else mod
@@ -389,7 +389,7 @@ def update_md5sum(md5sum_to_update, mod_abbreviation=None):
                 select reference_id
                 from cross_reference
                 where curie = :xref_curie
-                and is_obsolete IS FALSE
+                and obsolete IS FALSE
             )
             AND md5sum = :old_md5sum
             AND {mod_id_sql}

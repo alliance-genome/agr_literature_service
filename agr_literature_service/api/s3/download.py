@@ -1,7 +1,7 @@
 import logging
 
 from botocore.exceptions import ClientError
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from os import environ, getcwd, path
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
@@ -56,10 +56,17 @@ def get_json_file(mod, json_file=None):
         # so just put it under current directory
         # should we set a place outside docker container to store these files?
         # so we can easily clean the directoty up (by cronjob or other method)
-        download_file_from_s3(json_file, bucketname, s3_file_location)
+        downloaded = download_file_from_s3(json_file, bucketname, s3_file_location)
     except Exception as e:
-        raise HTTPException(status_code=e.response['Error']['Code'],
+        logger.error("Error retrieving %s from s3: %s", s3_file_location, e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Error occurred when retrieving the json file from s3 {s3_file_location}")
+    # SCRUM-6796: download_file_from_s3 reports a missing object (S3 404) by returning False
+    # rather than raising, so this used to fall through and hand FileResponse a path that does
+    # not exist -- a 500 and a traceback instead of a 404.
+    if not downloaded:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"No json file at s3 {s3_file_location}")
 
     file_with_path = getcwd() + "/" + json_file
     return FileResponse(path=file_with_path, filename=json_file, media_type='application/gzip')

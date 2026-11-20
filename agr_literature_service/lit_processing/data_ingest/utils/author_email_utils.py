@@ -26,6 +26,10 @@ So emails are assigned per paper, looking at all of its authors together
 3. otherwise the author gets no email (ambiguous).
 
 An address therefore goes to at most one author per paper.
+
+Once attributed, the addresses are removed from the affiliation text
+(``strip_emails_from_affiliations``): curators do not want
+"... Electronic address: name@domain.org." kept as part of the institution.
 """
 import re
 import unicodedata
@@ -40,6 +44,18 @@ AUTHOR_EMAIL_RE = re.compile(
     r"([A-Za-z0-9][A-Za-z0-9._%+-]{0,63}"
     r"@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63})"
     r"(?![A-Za-z0-9_%+-])(?!\.[A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
+# An address list as PubMed writes it in an affiliation, optionally labelled
+# ("Electronic address: a@x.org.", "E-mail: a@x.org, b@y.org",
+# "Correspondence: a@x.org", "... and a@x.org b@y.org."), with its
+# sentence-final period.
+_EMAIL = AUTHOR_EMAIL_RE.pattern
+_EMAIL_LIST = rf"{_EMAIL}(?:\s*(?:(?:[,;/]|\band\b|\bor\b)\s*)?{_EMAIL})*"
+_EMAIL_LABEL = r"(?:electronic\s+address(?:es)?|e-?mail(?:\s+address(?:es)?|s)?|correspondence(?:\s+to)?)"
+AFFILIATION_EMAIL_RE = re.compile(
+    rf"(?:\b{_EMAIL_LABEL}\s*:\s*)?(?:\b(?:and|or)\s+)?{_EMAIL_LIST}\.?",
     re.IGNORECASE,
 )
 
@@ -68,6 +84,60 @@ def emails_in_affiliations(affiliations: Optional[Sequence[str]]) -> List[str]:
             if email not in emails:
                 emails.append(email)
     return emails
+
+
+def strip_emails_from_affiliation(affiliation: Optional[str]) -> Optional[str]:
+    """The affiliation without its email addresses and their "Electronic
+    address:" label, tidied up; None when nothing but the addresses was there.
+    An affiliation with no address is returned unchanged."""
+    if not affiliation:
+        return affiliation
+    stripped, removed = AFFILIATION_EMAIL_RE.subn(_keep_sentence_end, affiliation)
+    if not removed:
+        return affiliation
+    stripped = " ".join(stripped.split())
+    stripped = re.sub(r"\( ?[,;:.]? ?\)|\[ ?\]|< ?>", "", stripped)
+    # where an address was: "Kyoto, . Dept B" / "contribution. ; Dept B" / "China. . Dept B"
+    stripped = re.sub(r"[,;] \.|\. [,;.]", ".", stripped)
+    stripped = re.sub(r" ([,;.])", r"\1", stripped)
+    stripped = re.sub(r"([,;])(?: ?[,;])+", r"\1", stripped)
+    stripped = _strip_dangling_end(stripped).lstrip(" ,;:.")
+    return stripped if re.search(r"[^\W\d_]", stripped) else None
+
+
+_WORD_CHAR_RE = re.compile(r"[^\W_]")
+
+
+def _keep_sentence_end(match: "re.Match[str]") -> str:
+    """An address that ends a sentence in the middle of the affiliation
+    takes its period with it; keep the period so the next institution does
+    not run on ("Kyoto, a@b.org. Dept B" -> "Kyoto. Dept B")."""
+    if match.group(0).endswith(".") and _WORD_CHAR_RE.search(match.string, match.end()):
+        return "."
+    return ""
+
+
+# The separators and "and"/"or" an address list leaves at the end, matched on
+# the reversed text: one anchored pass, where a `$`-anchored pattern would be
+# retried from every position (quadratic on long input).
+_DANGLING_END_REVERSED_RE = re.compile(r"(?:[ ,;:]|dna(?= )|ro(?= ))*", re.IGNORECASE)
+
+
+def _strip_dangling_end(affiliation: str) -> str:
+    """"... Metabolism and" -> "... Metabolism"."""
+    match = _DANGLING_END_REVERSED_RE.match(affiliation[::-1])
+    return affiliation[:len(affiliation) - match.end()] if match else affiliation
+
+
+def strip_emails_from_affiliations(affiliations: Optional[Sequence[str]]) -> List[str]:
+    """Each affiliation without its email addresses, in order, once; an
+    affiliation that held only addresses is dropped."""
+    stripped_affiliations: List[str] = []
+    for affiliation in affiliations or []:
+        stripped = strip_emails_from_affiliation(affiliation)
+        if stripped and stripped not in stripped_affiliations:
+            stripped_affiliations.append(stripped)
+    return stripped_affiliations
 
 
 # How well an address's local part carries an author's name. A 1-2 letter last

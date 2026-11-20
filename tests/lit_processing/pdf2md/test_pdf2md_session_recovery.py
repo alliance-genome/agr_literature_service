@@ -192,7 +192,7 @@ class TestMainLoop:
 
         report = _run_main(db, _jobs(1), lambda db, info, token, **kwargs: (True, None), change_status)
 
-        committed = db.execute(text("SELECT full_name FROM mod WHERE mod_id = :i"), {"i": row_id}).scalar()
+        committed = db.execute(text("SELECT full_name FROM mod WHERE id = :i"), {"i": row_id}).scalar()
         assert committed == "before"
         assert status_updates == [(1001, "on_success"), (1001, "on_failed")]
         # counted once, as a failure: not also as a success

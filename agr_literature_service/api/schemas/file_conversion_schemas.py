@@ -106,6 +106,8 @@ class ConversionStatusResponseSchema(BaseModel):
     reference_curie: str
     status: str
     job_id: Optional[str] = None
+    # the failed job this one was started after (a retry, or a worker that exited)
+    previous_job_id: Optional[str] = None
     error_message: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None

@@ -31,10 +31,10 @@ def check_data():
         rows = db_session.execute(text(f"SELECT r.curie, m.abbreviation "
                                        f"FROM reference r, mod m, mod_corpus_association mca, topic_entity_tag tet "
                                        f"WHERE tet.species = '{atp_curie}' "
-                                       f"AND tet.reference_id = r.reference_id "
+                                       f"AND tet.reference_id = r.id "
                                        f"AND tet.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.mod_id = m.mod_id")).mappings().fetchall()
+                                       f"AND mca.mod_id = m.id")).mappings().fetchall()
         for row in rows:
             mod = row['abbreviation']
             report_rows = mod_to_report.get(mod, [])

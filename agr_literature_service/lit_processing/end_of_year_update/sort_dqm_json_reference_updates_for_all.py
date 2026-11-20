@@ -9,12 +9,14 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 from collections import defaultdict
 
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
+    apply_author_reload_statuses, discard_author_reload_marks
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, save_database_md5data
 from agr_literature_service.api.models import ReferenceModel, ModModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     write_json
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session, sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_dqm_loading_report
@@ -38,6 +40,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, \
     change_mod_curie_status
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    set_reference_category
 from agr_literature_service.api.user import set_global_user_id
 
 # For WB needing 57578 references checked for updating,
@@ -103,12 +107,12 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
     XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(text(
         "SELECT curie, resource_id FROM cross_reference WHERE resource_id is not null "
-        "AND is_obsolete is False")).fetchall()}
+        "AND obsolete is False")).fetchall()}
     rows = db_session.execute(text(
         "SELECT r.curie, c.curie_prefix, c.curie FROM reference r, cross_reference c "
         "WHERE c.curie_prefix = 'CGC' "
-        "AND c.is_obsolete is False "
-        "AND r.reference_id = c.reference_id")).fetchall()
+        "AND c.obsolete is False "
+        "AND r.id = c.reference_id")).fetchall()
     ref_cgcs_valid = defaultdict(lambda: defaultdict(set))
     for agr, prefix, identifier in rows:
         ref_cgcs_valid[agr][prefix].add(identifier)
@@ -286,9 +290,10 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
                 if prefix not in dqm_xrefs:
                     dqm_xrefs[prefix] = set()
                 dqm_xrefs[prefix].add(identifier)
+                key = xref_lookup_key(prefix, identifier)
                 if prefix in xref_ref:
-                    if identifier in xref_ref[prefix]:
-                        agr = xref_ref[prefix][identifier]
+                    if key in xref_ref[prefix]:
+                        agr = xref_ref[prefix][key]
                         agrs_found.add(agr)
 
             flag_dqm_prefix_fail = False
@@ -706,12 +711,13 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
+                    if field_snake == 'category':
+                        # set below by set_reference_category, with this as one of its sources
+                        continue
                     dqm_value = None
                     db_value = None
                     if field_camel in dqm_entry:
                         dqm_value = dqm_entry[field_camel]
-                        if field_snake == 'category':
-                            dqm_value = dqm_value.lower().replace(" ", "_")
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
                     if field_camel in ['datePublishedStart', 'datePublishedEnd']:
@@ -724,8 +730,6 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                     if dqm_value != db_value:
                         logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                         update_json[field_snake] = dqm_value
-                        if field_snake == 'category':
-                            update_json[field_snake] = update_json[field_snake].replace(' ', '_')
 
                 # ignore keywords after initial 2021 Nov load
                 # keywords_changed = compare_keywords(db_entry, dqm_entry)
@@ -755,10 +759,23 @@ def update_db_entries(mod_to_mod_id, dqm_entries, report_fh, processing_flag):  
                     except Exception as e:
                         logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
 
+            # the MOD reference types may have changed: set the category they give.
+            # A paper with no PMID also has the MOD's own category as a source.
+            try:
+                dqm_category = dqm_entry.get('allianceCategory') if processing_flag == 'mod_biblio_all' else None
+                changed = set_reference_category(db_session, db_entry['reference_id'], dqm_category)
+                if changed:
+                    logger.info(f"{agr}: category {changed[0]} -> {changed[1]}")
+            except Exception as e:
+                logger.info(f"{agr}: error setting the category: {e}")
+
         if live_change:
             db_session.commit()
+            # SCRUM-6827: author-person status of a paper whose authors were reloaded
+            apply_author_reload_statuses(db_session, logger)
         else:
             db_session.rollback()
+            discard_author_reload_marks(db_session)
     db_session.close()
 
 

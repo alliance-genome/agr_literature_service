@@ -3,6 +3,10 @@ import re
 
 # =========================== Boost policy (central config) ===========================
 
+# SCRUM-6490: PubMed MeSH heading terms are searched with the other text fields but
+# rank below every one of them, so each boost set gives MeSH half its lowest weight.
+MESH_FIELD = "mesh_terms.heading_term"
+
 # Boost Set: BOOST_PHRASE_FIELDS
 # Query Type (ES): multi_match "phrase" match_phrase
 # Match Style: Exact phrase, same order (tight match)
@@ -14,6 +18,7 @@ BOOST_PHRASE_FIELDS: Dict[str, float] = {
     "keywords": 5.0,
     "abstract": 3.0,
     "citation": 2.0,
+    MESH_FIELD: 1.0,
 }
 
 # Boost Set: BOOST_BEST_FIELDS
@@ -27,6 +32,7 @@ BOOST_BEST_FIELDS: Dict[str, float] = {
     "keywords": 2.0,
     "abstract": 2.0,
     "citation": 1.0,
+    MESH_FIELD: 0.5,
 }
 
 # Boost Set: BOOST_PREFIX_FIELDS
@@ -40,7 +46,16 @@ BOOST_PREFIX_FIELDS: Dict[str, float] = {
     "keywords": 1.0,
     "abstract": 1.0,
     "citation": 1.0,
+    MESH_FIELD: 0.5,
 }
+
+# Constant: MULTI_FIELD_TIE_BREAKER
+# Query Type (ES): tie_breaker on every all-text multi_match (best_fields, phrase, phrase_prefix)
+# Match Style: Score = best field + tie_breaker * each other matching field
+# Use Case: SCRUM-2278: a paper matching the term in its title, abstract, keywords and
+#           MeSH must outrank one matching only in its (shorter) title. Without it each
+#           clause counted only its best field, so title length decided the order.
+MULTI_FIELD_TIE_BREAKER: float = 0.3
 
 # Boost Constant: BOOST_EXACT_TITLE_KEYWORD
 # Query Type (ES): term on title.keyword
@@ -98,7 +113,7 @@ TEXT_FIELDS = {
 
 # Keep these exported for any callers that rely on them
 PHRASE_FIELDS = _fields_with_boost(BOOST_PHRASE_FIELDS)
-ALL_TEXT_FIELDS = ["title", "keywords", "abstract", "citation"]
+ALL_TEXT_FIELDS = ["title", "keywords", "abstract", "citation", MESH_FIELD]
 
 
 # --------------------------- Rescore helpers ---------------------------
@@ -123,34 +138,158 @@ def rescore_exact_phrase(phrase: str, fields: List[str], size: int, weight: floa
 
 # --------------------------- Recency function_score ---------------------------
 
+# SCRUM-2278: recency is a bounded tie-breaker, not a ranking signal of its own.
+# The text score is multiplied by 1 + RECENCY_MAX_BONUS * decay(age), so the
+# multiplier stays between 1.0 (very old or undated) and 1 + RECENCY_MAX_BONUS
+# (published within RECENCY_OFFSET of today). The bonus halves every
+# RECENCY_HALF_LIFE beyond the offset. A paper can therefore never outrank
+# another by more than that factor on date alone, and old papers keep their
+# relevance order instead of all collapsing to a score of 0.
+RECENCY_MAX_BONUS: float = 1.0
+RECENCY_HALF_LIFE: str = "1825d"
+RECENCY_OFFSET: str = "180d"
+
+
+# --------------------------- Field-coverage scoring (all-fields search) ---------------------------
+
+# SCRUM-6865: for an all-fields search the score is the number of fields the
+# query matches, plus a recency bonus, plus a small capped share of the BM25
+# text score. BM25 alone let a short title-only match outrank papers matching in
+# the title, abstract, keywords and MeSH, and length differences between papers
+# matching in the same fields outweighed years of publication date.
+#
+#   score = sum(weights of the matched fields)
+#         + FIELD_MATCH_RECENCY_BONUS * decay(age)      (0 .. 1.5)
+#         + FIELD_MATCH_RELEVANCE_MAX * s / (s + FIELD_MATCH_RELEVANCE_HALF_SCORE)   (0 .. 0.5)
+#
+# One more matched field (1.0) can be outweighed by recency, so a much newer
+# paper wins over one matching a single extra field; two more fields (2.0) can't
+# be, so a paper matching in many more fields always wins. A title match weighs
+# as much as the largest recency bonus, so a paper without the term in its title
+# never outranks an older one that matches the same other fields plus the title.
+# MeSH still ranks below every other text field (SCRUM-6490). The citation is
+# left out: it is built from the authors, year, title and journal, so it would
+# count a title match (or an author match) twice. It still contributes to the
+# BM25 share.
+FIELD_MATCH_WEIGHTS: Dict[str, float] = {
+    "title": 1.5,
+    "keywords": 1.0,
+    "abstract": 1.0,
+    MESH_FIELD: 0.5,
+}
+# Extra weight when a multi-word query appears as a phrase in a field
+# (MeSH is left out: a heading is matched whole or not at all)
+FIELD_PHRASE_WEIGHT: float = 0.5
+# The query matches an author's name exactly (e.g. "Jane Doe" in "All")
+AUTHOR_MATCH_WEIGHT: float = 1.0
+# The query is the paper's full title, pasted literally
+EXACT_TITLE_WEIGHT: float = 10.0
+FIELD_MATCH_RECENCY_BONUS: float = 1.5
+FIELD_MATCH_RELEVANCE_MAX: float = 0.5
+# BM25 score at which the relevance share reaches half of FIELD_MATCH_RELEVANCE_MAX
+FIELD_MATCH_RELEVANCE_HALF_SCORE: float = 20.0
+
+
+def build_field_match_functions(q: str, *, include_author: bool = True) -> List[Dict[str, Any]]:
+    """
+    One weighted function_score function per field the query can match. A field
+    counts when it matches as the best_fields or phrase_prefix clause would, the
+    same matches the search highlights: the fields use the standard analyzer, so
+    "xenobiotic" reaches the MeSH heading "Xenobiotics" only as a prefix.
+    """
+    q_core = strip_trailing_wildcards(q)
+    if not q_core:
+        return []
+    msm = compute_minimum_should_match(q_core)
+    functions: List[Dict[str, Any]] = [
+        {
+            "filter": {"bool": {
+                "should": [
+                    {"match": {field: {"query": q_core, "operator": "or", "minimum_should_match": msm}}},
+                    {"match_phrase_prefix": {field: {"query": q_core}}},
+                ],
+                "minimum_should_match": 1,
+            }},
+            "weight": weight,
+        }
+        for field, weight in FIELD_MATCH_WEIGHTS.items()
+    ]
+    if len(q_core.split()) > 1:
+        functions += [
+            {"filter": {"match_phrase": {field: {"query": q_core, "slop": 1}}}, "weight": FIELD_PHRASE_WEIGHT}
+            for field in FIELD_MATCH_WEIGHTS if field != MESH_FIELD
+        ]
+    if include_author:
+        functions.append({"filter": nested_author_name_exact_token(q_core, boost=1.0),
+                          "weight": AUTHOR_MATCH_WEIGHT})
+    functions.append({"filter": {"term": {"title.keyword": q_core}}, "weight": EXACT_TITLE_WEIGHT})
+    return functions
+
+
+def apply_field_match_scoring(es_body: Dict[str, Any], field_match_functions: List[Dict[str, Any]],
+                              field: str = "date_published_start") -> None:
+    """
+    Replace the query score with matched-field weights + recency bonus + capped
+    BM25 share (see FIELD_MATCH_WEIGHTS). Papers without a publication date get
+    no recency bonus.
+    """
+    base_query = es_body.get("query") or {"match_all": {}}
+    es_body["query"] = {
+        "function_score": {
+            "query": base_query,
+            "functions": list(field_match_functions) + [
+                {
+                    "filter": {"exists": {"field": field}},
+                    "exp": {field: {
+                        "origin": "now",
+                        "scale": RECENCY_HALF_LIFE,
+                        "offset": RECENCY_OFFSET,
+                        "decay": 0.5,
+                    }},
+                    "weight": FIELD_MATCH_RECENCY_BONUS,
+                },
+                {
+                    "script_score": {"script": {
+                        "source": "params.max * _score / (_score + params.half)",
+                        "params": {"max": FIELD_MATCH_RELEVANCE_MAX,
+                                   "half": FIELD_MATCH_RELEVANCE_HALF_SCORE},
+                    }},
+                },
+            ],
+            "score_mode": "sum",
+            "boost_mode": "replace",
+        }
+    }
+
+
 def apply_balanced_recency_boost(es_body: Dict[str, Any], field: str = "date_published_start") -> None:
     """
-    Strong recency favoring with extra-hard penalties for old papers.
+    Multiply the text score by a bounded recency factor in [1, 1 + RECENCY_MAX_BONUS].
+    Papers without a publication date get the floor of 1.0.
     """
     base_query = es_body.get("query") or {"match_all": {}}
     es_body["query"] = {
         "function_score": {
             "query": base_query,
             "functions": [
-                # Future-dated papers
-                {"filter": {"range": {field: {"gt": "now"}}}, "weight": 2.5},
-
-                # Smooth decay (≈ halves each ~365 days; ignore first 2 weeks)
-                {"gauss": {field: {"origin": "now", "scale": "365d", "offset": "14d", "decay": 0.5}}},
-
-                # Recent tiers
-                {"filter": {"range": {field: {"gte": "now-183d", "lte": "now"}}}, "weight": 5.5},
-                {"filter": {"range": {field: {"gte": "now-365d", "lt": "now-183d"}}}, "weight": 4.0},
-                {"filter": {"range": {field: {"gte": "now-1095d", "lt": "now-365d"}}}, "weight": 2.5},
-                {"filter": {"range": {field: {"gte": "now-1825d", "lt": "now-1095d"}}}, "weight": 1.2},
-
-                # Older clamps
-                {"filter": {"range": {field: {"lt": "now-3650d", "gte": "now-7300d"}}}, "weight": 0.05},
-                {"filter": {"range": {field: {"lt": "now-7300d"}}}, "weight": 0.005},
+                # Floor: every paper keeps its full text score
+                {"weight": 1.0},
+                # Recency bonus; decay functions return 1 for a missing field,
+                # so only dated papers may earn it
+                {
+                    "filter": {"exists": {"field": field}},
+                    "exp": {field: {
+                        "origin": "now",
+                        "scale": RECENCY_HALF_LIFE,
+                        "offset": RECENCY_OFFSET,
+                        "decay": 0.5,
+                    }},
+                    "weight": RECENCY_MAX_BONUS,
+                },
             ],
-            "score_mode": "multiply",
+            "score_mode": "sum",
             "boost_mode": "multiply",
-            "max_boost": 10.0,
+            "max_boost": 1.0 + RECENCY_MAX_BONUS,
         }
     }
 
@@ -455,7 +594,7 @@ def build_id_xref_author_helpers(phrase: str, *, include_author: bool = True) ->
 
 def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_helpers: bool = True):
     """
-    Build an all-fields query (Title + Abstract + Keywords + Citation). This is the default search
+    Build an all-fields query (Title + Abstract + Keywords + Citation + MeSH). This is the default search
     if the user doesn’t pick a single field.
     Example: User searches "Jane Doe" with no field restriction:
       * best_fields → might hit tokens "Jane" and "Doe" in title/abstract/etc. (unlikely).
@@ -481,7 +620,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "type": "best_fields",
             "operator": "or",
             "minimum_should_match": compute_minimum_should_match(q_core),
-            "tie_breaker": 0.1,
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
     # phrase → tight phrase match
@@ -491,6 +630,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "fields": _fields_with_boost(BOOST_PHRASE_FIELDS),
             "type": "phrase",
             "slop": 1,
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
     # phrase_prefix → prefix expansion for type-ahead / wildcard queries
@@ -499,6 +639,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
             "query": q_core,
             "fields": _fields_with_boost(BOOST_PREFIX_FIELDS),
             "type": "phrase_prefix",
+            "tie_breaker": MULTI_FIELD_TIE_BREAKER,
         }
     }
 
@@ -519,7 +660,13 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
     # title.keyword exact → strong boost if full title pasted.
     should.append({"term": {"title.keyword": {"value": q_core, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
 
-    return {"must": must, "should": should, "rescore": rescore, "uses_rescore": False}
+    return {
+        "must": must,
+        "should": should,
+        "rescore": rescore,
+        "uses_rescore": False,
+        "field_match_functions": build_field_match_functions(q_core, include_author=include_id_author_helpers),
+    }
 
 
 # --------------------------- Scoring + Sorting policy ---------------------------
@@ -531,7 +678,8 @@ def apply_scoring_and_sort(
     is_text_search: bool,
     uses_rescore: bool,
     order: str = "desc",
-    explicit_date_sort: bool = False
+    explicit_date_sort: bool = False,
+    field_match_functions: Optional[List[Dict[str, Any]]] = None
 ) -> None:
     """
     Centralized policy:
@@ -541,6 +689,9 @@ def apply_scoring_and_sort(
         tie-breaker) and any rescore block is dropped because ES rejects an
         explicit sort combined with rescore.
       - Text searches: apply recency + score-first ordering (unless rescore -> score-only).
+        An all-fields search passes field_match_functions and is scored by
+        matched fields + recency (apply_field_match_scoring); other text
+        searches get the multiplicative recency boost.
       - Non-text searches (facets-only/dates): pure recency-first ordering.
     """
     date_first_sort = [
@@ -553,7 +704,10 @@ def apply_scoring_and_sort(
         es_body.pop("rescore", None)
         es_body["sort"] = date_first_sort
     elif is_text_search:
-        apply_balanced_recency_boost(es_body)
+        if field_match_functions:
+            apply_field_match_scoring(es_body, field_match_functions)
+        else:
+            apply_balanced_recency_boost(es_body)
         if uses_rescore:
             es_body.pop("sort", None)  # ES: score-only ordering when rescore exists
         else:
@@ -609,7 +763,7 @@ def build_content_gate_filter(q: str) -> dict | None:
     return {
         "multi_match": {
             "query": " ".join(toks),
-            "fields": ["title", "abstract", "keywords", "citation"],
+            "fields": ALL_TEXT_FIELDS,
             "type": "best_fields",
             "operator": "or",
             "minimum_should_match": _msm_for_content_gate(len(toks))

@@ -54,6 +54,8 @@ class TestXmlToJson:
             json_obj = json.load(open(os.path.join(base_path, "pubmed_json", pmid + ".json")))
             emails = {a["authorRank"]: a["email"] for a in json_obj["authors"] if "email" in a}
             assert emails == by_rank
+            # and the addresses are no longer part of the affiliations
+            assert not [aff for a in json_obj["authors"] for aff in a.get("affiliations", []) if "@" in aff]
         md5_filename = os.path.join(base_path, "pubmed_json", "md5sum")
         assert os.path.exists(md5_filename)
         for line in open(md5_filename):

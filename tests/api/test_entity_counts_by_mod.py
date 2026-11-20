@@ -31,7 +31,7 @@ class TestEntityCountsByModQuery:
 
     def test_joins_source_to_owning_mod(self):
         sql = compiled_counts_sql()
-        assert "tag_source.secondary_data_provider_id = mod.mod_id" in sql
+        assert "tag_source.secondary_data_provider_id = mod.id" in sql
 
     def test_scopes_to_the_reference_and_skips_topic_only_tags(self):
         sql = compiled_counts_sql(777)

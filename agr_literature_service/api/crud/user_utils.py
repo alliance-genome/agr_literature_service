@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -8,32 +8,40 @@ from sqlalchemy.orm import Session
 # Pure-SQL helpers (no ORM imports)
 # ----------------------------
 
-# 1) textual users.id match (case-insensitive)
+# An agent's label is its automation_username, or the curie of its person (the
+# legacy users.id); it is what created_by / updated_by hold in the API.
+
+# 1) textual label match (case-insensitive)
 _SQL_MATCH_USERS_ID_TEXT = text(r"""
-SELECT id
-FROM users
-WHERE lower(id) = lower(:identifier)
+SELECT COALESCE(a.automation_username, p.curie)
+FROM agent a
+LEFT JOIN person p ON p.id = a.person_id
+WHERE lower(a.automation_username) = lower(:identifier)
+   OR lower(p.curie) = lower(:identifier)
+ORDER BY a.id
 LIMIT 1
 """)
 
-# 2) email -> users.id
+# 2) email -> label
 _SQL_MATCH_EMAIL = text(r"""
-SELECT u.id
-FROM users u
-JOIN person_email e ON e.person_id = u.person_id
+SELECT p.curie
+FROM agent a
+JOIN person p ON p.id = a.person_id
+JOIN person_email e ON e.person_id = p.id
 WHERE lower(e.email_address) = lower(:email)
 LIMIT 1
 """)
 
-# 3) name (display_name full or initials+last) -> users.id
-_SQL_MATCH_NAME = text(r"""
+# 3) name (display_name full or initials+last) -> label. The same name forms
+# also match persons with no agent yet (_SQL_PERSONS_BY_NAME); __PERSONS__ and
+# __LIMIT__ are filled in below.
+_NAME_MATCH_SQL = r"""
 WITH parts AS (
   SELECT
-    u.id,
+    p.curie AS id,
     p.display_name,
     regexp_split_to_array(trim(p.display_name), '\s+') AS toks
-  FROM users u
-  JOIN person p ON p.person_id = u.person_id
+  __PERSONS__
 ),
 name_forms AS (
   SELECT
@@ -96,20 +104,60 @@ WHERE
    OR concat(nf.initials_concat_norm, nf.last_norm) = i.id_compact_norm
    OR concat(nf.first_initial_norm, ' ', nf.last_norm) = i.id_alnum_norm
    OR concat(nf.first_initial_norm, nf.last_norm) = i.id_compact_norm
+__LIMIT__
+"""
+_SQL_MATCH_NAME = text(_NAME_MATCH_SQL
+                       .replace("__PERSONS__", "FROM agent a\n  JOIN person p ON p.id = a.person_id")
+                       .replace("__LIMIT__", "LIMIT 1"))
+# every person, agent or not, whose name matches: more than one is ambiguous
+_SQL_PERSONS_BY_NAME = text(_NAME_MATCH_SQL
+                            .replace("__PERSONS__", "FROM person p")
+                            .replace("__LIMIT__", "ORDER BY nf.id\nLIMIT 5"))
+
+_SQL_AUTOMATION_AGENT = text(r"""
+SELECT id, automation_username FROM agent
+WHERE lower(automation_username) = lower(:label)
+ORDER BY id
 LIMIT 1
+""")
+
+_SQL_PERSON_BY_CURIE = text(r"""
+SELECT curie FROM person WHERE lower(curie) = lower(:curie)
+""")
+
+_SQL_PERSONS_BY_EMAIL = text(r"""
+SELECT DISTINCT p.curie
+FROM person p
+JOIN person_email e ON e.person_id = p.id
+WHERE lower(e.email_address) = lower(:email)
+ORDER BY p.curie
+LIMIT 5
+""")
+
+_SQL_PERSON_AGENT = text(r"""
+SELECT a.id FROM agent a JOIN person p ON p.id = a.person_id
+WHERE p.curie = :curie
+ORDER BY a.id
+LIMIT 1
+""")
+
+_SQL_INSERT_PERSON_AGENT = text(r"""
+INSERT INTO agent (person_id, automation_username)
+SELECT id, NULL FROM person WHERE curie = :curie
+RETURNING id
 """)
 
 
 def map_to_user_id(identifier: str, db: Session) -> str:
     """
-    Resolve an external identifier to the canonical users.id (TEXT).
+    Resolve an external identifier to the label of an agent (automation name or person curie).
 
     Resolution order:
-      1) users.id (TEXT, case-insensitive)
-      2) if contains '@': person.email -> users.id
+      1) agent label (case-insensitive)
+      2) if contains '@': person.email -> label
       3) else: match normalized person.display_name (full or initials+last)
 
-    Returns: users.id (text)
+    Returns: the agent label (text)
     Raises:  HTTPException(422) if empty or not found.
     """
     if not identifier or not identifier.strip():
@@ -144,6 +192,103 @@ def map_to_user_id(identifier: str, db: Session) -> str:
         """
         return ident
     return users_id
+
+
+def resolve_named_agent(identifier: str, db: Session, field: str = "updated_by") -> Tuple[int, str]:
+    """
+    Resolve a curator a service account names as the author of a change
+    (SCRUM-6819) to (agent.id, label).
+
+    Accepts an automation agent's name, or a person's curie (AGRKB ID), email
+    or display name (full, or initials+last). Unlike map_to_existing_user_id
+    the person need not have an agent yet -- most persons have never logged
+    in to ABC -- and one is created for them; unlike map_to_user_id nothing is
+    created for a name that matches no person, so a typo cannot record the
+    change under a made-up name.
+
+    Raises HTTPException(422) when the identifier is empty, matches no one, or
+    (an email or a name) matches more than one person. ``field`` is the request
+    field the identifier came from, for those messages.
+    """
+    ident = (identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=422, detail=f"{field} cannot be empty")
+    # punctuation alone normalizes to '' and would match a person with no name
+    if not any(c.isalnum() for c in ident):
+        raise HTTPException(status_code=422, detail=f"Unknown {field} {identifier!r}: no letters or digits")
+
+    automation = db.execute(_SQL_AUTOMATION_AGENT, {"label": ident}).fetchone()
+    if automation:
+        return automation.id, automation.automation_username
+
+    curie = db.execute(_SQL_PERSON_BY_CURIE, {"curie": ident}).scalar()
+    if curie:
+        curies = [curie]
+    elif "@" in ident:
+        curies = list(db.execute(_SQL_PERSONS_BY_EMAIL, {"email": ident}).scalars())
+    else:
+        curies = list(db.execute(_SQL_PERSONS_BY_NAME, {"id_raw": ident}).scalars())
+    if not curies:
+        raise HTTPException(
+            status_code=422,
+            detail=(f"Unknown {field} {identifier!r}: expected a person's AGRKB ID, "
+                    "email or full name"),
+        )
+    if len(curies) > 1:
+        raise HTTPException(
+            status_code=422,
+            detail=(f"{field} {identifier!r} matches more than one person "
+                    f"({', '.join(curies)}); use the person's AGRKB ID or email"),
+        )
+    return _person_agent(db, curies[0]), curies[0]
+
+
+def resolve_named_person(identifier: str, db: Session, field: str = "created_by") -> Tuple[int, str]:
+    """
+    Resolve the curator a verdict is recorded for (SCRUM-6853) to (agent.id,
+    person curie). Stricter than resolve_named_agent: only a person's AGRKB ID
+    or email is accepted, never an automation agent (default_user, a pipeline)
+    and never a display name, which can match the wrong person. A person who
+    has no agent yet gets one.
+
+    Raises HTTPException(422) when the identifier names no person, an
+    automation agent, or (an email) more than one person.
+    """
+    ident = (identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=422, detail=f"{field} cannot be empty")
+    curie = db.execute(_SQL_PERSON_BY_CURIE, {"curie": ident}).scalar()
+    if curie:
+        return _person_agent(db, curie), curie
+    if "@" in ident:
+        curies = list(db.execute(_SQL_PERSONS_BY_EMAIL, {"email": ident}).scalars())
+        if len(curies) == 1:
+            return _person_agent(db, curies[0]), curies[0]
+        if len(curies) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail=(f"{field} {identifier!r} matches more than one person "
+                        f"({', '.join(curies)}); use the person's AGRKB ID"),
+            )
+    if db.execute(_SQL_AUTOMATION_AGENT, {"label": ident}).fetchone():
+        raise HTTPException(status_code=422,
+                            detail=f"{field} {identifier!r} names an automation agent, not a curator")
+    raise HTTPException(status_code=422,
+                        detail=f"Unknown {field} {identifier!r}: expected a person's AGRKB ID or email")
+
+
+def _person_agent(db: Session, curie: str) -> int:
+    """agent.id of the person, creating their agent if they have none. A
+    transaction-scoped advisory lock on the curie keeps two concurrent
+    requests from creating two agents for the same person."""
+    agent_id = db.execute(_SQL_PERSON_AGENT, {"curie": curie}).scalar()
+    if agent_id is not None:
+        return agent_id
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"person_agent:{curie}"})
+    agent_id = db.execute(_SQL_PERSON_AGENT, {"curie": curie}).scalar()
+    if agent_id is None:
+        agent_id = db.execute(_SQL_INSERT_PERSON_AGENT, {"curie": curie}).scalar()
+    return agent_id
 
 
 def map_to_existing_user_id(identifier: str, db: Session) -> Optional[str]:

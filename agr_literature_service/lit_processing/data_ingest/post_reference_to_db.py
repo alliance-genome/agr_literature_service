@@ -5,6 +5,7 @@ import json
 from typing import List
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import set_reference_category
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     AuthorModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel
@@ -12,7 +13,8 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_data, \
     get_doi_data, get_reference_by_pmid
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    add_zfin_corpus_entry_tags
+    add_corpus_entry_tags
+from agr_literature_service.api.crud.utils.corpus_entry_tags import CORPUS_ENTRY_TAGS
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
@@ -133,6 +135,10 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
                                                mod_to_mod_id,
                                                entry['modCorpusAssociations'])
 
+            # the MOD reference types and relations can outrank the category from
+            # PubMed or the MOD's DQM file (alliance_category_utils)
+            set_reference_category(db_session, reference_id)
+
             log.info("The new reference for for primaryId = " + primaryId + " has been added into database")
             if live_change:
                 db_session.commit()
@@ -159,8 +165,8 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
                                             corpus=x['corpus'])
             db_session.add(mca)
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'])
-            if x['modAbbreviation'] == 'ZFIN' and x['corpus']:
-                add_zfin_corpus_entry_tags(db_session, reference_id, mod_id, log)
+            if x['modAbbreviation'] in CORPUS_ENTRY_TAGS and x['corpus']:
+                add_corpus_entry_tags(db_session, reference_id, mod_id, log, x['modAbbreviation'])
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
 

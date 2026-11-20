@@ -57,6 +57,24 @@ VERSION = 1
 ML_CLASSIFIER_MODS = ("WB", "FB")
 
 
+def _describe(exc: BaseException) -> str:
+    """The exception's message followed by each underlying cause, on one line.
+
+    Libraries often re-raise with a friendlier message and chain the original
+    (``raise ... from exc``); logging only ``str(exc)`` then drops the real
+    reason. agr_abc_document_parsers reports any failed ``import pyarrow`` as
+    "needs pyarrow; install the optional extra", which hid that pyarrow 26 was
+    installed but refused to load with numpy<2."""
+    parts = [str(exc)]
+    seen = {id(exc)}
+    cause = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    while cause is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        parts.append(f"caused by {type(cause).__name__}: {cause}")
+        cause = cause.__cause__ or (None if cause.__suppress_context__ else cause.__context__)
+    return " | ".join(parts)
+
+
 def _reference_has_classifier_mod(db, reference_id: int) -> bool:
     """True iff the reference is in corpus for at least one MOD that has an ML
     classifier (see :data:`ML_CLASSIFIER_MODS`)."""
@@ -101,7 +119,7 @@ def generate_classifier_embeddings_for_reference(
     except ImportError as exc:
         logger.warning(
             "Embedding stack unavailable (%s); skipping. Install "
-            "'agr-abc-document-parsers[embeddings]' and 'openai' to enable.", exc
+            "'agr-abc-document-parsers[embeddings]' and 'openai' to enable.", _describe(exc)
         )
         return {"skipped": "deps_unavailable"}
 
@@ -156,7 +174,7 @@ def generate_classifier_embeddings_for_reference(
         except Exception as exc:
             logger.error(
                 "Embedding generation failed for referencefile %s (%s): %s",
-                source_id, curie, exc
+                source_id, curie, _describe(exc)
             )
             failed += 1
     return {
@@ -256,5 +274,5 @@ def maybe_generate_classifier_embeddings(
     except Exception as exc:
         logger.error(
             "Classifier embedding generation failed for reference %s (%s): %s",
-            reference_id, reference_curie, exc
+            reference_id, reference_curie, _describe(exc)
         )

@@ -6,7 +6,7 @@ mod_reference_type_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, BigInteger, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,7 +21,8 @@ class ReferencetypeModel(Base):
     __versioned__: Dict = {}
 
     referencetype_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
@@ -39,13 +40,14 @@ class ModReferencetypeAssociationModel(Base):
     __table_args__ = (UniqueConstraint('mod_id', 'referencetype_id', name='uniq_mrt_new'),)
 
     mod_referencetype_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         autoincrement=True,
         primary_key=True
     )
 
     mod_id: Column = Column(
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("mod.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -53,7 +55,7 @@ class ModReferencetypeAssociationModel(Base):
     mod = relationship("ModModel", back_populates="referencetypes")
 
     referencetype_id: Column = Column(
-        ForeignKey("referencetype.referencetype_id", ondelete="CASCADE"),
+        ForeignKey("referencetype.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -72,18 +74,19 @@ class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
     __table_args__ = (UniqueConstraint('reference_id', 'mod_referencetype_id', name='uniq_rmrt'),)
 
     reference_mod_referencetype_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         autoincrement=True,
         primary_key=True
     )
 
     reference_id: Column = Column(
-        ForeignKey("reference.reference_id"),
+        ForeignKey("reference.id"),
         index=True,
     )
 
     mod_referencetype_id: Column = Column(
-        ForeignKey("mod_referencetype.mod_referencetype_id"),
+        ForeignKey("mod_referencetype.id"),
         index=True,
     )
 

@@ -29,7 +29,12 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
 from agr_literature_service.lit_processing.utils.report_utils import \
     write_log_and_send_pubmed_update_report, \
     write_log_and_send_pubmed_no_update_report
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import acting_as, get_current_agent_id, get_global_user_id, \
+    set_global_user_id
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
+    apply_author_reload_statuses
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    CategoryInputs, load_category_inputs, resolve_category
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
@@ -58,7 +63,30 @@ sleep_time = 10
 init_tmp_dir()
 
 
-def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cover
+def refresh_pmids_from_pubmed(pmids, logger=log):
+    """
+    Update the references of PMIDs just attached to existing references with their PubMed data.
+
+    A PMID attached to a reference that came from a MOD (e.g. found through its DOI) is not in
+    the weekly PubMed update unless PubMed revises that record, so the reference would keep the
+    MOD's title, authors etc. (SCRUM-6864). update_data sets its own script as the current user,
+    so the caller's user is restored afterwards.
+    """
+    if not pmids:
+        return
+    agent_id, label = get_current_agent_id(), get_global_user_id()
+    agent = (agent_id, label) if agent_id is not None and label is not None else None
+    try:
+        with acting_as(agent):
+            update_data(None, "|".join(sorted(pmids)))
+    except Exception as e:
+        logger.info(f"Error(s) occurred when updating {len(pmids)} attached PMIDs with data from PubMed: {e}")
+
+
+def update_data(mod, pmids, resourceUpdated=None, record_author_status_history=False):  # noqa: C901 pragma: no cover
+    # record_author_status_history: True when a curator action (a reference merge in
+    # the API) runs this, so the author-person status change keeps its history and
+    # the process-wide workflow_tag history switch is never touched (SCRUM-6827).
 
     if resourceUpdated is None:
         update_resource_pubmed_nlm
@@ -168,7 +196,8 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
                                                                    old_md5sum, json_path,
                                                                    pmids_with_json_updated,
                                                                    pmids_with_pub_status_changed,
-                                                                   bad_date_published)
+                                                                   bad_date_published,
+                                                                   record_author_status_history)
 
     except Exception as e:
         log.info(f"Error updating data for {mod}: {e}")
@@ -203,7 +232,7 @@ def update_data(mod, pmids, resourceUpdated=None):  # noqa: C901 pragma: no cove
     fw.close()
 
 
-def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published):  # noqa: C901 pragma: no cover
+def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, update_log, new_md5sum, old_md5sum, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published, record_author_status_history=False):  # noqa: C901 pragma: no cover
 
     ## 1. do nothing if a field has no value in pubmed xml/json
     ##    so won't delete whatever in the database
@@ -274,12 +303,13 @@ def update_database(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_re
                                                                            pmids_with_pub_status_changed,
                                                                            bad_date_published,
                                                                            update_log,
-                                                                           offset)
+                                                                           offset,
+                                                                           record_author_status_history)
 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_reference_relation_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published, update_log, offset):  # noqa: C901 pragma: no cover
+def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid, pmid_to_reference_id, reference_id_to_authors, reference_ids_to_reference_relation_type, reference_id_to_mesh_terms, reference_id_to_doi, reference_id_to_pmcid, journal_to_resource_id, resource_id_to_issn, resource_id_to_nlm, old_md5sum, new_md5sum, count, authors_with_first_or_corresponding_flag, json_path, pmids_with_json_updated, pmids_with_pub_status_changed, bad_date_published, update_log, offset, record_author_status_history=False):  # noqa: C901 pragma: no cover
 
     ## only update 3000 references per session (set in max_rows_per_db_session)
     ## just in case the database get disconnected during the update process
@@ -336,6 +366,9 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
     if query_all_papers and len(all_data) == 0:
         return authors_with_first_or_corresponding_flag
 
+    # the category also comes from MOD reference types and reference relations
+    reference_id_to_category_inputs = load_category_inputs(db_session, [x.reference_id for x in all_data])
+
     i = 0
 
     for x in all_data:
@@ -381,7 +414,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                         new_resource_id, journal_title,
                                                         reference_id_to_authors.get(x.reference_id),
                                                         bad_date_published, pmids_with_pub_status_changed,
-                                                        update_log, count)
+                                                        update_log, count,
+                                                        reference_id_to_category_inputs.get(x.reference_id))
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating reference table: {e}")
 
@@ -410,7 +444,10 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                      json_data.get('authors'),
                                      pub_status_changed,
                                      pmids_with_pub_status_changed,
-                                     None, fw, pmid, update_log)
+                                     None, fw, pmid, update_log,
+                                     flag_author_review=True,
+                                     pubmed_record_changed=pubmed_record_has_changed(
+                                         pmid, old_md5sum, new_md5sum))
         except Exception as e:
             log.info(f"PMID:{pmid}: Error occurred when updating author table: {e}")
 
@@ -434,6 +471,8 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
 
     # db_session.rollback()
     db_session.commit()
+    # SCRUM-6827: author-person status of the papers whose authors were reloaded
+    apply_author_reload_statuses(db_session, log, record_history=record_author_status_history)
     db_session.close()
 
     if mod and len(reference_id_list) > query_cutoff:
@@ -461,12 +500,13 @@ def update_reference_data_batch(fw, mod, reference_id_list, reference_id_to_pmid
                                                                                pmids_with_pub_status_changed,
                                                                                bad_date_published,
                                                                                update_log,
-                                                                               offset)
+                                                                               offset,
+                                                                               record_author_status_history)
 
     return authors_with_first_or_corresponding_flag
 
 
-def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, pmids_with_pub_status_changed, update_log, count):  # noqa: C901 pragma: no cover
+def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, journal_title, authors, bad_date_published, pmids_with_pub_status_changed, update_log, count, category_inputs=None):  # noqa: C901 pragma: no cover
 
     colName_to_json_key = {'issue_name': 'issueName',
                            'page_range': 'pages',
@@ -530,6 +570,9 @@ def update_reference_table(db_session, fw, pmid, x, json_data, new_resource_id, 
             if colName == 'category':
                 if old_value:
                     old_value = old_value.replace("ReferenceCategory.", "")
+                # PubMed's category is one of the sources: a MOD reference type or
+                # a reference relation can outrank it (alliance_category_utils)
+                new_value = resolve_category(category_inputs or CategoryInputs(), new_value, old_value)
                 handle_generic_update(fw, pmid, x, colName, old_value,
                                       new_value, update_log, has_update)
                 continue
@@ -654,6 +697,14 @@ def set_paths():  # pragma: no cover
 
     return (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
             email_recipients, sender_email, sender_password, reply_to)
+
+
+def pubmed_record_has_changed(pmid, old_md5sum, new_md5sum):
+    """SCRUM-6448: whether the PubMed record for pmid changed since the previous run,
+    from the per-PMID md5sums stored at the end of each run (a PMID with no stored
+    md5sum counts as changed)."""
+    pmid_with_prefix = "PMID:" + pmid
+    return old_md5sum.get(pmid_with_prefix) != new_md5sum.get(pmid_with_prefix)
 
 
 def generate_pmids_with_info(pmids_all, old_md5sum, new_md5sum, pmid_to_reference_id):

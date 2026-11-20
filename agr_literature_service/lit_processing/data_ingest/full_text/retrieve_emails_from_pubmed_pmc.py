@@ -146,17 +146,17 @@ def get_sgd_corpus_papers(db, since: str, until: str) -> List[Tuple[str, str, bo
     rows = db.execute(text(
         "SELECT r.curie, MIN(cr.curie), "
         "       EXISTS (SELECT 1 FROM reference_email re "
-        "               WHERE re.reference_id = r.reference_id) "
+        "               WHERE re.reference_id = r.id) "
         "FROM   mod_corpus_association mca "
-        "JOIN   mod m ON mca.mod_id = m.mod_id "
-        "JOIN   reference r ON mca.reference_id = r.reference_id "
-        "JOIN   cross_reference cr ON cr.reference_id = r.reference_id "
-        "       AND cr.curie_prefix = 'PMID' AND cr.is_obsolete IS FALSE "
+        "JOIN   mod m ON mca.mod_id = m.id "
+        "JOIN   reference r ON mca.reference_id = r.id "
+        "JOIN   cross_reference cr ON cr.reference_id = r.id "
+        "       AND cr.curie_prefix = 'PMID' AND cr.obsolete IS FALSE "
         "WHERE  m.abbreviation = :abbr "
         "AND    mca.corpus IS TRUE "
         "AND    mca.date_created >= :since "
         "AND    mca.date_created < :until "
-        "GROUP  BY r.curie, r.reference_id"
+        "GROUP  BY r.curie, r.id"
     ), {"abbr": MOD_ABBREVIATION, "since": since, "until": until}).fetchall()
     return [(row[0], row[1].replace("PMID:", ""), row[2]) for row in rows]
 

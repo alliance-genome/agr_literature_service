@@ -19,11 +19,11 @@ def check_data():
     try:
         sql_query = """ SELECT DISTINCT curie, mod.abbreviation as mod
         FROM topic_entity_tag as A, tag_source as B, reference, mod_corpus_association as C, mod
-        WHERE A.tag_source_id = B.tag_source_id
-        AND A.reference_id = reference.reference_id
+        WHERE A.tag_source_id = B.id
+        AND A.reference_id = reference.id
         AND source_evidence_assertion = 'ATP:0000036'
-        AND C.mod_id = mod.mod_id
-        AND C.reference_id = reference.reference_id
+        AND C.mod_id = mod.id
+        AND C.reference_id = reference.id
         AND reference.category = 'Retraction';
         """
 

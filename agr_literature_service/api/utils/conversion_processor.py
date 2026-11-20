@@ -184,6 +184,9 @@ def _convert_pending_main(
 ) -> Tuple[bool, List[str]]:
     """Convert each entry in assessment['pending_main']. Returns
     (any_failure, failure_messages)."""
+    from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+        source_mod_abbreviation,
+    )
     any_failure = False
     failure_messages: List[str] = []
     for entry in assessment.get("pending_main") or []:
@@ -191,7 +194,7 @@ def _convert_pending_main(
         if entry["kind"] == "nxml":
             success, error = _convert_pending_nxml(
                 db, job_id, reference_id, reference_curie,
-                ref_file, assessment["mod_abbreviation"],
+                ref_file, source_mod_abbreviation(ref_file),
             )
             tag = "nXML main"
         else:
@@ -235,12 +238,15 @@ def _convert_pending_office_supplements(
 ) -> Tuple[bool, List[str]]:
     """Convert each entry in assessment['pending_office_supplements'].
     Returns (any_failure, failure_messages)."""
+    from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+        source_mod_abbreviation,
+    )
     any_failure = False
     failure_messages: List[str] = []
     for ref_file in assessment.get("pending_office_supplements") or []:
         success, error = _convert_pending_office(
             db, job_id, reference_id, reference_curie,
-            ref_file, assessment.get("mod_abbreviation"),
+            ref_file, source_mod_abbreviation(ref_file),
         )
         if not success:
             any_failure = True

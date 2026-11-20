@@ -61,7 +61,7 @@ def update_cross_reference(all_invalid_pmids):
     for pmid in all_invalid_pmids:
         sql = text("""
             UPDATE cross_reference
-            SET is_obsolete = True
+            SET obsolete = True
             WHERE curie = :pmid
         """)
         db.execute(sql, {"pmid": pmid})
@@ -76,9 +76,9 @@ def get_all_pmids_for_mod(db, mod_abbr):
         SELECT cr.curie
         FROM cross_reference AS cr
         JOIN mod_corpus_association AS mca ON cr.reference_id = mca.reference_id
-        JOIN mod AS m ON mca.mod_id = m.mod_id
+        JOIN mod AS m ON mca.mod_id = m.id
         WHERE cr.curie_prefix = 'PMID'
-          AND cr.is_obsolete   = FALSE
+          AND cr.obsolete   = FALSE
           AND mca.corpus       = TRUE
           AND m.abbreviation   = :mod_abbr
     """)

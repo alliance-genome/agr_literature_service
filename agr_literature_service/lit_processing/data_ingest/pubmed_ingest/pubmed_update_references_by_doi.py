@@ -261,7 +261,7 @@ def get_cross_reference_data(db: Session): # noqa
     rows = db.execute(text("SELECT reference_id, curie "
                            "FROM cross_reference "
                            "WHERE curie_prefix in ('PMID', 'DOI') "
-                           "AND is_obsolete is False")).fetchall()
+                           "AND obsolete is False")).fetchall()
 
     # reference_id_pmid = {row[0]: row[1] for row in rows if row[1].startswith('PMID')}
     # reference_id_doi = {row[0]: row[1] for row in rows if row[1].startswith('DOI')}

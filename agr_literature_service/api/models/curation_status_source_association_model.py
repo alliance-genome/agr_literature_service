@@ -10,7 +10,7 @@ each other, and nothing is reconciled at write time.
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -25,14 +25,15 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
     __versioned__: Dict = {}
 
     curation_status_source_association_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     curation_status_id = Column(
-        Integer,
-        ForeignKey("curation_status.curation_status_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("curation_status.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -49,8 +50,8 @@ class CurationStatusSourceAssociationModel(AuditedModel, Base):
     # Deleting a source therefore drops its attributions; sources are not
     # deleted in normal operation.
     tag_source_id = Column(
-        Integer,
-        ForeignKey("tag_source.tag_source_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("tag_source.id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

@@ -164,17 +164,17 @@ SGD_CURATOR_EMAIL_DOMAIN = "stanford.edu"
 
 # SGD NEX2 created_by values are curator database ids that match the curator's
 # first name, last name, or Stanford email local-part -- forms the generic
-# user_utils.map_to_user_id resolver does NOT handle (it only matches users.id,
+# user_utils.map_to_user_id resolver does NOT handle (it only matches an agent label,
 # full email, or full-name/initials+last).
 _SGD_CURATOR_MATCH_SQL = text(r"""
     WITH candidates AS (
-        SELECT u.id AS users_id,
+        SELECT p.curie AS users_id,
                regexp_split_to_array(trim(p.display_name), '\s+') AS toks,
                lower(split_part(e.email_address, '@', 1)) AS email_local,
                lower(split_part(e.email_address, '@', 2)) AS email_domain
-        FROM   users u
-        JOIN   person p ON u.person_id = p.person_id
-        JOIN   person_email e ON e.person_id = p.person_id
+        FROM   agent u
+        JOIN   person p ON u.person_id = p.id
+        JOIN   person_email e ON e.person_id = p.id
     )
     SELECT DISTINCT users_id
     FROM   candidates
@@ -187,7 +187,7 @@ _SGD_CURATOR_MATCH_SQL = text(r"""
 
 def resolve_sgd_created_by(db: Session, sgd_created_by: str,
                            cache: Dict[str, str]) -> Optional[str]:
-    """Resolve an SGD NEX2 created_by database id to the users.id of the
+    """Resolve an SGD NEX2 created_by database id to the agent label of the
     matching curator, memoizing per-id results in ``cache``.
 
     A match is a person with a @stanford.edu email whose first name, last name
@@ -195,7 +195,7 @@ def resolve_sgd_created_by(db: Session, sgd_created_by: str,
     SGD id, case-insensitively. When there is no match (or several people
     match), the SGD id itself is returned and used verbatim as
     created_by/updated_by -- the audit layer then auto-creates an automation
-    users row for it (ensure_user_exists_on_connection), per SCRUM-6404.
+    agent for it (resolve_agent_id), per SCRUM-6404.
     Returns None for an empty id, leaving the tag to the script's global user.
     """
     key = (sgd_created_by or "").strip()
@@ -208,7 +208,7 @@ def resolve_sgd_created_by(db: Session, sgd_created_by: str,
     users_ids = sorted({row[0] for row in rows})
     if len(users_ids) == 1:
         resolved = users_ids[0]
-        logger.info(f"SGD created_by {key} resolved to users.id {resolved}")
+        logger.info(f"SGD created_by {key} resolved to agent {resolved}")
     elif users_ids:
         resolved = key
         logger.warning(f"SGD created_by {key} matches multiple users {users_ids}; "
@@ -216,7 +216,7 @@ def resolve_sgd_created_by(db: Session, sgd_created_by: str,
     else:
         resolved = key
         logger.info(f"SGD created_by {key} matches no Stanford person; "
-                    "a users row will be auto-created for it")
+                    "an agent will be auto-created for it")
     cache[key] = resolved
     return resolved
 
@@ -316,9 +316,9 @@ def build_sgd_ref_curie_map(db: Session) -> Dict[str, str]:
     rows = db.execute(text(
         "SELECT cr.curie, r.curie "
         "FROM   cross_reference cr, reference r "
-        "WHERE  cr.reference_id = r.reference_id "
+        "WHERE  cr.reference_id = r.id "
         "AND    cr.curie_prefix = :prefix "
-        "AND    cr.is_obsolete IS FALSE"
+        "AND    cr.obsolete IS FALSE"
     ), {"prefix": SGD_CURIE_PREFIX}).fetchall()
     return {row[0]: row[1] for row in rows}
 
@@ -329,8 +329,8 @@ def build_sgd_corpus_ref_curies(db: Session) -> Set[str]:
     rows = db.execute(text(
         "SELECT r.curie "
         "FROM   mod_corpus_association mca "
-        "JOIN   reference r ON mca.reference_id = r.reference_id "
-        "JOIN   mod m ON mca.mod_id = m.mod_id "
+        "JOIN   reference r ON mca.reference_id = r.id "
+        "JOIN   mod m ON mca.mod_id = m.id "
         "WHERE  m.abbreviation = :abbr "
         "AND    mca.corpus IS TRUE"
     ), {"abbr": SECONDARY_DATA_PROVIDER_ABBR}).fetchall()
@@ -362,9 +362,11 @@ def load_existing_entity_tags(db: Session, source_id: int,
     memory) the whole historical tag set the way the one-off full load has
     to."""
     sql = ("SELECT r.curie, tet.entity_type, tet.entity, "
-           "       tet.topic_entity_tag_id, tet.display_tag, tet.date_created, tet.created_by "
+           "       tet.id AS topic_entity_tag_id, tet.display_tag, tet.date_created, "
+           "       (SELECT COALESCE(a.automation_username, p.curie) FROM agent a "
+           "        LEFT JOIN person p ON p.id = a.person_id WHERE a.id = tet.created_by_id) AS created_by "
            "FROM   topic_entity_tag tet "
-           "JOIN   reference r ON tet.reference_id = r.reference_id "
+           "JOIN   reference r ON tet.reference_id = r.id "
            "WHERE  tet.tag_source_id = :sid "
            "AND    ((tet.topic = tet.entity_type AND tet.entity_type = ANY(:atps)) "
            "        OR (tet.topic = :root_topic AND tet.entity IS NULL "
@@ -401,10 +403,10 @@ def load_abc_entity_tags(db: Session,
     load_existing_entity_tags."""
     sql = ("SELECT r.curie, tet.entity_type, tet.entity, tet.display_tag "
            "FROM   topic_entity_tag tet "
-           "JOIN   reference r ON tet.reference_id = r.reference_id "
+           "JOIN   reference r ON tet.reference_id = r.id "
            "JOIN   tag_source tets "
-           "       ON tet.tag_source_id = tets.tag_source_id "
-           "JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id "
+           "       ON tet.tag_source_id = tets.id "
+           "JOIN   mod m ON tets.secondary_data_provider_id = m.id "
            "WHERE  tets.source_method = :abc_method "
            "AND    m.abbreviation = :abbr "
            "AND    tet.species = :species "

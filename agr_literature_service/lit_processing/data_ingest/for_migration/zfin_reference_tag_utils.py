@@ -41,9 +41,13 @@ ZFIN_CURIE_PREFIX = "ZFIN"
 # ATP:0000334 = "existing data"; used for every pure entity tag (topic == entity_type).
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
-# ATP:0000325 = "experimentally studied data" (SCRUM-5697). ZFIN's gene- and
-# allele-publication associations record data the paper actually studied.
-EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
+# ATP:0000406 = "experimentally studied entity" (SCRUM-6815). ZFIN's gene- and
+# allele-publication associations record entities the paper actually studied,
+# and ZFIN asked for this term on curator-added entities when ATP:0000325
+# "experimentally studied data" was deprecated (2026-10-30). Existing tags were
+# backfilled to it. load_existing_entity_pairs keys on (reference, entity), not
+# data_context, so the change cannot make a weekly re-run duplicate a tag.
+EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP = "ATP:0000406"
 DANIO_RERIO_TAXON = "NCBITaxon:7955"
 # entity_id_validation "alliance" resolves ZFIN entity curies to names via the
 # Alliance persistent store.
@@ -163,9 +167,9 @@ def build_zfin_pub_to_ref_curie(db: Session) -> Dict[str, str]:
     rows = db.execute(text(
         "SELECT cr.curie, r.curie "
         "FROM   cross_reference cr, reference r "
-        "WHERE  cr.reference_id = r.reference_id "
+        "WHERE  cr.reference_id = r.id "
         "AND    cr.curie_prefix = :prefix "
-        "AND    cr.is_obsolete IS FALSE"
+        "AND    cr.obsolete IS FALSE"
     ), {"prefix": ZFIN_CURIE_PREFIX}).fetchall()
     return {row[0]: row[1] for row in rows}
 
@@ -176,8 +180,8 @@ def build_zfin_corpus_ref_curies(db: Session) -> Set[str]:
     rows = db.execute(text(
         "SELECT r.curie "
         "FROM   mod_corpus_association mca "
-        "JOIN   reference r ON mca.reference_id = r.reference_id "
-        "JOIN   mod m ON mca.mod_id = m.mod_id "
+        "JOIN   reference r ON mca.reference_id = r.id "
+        "JOIN   mod m ON mca.mod_id = m.id "
         "WHERE  m.abbreviation = :abbr "
         "AND    mca.corpus IS TRUE"
     ), {"abbr": SECONDARY_DATA_PROVIDER_ABBR}).fetchall()
@@ -195,7 +199,7 @@ def load_existing_entity_pairs(db: Session, source_id: int,
     rows = db.execute(text(
         "SELECT r.curie, tet.entity "
         "FROM   topic_entity_tag tet "
-        "JOIN   reference r ON tet.reference_id = r.reference_id "
+        "JOIN   reference r ON tet.reference_id = r.id "
         "WHERE  tet.tag_source_id = :sid "
         "AND    tet.topic = :atp "
         "AND    tet.entity_type = :atp"

@@ -36,10 +36,10 @@ def check_data():
                                        f"FROM reference r, mod m, mod_corpus_association mca, topic_entity_tag tet "
                                        f"WHERE (tet.topic = '{atp_curie}' or tet.entity_type = '{atp_curie}' "
                                        f"       or tet.display_tag = '{atp_curie}') "
-                                       f"AND tet.reference_id = r.reference_id "
+                                       f"AND tet.reference_id = r.id "
                                        f"AND tet.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.mod_id = m.mod_id")).fetchall()
+                                       f"AND mca.mod_id = m.id")).fetchall()
 
         cols_to_check = ['topic', 'entity_type']
         for row in rows:

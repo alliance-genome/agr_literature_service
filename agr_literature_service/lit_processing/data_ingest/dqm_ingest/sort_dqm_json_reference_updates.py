@@ -10,12 +10,14 @@ from os import environ, makedirs, path
 from dotenv import load_dotenv
 from collections import defaultdict
 
+from agr_literature_service.lit_processing.data_ingest.utils.author_person_status_updates import \
+    apply_author_reload_statuses, discard_author_reload_marks
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, update_md5sum
 from agr_literature_service.api.models import ReferenceModel, ModModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     write_json
-from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier, xref_lookup_key
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session, sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_dqm_loading_report, \
@@ -24,6 +26,8 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.parse_dqm_json
     generate_pmid_data, aggregate_dqm_with_pubmed
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    refresh_pmids_from_pubmed
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     get_pmids_from_exclude_list
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import \
@@ -38,10 +42,13 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
-    add_file_needed_for_new_papers, set_category_for_fb_note_papers
+    add_file_needed_for_new_papers
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_category_utils import \
+    set_reference_category
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import cleanup_temp_directory
+from agr_literature_service.lit_processing.utils.container_log_utils import emit_error_record
 
 # For WB needing 57578 references checked for updating,
 # It would take 48 hours to query the database through the API one by one.
@@ -167,6 +174,20 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 base_path = environ.get('XML_PATH')
+# the crontab job name, used in the ABC-DQM-FAILED records
+DQM_JOB_NAME = path.splitext(path.basename(__file__))[0]
+
+
+def new_pmid_needs_new_reference(new_pmid, agr, xrefs_to_add):
+    """
+    For a DQM entry with a PMID not yet in the database whose other IDs (e.g. DOI) matched the
+    one reference agr: the PMID is attached to agr when it is queued in xrefs_to_add, so only
+    create a new reference when it is not. Creating one as well made a duplicate of agr that
+    could not keep the DOI (SCRUM-6864).
+    """
+    if new_pmid is None:
+        return False
+    return new_pmid not in xrefs_to_add.get(agr, {}).get('PMID', {})
 
 
 def load_pmids_not_found():
@@ -212,12 +233,12 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
     mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
     XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(text(
         "SELECT curie, resource_id FROM cross_reference WHERE resource_id is not null "
-        "AND is_obsolete is False")).mappings().fetchall()}
+        "AND obsolete is False")).mappings().fetchall()}
     rows = db_session.execute(text(
         "SELECT r.curie, c.curie_prefix, c.curie FROM reference r, cross_reference c "
         "WHERE c.curie_prefix = 'CGC' "
-        "AND c.is_obsolete is False "
-        "AND r.reference_id = c.reference_id")).mappings().fetchall()
+        "AND c.obsolete is False "
+        "AND r.id = c.reference_id")).mappings().fetchall()
     ref_cgcs_valid = defaultdict(lambda: defaultdict(set))
     for agr, prefix, identifier in rows:
         ref_cgcs_valid[agr][prefix].add(identifier)
@@ -436,9 +457,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                 if prefix not in dqm_xrefs:
                     dqm_xrefs[prefix] = set()
                 dqm_xrefs[prefix].add(identifier)
+                key = xref_lookup_key(prefix, identifier)
                 if prefix in xref_ref:
-                    if identifier in xref_ref[prefix]:
-                        agr = xref_ref[prefix][identifier]
+                    if key in xref_ref[prefix]:
+                        agr = xref_ref[prefix][key]
                         agrs_found.add(agr)
 
             flag_dqm_prefix_fail = False
@@ -471,11 +493,11 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                         references_to_create.append(entry)
                 fh_mod_report[mod].write("dqm %s too many matches %s\n" % (entry['primaryId'], ', '.join(sorted(map(lambda x: url_ref_curie_prefix + x, agrs_found)))))
             elif len(agrs_found) == 1:
+                new_pmid = None
                 if primary_id.startswith('PMID:'):
                     identifier = primary_id.replace("PMID:", "")
                     if identifier not in xref_ref['PMID']:
-                        ## it is a new pmid, so add it
-                        references_to_create.append(entry)
+                        new_pmid = identifier
                 agr = agrs_found.pop()
                 agr_url = url_ref_curie_prefix + agr
                 flag_aggregate_biblio = False
@@ -531,6 +553,9 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                                     xrefs_to_add[agr][prefix][ident] = set()
                                 xrefs_to_add[agr][prefix][ident].add(filename)
                                 # logger.info("Action : Add dqm xref %s %s to agr %s", prefix, ident, agr)  # dealt with below, not needed
+
+                if new_pmid_needs_new_reference(new_pmid, agr, xrefs_to_add):
+                    references_to_create.append(entry)
 
                 ## do not do anything if there is any XREF ID conflict
                 if xref_conflict:
@@ -611,6 +636,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
 
         ## add new cross_reference XREF IDs
         add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
+        # a PMID added to an existing reference (e.g. a MOD record found by its DOI) gets its PubMed data now
+        if live_change:
+            refresh_pmids_from_pubmed([x["curie"].replace("PMID:", "") for x in cross_reference_to_add
+                                       if x["curie"].startswith("PMID:")], logger)
 
         ## update references with md5sum changed
         curie_to_reftypesConflict = update_db_entries(mod, mod_to_mod_id,
@@ -686,12 +715,6 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
             except Exception as e:
                 logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
         fh_mod_report[mod].close()
-
-        if mod == 'FB':
-            try:
-                set_category_for_fb_note_papers(db_session, logger=logger)
-            except Exception as e:
-                logger.info("An error occurred when updating category for FB papers with 'note' reference type:" + str(e))
 
         try:
             mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
@@ -897,12 +920,13 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
+                    if field_snake == 'category':
+                        # set below by set_reference_category, with this as one of its sources
+                        continue
                     dqm_value = None
                     db_value = None
                     if field_camel in dqm_entry:
                         dqm_value = dqm_entry[field_camel]
-                        if field_snake == 'category' and dqm_value:
-                            dqm_value = dqm_value.lower().replace(" ", "_")
                     if field_snake in db_entry:
                         db_value = db_entry[field_snake]
                     if field_camel in ['datePublishedStart', 'datePublishedEnd']:
@@ -915,8 +939,6 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     if dqm_value != db_value:
                         logger.info(f"patch {agr} {dqm_entry['primaryId']} field {field_snake} from db {db_value} to dqm {dqm_value}")
                         update_json[field_snake] = dqm_value
-                        if field_snake == 'category':
-                            update_json[field_snake] = update_json[field_snake].replace(' ', '_')
 
                 # ignore keywords after initial 2021 Nov load
                 # keywords_changed = compare_keywords(db_entry, dqm_entry)
@@ -953,10 +975,23 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                     except Exception as e:
                         logger.info("An error occurred when updating reference row for curie = " + agr + " " + str(e))
 
+            # the MOD reference types may have changed: set the category they give.
+            # A paper with no PMID also has the MOD's own category as a source.
+            try:
+                dqm_category = dqm_entry.get('allianceCategory') if processing_flag == 'mod_biblio_all' else None
+                changed = set_reference_category(db_session, db_entry['reference_id'], dqm_category)
+                if changed:
+                    logger.info(f"{agr}: category {changed[0]} -> {changed[1]}")
+            except Exception as e:
+                logger.info(f"{agr}: error setting the category: {e}")
+
         if live_change:
             db_session.commit()
+            # SCRUM-6827: author-person status of a paper whose authors were reloaded
+            apply_author_reload_statuses(db_session, logger)
         else:
             db_session.rollback()
+            discard_author_reload_marks(db_session)
     db_session.close()
     return curie_to_reftypesConflict
 
@@ -1005,17 +1040,20 @@ if __name__ == "__main__":
     # stale REFERENCE_<MOD>.json and is reported per MOD — previously it was
     # only a swallowed log line, and the mod was silently skipped (or worse,
     # silently reloaded from a stale file).
-    failed_download_mods = []
+    failed_download_mods = {}
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
         failed_mods = download_dqm_reference_json()
         if processing_download_dir:
             failed_download_mods = failed_mods
-            for failed_mod in failed_download_mods:
+            for failed_mod, error in failed_download_mods.items():
                 send_report(f"{failed_mod} DQM Loading Failed",
                             f"The {failed_mod} DQM REFERENCE download/unpack failed; "
-                            f"{failed_mod} was skipped this run. See the dqm loading "
-                            f"log for the error.")
+                            f"{failed_mod} was skipped this run. Error: {html.escape(error)}")
+                # the job still exits 0 (ABC-JOB-OK), so this is what puts the
+                # skipped MOD in Athena as an ERROR
+                emit_error_record("ABC-DQM-FAILED", error, job=DQM_JOB_NAME, mod=failed_mod,
+                                  datatype="REFERENCE", step="download")
         # update_resource_pubmed_nlm()
     mods = [args['mod']] if args['mod'] else get_mod_abbreviations()
     for mod in mods:
@@ -1027,5 +1065,7 @@ if __name__ == "__main__":
             tb = traceback.format_exc()
             send_report(f"{mod} DQM Loading Failed",
                         f"Error message: {e}<p>Traceback:<br>{tb}")
+            emit_error_record("ABC-DQM-FAILED", f"{type(e).__name__}: {e}", job=DQM_JOB_NAME,
+                              mod=mod, datatype="REFERENCE", step="load")
     cleanup_temp_directory("dqm_data")
     logger.info("ending sort_dqm_json_reference_updates.py")

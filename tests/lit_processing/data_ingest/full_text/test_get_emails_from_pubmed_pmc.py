@@ -3,6 +3,7 @@
 No network and no database: the HTTP layer is exercised against a fake
 requests.post, and the DB-facing functions against a fake session object.
 """
+from datetime import datetime
 from typing import Dict, List, Optional
 
 import pytest
@@ -10,7 +11,7 @@ import requests
 
 import agr_literature_service.lit_processing.data_ingest.full_text.get_emails_from_pubmed_pmc as mod
 from agr_literature_service.lit_processing.data_ingest.full_text.get_emails_from_pubmed_pmc import (
-    EMAIL_COMPLETE,
+    EMAIL_EXTRACTION_JOB,
     EMAIL_NEEDED,
     SOURCE_PMC,
     SOURCE_PUBMED,
@@ -20,13 +21,12 @@ from agr_literature_service.lit_processing.data_ingest.full_text.get_emails_from
     eutils_post,
     fetch_pmc_emails,
     fetch_pubmed_emails,
-    get_candidates,
-    get_email_extraction_mods,
+    get_jobs,
+    job_is_done,
     map_pmids_to_pmcids,
     parse_args,
     parse_pmc_emails,
     parse_pubmed_emails,
-    plan_tag_actions,
 )
 
 
@@ -174,24 +174,22 @@ def test_download_emails_cascade(monkeypatch):
     assert calls == ["efetch:pubmed", "elink:pmc", "efetch:pmc"]
 
 
+RECENT = datetime(2026, 6, 1)
+OLD = datetime(2023, 1, 1)
+GIVE_UP_BEFORE = datetime(2024, 11, 1)
+
+
 @pytest.mark.parametrize(
-    "has_needed, has_failed, emails_found, expected",
+    "emails_found, entered_corpus, done",
     [
-        # emails found: untagged pair walks seed(needed) -> transition(complete)
-        (False, False, True, [("seed", EMAIL_NEEDED), ("transition", EMAIL_COMPLETE)]),
-        # emails found: pending pair just completes
-        (True, False, True, [("transition", EMAIL_COMPLETE)]),
-        # emails found: failed pair retries (failed->needed) then completes
-        (False, True, True, [("transition", EMAIL_NEEDED), ("transition", EMAIL_COMPLETE)]),
-        # no emails: untagged pair is handed to the full-text pipeline
-        (False, False, False, [("seed", EMAIL_NEEDED)]),
-        # no emails: pending/failed pairs are left alone
-        (True, False, False, []),
-        (False, True, False, []),
+        (True, RECENT, True),    # emails found: the job succeeds
+        (True, OLD, True),
+        (False, RECENT, False),  # nothing yet: left for the full-text extraction
+        (False, OLD, True),      # nothing for 2 years: given up, done without an email
     ],
 )
-def test_plan_tag_actions(has_needed, has_failed, emails_found, expected):
-    assert plan_tag_actions(has_needed, has_failed, emails_found) == expected
+def test_job_is_done(emails_found, entered_corpus, done):
+    assert job_is_done(emails_found, entered_corpus, GIVE_UP_BEFORE) is done
 
 
 # ----------------------------------------------------------------------
@@ -353,19 +351,20 @@ class FakeDB:
         return self.rows
 
 
-def test_get_email_extraction_mods():
-    db = FakeDB([(1, "FB"), (4, "SGD")])
-    assert get_email_extraction_mods(db) == {1: "FB", 4: "SGD"}
+def test_get_jobs_reads_the_job_list():
+    db = FakeDB([(77, 9, "AGRKB:1", "PMID:123", "SGD", RECENT),
+                 (78, 10, "AGRKB:2", None, "WB", OLD)])
+    jobs = get_jobs(db, only_mods=["sgd", "WB"], limit=5)
+    assert jobs == [(77, 9, "AGRKB:1", "123", "SGD", RECENT),
+                    (78, 10, "AGRKB:2", None, "WB", OLD)]
+    assert db.params == {"needed": EMAIL_NEEDED, "job_like": f"%{EMAIL_EXTRACTION_JOB}%",
+                         "mods": ["SGD", "WB"], "limit": 5}
 
 
-def test_get_candidates_strips_pmid_prefix_and_binds_window():
-    db = FakeDB([(9, "AGRKB:1", "PMID:123", 4, "SGD", False, True)])
-    candidates = get_candidates(db, [4], "2024-01-01", "2027-01-01", limit=5)
-    assert candidates == [(9, "AGRKB:1", "123", 4, "SGD", False, True)]
-    assert db.params["since"] == "2024-01-01"
-    assert db.params["until"] == "2027-01-01"
-    assert db.params["limit"] == 5
-    assert db.params["curator_like"].endswith("%")
+def test_get_jobs_without_filters_binds_only_the_job():
+    db = FakeDB([])
+    assert get_jobs(db) == []
+    assert set(db.params) == {"needed", "job_like"}
 
 
 # ----------------------------------------------------------------------
@@ -390,81 +389,79 @@ class FakeSession:
         pass
 
 
-def test_apply_results_loads_emails_and_tags(monkeypatch):
+def _record_jobs(monkeypatch):
+    finished = []
+    monkeypatch.setattr(mod, "job_change_atp_code",
+                        lambda db, reference_workflow_tag_id, condition: finished.append(
+                            (reference_workflow_tag_id, condition)))
+    return finished
+
+
+def test_apply_results_loads_emails_and_finishes_jobs(monkeypatch):
     loaded = []
-    transitions = []
     monkeypatch.setattr(mod, "set_reference_emails",
                         lambda db, curie, emails: loaded.append((curie, emails)))
-    monkeypatch.setattr(mod, "transition_to_workflow_status",
-                        lambda db, ref_id, mod_abbr, tag, transition_type: transitions.append(
-                            (ref_id, mod_abbr, tag, transition_type)))
+    finished = _record_jobs(monkeypatch)
     db = FakeSession()
-    candidates = [
-        # one reference in two MOD corpora: emails loaded once, tagged per mod
-        (9, "AGRKB:1", "123", 4, "SGD", False, False),
-        (9, "AGRKB:1", "123", 2, "WB", True, False),
-        # no emails, untagged: seeded needed
-        (10, "AGRKB:2", "456", 4, "SGD", False, False),
-        # no emails, already needed: left alone
-        (11, "AGRKB:3", "789", 4, "SGD", True, False),
+    jobs = [
+        # one reference in two MOD corpora: emails loaded once, each job finished
+        (77, 9, "AGRKB:1", "123", "SGD", RECENT),
+        (78, 9, "AGRKB:1", "123", "WB", RECENT),
+        # no emails, recent: stays needed for the full-text extraction
+        (79, 10, "AGRKB:2", "456", "SGD", RECENT),
+        # no emails for 2 years: done without an email
+        (80, 11, "AGRKB:3", "789", "SGD", OLD),
+        # no PMID: nothing to download, only the give-up rule applies
+        (81, 12, "AGRKB:4", None, "WB", OLD),
+        (82, 13, "AGRKB:5", None, "WB", RECENT),
     ]
     results = {"123": (["a@b.edu"], SOURCE_PUBMED)}
 
-    counters = apply_results(db, candidates, results, dry_run=False)
+    counters = apply_results(db, jobs, results, GIVE_UP_BEFORE, dry_run=False)
 
     assert loaded == [("AGRKB:1", ["a@b.edu"])]
-    assert transitions == [("9", "SGD", EMAIL_COMPLETE, "automated"),
-                           ("9", "WB", EMAIL_COMPLETE, "automated")]
-    # seeded: needed for (9, SGD) before its transition, and for the
-    # no-email untagged pair (10, SGD)
-    assert [(w.reference_id, w.mod_id, w.workflow_tag_id) for w in db.added] == [
-        (9, 4, EMAIL_NEEDED), (10, 4, EMAIL_NEEDED)]
-    assert counters == {"emails_loaded": 1, "tagged_complete": 2,
-                        "tagged_needed": 1, "errors": 0}
+    assert finished == [(77, "on_success"), (78, "on_success"), (80, "on_success"), (81, "on_success")]
+    assert db.added == []   # no workflow tag is written directly
+    assert counters == {"emails_loaded": 1, "complete_with_emails": 2, "complete_without_emails": 2,
+                        "still_needed": 2, "errors": 0}
 
 
 def test_apply_results_dry_run_writes_nothing(monkeypatch):
     monkeypatch.setattr(mod, "set_reference_emails",
                         lambda *args: pytest.fail("must not load in dry run"))
-    monkeypatch.setattr(mod, "transition_to_workflow_status",
-                        lambda *args, **kwargs: pytest.fail("must not transition in dry run"))
+    monkeypatch.setattr(mod, "job_change_atp_code",
+                        lambda *args, **kwargs: pytest.fail("must not finish jobs in dry run"))
     db = FakeSession()
-    candidates = [(9, "AGRKB:1", "123", 4, "SGD", False, False)]
-    counters = apply_results(db, candidates, {"123": (["a@b.edu"], SOURCE_PUBMED)},
-                             dry_run=True)
+    jobs = [(77, 9, "AGRKB:1", "123", "SGD", RECENT)]
+    counters = apply_results(db, jobs, {"123": (["a@b.edu"], SOURCE_PUBMED)}, GIVE_UP_BEFORE, dry_run=True)
     assert db.added == [] and db.commits == 0
-    assert counters["emails_loaded"] == 1 and counters["tagged_complete"] == 1
+    assert counters["emails_loaded"] == 1 and counters["complete_with_emails"] == 1
 
 
 def test_apply_results_isolates_errors(monkeypatch):
     monkeypatch.setattr(mod, "set_reference_emails", lambda db, curie, emails: None)
 
-    def explode(db, ref_id, mod_abbr, tag, transition_type):
-        if ref_id == "9":
+    def explode(db, reference_workflow_tag_id, condition):
+        if reference_workflow_tag_id == 77:
             raise RuntimeError("transition rejected")
 
-    monkeypatch.setattr(mod, "transition_to_workflow_status", explode)
+    monkeypatch.setattr(mod, "job_change_atp_code", explode)
     db = FakeSession()
-    candidates = [(9, "AGRKB:1", "123", 4, "SGD", True, False),
-                  (10, "AGRKB:2", "456", 4, "SGD", True, False)]
+    jobs = [(77, 9, "AGRKB:1", "123", "SGD", RECENT),
+            (78, 10, "AGRKB:2", "456", "SGD", RECENT)]
     results = {"123": (["a@b.edu"], SOURCE_PUBMED),
                "456": (["c@d.edu"], SOURCE_PMC)}
-    counters = apply_results(db, candidates, results, dry_run=False)
+    counters = apply_results(db, jobs, results, GIVE_UP_BEFORE, dry_run=False)
     # the first reference errored and rolled back; the second still completed
     assert counters["errors"] == 1
-    assert counters["tagged_complete"] == 1
-    assert db.rollbacks == 1
+    assert db.rollbacks == 1 and db.commits == 1
 
 
 # ----------------------------------------------------------------------
-# run() driver (all collaborators monkeypatched)
-# ----------------------------------------------------------------------
-def _patch_run_collaborators(monkeypatch, mods, candidates, results):
+def _patch_run_collaborators(monkeypatch, jobs, results):
     monkeypatch.setattr(mod, "create_postgres_session", lambda verbose: FakeSession())
     monkeypatch.setattr(mod, "set_global_user_id", lambda db, name: None)
-    monkeypatch.setattr(mod, "get_email_extraction_mods", lambda db: mods)
-    monkeypatch.setattr(mod, "get_candidates",
-                        lambda db, mod_ids, since, until, limit=None: candidates)
+    monkeypatch.setattr(mod, "get_jobs", lambda db, only_mods=None, limit=None: jobs)
     monkeypatch.setattr(mod, "download_emails",
                         lambda pmids, pmc_all=False: results)
 
@@ -472,28 +469,30 @@ def _patch_run_collaborators(monkeypatch, mods, candidates, results):
 def test_run_end_to_end(monkeypatch):
     _patch_run_collaborators(
         monkeypatch,
-        mods={4: "SGD"},
-        candidates=[(9, "AGRKB:1", "123", 4, "SGD", False, False)],
+        jobs=[(77, 9, "AGRKB:1", "123", "SGD", RECENT)],
         results={"123": (["a@b.edu"], SOURCE_PUBMED)},
     )
-    counters = mod.run(since="2024-01-01", until="2027-01-01", dry_run=True)
-    assert counters == {"emails_loaded": 1, "tagged_complete": 1,
-                        "tagged_needed": 0, "errors": 0}
+    counters = mod.run(dry_run=True)
+    assert counters == {"emails_loaded": 1, "complete_with_emails": 1, "complete_without_emails": 0,
+                        "still_needed": 0, "errors": 0}
 
 
-def test_run_mod_filter_and_empty_cases(monkeypatch):
-    _patch_run_collaborators(monkeypatch, mods={4: "SGD"}, candidates=[], results={})
-    # only_mods filters SGD away -> nothing to do
-    assert mod.run(since="2024-01-01", until="2027-01-01",
-                   only_mods=["WB"], dry_run=True) == {}
-    # MOD selected but no candidates in the window
-    assert mod.run(since="2024-01-01", until="2027-01-01", dry_run=True) == {}
+def test_run_without_pmids_downloads_nothing(monkeypatch):
+    _patch_run_collaborators(monkeypatch, jobs=[(81, 12, "AGRKB:4", None, "WB", OLD)], results={})
+    monkeypatch.setattr(mod, "download_emails", lambda *args, **kwargs: pytest.fail("nothing to download"))
+    counters = mod.run(dry_run=True)
+    assert counters["complete_without_emails"] == 1
+
+
+def test_run_with_no_jobs(monkeypatch):
+    _patch_run_collaborators(monkeypatch, jobs=[], results={})
+    assert mod.run(only_mods=["WB"], dry_run=True) == {}
 
 
 def test_parse_args_defaults(monkeypatch):
     monkeypatch.setattr("sys.argv", ["get_emails_from_pubmed_pmc.py"])
     args = parse_args()
-    assert args.since == mod.DEFAULT_SINCE
+    assert args.give_up_after_days == mod.DEFAULT_GIVE_UP_AFTER_DAYS == 730
     assert not args.commit and args.mods is None and args.limit is None
 
 

@@ -138,7 +138,7 @@ def update_corpus_in_mca_table(db, mod_id, to_update_mca):
 def get_mod_id(db):
 
     query = text(
-        f"SELECT mod_id "
+        f"SELECT id AS mod_id "
         f"FROM mod "
         f"WHERE abbreviation = '{MOD}'"
     )
@@ -158,7 +158,7 @@ def get_mod_references(db, mod_id):
 
 def get_pmids(db):
     query = text(
-        "SELECT reference_id, curie, is_obsolete "
+        "SELECT reference_id, curie, obsolete AS is_obsolete "
         "FROM cross_reference "
         "WHERE curie_prefix = 'PMID'"
     )

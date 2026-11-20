@@ -21,7 +21,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     cleanup_tags_for_retracted_papers, \
     set_retraction_status, \
     restore_file_upload_workflow_tags, \
-    add_zfin_corpus_entry_tags
+    add_zfin_corpus_entry_tags, add_corpus_entry_tags, \
+    add_file_needed_for_new_papers
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, \
     authors_lists_are_equal, authors_have_same_name
 
@@ -39,6 +40,7 @@ class TestZfinCorpusEntryTags:
     PRE_INDEXING_COMPLETE = "ATP:0000303"
     PROBE_NEEDED = "ATP:0000380"
     PROBE_COMPLETE = "ATP:0000387"
+    EMAIL_NEEDED = "ATP:0000358"
 
     def _zfin_ref(self, db): # noqa
         ref = db.query(ReferenceModel).first()
@@ -77,7 +79,8 @@ class TestZfinCorpusEntryTags:
     def test_grants_both_tags(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db)
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
-        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED}
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED,
+                                                        self.EMAIL_NEEDED}
 
     def test_probe_tag_granted_when_pre_indexing_already_present(self, db, load_sanitized_references): # noqa
         """The behaviour the backfill depends on: each tag is guarded against its OWN
@@ -88,7 +91,8 @@ class TestZfinCorpusEntryTags:
 
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
 
-        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_COMPLETE, self.PROBE_NEEDED}
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_COMPLETE, self.PROBE_NEEDED,
+                                                        self.EMAIL_NEEDED}
 
     def test_is_idempotent(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db)
@@ -96,6 +100,7 @@ class TestZfinCorpusEntryTags:
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
         assert self._count(db, reference_id, mod_id, self.PROBE_NEEDED) == 1
         assert self._count(db, reference_id, mod_id, self.PRE_INDEXING_NEEDED) == 1
+        assert self._count(db, reference_id, mod_id, self.EMAIL_NEEDED) == 1
 
     def test_probe_tag_not_regranted_once_complete(self, db, load_sanitized_references): # noqa
         reference_id, mod_id = self._seed(db, self.PROBE_COMPLETE)
@@ -103,7 +108,84 @@ class TestZfinCorpusEntryTags:
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
 
         # probe already entered its workflow; pre-indexing had not, so only it is granted
-        assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED}
+        assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED,
+                                                        self.EMAIL_NEEDED}
+
+
+class TestWbCorpusEntryTags:
+    """SCRUM-6487: author-person curation needed (ATP:0000109) is opt-in from the
+    sort page, so the ingest path (DQM / post_reference_to_db) never grants it."""
+
+    NEEDED = "ATP:0000109"
+
+    def _seed(self, db, *atp_ids): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'WB').scalar()
+        db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id,
+            WorkflowTagModel.mod_id == mod_id).delete()
+        for atp_id in atp_ids:
+            db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id, workflow_tag_id=atp_id))
+        db.commit()
+        return ref.reference_id, mod_id
+
+    def _tags(self, db, reference_id, mod_id): # noqa
+        return sorted(t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id).all())
+
+    def test_ingest_does_not_grant_needed(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db)
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "WB")
+        assert self.NEEDED not in self._tags(db, reference_id, mod_id)
+
+    def test_other_mods_get_nothing(self, db, load_sanitized_references): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'MGI').scalar()
+        before = self._tags(db, ref.reference_id, mod_id)
+        add_corpus_entry_tags(db, ref.reference_id, mod_id, logger, "MGI")
+        assert self._tags(db, ref.reference_id, mod_id) == before
+
+
+class TestEmailAndSgdCorpusEntryTags:
+    """SCRUM-6845: corpus entry starts email extraction for FB/SGD/WB/XB/ZFIN, and SGD's
+    "manual indexing needed" on every path, each only when the paper has no state in
+    that workflow yet."""
+
+    EMAIL_NEEDED = "ATP:0000358"
+    EMAIL_COMPLETE = "ATP:0000355"
+    MI_NEEDED = "ATP:0000274"
+    MI_COMPLETE = "ATP:0000275"
+
+    def _ref_and_mod(self, db, mod_abbreviation, *atp_ids): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).scalar()
+        db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id, WorkflowTagModel.mod_id == mod_id).delete()
+        for atp_id in atp_ids:
+            db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id, workflow_tag_id=atp_id))
+        db.commit()
+        return ref.reference_id, mod_id
+
+    def _tags(self, db, reference_id, mod_id): # noqa
+        return sorted(t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id, WorkflowTagModel.mod_id == mod_id).all())
+
+    def test_email_mods_get_email_extraction_needed(self, db, load_sanitized_references): # noqa
+        for mod_abbreviation in ("FB", "WB", "XB"):
+            reference_id, mod_id = self._ref_and_mod(db, mod_abbreviation)
+            add_corpus_entry_tags(db, reference_id, mod_id, logger, mod_abbreviation)
+            assert self._tags(db, reference_id, mod_id) == [self.EMAIL_NEEDED]
+
+    def test_sgd_gets_manual_indexing_and_email(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._ref_and_mod(db, "SGD")
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "SGD")
+        assert self._tags(db, reference_id, mod_id) == [self.MI_NEEDED, self.EMAIL_NEEDED]
+
+    def test_a_workflow_already_entered_is_left_alone(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._ref_and_mod(db, "SGD", self.MI_COMPLETE, self.EMAIL_COMPLETE)
+        add_corpus_entry_tags(db, reference_id, mod_id, logger, "SGD")
+        assert self._tags(db, reference_id, mod_id) == [self.MI_COMPLETE, self.EMAIL_COMPLETE]
 
 
 class TestDbReadUtils:
@@ -264,7 +346,7 @@ class TestDbReadUtils:
         ## test mark_false_positive_papers_as_out_of_corpus()
         mca_rows = db.execute(text("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
                                    "mod m WHERE mca.reference_id = cr.reference_id "
-                                   "AND mca.mod_id = m.mod_id "
+                                   "AND mca.mod_id = m.id "
                                    "AND m.abbreviation = 'XB'")).fetchall()
         assert len(mca_rows) > 0
 
@@ -273,7 +355,7 @@ class TestDbReadUtils:
             fp_pmids.add(x[0].replace("PMID:", ""))
         mark_false_positive_papers_as_out_of_corpus(db, 'XB', fp_pmids)
 
-        cr_rows = db.execute(text("SELECT is_obsolete FROM cross_reference "
+        cr_rows = db.execute(text("SELECT obsolete AS is_obsolete FROM cross_reference "
                                   "WHERE curie_prefix = 'Xenbase'")).fetchall()
         for x in cr_rows:
             assert x[0] is True
@@ -548,6 +630,35 @@ class TestRetractedPaperFunctions:
         db.commit()
 
         cleanup_tags_for_retracted_papers(db, logger)
+
+    @patch('agr_literature_service.lit_processing.data_ingest.utils.db_write_utils.transition_to_workflow_status')
+    @patch('agr_literature_service.lit_processing.data_ingest.utils.db_write_utils.get_workflow_tags_from_process')
+    def test_add_file_needed_skips_fully_retracted_papers(self, mock_get_workflow_tags, mock_transition,
+                                                          db, load_sanitized_references):  # noqa
+        """SCRUM-6733: a fully retracted paper gets no "file needed".
+        process_retracted_papers deletes its workflow tags every night, so adding
+        "file needed" back put the tag on daily and wiped any real file upload
+        status. Partially retracted and normal papers still get it."""
+        mock_get_workflow_tags.return_value = ['ATP:0000141', 'ATP:0000139', 'ATP:0000134']
+        mod = db.query(ModModel).first()
+        # retracted, fully retracted, partially retracted, not retracted
+        statuses = ['ATP:0000346', 'ATP:0000348', 'ATP:0000347', None]
+        refs = [ReferenceModel(curie=f"AGRKB:SCRUM6733-{i}", category="research_article",
+                               retraction_status=status) for i, status in enumerate(statuses)]
+        db.add_all(refs)
+        db.flush()
+        db.add_all([ModCorpusAssociationModel(reference_id=ref.reference_id, mod_id=mod.mod_id, corpus=True,
+                                              mod_corpus_sort_source='manual_creation') for ref in refs])
+        db.commit()
+
+        add_file_needed_for_new_papers(db, mod.abbreviation, logger=logger)
+
+        tagged = {int(call.args[1]) for call in mock_transition.call_args_list}
+        assert refs[0].reference_id not in tagged
+        assert refs[1].reference_id not in tagged
+        assert refs[2].reference_id in tagged
+        assert refs[3].reference_id in tagged
+        assert all(call.args[3] == 'ATP:0000141' for call in mock_transition.call_args_list)
 
     @patch('agr_literature_service.lit_processing.data_ingest.utils.db_write_utils.transition_to_workflow_status')
     @patch('agr_literature_service.lit_processing.data_ingest.utils.db_write_utils.get_current_workflow_status')

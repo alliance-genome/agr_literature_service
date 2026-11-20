@@ -125,7 +125,7 @@ def get_topic_classifier_topics(db: Session, mod: str, task_type: str) -> List[s
     rows = db.execute(text("""
         SELECT DISTINCT ml.topic
         FROM ml_model ml
-        JOIN mod m ON m.mod_id = ml.mod_id
+        JOIN mod m ON m.id = ml.mod_id
         WHERE m.abbreviation = :mod
           AND ml.task_type = :task_type
           AND ml.topic IS NOT NULL
@@ -137,9 +137,9 @@ def get_topic_classifier_topics(db: Session, mod: str, task_type: str) -> List[s
 def get_latest_document_dataset(db: Session, mod: str, topic: str) -> Optional[Dict]:
     """The highest-version ``document`` dataset for (mod, topic), or None."""
     row = db.execute(text("""
-        SELECT d.dataset_id, d.version
+        SELECT d.id, d.version
         FROM dataset d
-        JOIN mod m ON m.mod_id = d.mod_id
+        JOIN mod m ON m.id = d.mod_id
         WHERE m.abbreviation = :mod
           AND d.data_type = :topic
           AND d.dataset_type = :dtype
@@ -189,8 +189,8 @@ def enumerate_corpus_curies(db: Session, mod: str) -> Set[str]:
     rows = db.execute(text("""
         SELECT r.curie
         FROM mod_corpus_association mca
-        JOIN mod m ON m.mod_id = mca.mod_id
-        JOIN reference r ON r.reference_id = mca.reference_id
+        JOIN mod m ON m.id = mca.mod_id
+        JOIN reference r ON r.id = mca.reference_id
         WHERE m.abbreviation = :mod AND mca.corpus IS TRUE
     """), {"mod": mod}).fetchall()
     return {r[0] for r in rows}
@@ -203,7 +203,7 @@ def map_curies_to_ids(db: Session, curies: List[str]) -> Dict[str, int]:
     if not curies:
         return result
     rows = db.execute(text("""
-        SELECT curie, reference_id FROM reference WHERE curie = ANY(:curies)
+        SELECT curie, id FROM reference WHERE curie = ANY(:curies)
     """), {"curies": curies}).fetchall()
     for curie, reference_id in rows:
         result[curie] = int(reference_id)
@@ -217,9 +217,9 @@ def get_reference_dates(db: Session, reference_ids: List[int]) -> Dict[int, Opti
     if not reference_ids:
         return {}
     rows = db.execute(text("""
-        SELECT reference_id,
+        SELECT id,
                COALESCE(NULLIF(date_published, ''), NULLIF(date_published_start, ''))
-        FROM reference WHERE reference_id = ANY(:ids)
+        FROM reference WHERE id = ANY(:ids)
     """), {"ids": reference_ids}).fetchall()
     return {int(r[0]): r[1] for r in rows}
 

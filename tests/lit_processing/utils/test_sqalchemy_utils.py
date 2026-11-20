@@ -16,7 +16,7 @@ class TestSqlalchemyUtils:
         assert isinstance(engine, Engine)
 
         with engine.connect() as connection:
-            res = connection.execute(text("SELECT * FROM USERS"))
+            res = connection.execute(text("SELECT * FROM agent"))
             assert len([row for row in res]) > 0
 
         create_postgres_engine(verbose=True)
@@ -26,7 +26,7 @@ class TestSqlalchemyUtils:
     def test_create_postgres_session(self, db, capfd): # noqa
         session = create_postgres_session(verbose=False)
         assert isinstance(session, Session)
-        res = session.execute(text("SELECT * from USERS"))
+        res = session.execute(text("SELECT * from agent"))
         assert len([row for row in res]) > 0
 
         create_postgres_session(verbose=True)

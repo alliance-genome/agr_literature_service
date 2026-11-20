@@ -14,6 +14,9 @@ for classification if it has transitioned 5 times between needed and in progress
 For file extraction  set back to extraction needed
 
 for entity extraction if it has transitioned 5 times between needed and in progress set to * entity extraction to failed. Send slack message
+
+For FB gene extraction failed, if the paper got a PMCID after it failed, set back to gene extraction needed,
+whatever its age (SCRUM-6828).
 ---------------------------------------------------------
 
 ATP:0000198 -> text conversion in progress.
@@ -81,7 +84,7 @@ from datetime import date, timedelta
 import argparse
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
-from agr_literature_service.api.models import WorkflowTagModel
+from agr_literature_service.api.models import CrossReferenceModel, ModModel, WorkflowTagModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants, job_change_atp_code
 from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
@@ -117,7 +120,7 @@ def send_report_to_slack(mod, rows_to_report):
 
 def get_mod_abbreviations(db_session, debug):
     mod_abbreviations = {}
-    sql = text("SELECT mod_id, abbreviation FROM mod")
+    sql = text("SELECT id, abbreviation FROM mod")
     rows = db_session.execute(sql).fetchall()
     for row in rows:
         mod_abbreviations[row[0]] = row[1]
@@ -133,8 +136,8 @@ def process_no_parent(db_session, phase, slack_messages, counts, failed_refs, de
 
     for wft in wfts:
         sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                        WHERE r.reference_id = {wft.reference_id} AND
-                              r.reference_id = wft.reference_id AND
+                        WHERE r.id = {wft.reference_id} AND
+                              r.id = wft.reference_id AND
                               wft.workflow_tag_id = '{phase['start of progress']}' AND
                               wft.date_created >= '{start_date}'""")
         if debug:
@@ -166,8 +169,8 @@ def process_no_parent(db_session, phase, slack_messages, counts, failed_refs, de
                     print(f"Already set to failed for {wft}")
                 continue
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                            WHERE r.reference_id = {wft.reference_id} AND
-                                  r.reference_id = wft.reference_id AND
+                            WHERE r.id = {wft.reference_id} AND
+                                  r.id = wft.reference_id AND
                                   wft.workflow_tag_id = '{wft.workflow_tag_id}' """)
             if debug:
                 print(sql)
@@ -203,8 +206,8 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
                                                      WorkflowTagModel.date_created > start_date).all()
     for wft in wfts:
         sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                        WHERE r.reference_id = {wft.reference_id} AND
-                              r.reference_id = wft.reference_id AND
+                        WHERE r.id = {wft.reference_id} AND
+                              r.id = wft.reference_id AND
                               wft.workflow_tag_id = '{phase['start of progress']}' AND
                               wft.date_created >= '{start_date}'""")
         if debug:
@@ -231,8 +234,8 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
                 print(f"Setting to try again for {wft}")
         else:  # need to set to failed
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                            WHERE r.reference_id = {wft.reference_id} AND
-                                  r.reference_id = wft.reference_id AND
+                            WHERE r.id = {wft.reference_id} AND
+                                  r.id = wft.reference_id AND
                                   wft.workflow_tag_id = '{wft.workflow_tag_id}' """)
             if debug:
                 print(sql)
@@ -261,6 +264,39 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
                     print(f"Setting to failed for {wft}")
                 else:
                     print(f"Already set to failed for {wft}")
+
+
+# FB gene extraction (FlyBERT) reads the paper's PMC nXML, so it fails on a paper that
+# has no PMCID yet. Papers often get their PMCID weeks or months later, from the weekly
+# PubMed update or a DQM load, after the 6 week window above has closed. So a failed
+# gene extraction is retried, whatever its age, once a PMCID was added after it failed;
+# one without a new PMCID would only fail again (SCRUM-6828).
+RETRY_WHEN_PMCID_ADDED = [{'failed wft': 'ATP:0000216',      # gene extraction failed
+                           'mods': ['FB'],                   # MODs whose extraction needs the PMCID
+                           'name': 'gene extraction (PMCID added)',
+                           }]
+
+
+def process_retry_when_pmcid_added(db_session, rule, slack_messages, counts, debug):
+    # autoflush is off: flush so the query sees the jobs the phases above already reset
+    db_session.flush()
+    pmcid_added_after_failure = db_session.query(CrossReferenceModel).filter(
+        CrossReferenceModel.reference_id == WorkflowTagModel.reference_id,
+        CrossReferenceModel.curie_prefix == 'PMCID',
+        CrossReferenceModel.is_obsolete.is_(False),
+        CrossReferenceModel.date_created > WorkflowTagModel.date_updated).exists()
+    wfts = db_session.query(WorkflowTagModel).join(ModModel, ModModel.mod_id == WorkflowTagModel.mod_id).filter(
+        WorkflowTagModel.workflow_tag_id == rule['failed wft'],
+        ModModel.abbreviation.in_(rule['mods']),
+        pmcid_added_after_failure).all()
+    for wft in wfts:
+        counts[wft.mod_id][rule['name']]['reset'] += 1
+        if debug:
+            print(f"Setting to try again, PMCID added since it failed, for {wft}")
+            continue
+        slack_messages.setdefault(wft.mod_id, []).append(
+            f"Setting reference {wft.reference_id} to needed for {wft.workflow_tag_id}: PMCID added since it failed")
+        job_change_atp_code(db_session, wft.reference_workflow_tag_id, 'on_retry')
 
 
 def report_counts(db_session, counts, slack_messages, failed_refs, debug):
@@ -340,6 +376,8 @@ def check_wft_in_progress(db_session, debug=True):
             process_parent(db_session, phase, slack_messages, counts, failed_refs, debug, failed=False)
         else:
             process_no_parent(db_session, phase, slack_messages, counts, failed_refs, debug)
+    for rule in RETRY_WHEN_PMCID_ADDED:
+        process_retry_when_pmcid_added(db_session, rule, slack_messages, counts, debug)
     db_session.commit()
 
     report_counts(db_session, counts, slack_messages, failed_refs, debug)

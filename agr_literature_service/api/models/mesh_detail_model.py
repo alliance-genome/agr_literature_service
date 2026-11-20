@@ -3,7 +3,7 @@ mesh_detail_model.py
 ====================
 """
 
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, ForeignKey, String
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -13,14 +13,15 @@ class MeshDetailModel(Base):
     __tablename__ = "mesh_detail"
 
     mesh_detail_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     reference_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id",
+        BigInteger,
+        ForeignKey("reference.id",
                    ondelete="CASCADE"),
         index=True
     )

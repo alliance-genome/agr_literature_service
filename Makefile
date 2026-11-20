@@ -11,6 +11,13 @@ ifndef ALEMBIC_COMMENT
 	ALEMBIC_COMMENT=""
 endif
 
+# Stamped into the api and automated_scripts images so GET /version shows the running commit
+# (SCRUM-6878). "-dirty" means tracked files other than the .env files were changed locally.
+GIT_SHA ?= $(shell git rev-parse --short=8 HEAD 2>/dev/null || echo unknown)$(shell \
+	test -n "$$(git status --porcelain --untracked-files=no -- . ':!.env*' 2>/dev/null)" && echo -dirty)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+export GIT_SHA BUILD_DATE
+
 
 login-ecr:
 	docker run -v ~/.aws/credentials:/root/.aws/credentials --rm -it amazon/aws-cli ecr get-login-password | docker login --username AWS --password-stdin ${REG}
@@ -73,15 +80,29 @@ run-functest:
 	docker compose --env-file .env.test run test_runner python3 agr_literature_service/lit_processing/tests/functional_tests.py
 	docker compose --env-file .env.test down
 
+# SCRUM-6850: the tables Debezium streams, from table.include.list, without the schema.
+DEBEZIUM_SOURCE_TABLES = $(shell grep -o '"table.include.list": *"[^"]*"' debezium/postgres-source-unified.json | sed -E 's/.*: *"//; s/"$$//; s/public\.//g; s/,/ /g')
+
+# Pre-create a source topic for every table Debezium streams. Debezium writes no record for an
+# empty table, so on a fresh Kafka its topic is never created, ksqlDB cannot create the source
+# table, and every statement that depends on it fails (manual_indexing_tag on stage, 2026-11-10:
+# the private index got no topic_entity_tags). --if-not-exists keeps it safe to repeat; one
+# partition is what Kafka gives a topic it creates itself.
+debezium-create-source-topics:
+	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c 'for table in $(DEBEZIUM_SOURCE_TABLES); do /kafka/bin/kafka-topics.sh --create --if-not-exists --topic "abc.public.$$table" --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092 || exit 1; done'
+
+# The connector is built from docker/debezium_connector.dockerfile, so the targets below start it
+# with --build: without it compose reuses whatever image was built last, and changes to that
+# dockerfile (e.g. the SCRUM-6805 Jersey logging config) never reach a running deployment.
 restart-debezium-local:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server
 	docker-compose --env-file ${ENV_FILE} up -d postgres
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d elasticsearch
 	sleep 10
-	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
-	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
+	$(MAKE) debezium-create-source-topics ENV_FILE=${ENV_FILE}
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_ksql_server
 	sleep 20
@@ -89,9 +110,9 @@ restart-debezium-local:
 
 restart-debezium-aws:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
-	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
-	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
+	$(MAKE) debezium-create-source-topics ENV_FILE=${ENV_FILE}
 	sleep 5
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_ksql_server
 	sleep 20
@@ -155,10 +176,10 @@ run-debezium-integration-tests:
 	# Start Elasticsearch
 	docker-compose --env-file .env.test up -d elasticsearch
 	# Start Debezium stack
-	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file .env.test up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
 	# Create required Kafka topics
-	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
+	$(MAKE) debezium-create-source-topics ENV_FILE=.env.test
 	# Start KSQL server
 	docker-compose --env-file .env.test up -d --build dbz_ksql_server
 	# Run Debezium setup and wait for completion
@@ -185,10 +206,10 @@ run-debezium-start-test-env:
 	# Start Elasticsearch
 	docker-compose --env-file .env.test up -d elasticsearch
 	# Start Debezium stack
-	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+	docker-compose --env-file .env.test up -d --build dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
 	# Create required Kafka topics
-	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
+	$(MAKE) debezium-create-source-topics ENV_FILE=.env.test
 	# Start KSQL server
 	docker-compose --env-file .env.test up -d --build dbz_ksql_server
 	# Run Debezium setup and wait for completion

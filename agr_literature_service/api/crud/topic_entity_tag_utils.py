@@ -62,7 +62,7 @@ def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
             if reference is not None:
                 reference_id = reference.reference_id
         else:
-            sql_query = "SELECT reference_id FROM cross_reference WHERE curie = :mod_curie AND is_obsolete = False"
+            sql_query = "SELECT reference_id FROM cross_reference WHERE curie = :mod_curie AND obsolete = False"
             row = db.execute(text(sql_query), {
                 'mod_curie': curie_or_reference_id
             }).mappings().fetchone()
@@ -332,7 +332,7 @@ def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation
             DELETE FROM topic_entity_tag
             WHERE reference_id = :reference_id
             AND tag_source_id IN (
-                SELECT tag_source_id
+                SELECT id
                 FROM tag_source
                 WHERE secondary_data_provider_id = :mod_id
                 AND (
@@ -413,7 +413,7 @@ def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: st
         SELECT * FROM topic_entity_tag
         WHERE reference_id = :reference_id
         AND tag_source_id in (
-            SELECT tag_source_id
+            SELECT id
             FROM tag_source
             WHERE secondary_data_provider_id = :mod_id
             AND (
@@ -433,7 +433,7 @@ def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: st
 
 def get_user_display_name_map(db: Session, user_ids: Set[str]) -> Dict[str, str]:
     """
-    Return a mapping of users.id -> person.display_name for users who have a non-null person_id.
+    Return a mapping of agent label (person curie) -> person.display_name for person-backed agents.
     """
     id_to_display_name: Dict[str, str] = {}
     if not user_ids:
@@ -447,11 +447,10 @@ def get_user_display_name_map(db: Session, user_ids: Set[str]) -> Dict[str, str]
     params = {f"uid{i}": ids_list[i] for i in range(len(ids_list))}
 
     sql = text(f"""
-        SELECT u.id AS user_id, p.display_name
-        FROM users u
-        JOIN person p ON p.person_id = u.person_id
-        WHERE u.person_id IS NOT NULL
-          AND u.id IN ({placeholders})
+        SELECT p.curie AS user_id, p.display_name
+        FROM agent u
+        JOIN person p ON p.id = u.person_id
+        WHERE p.curie IN ({placeholders})
     """)
     for row in db.execute(sql, params).mappings().fetchall():
         id_to_display_name[row["user_id"]] = row["display_name"]

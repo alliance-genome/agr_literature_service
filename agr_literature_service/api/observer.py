@@ -24,6 +24,7 @@ Design notes (from the ticket's repository review):
   observers with 403, regardless of what the UI exposes.
 """
 import logging
+import os
 from typing import Any, Dict, Optional, Set
 
 from fastapi import HTTPException
@@ -115,13 +116,56 @@ def is_observer(user: Optional[Dict[str, Any]]) -> bool:
     return observer_mod(user) is not None
 
 
+# Env var mapping a Cognito service client to the one MOD whose restricted
+# files it may download: "client_id:FB,other_client_id:WB".
+SERVICE_CLIENT_MODS_ENV = "COGNITO_SERVICE_CLIENT_MODS"
+
+
+def service_client_mods() -> Dict[str, str]:
+    """client_id -> MOD abbreviation from COGNITO_SERVICE_CLIENT_MODS. An entry
+    naming an unknown MOD maps to "" so that client gets no restricted files
+    rather than falling back to all of them."""
+    mapping: Dict[str, str] = {}
+    for entry in os.environ.get(SERVICE_CLIENT_MODS_ENV, "").split(","):
+        if not entry.strip():
+            continue
+        client_id, _, mod = entry.partition(":")
+        client_id, mod = client_id.strip(), mod.strip()
+        if not client_id:
+            continue
+        if mod not in _MOD_ABBR_TO_ACCESS:
+            logger.warning("%s: unknown MOD %r for client %s; it gets no restricted files",
+                           SERVICE_CLIENT_MODS_ENV, mod, client_id)
+            mod = ""
+        mapping[client_id] = mod
+    return mapping
+
+
+def service_client_mod(user: Optional[Dict[str, Any]]) -> Optional[str]:
+    """For a service-account (access) token whose client is listed in
+    COGNITO_SERVICE_CLIENT_MODS, the MOD it is limited to ("" for an entry
+    with an unknown MOD); None for any other user or token."""
+    if not user or user.get("token_type") != "access":
+        return None
+    return service_client_mods().get(user.get("client_id") or "")
+
+
 def visibility_mod_access(user: Optional[Dict[str, Any]]) -> ModAccess:
     """MOD access level for CONTENT VISIBILITY decisions (restricted full-text
-    and derived-file downloads). For an observer this is the sponsoring MOD's
-    access value, so same-MOD restricted files are downloadable while other
-    MODs' restricted files remain hidden; for everyone else it is exactly
-    ``get_mod_access`` — mutation paths must keep calling ``get_mod_access``
-    directly."""
+    and derived-file downloads, Markdown included). For an observer this is
+    the sponsoring MOD's access value, so same-MOD restricted files are
+    downloadable while other MODs' restricted files remain hidden.
+
+    A service account is ALL_ACCESS in agr_cognito_py, which let one MOD's
+    scripts download every MOD's restricted files and Markdown. A service
+    client listed in COGNITO_SERVICE_CLIENT_MODS sees only its MOD's
+    restricted files; unlisted clients (the ABC's own jobs) keep ALL_ACCESS.
+
+    For everyone else it is exactly ``get_mod_access``. Mutation paths must
+    keep calling ``get_mod_access`` directly."""
+    client_mod = service_client_mod(user)
+    if client_mod is not None:
+        return _MOD_ABBR_TO_ACCESS.get(client_mod, ModAccess.NO_ACCESS)
     mod = observer_mod(user)
     if mod is not None:
         return _MOD_ABBR_TO_ACCESS[mod]

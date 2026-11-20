@@ -914,11 +914,11 @@ def get_pmid_to_pmcid_from_db() -> Dict[str, str]:
             FROM cross_reference cr_pmid
             JOIN cross_reference cr_pmcid ON cr_pmid.reference_id = cr_pmcid.reference_id
             JOIN referencefile rf ON cr_pmid.reference_id = rf.reference_id
-            JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+            JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
             WHERE cr_pmid.curie_prefix = 'PMID'
-              AND cr_pmid.is_obsolete = False
+              AND cr_pmid.obsolete = False
               AND cr_pmcid.curie_prefix = 'PMCID'
-              AND cr_pmcid.is_obsolete = False
+              AND cr_pmcid.obsolete = False
               AND rfm.mod_id IS NULL
             GROUP BY cr_pmid.curie, cr_pmcid.curie
         """)).fetchall()
@@ -988,7 +988,7 @@ def get_all_pmids_with_files_etc():
             SELECT DISTINCT cr.curie
             FROM cross_reference cr
             JOIN referencefile rf ON cr.reference_id = rf.reference_id
-            JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+            JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
             WHERE cr.curie_prefix = 'PMID'
               AND rfm.mod_id IS NULL
             ORDER BY cr.curie
@@ -1000,7 +1000,7 @@ def get_all_pmids_with_files_etc():
         rows = db.execute(text("""
             SELECT DISTINCT cr.curie
              FROM cross_reference cr
-            JOIN reference r ON cr.reference_id = r.reference_id
+            JOIN reference r ON cr.reference_id = r.id
             WHERE cr.curie_prefix = 'PMID'
               AND (
                  r.pubmed_types::text LIKE '%Retracted%'
@@ -1015,7 +1015,7 @@ def get_all_pmids_with_files_etc():
             SELECT cr.curie AS pmid, MAX(rfm.date_updated) AS newest_date_updated
             FROM cross_reference cr
             JOIN referencefile rf  ON cr.reference_id = rf.reference_id
-            JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+            JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
             WHERE cr.curie_prefix = 'PMID'
              AND rfm.mod_id IS NULL
             GROUP BY cr.curie
@@ -1062,7 +1062,7 @@ def get_metadata_for_pmids(pmids: List[str]) -> Dict[str, Dict[str, Dict[str, An
             SELECT cr.curie, rf.display_name, rf.md5sum, rf.file_extension, rf.file_class
             FROM cross_reference cr
             JOIN referencefile rf ON cr.reference_id = rf.reference_id
-            JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+            JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
             WHERE cr.curie_prefix = 'PMID'
               AND cr.curie = ANY(:curie_list)
               AND rfm.mod_id IS NULL

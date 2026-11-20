@@ -4,10 +4,11 @@ reference_crud.py
 """
 import json
 import logging
+import os
 import re
+import tempfile
 from collections import defaultdict
 from datetime import datetime, date, timedelta
-from os import getcwd
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
@@ -28,12 +29,13 @@ from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_r
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation, \
     normalize_reference_curie
-from agr_literature_service.api.crud.referencefile_crud import cleanup
+from agr_literature_service.api.crud.referencefile_crud import cleanup_temp_dir
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
     patch as update_workflow_tag,
+    PATCHABLE_FIELDS as WORKFLOW_TAG_PATCHABLE_FIELDS,
     show as show_workflow_tag
 )
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
@@ -58,7 +60,7 @@ from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReference
     TopicEntityTagSchemaPost
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    get_meta_data, get_reference_col_names, generate_json_data
+    get_meta_data, get_reference_col_sql, generate_json_data
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
     update_data
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -468,7 +470,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["reference_curie"] = curie
                     try:
                         if "reference_workflow_tag_id" in obj_data and obj_data["reference_workflow_tag_id"]:
-                            update_workflow_tag(db, obj_data["reference_workflow_tag_id"], obj_data)
+                            # only the note and curation tag of an existing tag are editable (SCRUM-6845)
+                            update_workflow_tag(db, obj_data["reference_workflow_tag_id"],
+                                                {field: obj_data[field] for field in WORKFLOW_TAG_PATCHABLE_FIELDS
+                                                 if field in obj_data})
                         else:
                             create_workflow_tag(db, obj_data)
                     except HTTPException:
@@ -853,12 +858,13 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_open_access"] = crl.open_access
             rows = db.execute(
                 text(
-                    "SELECT rv.updated_by, "
+                    "SELECT COALESCE(u.automation_username, up.curie) AS updated_by, "
                     "get_most_current_email(u.person_id) AS email "
                     "FROM reference_version rv "
-                    "JOIN users u ON rv.updated_by = u.id "
-                    "WHERE curie = :curie "
-                    "AND copyright_license_id_mod IS true "
+                    "JOIN agent u ON rv.updated_by_id = u.id "
+                    "LEFT JOIN person up ON up.id = u.person_id "
+                    "WHERE rv.curie = :curie "
+                    "AND rv.copyright_license_id_mod IS true "
                     "ORDER BY rv.date_updated DESC LIMIT 1"
                 ),
                 {"curie": reference_data["curie"]},
@@ -926,7 +932,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         sql_query = f"""
         SELECT rfm.mod_id
         FROM referencefile rf
-        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+        JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
         WHERE rf.reference_id = {reference.reference_id}
         AND rf.file_class = 'main'
         AND rf.pdf_type = 'pdf'
@@ -939,9 +945,9 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             pdf_eligible_mod_ids = [1, 2, 3, 4, 5, 6, 7]
 
         sql_query = f"""
-        SELECT m.mod_id, m.abbreviation
+        SELECT m.id AS mod_id, m.abbreviation
         FROM mod m
-        JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+        JOIN mod_corpus_association mca ON m.id = mca.mod_id
         WHERE mca.reference_id = {reference.reference_id}
         AND mca.corpus = True
         """
@@ -1188,7 +1194,8 @@ def merge_references(db: Session,
         CrossReferenceModel.is_obsolete).first()
     if cross_reference is not None:
         pmid_number = cross_reference.curie.split(":")[1]
-        update_data(None, pmid_number)
+        # a curator merged these papers: keep history of any author-person status change
+        update_data(None, pmid_number, record_author_status_history=True)
 
     return new_curie
 
@@ -1407,29 +1414,29 @@ def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: s
     elif filter in ['ATP:0000134', 'ATP:0000135']:
         workflow_tag_id_clause = text("""WHERE workflow_tag_id = :filter""")
     query_str = f"""
-        SELECT reference.reference_id, reference.curie, short_citation, reference.date_created, MAX(ref_pmid.curie) AS PMID, MAX(ref_doi.curie) AS DOI, MAX(ref_mod.curie) AS mod_curie
+        SELECT reference.id AS reference_id, reference.curie, short_citation, reference.date_created, MAX(ref_pmid.curie) AS PMID, MAX(ref_doi.curie) AS DOI, MAX(ref_mod.curie) AS mod_curie
         FROM reference
-        JOIN citation ON reference.citation_id = citation.citation_id
+        JOIN citation ON reference.citation_id = citation.id
         JOIN
           (
             SELECT b.reference_id
             FROM mod_corpus_association AS b
-            JOIN mod ON b.mod_id = mod.mod_id
+            JOIN mod ON b.mod_id = mod.id
             LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
             {workflow_tag_id_clause}
             AND mod.abbreviation = :mod_abbreviation
             AND b.corpus = TRUE
-          ) AS sub_select ON sub_select.reference_id = reference.reference_id
+          ) AS sub_select ON sub_select.reference_id = reference.id
         LEFT JOIN
           (
             SELECT curie, reference_id
             FROM cross_reference
             WHERE curie_prefix IN ('PMID', 'DOI', :mod_abbreviation)
-          ) AS cross_ref ON cross_ref.reference_id = reference.reference_id
-        LEFT JOIN cross_reference AS ref_pmid ON ref_pmid.reference_id = reference.reference_id AND ref_pmid.curie_prefix = 'PMID'
-        LEFT JOIN cross_reference AS ref_doi ON ref_doi.reference_id = reference.reference_id AND ref_doi.curie_prefix = 'DOI'
-        LEFT JOIN cross_reference AS ref_mod ON ref_mod.reference_id = reference.reference_id AND ref_mod.curie_prefix = :mod_abbreviation
-        GROUP BY reference.reference_id, reference.curie, short_citation, reference.date_created
+          ) AS cross_ref ON cross_ref.reference_id = reference.id
+        LEFT JOIN cross_reference AS ref_pmid ON ref_pmid.reference_id = reference.id AND ref_pmid.curie_prefix = 'PMID'
+        LEFT JOIN cross_reference AS ref_doi ON ref_doi.reference_id = reference.id AND ref_doi.curie_prefix = 'DOI'
+        LEFT JOIN cross_reference AS ref_mod ON ref_mod.reference_id = reference.id AND ref_mod.curie_prefix = :mod_abbreviation
+        GROUP BY reference.id, reference.curie, short_citation, reference.date_created
         ORDER BY reference.date_created DESC
     """
 
@@ -1512,6 +1519,8 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
+    # per-request temp dir: the file name only depends on mod and tag, so concurrent requests must not share it
+    temp_dir = tempfile.mkdtemp()
     try:
         query = sql_query_for_workflow_files(db, mod_abbreviation, order_by, filter)
         rows = db.execute(query).fetchall()
@@ -1523,7 +1532,7 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
 
         tmp_file = f"{mod_abbreviation}_file_{tag}.tsv"
         workflowtag = f"file {tag}"
-        tmp_file_with_path = f"{getcwd()}/{tmp_file}"
+        tmp_file_with_path = os.path.join(temp_dir, tmp_file)
         fw = open(tmp_file_with_path, "w")
         fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
@@ -1535,12 +1544,13 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
 
         fw.close()
     except Exception as e:
+        cleanup_temp_dir(temp_dir)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"The download file for the tracker table can not be created. {e}")
 
     # return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain')
     return FileResponse(path=tmp_file_with_path, filename=tmp_file, media_type='application/plain',
-                        background=BackgroundTask(cleanup, tmp_file_with_path))
+                        background=BackgroundTask(cleanup_temp_dir, temp_dir))
 
 
 def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
@@ -1611,11 +1621,11 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
 
     # Start building the query string
     query_str = """
-        SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+        SELECT r.curie, r.id AS reference_id, rf.id AS referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
         FROM reference r
-        JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
-        JOIN referencefile rf ON rf.reference_id = r.reference_id
-        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+        JOIN mod_corpus_association mca on r.id = mca.reference_id
+        JOIN referencefile rf ON rf.reference_id = r.id
+        JOIN referencefile_mod rfm ON rf.id = rfm.referencefile_id
         WHERE mca.corpus is True
         AND mca.mod_id = :mod_id
         AND rf.file_class = 'main'
@@ -1628,11 +1638,11 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     # Add condition for reference_type if provided
     if reference_type:
         query_str += """
-        AND r.reference_id IN (
+        AND r.id IN (
             SELECT rmrt.reference_id
             FROM reference_mod_referencetype rmrt
-            JOIN mod_referencetype mrt ON mrt.mod_referencetype_id = rmrt.mod_referencetype_id
-            JOIN referencetype rt ON rt.referencetype_id = mrt.referencetype_id
+            JOIN mod_referencetype mrt ON mrt.id = rmrt.mod_referencetype_id
+            JOIN referencetype rt ON rt.id = mrt.referencetype_id
             WHERE rt.label = :reference_type
             AND mrt.mod_id = :mod_id
         )
@@ -1641,17 +1651,17 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
 
     # Add species filter if provided
     if species:
-        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
+        query_str += " AND r.id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
         query_params['species'] = species
 
     # Add the WB species list if the mod is WB and no species filter is provided
     elif mod_abbreviation == 'WB':
-        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in :wb_species_list)"
+        query_str += " AND r.id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in :wb_species_list)"
         query_params['wb_species_list'] = wb_textpresso_species_list
 
     # Add condition for `from_reference_id` if provided
     if from_reference_id:
-        query_str += " AND r.reference_id > :from_reference_id"
+        query_str += " AND r.id > :from_reference_id"
         query_params['from_reference_id'] = from_reference_id
 
     # Add condition for files updated from a specific date if provided
@@ -1660,7 +1670,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         query_params['files_updated_from_date'] = files_updated_from_date
 
     # Add limit for pagination
-    query_str += " ORDER BY r.reference_id LIMIT :page_size"
+    query_str += " ORDER BY r.id LIMIT :page_size"
     query_params['page_size'] = page_size
 
     textpresso_referencefiles = db.execute(text(query_str).bindparams(**query_params)).mappings().fetchall()
@@ -1751,7 +1761,7 @@ def get_recently_sorted_pmids_without_mod_paper_id(db: Session, mod_abbreviation
       JOIN mod_corpus_association AS mca
         ON mca.reference_id = cr.reference_id
       JOIN mod AS m
-        ON m.mod_id = mca.mod_id
+        ON m.id = mca.mod_id
        AND m.abbreviation = :mod_abbrev
       LEFT JOIN cross_reference AS xr
         ON xr.reference_id = cr.reference_id
@@ -1786,16 +1796,16 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
 
     metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
-    refColNmList = ", ".join(get_reference_col_names())
+    refColNmList = get_reference_col_sql()
 
     sql_query = text(
         f"SELECT {refColNmList} "
         "FROM reference "
-        "WHERE reference_id IN ("
+        "WHERE id IN ("
         "    SELECT reference_id "
         "    FROM mod_corpus_association "
         "    WHERE mod_id = ("
-        "        SELECT mod_id "
+        "        SELECT id "
         "        FROM mod "
         "        WHERE abbreviation = :mod_abbreviation"
         "    ) "
@@ -1803,7 +1813,7 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
         "    AND date_updated >= :start_date "
         "    AND date_updated < :end_date"
         ") "
-        "ORDER BY reference_id"
+        "ORDER BY id"
     )
 
     rows = db.execute(sql_query, {
@@ -1856,11 +1866,13 @@ def get_recently_deleted_references(db: Session, mod_abbreviation, days):
     metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     sql_query = text(
-        "SELECT cr.curie, get_most_current_email(u.person_id) AS email, u.id "
+        "SELECT cr.curie, get_most_current_email(u.person_id) AS email, "
+        "COALESCE(u.automation_username, up.curie) "
         "FROM cross_reference cr "
         "JOIN mod_corpus_association mca ON cr.reference_id = mca.reference_id "
-        "JOIN mod m ON mca.mod_id = m.mod_id "
-        "JOIN users u ON mca.updated_by = u.id "
+        "JOIN mod m ON mca.mod_id = m.id "
+        "JOIN agent u ON mca.updated_by_id = u.id "
+        "LEFT JOIN person up ON up.id = u.person_id "
         "WHERE cr.curie_prefix = 'PMID' "
         "AND mca.corpus = :corpus "
         "AND mca.date_updated >= :start_date "
@@ -1894,7 +1906,7 @@ def get_obsolete_mod_curies(db: Session, mod_abbreviation: str) -> List[str]:
     sql_query = text(
         "SELECT curie FROM cross_reference "
         "WHERE curie_prefix = :mod_abbreviation "
-        "AND is_obsolete IS TRUE"
+        "AND obsolete IS TRUE"
     )
 
     rows = db.execute(sql_query, {

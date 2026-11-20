@@ -71,7 +71,8 @@ def compare_s3_files():
     email_message = ''
     for md5sum in s3_md5sum:
         if md5sum not in db_md5sum:
-            email_message = email_message + "date " + s3_md5sum_dict[md5sum]['date'] + " : " + md5sum + " in s3 not in db, size " + s3_md5sum_dict[md5sum]['size'] + "<br/>"
+            info = s3_md5sum_dict[md5sum]
+            email_message += f"date {info['date']} : {md5sum} in s3 not in db, size {info['size']}<br/>"
             # print(f"date {s3_md5sum_dict[md5sum]['date']} : {md5sum} in s3 not in db, size {s3_md5sum_dict[md5sum]['size']}")
 
     for md5sum in db_md5sum:

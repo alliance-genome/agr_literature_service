@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Index
+from sqlalchemy import Column, BigInteger, Integer, String, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -17,11 +17,11 @@ class EmbeddingFileModel(Base):
     """
     __tablename__ = "embedding_file"
 
-    embedding_file_id = Column(Integer, primary_key=True, autoincrement=True)
+    embedding_file_id = Column('id', BigInteger, primary_key=True, autoincrement=True)
 
     reference_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("reference.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
@@ -35,8 +35,8 @@ class EmbeddingFileModel(Base):
 
     # The converted_merged_* markdown that was embedded; NULL for abstracts.
     source_referencefile_id = Column(
-        Integer,
-        ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("referencefile.id", ondelete="CASCADE"),
         index=True,
         nullable=True,
     )
@@ -47,8 +47,8 @@ class EmbeddingFileModel(Base):
 
     # The stored embedding parquet (storage + download delegated to it).
     parquet_referencefile_id = Column(
-        Integer,
-        ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
+        BigInteger,
+        ForeignKey("referencefile.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )

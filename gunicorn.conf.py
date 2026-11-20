@@ -57,6 +57,13 @@ def pre_fork(server, worker):  # noqa: ARG001
 
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
+    # on_starting's setup_database() runs in the master (preload_app), so the forked
+    # worker inherits the engine's pool with that connection still in it. Two workers
+    # using the same inherited socket at once corrupt the libpq protocol
+    # ("error with status PGRES_TUPLES_OK and no message from the libpq"). Drop the
+    # inherited pool without closing the master's connections; the worker opens its own.
+    from agr_literature_service.api.database.main import engine
+    engine.dispose(close=False)
     msg = f"Worker spawned (pid: {worker.pid})"
     server.log.info(msg)
     print(msg, flush=True)
@@ -85,7 +92,11 @@ def on_starting(server):
 
 def when_ready(server):
     """Called just after the server is started."""
-    msg = f"Server is ready. Spawning {server.cfg.workers} workers"
+    # The commit makes each deploy findable in the log store (SCRUM-6878)
+    from agr_literature_service.api.build_info import get_build_info
+    build = get_build_info()
+    msg = (f"Server is ready. Spawning {server.cfg.workers} workers "
+           f"(commit {build['commit']}, built {build['build_date']})")
     server.log.info(msg)
     print(msg, flush=True)
 

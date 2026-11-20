@@ -6,7 +6,7 @@ editor_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, BigInteger, Integer, String
 # from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -21,14 +21,15 @@ class EditorModel(Base, AuditedModel):
     __versioned__: Dict = {}
 
     editor_id = Column(
-        Integer,
+        'id',
+        BigInteger,
         primary_key=True,
         autoincrement=True
     )
 
     resource_id = Column(
-        Integer,
-        ForeignKey("resource.resource_id",
+        BigInteger,
+        ForeignKey("resource.id",
                    ondelete="CASCADE"),
         index=True
     )

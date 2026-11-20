@@ -266,6 +266,16 @@
           }
         }
       },
+      "resource_title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
+      },
       "volume": {
         "type": "text",
         "fields": {
@@ -655,16 +665,27 @@
           }
         }
       },
-      "manual_indexing_tags": {
-        "type": "nested",
+      "mesh_terms": {
         "properties": {
-          "curation_tag": {
-            "type": "keyword",
-            "normalizer": "sortNormalizer"
+          "heading_term": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
           },
-          "mod_abbreviation": {
-            "type": "keyword",
-            "normalizer": "sortNormalizer"
+          "qualifier_term": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
           }
         }
       }

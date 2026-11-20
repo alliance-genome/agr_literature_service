@@ -2,14 +2,14 @@ from sqlalchemy import text
 
 
 get_most_current_email = r"""
-CREATE OR REPLACE FUNCTION get_most_current_email(p_person_id INTEGER)
+CREATE OR REPLACE FUNCTION get_most_current_email(p_person_id BIGINT)
 RETURNS TEXT AS $$
   SELECT email_address
   FROM person_email
   WHERE person_id = p_person_id
     AND date_made_old_email IS NULL
   ORDER BY COALESCE(date_updated, date_created) DESC,
-           person_email_id DESC
+           id DESC
   LIMIT 1;
 $$ LANGUAGE SQL STABLE;
 """

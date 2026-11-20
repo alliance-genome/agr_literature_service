@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18.4-alpine
     hostname: postgres
     restart: always
     environment:
@@ -11,7 +11,9 @@ services:
       POSTGRES_DB: ${PSQL_DATABASE}
     shm_size: '1g'
     volumes:
-      - "agr-literature-pg-data:/var/lib/postgresql/data"
+      # postgres 18+ images keep PGDATA in a versioned subdirectory of /var/lib/postgresql,
+      # so the volume is mounted one level up and is new (the PG17 volume is left untouched)
+      - "agr-literature-pg18-data:/var/lib/postgresql"
       - "./postgresql.conf:/etc/postgresql.conf"
     networks:
       - agr-literature
@@ -19,7 +21,7 @@ services:
     ports:
       - "${PSQL_PORT}:${PSQL_PORT}"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PSQL_USERNAME} -p ${PSQL_PORT}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -88,6 +90,8 @@ services:
       args:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     environment:
       API_PORT: "${API_PORT}"
       API_SERVER: "${API_SERVER}"
@@ -133,6 +137,7 @@ services:
       ATEAM_FETCH_TIMEOUT_SECONDS: "${ATEAM_FETCH_TIMEOUT_SECONDS:-5}"
       SGD_API_URL: "${SGD_API_URL}"
       PDFX_API_URL: "${PDFX_API_URL}"
+      PDFX_POLL_TIMEOUT: "${PDFX_POLL_TIMEOUT:-}"  # seconds to wait for a PDFX job (default 1800)
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
       LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
@@ -208,6 +213,8 @@ services:
       args:
         REG: ${REG}
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     environment:
       PYTHONPATH: "/usr/src/app"
       XML_PATH: "/usr/src/app/agr_literature_service/lit_processing/data_ingest/tmp/"
@@ -254,6 +261,7 @@ services:
       DEBEZIUM_KSQLDB_PORT: "${DEBEZIUM_KSQLDB_PORT}"
       TZ: "UTC"
       PDFX_API_URL: "${PDFX_API_URL}"
+      PDFX_POLL_TIMEOUT: "${PDFX_POLL_TIMEOUT:-}"  # seconds to wait for a PDFX job (default 1800)
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       SGD_API_URL: "${SGD_API_URL}"
       PERSISTENT_STORE_DB_USERNAME: "${PERSISTENT_STORE_DB_USERNAME}"
@@ -339,6 +347,7 @@ services:
       ATEAM_FETCH_TTL_SECONDS: "${ATEAM_FETCH_TTL_SECONDS:-900}"
       ATEAM_FETCH_TIMEOUT_SECONDS: "${ATEAM_FETCH_TIMEOUT_SECONDS:-5}"
       PDFX_API_URL: "${PDFX_API_URL}"
+      PDFX_POLL_TIMEOUT: "${PDFX_POLL_TIMEOUT:-}"  # seconds to wait for a PDFX job (default 1800)
       PSQL_USERNAME: "${PSQL_USERNAME}"
       PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
@@ -373,7 +382,11 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
+    build:
+      context: .
+      dockerfile: docker/debezium_zookeeper.dockerfile
+      args:
+        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
     ports:
       - 2181:2181
       - 2888:2888
@@ -483,6 +496,9 @@ services:
       - KSQL_HOST_NAME=dbz_ksql_server
       - KSQL_APPLICATION_ID="cp-all-in-one"
       - KSQL_LISTENERS=http://0.0.0.0:8088
+      # SCRUM-6796: the Confluent support-metrics client phones version-check.confluent.io once a
+      # day, which the boxes cannot resolve, and logs 4 ERROR lines each time it fails.
+      - KSQL_CONFLUENT_SUPPORT_METRICS_ENABLE=false
       # --- SCRUM-6231: reindex was disk-write-bound (ksqlDB RocksDB ~405 MB/s saturating EBS) ---
       # cache.max.bytes.buffering=0 forced ksqlDB to flush every record straight to RocksDB.
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
@@ -665,7 +681,7 @@ services:
       - /var/log/agr_literature_service:/var/log/agr_literature_service:ro
 
 volumes:
-  agr-literature-pg-data:
+  agr-literature-pg18-data:
   agr-literature-pgadmin-data:
   agr-literature-es-data:
   agr-logs:

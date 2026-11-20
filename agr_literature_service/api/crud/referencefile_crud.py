@@ -8,8 +8,11 @@ import tarfile
 import tempfile
 from itertools import count
 from typing import List, Optional, Union
+from urllib.parse import quote
 
 import boto3  # type: ignore
+from boto3.exceptions import Boto3Error  # type: ignore
+from botocore.exceptions import BotoCoreError, ClientError  # type: ignore
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, or_, text, select
@@ -23,7 +26,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status, is_file_upload_blocked, create as create_wft, \
+    transition_to_workflow_status, is_file_upload_blocked, \
     reset_workflow_tags_after_deleting_main_pdf
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     has_manual_tet
@@ -34,7 +37,6 @@ from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
     ReferencefileSchemaRelated, ReferencefileSchemaUpdate
-from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
@@ -518,7 +520,7 @@ def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mod
         sql_query = text("""
         SELECT m.abbreviation
         FROM mod_corpus_association mca
-        JOIN mod m ON mca.mod_id = m.mod_id
+        JOIN mod m ON mca.mod_id = m.id
         WHERE mca.reference_id = :reference_id
         AND mca.corpus = TRUE
         """)
@@ -601,8 +603,8 @@ def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
     query = text("""
         SELECT mca.corpus
         FROM mod_corpus_association mca
-        JOIN reference r ON mca.reference_id = r.reference_id
-        JOIN mod m ON mca.mod_id = m.mod_id
+        JOIN reference r ON mca.reference_id = r.id
+        JOIN mod m ON mca.mod_id = m.id
         WHERE r.curie = :reference_curie
           AND m.abbreviation = :mod_abbr
     """)
@@ -610,7 +612,14 @@ def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
     return bool(row and row[0])
 
 
-def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
+def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False,
+                skip_post_upload_actions: bool = False):  # pragma: no cover
+    """skip_post_upload_actions: persist the file without cleanup_old_pdf_file or
+    transition_WFT_for_uploaded_file, so the upload neither prunes the
+    reference's other main PDFs nor queues text conversion. Per call, unlike
+    the process-wide _suppress_upload_guardrails, so the API can use it for one
+    request (archive uploads, SCRUM-6633) without affecting concurrent uploads.
+    """
     metadata["reference_curie"] = normalize_reference_curie(db, metadata["reference_curie"])
     if metadata["mod_abbreviation"]:
         inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
@@ -680,9 +689,10 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
     else:
         created_referencefiles.append(file_upload_single(db, metadata, file))
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-    if _suppress_upload_guardrails:
-        # Auxiliary upload (e.g. figure-metadata sidecar): persist the file but
-        # do not move the reference's workflow status or prune its main PDFs.
+    if _suppress_upload_guardrails or skip_post_upload_actions:
+        # Auxiliary upload (e.g. figure-metadata sidecar) or archive upload:
+        # persist the file but do not move the reference's workflow status or
+        # prune its main PDFs.
         # transition_WFT_for_uploaded_file is normally the committing step, so
         # commit explicitly to guarantee the new referencefile is persisted.
         db.commit()
@@ -706,7 +716,7 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
     if mod_abbreviation is None:
         rows = db.execute(text(f"SELECT m.abbreviation "
                                f"FROM mod m, mod_corpus_association mca "
-                               f"WHERE m.mod_id = mca.mod_id "
+                               f"WHERE m.id = mca.mod_id "
                                f"AND mca.reference_id = {ref.reference_id} "
                                f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
@@ -717,14 +727,9 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
             curr_tag_atp_id = get_current_workflow_status(db, reference_curie,
                                                           file_upload_process_atp_id, mod)
             if change_file_status is False:
-                if curr_tag_atp_id is None:
-                    data = WorkflowTagSchemaPost(
-                        workflow_tag_id=wft_tag_atp_id,
-                        mod_abbreviation=mod,
-                        reference_curie=reference_curie
-                    )
-                    create_wft(db, data)
-                elif (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+                # without a file upload tag this is the paper's first state, through the file upload
+                # -> state row, so its actions (the text conversion gate) run too (SCRUM-6845)
+                if curr_tag_atp_id not in (wft_tag_atp_id, file_uploaded_tag_atp_id):
                     transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
             else:
                 # this should not happen, but just in case
@@ -883,16 +888,20 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         ref_file_by_md5sum_count = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).count()
         if ref_file_by_md5sum_count == 1:
             file.file.seek(0)
-            temp_file_name = metadata["display_name"] + "." + metadata["file_extension"] + ".gz"
-            with gzip.open(temp_file_name, 'wb') as f_out:
-                shutil.copyfileobj(file.file, f_out)
-            client = boto3.client('s3')
-            env_state = os.environ.get("ENV_STATE", "")
-            extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
-            with open(temp_file_name, 'rb') as gzipped_file:
-                upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
-                                      object_name=md5sum + ".gz", ExtraArgs=extra_args)
-            os.remove(temp_file_name)
+            # per-call temp dir: concurrent uploads of files with the same display name must not share a path
+            temp_dir = tempfile.mkdtemp()
+            try:
+                temp_file_name = os.path.join(temp_dir, md5sum + ".gz")
+                with gzip.open(temp_file_name, 'wb') as f_out:
+                    shutil.copyfileobj(file.file, f_out)
+                client = boto3.client('s3')
+                env_state = os.environ.get("ENV_STATE", "")
+                extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
+                with open(temp_file_name, 'rb') as gzipped_file:
+                    upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature",
+                                          folder=folder, object_name=md5sum + ".gz", ExtraArgs=extra_args)
+            finally:
+                cleanup_temp_dir(temp_dir)
     return referencefile_instance
 
 
@@ -916,26 +925,64 @@ def download_file(db: Session, referencefile_id: int, mod_access: ModAccess,  # 
         display_name = referencefile.display_name + "." + referencefile.file_extension
         folder = get_s3_folder_from_md5sum(md5sum)
         object_name = folder + "/" + md5sum + ".gz"
-        download_file_from_s3(md5sum + ".gz", bucketname="agr-literature", s3_file_location=object_name)
-        with gzip.open(md5sum + ".gz", 'rb') as f_in, open(display_name, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
-        os.remove(md5sum + ".gz")
-        if use_in_api:
-            return FileResponse(path=display_name, filename=display_name, media_type="application/octet-stream",
-                                background=BackgroundTask(cleanup, display_name))
-        else:
-            with open(display_name, 'rb') as file:
-                file_content = file.read()
-            os.remove(display_name)
-            return file_content
+        # per-request temp dir: most main files share a display name (e.g. main_nxml.md), so a shared path lets
+        # concurrent downloads overwrite and delete each other's file while it is being served
+        temp_dir = tempfile.mkdtemp()
+        served_from_temp_dir = False
+        try:
+            gz_file_path = os.path.join(temp_dir, md5sum + ".gz")
+            file_path = os.path.join(temp_dir, display_name)
+            fetch_stored_file(gz_file_path, object_name, referencefile)
+            with gzip.open(gz_file_path, 'rb') as f_in, open(file_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            if use_in_api:
+                served_from_temp_dir = True
+                return FileResponse(path=file_path, filename=display_name, media_type="application/octet-stream",
+                                    background=BackgroundTask(cleanup_temp_dir, temp_dir))
+            with open(file_path, 'rb') as file:
+                return file.read()
+        finally:
+            if not served_from_temp_dir:
+                cleanup_temp_dir(temp_dir)
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="The current user does not have permissions to get the requested file url. "
                                "The associated paper is not available for free access.")
 
 
-def cleanup(file_path):
-    os.remove(file_path)
+def fetch_stored_file(gz_file_path: str, object_name: str, referencefile) -> None:
+    """Download a referencefile's stored (gzipped) object from S3 to gz_file_path.
+
+    SCRUM-6855: the result of download_file_from_s3 used to be ignored, so a failed
+    download went on to open a file that did not exist and ended as an unhandled
+    500. Now 404 when S3 has no such object, and 502 when S3 could not return it:
+    any other S3 client error (access denied, throttling), a connection error, or
+    a transfer that failed part way.
+    """
+    try:
+        downloaded = download_file_from_s3(gz_file_path, bucketname="agr-literature",
+                                           s3_file_location=object_name, only_missing_is_false=True)
+    except (BotoCoreError, ClientError, Boto3Error) as exc:
+        logger.error("S3 download error for referencefile %s (%s): %s",
+                     referencefile.referencefile_id, object_name, exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail=f"Could not retrieve the stored file for referencefile "
+                                   f"{referencefile.referencefile_id} from storage")
+    if downloaded is False or not os.path.exists(gz_file_path):
+        logger.error("Stored file missing in S3 for referencefile %s: %s",
+                     referencefile.referencefile_id, object_name)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"The stored file for referencefile {referencefile.referencefile_id} "
+                                   f"({referencefile.display_name}.{referencefile.file_extension}, "
+                                   f"md5sum {referencefile.md5sum}) was not found in storage")
+
+
+def cleanup_temp_dir(temp_dir):
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+# the files a tarball left out because storage does not have them
+MISSING_FILES_HEADER = "X-Missing-Files"
 
 
 def download_additional_files_tarball(db: Session, reference_id, mod_access: ModAccess):
@@ -966,21 +1013,46 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Mod
         )
     ).all()
 
-    tar_file_path = ref_curie.replace(":", "_") + "_additional_files.tar.gz"
-    os.makedirs("tarball_tmp", exist_ok=True)
-    with tarfile.open(tar_file_path, "w:gz") as tar:
-        for referencefile in all_referencefile_supp:
-            md5sum = referencefile.md5sum
-            folder = get_s3_folder_from_md5sum(md5sum)
-            object_name = folder + "/" + md5sum + ".gz"
-            tmp_file_gz_path = "tarball_tmp/" + referencefile.display_name + ".gz"
-            tmp_file_name = referencefile.display_name + "." + referencefile.file_extension
-            tmp_file_path = "tarball_tmp/" + tmp_file_name
-            download_file_from_s3(tmp_file_gz_path, "agr-literature", object_name)
-            with gzip.open(tmp_file_gz_path, 'rb') as f_in, open(tmp_file_path, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-            tar.add(tmp_file_path, arcname=tmp_file_name)
-            os.remove(tmp_file_path)
-    shutil.rmtree("tarball_tmp")
-    return FileResponse(path=tar_file_path, filename=tar_file_path, media_type="application/gzip",
-                        background=BackgroundTask(cleanup, tar_file_path))
+    tar_file_name = ref_curie.replace(":", "_") + "_additional_files.tar.gz"
+    # per-request temp dir so concurrent requests never share the tarball or its staging files
+    temp_dir = tempfile.mkdtemp()
+    try:
+        tar_file_path = os.path.join(temp_dir, tar_file_name)
+        staging_dir = os.path.join(temp_dir, "files")
+        os.makedirs(staging_dir)
+        missing = []
+        with tarfile.open(tar_file_path, "w:gz") as tar:
+            for referencefile in all_referencefile_supp:
+                md5sum = referencefile.md5sum
+                folder = get_s3_folder_from_md5sum(md5sum)
+                object_name = folder + "/" + md5sum + ".gz"
+                tmp_file_gz_path = os.path.join(staging_dir, md5sum + ".gz")
+                tmp_file_name = referencefile.display_name + "." + referencefile.file_extension
+                tmp_file_path = os.path.join(staging_dir, md5sum)
+                try:
+                    fetch_stored_file(tmp_file_gz_path, object_name, referencefile)
+                except HTTPException as exc:
+                    # SCRUM-6855: a supplement S3 does not have is left out (and
+                    # logged by fetch_stored_file) so the others still download;
+                    # S3 being unreachable (502) still fails the whole request.
+                    if exc.status_code != status.HTTP_404_NOT_FOUND:
+                        raise
+                    missing.append(tmp_file_name)
+                    continue
+                with gzip.open(tmp_file_gz_path, 'rb') as f_in, open(tmp_file_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                tar.add(tmp_file_path, arcname=tmp_file_name)
+                os.remove(tmp_file_gz_path)
+                os.remove(tmp_file_path)
+        if missing and len(missing) == len(all_referencefile_supp):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"None of the additional files of {ref_curie} were found in storage")
+    except BaseException:
+        cleanup_temp_dir(temp_dir)
+        raise
+    # SCRUM-6855 review: tell the client which files were left out, each name
+    # percent-encoded (a header is latin-1, a display name may not be) and
+    # comma-separated.
+    headers = {MISSING_FILES_HEADER: ", ".join(quote(name) for name in missing)} if missing else None
+    return FileResponse(path=tar_file_path, filename=tar_file_name, media_type="application/gzip",
+                        headers=headers, background=BackgroundTask(cleanup_temp_dir, temp_dir))

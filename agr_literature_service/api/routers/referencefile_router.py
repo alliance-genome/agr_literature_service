@@ -11,20 +11,20 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import file_conversion_crud, referencefile_crud
+from agr_literature_service.api.crud import file_conversion_crud, referencefile_archive_crud, referencefile_crud
 from agr_literature_service.api.deps import s3_auth
-from agr_cognito_py import get_mod_access
+from agr_cognito_py import get_mod_access, has_mod_access
 from agr_literature_service.api.observer import visibility_mod_access
 from agr_literature_service.api.schemas.file_conversion_schemas import \
     ConversionStatusResponseSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost, \
-    ReferencefileByMd5MatchSchema
+    ReferencefileByMd5MatchSchema, ReferencefileArchiveUploadSchemaShow
 from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_cognito
-from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
+from agr_literature_service.api.auth import DEFAULT_BYPASS_USER, get_authenticated_user, read_auth_bypass
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,52 @@ def file_upload(reference_curie: str = None,
     return [referencefile_crud.show(db, rf.referencefile_id) for rf in created_referencefiles]
 
 
+def require_cognito_curator(user: Optional[Dict[str, Any]], mod_abbreviation: str) -> None:
+    """A real Cognito login (not the IP-bypass default user) with access to the MOD."""
+    if not user or user.get("sub") == DEFAULT_BYPASS_USER["sub"]:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Log in with Cognito to archive files")
+    if not has_mod_access(user, mod_abbreviation):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Archiving {mod_abbreviation} files needs {mod_abbreviation} curator access")
+
+
+@router.post('/pdf_archive_upload/',
+             status_code=status.HTTP_200_OK,
+             response_model=ReferencefileArchiveUploadSchemaShow)
+def pdf_archive_upload(mod_abbreviation: str,
+                       include_existing: bool = False,
+                       dry_run: bool = False,
+                       file: UploadFile = File(...),  # noqa: B008
+                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                       db: Session = db_session):
+    """
+    Archive one of a MOD's existing main PDFs in ABC WITHOUT sending the paper
+    to text conversion (SCRUM-6633). Name the file after the MOD's ID for the
+    paper (e.g. FBrf0111489.pdf for FB, WBPaper00031514.pdf for WB); it is
+    matched to the reference through that cross-reference and stored as a
+    main / final PDF of the MOD. The MOD's file-upload status is set to "files
+    uploaded" without running transition actions, and no existing file is
+    deleted. A file that is skipped is reported in `status`, not as an error;
+    a paper with a job in progress (text conversion, classification, entity
+    extraction) still gets a 422, so retry it later.
+
+    - include_existing: also upload when the reference already has a
+      different main PDF of the MOD (skipped by default)
+    - dry_run: report what would happen without writing anything
+
+    Requires a Cognito login with curator access to the MOD.
+
+        curl -X POST 'https://<api>/reference/referencefile/pdf_archive_upload/?mod_abbreviation=FB' \\
+         -H 'Authorization: Bearer <id_token>' \\
+         -F 'file=@FBrf0111489.pdf;type=application/pdf'
+    """
+    require_cognito_curator(user, mod_abbreviation)
+    set_global_user_from_cognito(db, user)
+    return referencefile_archive_crud.archive_upload(db, mod_abbreviation, file,
+                                                     include_existing=include_existing, dry_run=dry_run)
+
+
 @router.get('/download_file/{referencefile_id}',
             status_code=status.HTTP_200_OK)
 def download_file(referencefile_id: int,
@@ -206,6 +252,7 @@ def get_converted(curie_or_reference_id: str,
                   background_tasks: BackgroundTasks,
                   wait: bool = False,
                   overwrite_tei_md: bool = False,
+                  retry: bool = False,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     """
@@ -226,6 +273,10 @@ def get_converted(curie_or_reference_id: str,
       that are done so partial results can be consumed without waiting.
     - ``failed``: the most recent conversion attempt failed. See
       ``error_message`` and ``per_file_progress`` for details. HTTP 200.
+      A PDF conversion that failed in the last hour keeps being reported as
+      failed, without converting again, until ``retry=true`` is passed. A job
+      whose API worker exited is restarted at once; ``previous_job_id`` then
+      names the job it replaces (as it does after a retry).
     - ``no_sources``: the reference has nothing to convert (no nXML, no main
       PDF, no supplement PDFs). HTTP 200.
 
@@ -265,6 +316,7 @@ def get_converted(curie_or_reference_id: str,
         mod_access=mod_access,
         user_id=user_id,
         overwrite_tei_md=overwrite_tei_md,
+        retry=retry,
     )
     response.status_code = status_code
     return payload

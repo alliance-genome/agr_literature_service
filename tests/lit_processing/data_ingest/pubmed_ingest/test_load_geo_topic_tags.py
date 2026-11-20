@@ -41,7 +41,8 @@ class TestBuildTopicTetPayload:
         an omitted value would make re-runs write duplicate rows."""
         data = mod._build_topic_tet_payload("AGRKB:101000000000001", source_id=42).dict()
         assert data["data_novelty"] == mod.DATA_NOVELTY_NOT_NEW
-        assert data["data_context"] == mod.DATA_CONTEXT_EXPERIMENTALLY_STUDIED
+        # SCRUM-6815: left to the server's per-MOD default
+        assert data.get("data_context") is None
 
 
 class TestGetOrCreateSource:
@@ -120,7 +121,7 @@ class TestReferenceQuery:
     def test_scopes_to_one_mods_corpus_and_non_obsolete_geo_xrefs(self):
         sql = self._compiled_sql(mod_abbreviation="FB")
         assert "mod_corpus_association.corpus IS true" in sql
-        assert "cross_reference.is_obsolete IS false" in sql
+        assert "cross_reference.obsolete IS false" in sql
         assert "DISTINCT" in sql
 
 

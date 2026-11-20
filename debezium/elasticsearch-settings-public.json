@@ -488,26 +488,20 @@
       "mesh_terms": {
         "type": "nested",
         "properties": {
-          "mesh_heading_term": {
+          "heading_term": {
             "type": "text",
-            "analyzer": "autocompleteAnalyzer",
-            "search_analyzer": "autocompleteSearchAnalyzer",
             "fields": {
               "keyword": {
                 "type": "keyword",
-                "normalizer": "sortNormalizer",
                 "ignore_above": 256
               }
             }
           },
-          "mesh_qualifier_term": {
+          "qualifier_term": {
             "type": "text",
-            "analyzer": "autocompleteAnalyzer",
-            "search_analyzer": "autocompleteSearchAnalyzer",
             "fields": {
               "keyword": {
                 "type": "keyword",
-                "normalizer": "sortNormalizer",
                 "ignore_above": 256
               }
             }

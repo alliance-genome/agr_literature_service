@@ -71,13 +71,13 @@ def get_next_local_curie(subdomain, db):
     #    db_session = create_postgres_session(False)
     if subdomain == 'reference':
         curie_start = "AGRKB:101"
-        rs = db.execute(text("SELECT curie FROM reference order by reference_id desc limit 1"))
+        rs = db.execute(text("SELECT curie FROM reference order by id desc limit 1"))
     elif subdomain == 'resource':
         curie_start = "AGRKB:102"
-        rs = db.execute(text("SELECT curie FROM resource order by resource_id desc limit 1"))
+        rs = db.execute(text("SELECT curie FROM resource order by id desc limit 1"))
     elif subdomain == 'person':
         curie_start = "AGRKB:103"
-        rs = db.execute(text("SELECT curie FROM person order by person_id desc limit 1"))
+        rs = db.execute(text("SELECT curie FROM person order by id desc limit 1"))
     elif subdomain == 'laboratory':
         # Laboratory subdomain -> AGRKB:104 (the local fallback reuses the real MATI
         # prefix, matching reference/resource/person). Laboratory.curie is nullable,
@@ -85,7 +85,7 @@ def get_next_local_curie(subdomain, db):
         curie_start = "AGRKB:104"
         rs = db.execute(text(
             "SELECT curie FROM laboratory WHERE curie LIKE 'AGRKB:104%' "
-            "order by laboratory_id desc limit 1"
+            "order by id desc limit 1"
         ))
     else:
         raise ValueError(f"Unknown MATI subdomain: {subdomain}")

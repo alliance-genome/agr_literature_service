@@ -25,21 +25,22 @@ def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
         with engine.begin() as conn:  # Use connection context
-            # Break the person<->users FK cycle before deleting person rows. The
-            # cleanup never deletes the "users" table (the default user is preserved
-            # below), so a curator (person-linked) users row would survive while its
-            # person is deleted -- firing author/users ON DELETE SET NULL on
-            # users.person_id and leaving the row violating the users
+            # Break the person<->agent FK cycle before deleting person rows. The
+            # cleanup never deletes the "agent" table (the default user is preserved
+            # below), so a curator (person-linked) agent row would survive while its
+            # person is deleted -- firing author/agent ON DELETE SET NULL on
+            # agent.person_id and leaving the row violating the agent
             # (person_id IS NULL) <> (automation_username IS NULL) check. Convert any
             # such row to an automation user first so the person delete is safe.
+            # Each gets its own name: automation_username is unique.
             conn.execute(text(
-                "UPDATE users "
-                "SET automation_username = COALESCE(automation_username, 'test_cleanup'), "
+                "UPDATE agent "
+                "SET automation_username = COALESCE(automation_username, 'test_cleanup_' || id), "
                 "person_id = NULL "
                 "WHERE person_id IS NOT NULL"
             ))
             for table in reversed(Base.metadata.sorted_tables):
-                if table.fullname != "users":
+                if table.fullname != "agent":
                     conn.execute(table.delete())  # Use connection for execution
         db_session.commit()  # Commit the transaction
 
@@ -177,6 +178,16 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000311': ['ATP:0000312', 'ATP:0000313', 'ATP:0000314', 'ATP:0000315'],
         # first pass curation (SCRUM-5478)
         'ATP:0000329': ['ATP:0000331', 'ATP:0000332', 'ATP:0000333', 'ATP:0000371', 'ATP:0000330'],
+        # WB author-person curation (SCRUM-6487) and author review (SCRUM-6448)
+        'ATP:0000375': ['ATP:0000109', 'ATP:0000377', 'ATP:0000376', 'ATP:0000378'],
+        'ATP:0000388': ['ATP:0000389', 'ATP:0000390', 'ATP:0000391', 'ATP:0000392'],
+        # abstract classification, with the ZFIN molecular probe states under the generic
+        # ones, and community curation (SCRUM-6775 pre-curation overview)
+        'ATP:0000379': ['ATP:0000381', 'ATP:0000382', 'ATP:0000384', 'ATP:0000386'],
+        'ATP:0000381': ['ATP:0000380'], 'ATP:0000382': ['ATP:0000383'],
+        'ATP:0000384': ['ATP:0000385'], 'ATP:0000386': ['ATP:0000387'],
+        'ATP:0000235': ['ATP:0000231', 'ATP:0000232', 'ATP:0000233', 'ATP:0000234', 'ATP:0000342',
+                        'ATP:0000394'],
 
         'ATP:0000001': ['ATP:0000002'],
         'ATP:0000002': ['ATP:0000015', 'ATP:0000142'],
@@ -184,7 +195,9 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000015': ['ATP:0000068', 'ATP:0000069', 'ATP:0000070'],
         'ATP:0000068': ['ATP:0000071'],
 
-        'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
+        # made-up process; ATP:0000141 is NOT listed here, so its parent stays ATP:0000140 (the
+        # parent map keeps the last write) and the file upload -> file needed row applies (SCRUM-6845)
+        'ATP:fileupload': ['ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
         'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
         'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
@@ -203,6 +216,11 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000274': [], 'ATP:0000275': [], 'ATP:0000276': [], 'ATP:0000336': [], 'ATP:0000343': [],
         'ATP:0000312': [], 'ATP:0000313': [], 'ATP:0000314': [], 'ATP:0000315': [],
         'ATP:0000331': [], 'ATP:0000332': [], 'ATP:0000333': [], 'ATP:0000371': [], 'ATP:0000330': [],
+        'ATP:0000109': [], 'ATP:0000377': [], 'ATP:0000376': [], 'ATP:0000378': [],
+        'ATP:0000389': [], 'ATP:0000390': [], 'ATP:0000391': [], 'ATP:0000392': [],
+        'ATP:0000380': [], 'ATP:0000383': [], 'ATP:0000385': [], 'ATP:0000387': [],
+        'ATP:0000231': [], 'ATP:0000232': [], 'ATP:0000233': [], 'ATP:0000234': [], 'ATP:0000342': [],
+        'ATP:0000394': [],
         'ATP:0000123': [],
         'ATP:0000069': [], 'ATP:0000070': [], 'ATP:0000071': [],
         'ATP:fileuploadinprogress': [], 'ATP:fileuploadcomplete': [], 'ATP:fileuploadfailed': [],
@@ -212,18 +230,28 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:task1_complete': [], 'ATP:task2_complete': [], 'ATP:task3_complete': [],
         'ATP:0000334': [],
         'ATP:0000228': [], 'ATP:0000229': [],
-        # SCRUM-5697 data_context hierarchy (see docs/validation.md)
-        'ATP:0000323': ['ATP:0000324', 'ATP:0000326'],
-        'ATP:0000324': ['ATP:0000360', 'ATP:0000325'],
-        'ATP:0000326': ['ATP:0000328', 'ATP:0000327'],
-        'ATP:0000325': [], 'ATP:0000360': [],
-        'ATP:0000327': [], 'ATP:0000328': []
+        # data_context hierarchy as of the 2026-10-30 ATP release (SCRUM-6815; see
+        # docs/validation.md). ATP:0000325 experimentally studied data and
+        # ATP:0000326 marker data were deprecated and have no parent any more; they
+        # are listed so a lookup of them never reaches the network.
+        'ATP:0000323': ['ATP:0000324', 'ATP:0000404'],
+        'ATP:0000324': ['ATP:0000360', 'ATP:0000405'],
+        'ATP:0000405': ['ATP:0000406', 'ATP:0000409'],
+        'ATP:0000406': ['ATP:0000407', 'ATP:0000408'],
+        'ATP:0000409': ['ATP:0000327', 'ATP:0000328', 'ATP:0000410'],
+        'ATP:0000360': [], 'ATP:0000404': [], 'ATP:0000407': [], 'ATP:0000408': [],
+        'ATP:0000327': [], 'ATP:0000328': [], 'ATP:0000410': [],
+        'ATP:0000325': [], 'ATP:0000326': []
     }
 
     atp_to_name = {
         'ATP:0000009': 'phenotype',
         'ATP:0000082': 'RNAi phenotype',
         'ATP:0000122': 'ATP:0000122',
+        # SGD's review topic/display tag and the topic root it is stored under
+        # (SCRUM-6852 SGD /validate test); names are not needed, only validity
+        'ATP:0000130': 'ATP:0000130',
+        'ATP:0000002': 'ATP:0000002',
         'ATP:0000084': 'overexpression phenotype',
         'ATP:0000079': 'genetic phenotype',
         'ATP:0000005': 'gene',
@@ -253,11 +281,28 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000333': 'first pass curation blocked',
         'ATP:0000371': 'first pass curation TBD',
         'ATP:0000330': 'first pass curation finished',
+        'ATP:0000375': 'author-person curation',
+        'ATP:0000109': 'author-person curation needed',
+        'ATP:0000377': 'author-person curation in progress',
+        'ATP:0000376': 'author-person curation blocked',
+        'ATP:0000378': 'author-person curation complete',
+        'ATP:0000388': 'author review',
+        'ATP:0000389': 'author review needed',
+        'ATP:0000390': 'author review in progress',
+        'ATP:0000391': 'author review blocked',
+        'ATP:0000392': 'author review complete',
         # SCRUM-5697 data_context hierarchy (root, two groupings, four leaves).
         'ATP:0000323': 'data context',
         'ATP:0000324': 'mentioned data',
         'ATP:0000360': 'background information',
         'ATP:0000325': 'experimentally studied data',
+        'ATP:0000405': 'experimental data',
+        'ATP:0000406': 'experimentally studied entity',
+        'ATP:0000407': 'primary studied entity',
+        'ATP:0000408': 'additional studied entity',
+        'ATP:0000409': 'supporting experimental entity',
+        'ATP:0000410': 'experimental control',
+        'ATP:0000404': 'nomenclature error',
         'ATP:0000326': 'marker data',
         'ATP:0000328': 'expression marker',
         'ATP:0000327': 'genetic marker'
@@ -292,10 +337,27 @@ def load_name_to_atp_and_relationships_mock():
         'first pass curation blocked': 'ATP:0000333',
         'first pass curation TBD': 'ATP:0000371',
         'first pass curation finished': 'ATP:0000330',
+        'author-person curation': 'ATP:0000375',
+        'author-person curation needed': 'ATP:0000109',
+        'author-person curation in progress': 'ATP:0000377',
+        'author-person curation blocked': 'ATP:0000376',
+        'author-person curation complete': 'ATP:0000378',
+        'author review': 'ATP:0000388',
+        'author review needed': 'ATP:0000389',
+        'author review in progress': 'ATP:0000390',
+        'author review blocked': 'ATP:0000391',
+        'author review complete': 'ATP:0000392',
         'data context': 'ATP:0000323',
         'mentioned data': 'ATP:0000324',
         'background information': 'ATP:0000360',
         'experimentally studied data': 'ATP:0000325',
+        'experimental data': 'ATP:0000405',
+        'experimentally studied entity': 'ATP:0000406',
+        'primary studied entity': 'ATP:0000407',
+        'additional studied entity': 'ATP:0000408',
+        'supporting experimental entity': 'ATP:0000409',
+        'experimental control': 'ATP:0000410',
+        'nomenclature error': 'ATP:0000404',
         'marker data': 'ATP:0000326',
         'expression marker': 'ATP:0000328',
         'genetic marker': 'ATP:0000327'

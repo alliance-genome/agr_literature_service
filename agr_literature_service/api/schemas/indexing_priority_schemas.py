@@ -21,6 +21,23 @@ class ConfidenceMixin(BaseModel):
         return round(v, 2)
 
 
+class UpdatedByMixin(BaseModel):
+    """Optional curator to record as the updater, e.g. the ZFIN curator who
+    validated a predicted priority when ZFIN calls with its own token
+    (SCRUM-6819). A person curie, an email or a display name; omitted, the
+    authenticated user is recorded."""
+    updated_by: Optional[str] = None
+
+    @field_validator('updated_by')
+    def _check_updated_by(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            raise ValueError("updated_by cannot be empty")
+        return v
+
+
 class IndexingPrioritySchemaCreate(ConfidenceMixin):
     """Schema for creating an indexing priority tag association."""
     model_config = ConfigDict(
@@ -85,7 +102,7 @@ class IndexingPrioritySchemaShow(IndexingPrioritySchemaRelated):
     reference_curie: str
 
 
-class IndexingPrioritySchemaUpdate(ConfidenceMixin):
+class IndexingPrioritySchemaUpdate(UpdatedByMixin, ConfidenceMixin):
     """Schema for updating an indexing priority tag association."""
     model_config = ConfigDict(
         extra='forbid',
@@ -102,6 +119,20 @@ class IndexingPrioritySchemaUpdate(ConfidenceMixin):
         if v is not None and not v.startswith('ATP:'):
             raise ValueError("predicted_indexing_priority must start with 'ATP:'")
         return v
+
+    @field_validator('curator_indexing_priority')
+    def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("curator_indexing_priority must start with 'ATP:'")
+        return v
+
+
+class IndexingPriorityCuratorSchemaUpdate(UpdatedByMixin):
+    """Schema for setting the curator indexing priority of a reference and MOD;
+    null clears it."""
+    model_config = ConfigDict(extra='forbid')
+
+    curator_indexing_priority: Optional[str]
 
     @field_validator('curator_indexing_priority')
     def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:

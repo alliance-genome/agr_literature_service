@@ -301,13 +301,13 @@ def get_unique_entity_list(db, mod_abbreviation):
             topic_entity_tag tet
         JOIN
             tag_source tet_src
-            ON tet.tag_source_id = tet_src.tag_source_id
+            ON tet.tag_source_id = tet_src.id
         JOIN
             mod m
-            ON tet_src.secondary_data_provider_id = m.mod_id
+            ON tet_src.secondary_data_provider_id = m.id
         JOIN
             reference ref
-            ON tet.reference_id = ref.reference_id
+            ON tet.reference_id = ref.id
         WHERE
             tet.entity IS NOT NULL
             -- the owning MOD; data_provider can be a third party such as GEO

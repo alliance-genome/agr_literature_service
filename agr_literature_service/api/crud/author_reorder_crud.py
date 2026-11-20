@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ReferenceModel, AuthorModel
-from agr_literature_service.api.models.audited_model import get_default_user_value
+from agr_literature_service.api.models.audited_model import agent_id_for_label, get_default_user_value
 
 
 def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
@@ -92,7 +92,7 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     # rather than NULL-erasing the existing stamp. Bind date_updated as an explicit
     # UTC datetime so the timestamp matches every other write; SQL now() would cast a
     # timestamptz through the session TimeZone into this tz-naive column and drift.
-    params: Dict = {"ref_id": ref_id, "uid": get_default_user_value(),
+    params: Dict = {"ref_id": ref_id, "agent_id": agent_id_for_label(db.connection(), get_default_user_value()),
                     "now": datetime.now(timezone.utc)}
     for i, item in enumerate(ordering):
         params[f"id{i}"] = item.author_id
@@ -102,9 +102,9 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     db.execute(text("SET CONSTRAINTS uq_author_ref_order DEFERRED"))
     db.execute(text(
         f"UPDATE author AS a SET author_order = v.new_order, "
-        f"updated_by = :uid, date_updated = :now "
-        f"FROM (VALUES {values}) AS v(author_id, new_order) "
-        f"WHERE a.author_id = v.author_id AND a.reference_id = :ref_id"), params)
+        f"updated_by_id = :agent_id, date_updated = :now, db_date_updated = :now "
+        f"FROM (VALUES {values}) AS v(id, new_order) "
+        f"WHERE a.id = v.id AND a.reference_id = :ref_id"), params)
     try:
         db.commit()
     except IntegrityError as exc:

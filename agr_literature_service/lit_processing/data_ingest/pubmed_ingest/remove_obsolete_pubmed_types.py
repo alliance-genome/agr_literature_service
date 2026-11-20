@@ -14,7 +14,7 @@ def cleanup_data():  # pragma: no cover
     logger.info("Querying cross_reference table...")
 
     sql_query = text("""
-    SELECT reference_id, is_obsolete
+    SELECT reference_id, obsolete
     FROM cross_reference
     WHERE curie_prefix = 'PMID'
     """)
@@ -25,7 +25,7 @@ def cleanup_data():  # pragma: no cover
     logger.info("Querying reference table and deleting obsolete pubmed_types...")
 
     sql_query = text("""
-    SELECT reference_id, curie, title, pubmed_types
+    SELECT id AS reference_id, curie, title, pubmed_types
     FROM reference
     WHERE pubmed_types::text != '{}'
     AND pubmed_types is not NULL
@@ -69,7 +69,7 @@ def cleanup_this_paper(db, reference_id, curie, title):
         return
 
     sql_query = text("""
-    SELECT reference_id
+    SELECT id AS reference_id
     FROM reference
     WHERE UPPER(title) = :title
     """)
@@ -79,7 +79,7 @@ def cleanup_this_paper(db, reference_id, curie, title):
     if len(rows) > 1:
         sql_query = text("""
         DELETE from reference
-        WHERE reference_id = :reference_id
+        WHERE id = :reference_id
         """)
         db.execute(sql_query, {"reference_id": reference_id})
         logger.info(f"The reference for reference_id = {reference_id}, curie={curie} has been deleted.")
@@ -90,7 +90,7 @@ def remove_pubmed_types(db, reference_id, curie):
     sql_query = text("""
     UPDATE reference
     SET pubmed_types = NULL
-    WHERE reference_id = :reference_id
+    WHERE id = :reference_id
     """)
 
     db.execute(sql_query, {
