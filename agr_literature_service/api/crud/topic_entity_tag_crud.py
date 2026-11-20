@@ -746,6 +746,17 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
+    apply_tag_patch(db, topic_entity_tag, patch_data)
+    db.commit()
+    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id), db=db)
+    return {"message": "updated"}
+
+
+def apply_tag_patch(db: Session, topic_entity_tag: TopicEntityTagModel,
+                    patch_data: TopicEntityTagSchemaUpdate) -> None:
+    """Apply a PATCH to a tag in the current transaction: only the fields sent change,
+    an explicit null clears one. Flushes, never commits or revalidates (patch_tag and
+    the batch endpoint do that, SCRUM-4141)."""
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
     # Audit fields on a PATCH must resolve to an EXISTING user. An identifier
     # that maps to no users row (e.g. the UI sending its Cognito token sub,
@@ -759,16 +770,14 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
         if resolved is None:
             logger.warning(
                 f"patch_tag: dropping {audit_field}={patch_data_dict[audit_field]!r} on tag "
-                f"{topic_entity_tag_id}: does not resolve to an existing user")
+                f"{topic_entity_tag.topic_entity_tag_id}: does not resolve to an existing user")
             del patch_data_dict[audit_field]
         else:
             patch_data_dict[audit_field] = resolved
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
-    db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id), db=db)
-    return {"message": "updated"}
+    db.flush()
 
 
 def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
@@ -799,12 +808,18 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
                             detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
 
     reference_id = topic_entity_tag.reference_id
-    db.delete(topic_entity_tag)
+    delete_tag_row(db, topic_entity_tag)
     db.commit()
     # A single-reference revalidation always deletes and rebuilds all of that
     # reference's edges in one transaction (see run_revalidation), so there is no
     # cheaper per-tag path to ask for here (SCRUM-6472).
     revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+
+
+def delete_tag_row(db: Session, topic_entity_tag: TopicEntityTagModel) -> None:
+    """Delete a tag in the current transaction; flushes, never commits or revalidates."""
+    db.delete(topic_entity_tag)
+    db.flush()
 
 
 # SCRUM-6474: ATP:0000002 "topic tag", and ATP:0000001 above it, are containers rather
