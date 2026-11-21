@@ -880,9 +880,10 @@ def apply_tag_batch(db: Session, request: TopicEntityTagBatchRequest) -> TopicEn
     """Apply creates, updates and deletes of one reference's tags in one transaction
     (SCRUM-4141): all of them or none.
 
-    Deletes run first (so a delete and re-create of one tag does not 409), then creates
-    (so a person first named in this batch exists when an update names them), then
-    updates. A create is never absorbed into an existing tag: where POST would append its
+    Deletes run first, then updates, then creates, so each create is checked for
+    duplicates against the tags as the deletes and updates leave them (a value moved
+    off one tag can be put on a new one in the same batch). The agents the creates name
+    are made before any change (_create_batch_agents). A create is never absorbed into an existing tag: where POST would append its
     note to an equal tag, the batch fails with 409. Creates make the same companion entity
     tag a single create makes. The reference is revalidated once, after every change.
     Any error rolls the whole batch back and is raised with the change that caused it.
@@ -904,6 +905,11 @@ def apply_tag_batch(db: Session, request: TopicEntityTagBatchRequest) -> TopicEn
                 delete_tag_row(db, _batch_tag(db, tag_id, reference_id))
             except HTTPException as error:
                 raise _BatchChangeError("delete", index, error)
+        for index, update in enumerate(request.update):
+            try:
+                apply_tag_patch(db, _batch_tag(db, update.topic_entity_tag_id, reference_id), update.changes)
+            except HTTPException as error:
+                raise _BatchChangeError("update", index, error)
         created = []
         for index, new_tag in enumerate(request.create):
             try:
@@ -921,11 +927,6 @@ def apply_tag_batch(db: Session, request: TopicEntityTagBatchRequest) -> TopicEn
                 created.append(tag_id)
             except HTTPException as error:
                 raise _BatchChangeError("create", index, error)
-        for index, update in enumerate(request.update):
-            try:
-                apply_tag_patch(db, _batch_tag(db, update.topic_entity_tag_id, reference_id), update.changes)
-            except HTTPException as error:
-                raise _BatchChangeError("update", index, error)
         revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db, commit=False)
         db.commit()
     except _BatchChangeError as failed:

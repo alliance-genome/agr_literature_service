@@ -4790,6 +4790,21 @@ class TestTopicEntityTagBatch:
         db.expire_all()
         assert db.query(UserModel).filter_by(automation_username=label).one_or_none() is not None
 
+    def test_batch_create_sees_the_updates(self, db, test_topic_entity_tag, test_tag_source):  # noqa
+        # moving the fixture tag from gene 3001 to 3002 and adding a tag for 3001 (same creator, topic, source)
+        # in one batch: the create is checked against the tags after the updates, so it is no duplicate (PR review)
+        ref = test_topic_entity_tag.related_ref_curie
+        same_as_fixture = self._payload(ref, test_tag_source.new_source_id, topic="ATP:0000122",
+                                        entity="WB:WBGene00003001", data_context="ATP:0000405", note="test note",
+                                        date_created="2020-01-01")
+        with TestClient(app):
+            result = self._batch(db, ref, create=[same_as_fixture],
+                                 update=[(test_topic_entity_tag.new_tet_id, {"entity": "WB:WBGene00003002"})])
+        assert len(result.created) == 1 and result.updated == 1
+        db.expire_all()
+        assert db.get(TopicEntityTagModel, test_topic_entity_tag.new_tet_id).entity == "WB:WBGene00003002"
+        assert db.get(TopicEntityTagModel, result.created[0]).entity == "WB:WBGene00003001"
+
     def test_batch_create_never_upserts(self, db, test_topic_entity_tag, test_tag_source):  # noqa
         ref = test_topic_entity_tag.related_ref_curie
         same_but_note = self._payload(ref, test_tag_source.new_source_id, topic="ATP:0000122",
