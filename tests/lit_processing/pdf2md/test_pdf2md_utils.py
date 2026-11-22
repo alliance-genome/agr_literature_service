@@ -1702,6 +1702,45 @@ class TestSupplementPdfLimits:
         assert error is None
         assert submitted is True
 
+    @pytest.mark.parametrize("file_content", [
+        b"x" * (5 * 1024 * 1024 + 1),
+        _pdf_bytes(21),
+    ], ids=["over_size_limit", "over_page_limit"])
+    def test_supplement_limits_skipped_when_not_enforced(self, monkeypatch, file_content):
+        """SCRUM-6978: the on-demand request passes enforce_supplement_limits=False,
+        so an oversized supplement PDF is still submitted to PDFX."""
+        submitted = False
+
+        def fake_submit_pdf_to_pdfx(**kwargs):
+            nonlocal submitted
+            submitted = True
+            return "process-id"
+
+        monkeypatch.setattr(pdf2md_utils, "download_file", lambda **kwargs: file_content)
+        monkeypatch.setattr(pdf2md_utils, "submit_pdf_to_pdfx", fake_submit_pdf_to_pdfx)
+        monkeypatch.setattr(pdf2md_utils, "poll_pdfx_status", lambda *args, **kwargs: None)
+        monkeypatch.setattr(
+            pdf2md_utils,
+            "download_pdfx_result",
+            lambda *args, **kwargs: b"# Converted\n\ncontent",
+        )
+        monkeypatch.setattr(pdf2md_utils, "upload_pdfx_markdown", lambda *args, **kwargs: None)
+        monkeypatch.setattr(pdf2md_utils, "process_extracted_images", lambda **kwargs: 0)
+
+        success, methods_uploaded, error = pdf2md_utils._process_single_pdf_file(
+            db=None,
+            pdf_file=_referencefile(),
+            reference_curie="AGRKB:1",
+            token="token",
+            methods_to_extract=["merged"],
+            enforce_supplement_limits=False,
+        )
+
+        assert success is True
+        assert methods_uploaded == ["merged"]
+        assert error is None
+        assert submitted is True
+
 
 class TestFindSourceForConvertedOffice:
     """Office-derived Markdown ({display_name}_{extension}) maps back to its

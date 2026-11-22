@@ -1564,7 +1564,8 @@ def _process_single_pdf_file(  # pragma: no cover
     pdf_file: ReferencefileModel,
     reference_curie: str,
     token: str,
-    methods_to_extract: List[str]
+    methods_to_extract: List[str],
+    enforce_supplement_limits: bool = True,
 ) -> Tuple[bool, List[str], Optional[str]]:
     """
     Process a single PDF file through PDFX.
@@ -1575,6 +1576,9 @@ def _process_single_pdf_file(  # pragma: no cover
         reference_curie: The reference curie for logging and metadata.
         token: PDFX bearer token.
         methods_to_extract: List of extraction methods to use.
+        enforce_supplement_limits: When True (the batch job), a supplement PDF
+            over SUPPLEMENT_PDF_MAX_BYTES or SUPPLEMENT_PDF_MAX_PAGES is refused.
+            The on-demand conversion request passes False (SCRUM-6978).
 
     Returns:
         Tuple of (success: bool, methods_uploaded: List[str], error_message: Optional[str]).
@@ -1599,7 +1603,7 @@ def _process_single_pdf_file(  # pragma: no cover
     if not file_content:
         return False, [], "Failed to download PDF content"
 
-    if file_class == "supplement":
+    if file_class == "supplement" and enforce_supplement_limits:
         validation_error = validate_supplement_pdf_for_pdfx(file_content)
         if validation_error:
             logger.warning(

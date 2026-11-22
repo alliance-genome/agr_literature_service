@@ -34,7 +34,6 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     get_nxml_referencefile,
     get_office_files_for_reference,
     get_pdf_files_for_reference,
-    is_eligible_for_supplement_conversion,
     mod_has_converted_main,
     office_converted_display_name,
     pending_main_sources,
@@ -165,21 +164,15 @@ def _assess_reference(db: Session, reference: ReferenceModel,
         prefer_nxml=True, ignore_tei_derived=overwrite_tei_md,
     )
 
-    # Supplement conversion is restricted to references in corpus for WB/ZFIN/FB
-    # (SCRUM-6026). Treat ineligible references as if they have no pending
-    # supplements so the endpoint reports "converted" cleanly once main is
-    # done and never schedules supplement work.
-    supp_eligible = is_eligible_for_supplement_conversion(db, reference.reference_id)
-    if supp_eligible:
-        pending_supplements: List[Any] = pending_supplement_sources(
-            db, reference.reference_id, ignore_tei_derived=overwrite_tei_md,
-        )
-        pending_office_supplements: List[Any] = pending_office_supplement_sources(
-            db, reference.reference_id,
-        )
-    else:
-        pending_supplements = []
-        pending_office_supplements = []
+    # The on-demand request converts the supplements of a reference from any
+    # group (SCRUM-6978). The WB/ZFIN/FB restriction (SCRUM-6026) applies only
+    # to the weekly batch job.
+    pending_supplements: List[Any] = pending_supplement_sources(
+        db, reference.reference_id, ignore_tei_derived=overwrite_tei_md,
+    )
+    pending_office_supplements: List[Any] = pending_office_supplement_sources(
+        db, reference.reference_id,
+    )
 
     main_pdf_available = bool(main_pdfs)
     supp_pdf_available = bool(supp_pdfs)
@@ -256,17 +249,13 @@ def per_mod_pending_status(
             prefer_nxml=True, ignore_tei_derived=overwrite_tei_md,
             mod_abbreviation=mod_abbreviation,
         )
-        # Only count supplements when the reference is supplement-eligible
-        # (SCRUM-6026: WB/ZFIN/FB only). Otherwise this MOD has nothing to
-        # do on the supplement side regardless of what supplement PDFs exist.
-        if is_eligible_for_supplement_conversion(db, reference.reference_id):
-            pending_supplements = pending_supplement_sources(
-                db, reference.reference_id,
-                ignore_tei_derived=overwrite_tei_md,
-                mod_abbreviation=mod_abbreviation,
-            )
-        else:
-            pending_supplements = []
+        # The on-demand request converts supplements for every group
+        # (SCRUM-6978), so count them for every MOD, as _assess_reference does.
+        pending_supplements = pending_supplement_sources(
+            db, reference.reference_id,
+            ignore_tei_derived=overwrite_tei_md,
+            mod_abbreviation=mod_abbreviation,
+        )
         main_converted = mod_has_converted_main(
             db, reference.reference_id,
             mod_abbreviation=mod_abbreviation,

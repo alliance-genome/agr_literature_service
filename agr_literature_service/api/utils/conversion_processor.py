@@ -156,7 +156,11 @@ def _convert_pending_pdf(
     db: Any, job_id: str, reference_id: int, reference_curie: str,
     pdf_file: Any, output_file_class: str, token: str,
 ) -> Tuple[bool, Optional[str]]:
-    """Run PDFX→MD conversion for a single pending main or supplement PDF."""
+    """Run PDFX→MD conversion for a single pending main or supplement PDF.
+
+    The on-demand request converts supplement PDFs of any size (SCRUM-6978);
+    the 5 MiB / 20 page limits apply only to the batch job.
+    """
     from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
         _process_single_pdf_file,
     )
@@ -167,6 +171,7 @@ def _convert_pending_pdf(
             reference_curie=reference_curie,
             token=token,
             methods_to_extract=_all_extraction_methods(),
+            enforce_supplement_limits=False,
         )
     except Exception as exc:
         success, methods_uploaded, error = False, [], str(exc)
