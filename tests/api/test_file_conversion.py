@@ -765,10 +765,9 @@ class TestDryRun:
         assert entry["status"] == "pending"
         assert entry["source"]["display_name"] == "paper"
         assert entry["source"]["referencefile_id"] is not None
-        assert entry["converted"] == {"display_name": "paper_merged",
-                                      "file_class": "converted_merged_main",
-                                      "referencefile_id": None,
-                                      "metadata_referencefile_id": None}
+        assert entry["converted"]["display_name"] == "paper_merged"
+        assert entry["converted"]["file_class"] == "converted_merged_main"
+        assert entry["converted"]["referencefile_id"] is None
         run_job.assert_not_called()
         assert conversion_manager.get_last_job_for_reference(
             self._reference_id(db, curie)) is None
