@@ -166,7 +166,7 @@ _SQL_PERSON_BY_XREF = text(r"""
 SELECT p.curie
 FROM person_cross_reference x
 JOIN person p ON p.id = x.person_id
-WHERE lower(x.curie) = lower(:curie) AND NOT x.obsolete
+WHERE lower(x.curie) = lower(:curie) AND x.obsolete IS FALSE
 LIMIT 1
 """)
 

@@ -37,6 +37,9 @@ class PersonCrossReferenceModel(Base, AuditedModel):
                                      person_id.isnot(None)))),
         Index("ix_person_xref_person_id", "person_id"),
         Index("ix_person_xref_prefix_curie", "curie_prefix", "curie"),
+        # created_by / updated_by person cross references are matched on lower(curie) (SCRUM-6729)
+        Index("ix_person_xref_lower_curie", text("lower(curie)"),
+              postgresql_where=(is_obsolete.is_(False))),
     )
 
     @property
