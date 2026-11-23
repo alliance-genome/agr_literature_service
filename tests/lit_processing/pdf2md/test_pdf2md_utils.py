@@ -107,7 +107,6 @@ class TestSubmitPdfToPdfx:
 
         process_id = submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             methods="grobid,docling",
             merge=True,
             reference_curie="PMID:12345"
@@ -134,7 +133,6 @@ class TestSubmitPdfToPdfx:
 
         submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             extract_images=False,
             review_images=False,
         )
@@ -153,7 +151,6 @@ class TestSubmitPdfToPdfx:
 
         submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             clear_cache_scope=None,
         )
 
@@ -171,7 +168,6 @@ class TestSubmitPdfToPdfx:
         with pytest.raises(ValueError) as exc_info:
             submit_pdf_to_pdfx(
                 file_content=b"pdf_content",
-                token="test_token"
             )
         assert "No process_id" in str(exc_info.value)
 
@@ -192,7 +188,6 @@ class TestSubmitPdfToPdfx:
 
         process_id = submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             max_retries=3,
             retry_delay=1
         )
@@ -209,7 +204,6 @@ class TestSubmitPdfToPdfx:
         with pytest.raises(requests.exceptions.ConnectionError):
             submit_pdf_to_pdfx(
                 file_content=b"pdf_content",
-                token="test_token",
                 max_retries=2,
                 retry_delay=0
             )
@@ -231,7 +225,7 @@ class TestPollPdfxStatus:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        status = poll_pdfx_status("abc123", "test_token")
+        status = poll_pdfx_status("abc123")
 
         assert status["status"] == "completed"
         assert "results" in status
@@ -258,10 +252,30 @@ class TestPollPdfxStatus:
 
         mock_get.side_effect = [pending_response, pending_response, complete_response]
 
-        status = poll_pdfx_status("abc123", "test_token", timeout=100, poll_interval=5)
+        status = poll_pdfx_status("abc123", timeout=100, poll_interval=5)
 
         assert status["status"] == "completed"
         assert mock_get.call_count == 3
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_fetches_token_for_every_poll(self, mock_get, mock_time, mock_sleep):
+        """SCRUM-6978: a long poll must not keep sending the token it started
+        with. Each request asks get_admin_token(), which refreshes it before it
+        expires, so a token renewed mid-poll is used from the next request."""
+        mock_time.side_effect = itertools.count(0, 5)
+        pending_response = MagicMock()
+        pending_response.json.return_value = {"status": "processing"}
+        complete_response = MagicMock()
+        complete_response.json.return_value = {"status": "completed"}
+        mock_get.side_effect = [pending_response, complete_response]
+
+        with patch.object(pdf2md_utils, "get_admin_token", side_effect=["token_1", "token_2"]):
+            poll_pdfx_status("abc123", timeout=100, poll_interval=5)
+
+        sent = [c.kwargs["headers"]["Authorization"] for c in mock_get.call_args_list]
+        assert sent == ["Bearer token_1", "Bearer token_2"]
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
     def test_raises_runtime_error_on_failed_status(self, mock_get):
@@ -275,7 +289,7 @@ class TestPollPdfxStatus:
         mock_get.return_value = mock_response
 
         with pytest.raises(RuntimeError) as exc_info:
-            poll_pdfx_status("abc123", "test_token")
+            poll_pdfx_status("abc123")
         assert "PDFX job failed" in str(exc_info.value)
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
@@ -291,7 +305,7 @@ class TestPollPdfxStatus:
         mock_get.return_value = mock_response
 
         with pytest.raises(TimeoutError):
-            poll_pdfx_status("abc123", "test_token", timeout=10)
+            poll_pdfx_status("abc123", timeout=10)
 
     @staticmethod
     def _pdfx_finishing_after(seconds, mock_get, mock_time):
@@ -319,7 +333,7 @@ class TestPollPdfxStatus:
         # fixed 900s wait, although PDFX completed it both times.
         monkeypatch.delenv("PDFX_POLL_TIMEOUT", raising=False)
         self._pdfx_finishing_after(19 * 60 + 16, mock_get, mock_time)
-        assert poll_pdfx_status("abc123", "test_token")["status"] == "complete"
+        assert poll_pdfx_status("abc123")["status"] == "complete"
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
@@ -329,7 +343,7 @@ class TestPollPdfxStatus:
         monkeypatch.setenv("PDFX_POLL_TIMEOUT", "600")
         self._pdfx_finishing_after(19 * 60 + 16, mock_get, mock_time)
         with pytest.raises(TimeoutError) as exc_info:
-            poll_pdfx_status("abc123", "test_token")
+            poll_pdfx_status("abc123")
         assert "timed out after 600 seconds" in str(exc_info.value)
         assert "may still complete it" in str(exc_info.value)
 
@@ -366,7 +380,7 @@ class TestDownloadPdfxResult:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        content = download_pdfx_result("abc123", "grobid", "test_token")
+        content = download_pdfx_result("abc123", "grobid")
 
         assert content == b"# Markdown content"
         mock_get.assert_called_once()
@@ -614,7 +628,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert succeeded == 0
@@ -644,7 +657,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert succeeded == 2
@@ -670,7 +682,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert succeeded == 0
@@ -693,7 +704,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert (succeeded, failed, errors) == (0, 0, [])
@@ -718,7 +728,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert (succeeded, failed, errors) == (0, 0, [])
@@ -762,7 +771,7 @@ class TestDownloadPdfxImageManifest:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = download_pdfx_image_manifest("abc123", "test_token")
+        result = download_pdfx_image_manifest("abc123")
 
         assert result["process_id"] == "abc123"
         assert len(result["images"]) == 1
@@ -779,7 +788,7 @@ class TestDownloadPdfxImageManifest:
         mock_get.return_value = mock_response
 
         with pytest.raises(ValueError):
-            download_pdfx_image_manifest("abc123", "test_token")
+            download_pdfx_image_manifest("abc123")
 
 
 class TestDownloadPdfxImage:
@@ -808,7 +817,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="weird",
             reference_curie="AGRKB:1",
@@ -824,7 +832,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -842,7 +849,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -867,7 +873,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -914,7 +919,6 @@ class TestProcessExtractedImages:
         process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="supp1",
             source_file_class="supplement",
             reference_curie="AGRKB:1",
@@ -950,7 +954,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -980,7 +983,6 @@ class TestProcessExtractedImages:
             succeeded, failed, errors = process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1126,7 +1128,6 @@ class TestProcessExtractedImagesMetadataSidecar:
             process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1159,7 +1160,6 @@ class TestProcessExtractedImagesMetadataSidecar:
             succeeded, failed, errors = process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1194,7 +1194,6 @@ class TestProcessExtractedImagesMetadataSidecar:
             process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1577,7 +1576,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1605,7 +1603,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1650,7 +1647,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1693,7 +1689,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(file_class="main"),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1731,7 +1726,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
             enforce_supplement_limits=False,
         )

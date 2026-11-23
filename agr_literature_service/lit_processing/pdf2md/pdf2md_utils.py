@@ -655,9 +655,18 @@ def validate_supplement_pdf_for_pdfx(file_content: bytes) -> Optional[str]:
     return None
 
 
+def _pdfx_headers() -> Dict[str, str]:
+    """Authorization header for one PDFX request.
+
+    ``get_admin_token()`` caches the token and fetches a new one shortly before
+    it expires, so it is called for every request: a long job (or a long poll)
+    never sends an expired token.
+    """
+    return {"Authorization": f"Bearer {get_admin_token()}"}
+
+
 def submit_pdf_to_pdfx(  # pragma: no cover
     file_content: bytes,
-    token: str,
     methods: str = "grobid,docling,marker",
     merge: bool = True,
     reference_curie: Optional[str] = None,
@@ -673,7 +682,6 @@ def submit_pdf_to_pdfx(  # pragma: no cover
 
     Args:
         file_content: The PDF file content as bytes.
-        token: The bearer token for authentication.
         methods: Comma-separated extraction methods to use.
         merge: Whether to generate merged output.
         reference_curie: Optional reference identifier for logging.
@@ -701,9 +709,7 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = _pdfx_headers()
 
     # Prepare multipart form data
     data = {
@@ -785,7 +791,6 @@ def pdfx_poll_timeout() -> int:
 
 def poll_pdfx_status(
     process_id: str,
-    token: str,
     timeout: Optional[int] = None,
     poll_interval: int = 10
 ) -> Dict:
@@ -794,7 +799,6 @@ def poll_pdfx_status(
 
     Args:
         process_id: The process ID to check.
-        token: The bearer token for authentication.
         timeout: Maximum time to wait in seconds (default: pdfx_poll_timeout()).
         poll_interval: Time between polls in seconds.
 
@@ -810,15 +814,11 @@ def poll_pdfx_status(
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
     start_time = time.time()
     last_status = None
 
     while time.time() - start_time < timeout:
-        response = requests.get(url, headers=headers, timeout=30)
+        response = requests.get(url, headers=_pdfx_headers(), timeout=30)
         response.raise_for_status()
 
         status_data = response.json()
@@ -846,14 +846,13 @@ def poll_pdfx_status(
                        f"complete it (set PDFX_POLL_TIMEOUT to wait longer)")
 
 
-def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # pragma: no cover
+def download_pdfx_result(process_id: str, method: str) -> bytes:  # pragma: no cover
     """
     Download the markdown result for a specific extraction method.
 
     Args:
         process_id: The process ID of the completed job.
         method: The extraction method (grobid, docling, marker, merged).
-        token: The bearer token for authentication.
 
     Returns:
         bytes: The markdown content.
@@ -864,9 +863,7 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # 
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}/download/{method}"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = _pdfx_headers()
 
     response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
@@ -874,7 +871,7 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # 
     return response.content
 
 
-def download_pdfx_image_manifest(process_id: str, token: str) -> Dict:  # pragma: no cover
+def download_pdfx_image_manifest(process_id: str) -> Dict:  # pragma: no cover
     """
     Fetch the image manifest produced by a PDFX extraction job.
 
@@ -886,7 +883,7 @@ def download_pdfx_image_manifest(process_id: str, token: str) -> Dict:  # pragma
     """
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}/images/urls"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _pdfx_headers()
     response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
     payload = response.json()
@@ -1023,7 +1020,6 @@ def _upload_figure_metadata_sidecar(  # pragma: no cover
 def process_extracted_images(  # pragma: no cover
     db: Session,
     process_id: str,
-    token: str,
     source_display_name: str,
     source_file_class: str,
     reference_curie: str,
@@ -1068,7 +1064,7 @@ def process_extracted_images(  # pragma: no cover
     )
 
     try:
-        manifest = download_pdfx_image_manifest(process_id, token)
+        manifest = download_pdfx_image_manifest(process_id)
     except Exception as e:
         recover_session(db, e)
         msg = f"Failed to fetch PDFX image manifest: {e}"
@@ -1313,7 +1309,6 @@ def process_pdf_for_reference(  # pragma: no cover
     curie: str,
     pdf_type: PdfType = "main",
     methods_to_extract: Optional[List[str]] = None,
-    token: Optional[str] = None
 ) -> ProcessingResult:
     """
     Process PDF(s) for a single reference and convert to Markdown.
@@ -1336,7 +1331,6 @@ def process_pdf_for_reference(  # pragma: no cover
             - "both": Both main and supplemental PDFs
         methods_to_extract: List of extraction methods to use.
                            Default: ["grobid", "docling", "marker", "merged"]
-        token: Optional pre-fetched PDFX token. If not provided, will be fetched.
 
     Returns:
         Dict with processing results:
@@ -1408,25 +1402,6 @@ def process_pdf_for_reference(  # pragma: no cover
 
     logger.info(f"Found {len(pdf_files)} PDF file(s) for {reference_curie} (pdf_type={pdf_type})")
 
-    # Get token if not provided
-    if token is None:
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            recover_session(db, e)
-            error_msg = f"Failed to obtain PDFX token: {e}"
-            logger.error(error_msg)
-            return ProcessingResult(
-                success=False,
-                reference_curie=reference_curie,
-                input_curie=curie,
-                pdfs_processed=0,
-                pdfs_succeeded=0,
-                pdfs_failed=0,
-                details=[],
-                error=error_msg
-            )
-
     # Process each PDF file
     for pdf_file in pdf_files:
         pdfs_processed += 1
@@ -1444,7 +1419,6 @@ def process_pdf_for_reference(  # pragma: no cover
                 db=db,
                 pdf_file=pdf_file,
                 reference_curie=reference_curie,
-                token=token,
                 methods_to_extract=methods_to_extract
             )
 
@@ -1563,7 +1537,6 @@ def _process_single_pdf_file(  # pragma: no cover
     db: Session,
     pdf_file: ReferencefileModel,
     reference_curie: str,
-    token: str,
     methods_to_extract: List[str],
     enforce_supplement_limits: bool = True,
 ) -> Tuple[bool, List[str], Optional[str]]:
@@ -1574,7 +1547,6 @@ def _process_single_pdf_file(  # pragma: no cover
         db: Database session.
         pdf_file: ReferencefileModel object for the PDF.
         reference_curie: The reference curie for logging and metadata.
-        token: PDFX bearer token.
         methods_to_extract: List of extraction methods to use.
         enforce_supplement_limits: When True (the batch job), a supplement PDF
             over SUPPLEMENT_PDF_MAX_BYTES or SUPPLEMENT_PDF_MAX_PAGES is refused.
@@ -1623,7 +1595,6 @@ def _process_single_pdf_file(  # pragma: no cover
     # produces both Markdown and figure images in one PDFX run per source PDF.
     process_id = submit_pdf_to_pdfx(
         file_content=file_content,
-        token=token,
         methods=",".join(request_methods),
         merge=include_merge,
         reference_curie=reference_curie,
@@ -1632,13 +1603,13 @@ def _process_single_pdf_file(  # pragma: no cover
     )
 
     # Poll for completion
-    poll_pdfx_status(process_id, token)
+    poll_pdfx_status(process_id)
 
     # Download and store each method's output
     successful_methods = []
     for method in pdfx_upload_order(methods_to_extract):
         try:
-            markdown_content = download_pdfx_result(process_id, method, token)
+            markdown_content = download_pdfx_result(process_id, method)
 
             if not markdown_content or len(markdown_content) < 10:
                 logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
@@ -1668,7 +1639,6 @@ def _process_single_pdf_file(  # pragma: no cover
         process_extracted_images(
             db=db,
             process_id=process_id,
-            token=token,
             source_display_name=display_name,
             source_file_class=file_class,
             reference_curie=reference_curie,
@@ -2098,7 +2068,6 @@ def process_supplemental_pdfs(  # pragma: no cover
     db: Session,
     reference_id: int,
     reference_curie: str,
-    token: str,
     methods_to_extract: Optional[List[str]] = None,
     mod_abbreviation: Optional[str] = None,
 ) -> Tuple[int, int, List[str]]:
@@ -2112,7 +2081,6 @@ def process_supplemental_pdfs(  # pragma: no cover
         db: Database session.
         reference_id: The reference ID whose supplements should be processed.
         reference_curie: The reference curie for metadata/logging.
-        token: PDFX bearer token.
         methods_to_extract: List of methods to extract (default: all).
         mod_abbreviation: When provided, only supplements associated with
             this MOD (or shared / null-mod ones) are processed — each MOD's
@@ -2171,7 +2139,6 @@ def process_supplemental_pdfs(  # pragma: no cover
                 db=db,
                 pdf_file=pdf_file,
                 reference_curie=reference_curie,
-                token=token,
                 methods_to_extract=methods_to_extract
             )
             if success:

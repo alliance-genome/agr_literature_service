@@ -27,7 +27,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
 )
-from agr_cognito_py import ModAccess, get_admin_token
+from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
@@ -214,7 +214,6 @@ def get_unprocessed_pdfs_since_year(
 def _process_reference_list(  # pragma: no cover
     db: Session,
     reference_list: List[Dict],
-    token: str,
     start_time: float,
     summary_suffix: str = "",
     report_subject: str = "pdf2md conversion errors",
@@ -232,7 +231,6 @@ def _process_reference_list(  # pragma: no cover
     Args:
         db: Database session.
         reference_list: List of reference info dicts to process.
-        token: Initial PDFX bearer token.
         start_time: Start time for timing statistics.
         summary_suffix: Suffix for log summary title (e.g., " (Since 2025)").
         report_subject: Subject line for error report email.
@@ -254,24 +252,8 @@ def _process_reference_list(  # pragma: no cover
 
         logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
 
-        # Refresh token if needed
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            recover_session(db, e)
-            logger.error(f"Failed to refresh token: {e}")
-            failure_count += 1
-            objects_with_errors.append({
-                "reference_curie": reference_curie,
-                "display_name": ref_file_info["display_name"],
-                "file_extension": ref_file_info["file_extension"],
-                "mod_abbreviation": ref_file_info.get("mod_abbreviation", "N/A"),
-                "error": f"Failed to refresh token: {e}"
-            })
-            continue
-
         success, error_msg = process_single_reference(
-            db, ref_file_info, token,
+            db, ref_file_info,
             prefer_nxml=prefer_nxml,
             process_supplements=process_supplements
         )
@@ -375,13 +357,6 @@ def process_references_since_year(  # pragma: no cover
         if not process_supplements:
             logger.info("Skipping supplemental PDFs")
 
-        # Get token
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            logger.error(f"Failed to obtain PDFX token: {e}")
-            return None
-
         # Get unprocessed references
         reference_list = get_unprocessed_pdfs_since_year(
             db, since_year=since_year, skip_xml=skip_xml, limit=limit
@@ -395,7 +370,6 @@ def process_references_since_year(  # pragma: no cover
         return _process_reference_list(
             db=db,
             reference_list=reference_list,
-            token=token,
             start_time=start_time,
             summary_suffix=f" (Since {since_year})",
             report_subject=f"pdf2md conversion errors (since {since_year})",
@@ -412,7 +386,6 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
     reference_curie: str,
     display_name: str,
     mod_abbreviation: Optional[str],
-    token: str,
     methods_to_extract: List[str]
 ) -> Tuple[bool, Optional[str]]:
     """
@@ -440,7 +413,6 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
 
         process_id = submit_pdf_to_pdfx(
             file_content=file_content,
-            token=token,
             methods=",".join(request_methods),
             merge=include_merge,
             reference_curie=reference_curie,
@@ -448,12 +420,12 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             extract_images=True,
         )
 
-        poll_pdfx_status(process_id, token)
+        poll_pdfx_status(process_id)
 
         successful_methods = []
         for method in pdfx_upload_order(methods_to_extract):
             try:
-                markdown_content = download_pdfx_result(process_id, method, token)
+                markdown_content = download_pdfx_result(process_id, method)
 
                 if not markdown_content or len(markdown_content) < 10:
                     logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
@@ -476,7 +448,6 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             process_extracted_images(
                 db=db,
                 process_id=process_id,
-                token=token,
                 source_display_name=display_name,
                 source_file_class="main",
                 reference_curie=reference_curie,
@@ -512,7 +483,6 @@ def _process_supplements_for_reference(  # pragma: no cover
     db: Session,
     reference_id: int,
     reference_curie: str,
-    token: str,
     methods_to_extract: Optional[List[str]],
     mod_abbreviation: Optional[str],
 ) -> None:
@@ -525,7 +495,6 @@ def _process_supplements_for_reference(  # pragma: no cover
             db=db,
             reference_id=reference_id,
             reference_curie=reference_curie,
-            token=token,
             methods_to_extract=methods_to_extract,
             mod_abbreviation=mod_abbreviation,
         )
@@ -567,7 +536,6 @@ def _process_supplements_for_reference(  # pragma: no cover
 def process_single_reference(  # pragma: no cover
     db: Session,
     ref_file_info: Dict,
-    token: str,
     methods_to_extract: Optional[List[str]] = None,
     prefer_nxml: bool = True,
     process_supplements: bool = True
@@ -593,7 +561,6 @@ def process_single_reference(  # pragma: no cover
             reference_id, reference_curie, display_name, and (for PDF fallback)
             referencefile_id of the main PDF plus file_extension. May include
             mod_abbreviation.
-        token: PDFX bearer token.
         methods_to_extract: List of methods to extract (default: all 4).
         prefer_nxml: When True (default), prefer nXML conversion over PDFX for
             the main file when an nXML file is available. When False, always
@@ -665,7 +632,6 @@ def process_single_reference(  # pragma: no cover
             reference_curie=reference_curie,
             display_name=display_name,
             mod_abbreviation=mod_abbreviation,
-            token=token,
             methods_to_extract=methods_to_extract
         )
         main_success = pdfx_success
@@ -681,7 +647,7 @@ def process_single_reference(  # pragma: no cover
     # (newest/since-year, mod_abbreviation=None) process every supplement.
     if process_supplements:
         _process_supplements_for_reference(
-            db, reference_id, reference_curie, token, methods_to_extract, mod_abbreviation,
+            db, reference_id, reference_curie, methods_to_extract, mod_abbreviation,
         )
 
     # Give every converted row the MODs of its source, before the embeddings
@@ -762,13 +728,6 @@ def process_newest_references(  # pragma: no cover
         if not process_supplements:
             logger.info("Skipping supplemental PDFs")
 
-        # Get token
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            logger.error(f"Failed to obtain PDFX token: {e}")
-            return None
-
         # Enumerate via newest main PDFs
         reference_list = get_newest_main_pdfs(db, limit=limit, skip_xml=skip_xml)
         logger.info(f"Found {len(reference_list)} references to process")
@@ -780,7 +739,6 @@ def process_newest_references(  # pragma: no cover
         return _process_reference_list(
             db=db,
             reference_list=reference_list,
-            token=token,
             start_time=start_time,
             summary_suffix="",
             report_subject="pdf2md conversion errors",
@@ -1011,11 +969,8 @@ def main(  # pragma: no cover
                 display_name = ref_file_info["display_name"]
                 file_extension = ref_file_info["file_extension"]
 
-                # Refresh token if needed
-                token = get_admin_token()
-
                 success, error_msg = process_single_reference(
-                    db, ref_file_info, token,
+                    db, ref_file_info,
                     prefer_nxml=prefer_nxml,
                     process_supplements=process_supplements
                 )

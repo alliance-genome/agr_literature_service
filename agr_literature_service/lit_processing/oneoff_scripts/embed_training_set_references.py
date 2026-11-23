@@ -306,7 +306,6 @@ def process_mod(db: Session, mod: str, args: argparse.Namespace,
 
     # Lazy imports: only needed for the real run, and keep the embedding stack
     # optional for enumeration/dry-run environments.
-    from agr_cognito_py import get_admin_token
     from agr_literature_service.lit_processing.embedding.embedding_generation import (
         generate_classifier_embeddings_for_reference,
     )
@@ -314,7 +313,6 @@ def process_mod(db: Session, mod: str, args: argparse.Namespace,
         process_single_reference, _resolve_workflow_ref_file_info,
     )
 
-    token: Optional[str] = None
     prefer_nxml = not args.force_pdfx
     process_supplements = not args.no_supplements
 
@@ -345,10 +343,8 @@ def process_mod(db: Session, mod: str, args: argparse.Namespace,
                                    mod, idx, len(ordered_ids), curie, resolve_error)
                     counts["resolve_failed"] += 1
                     continue
-                if token is None:
-                    token = get_admin_token()
                 success, error_msg = process_single_reference(
-                    db, ref_file_info, token,
+                    db, ref_file_info,
                     prefer_nxml=prefer_nxml, process_supplements=process_supplements,
                 )
                 if success:
