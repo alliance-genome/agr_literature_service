@@ -482,6 +482,28 @@ def patch(db: Session, referencefile_id: int, request):
     return {"message": messageEnum.updated}
 
 
+# merged Markdown class -> the class of PDFX's page map for it (SCRUM-6977). Kept
+# in sync with pdf2md_utils.PAGE_PROVENANCE_FILE_CLASSES.
+_PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED = {
+    "converted_merged_main": "converted_page_provenance_main",
+    "converted_merged_supplement": "converted_page_provenance_supplement",
+}
+
+
+def _page_provenance_files_of(db: Session, referencefile: ReferencefileModel) -> List[ReferencefileModel]:
+    """The page maps stored for a merged Markdown row: JSON rows of the matching
+    page-map class with the Markdown's display_name. Empty for any other row."""
+    page_map_class = _PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED.get(referencefile.file_class)
+    if page_map_class is None or referencefile.file_extension != "md":
+        return []
+    return db.query(ReferencefileModel).filter(
+        ReferencefileModel.reference_id == referencefile.reference_id,
+        ReferencefileModel.display_name == referencefile.display_name,
+        ReferencefileModel.file_class == page_map_class,
+        ReferencefileModel.file_extension == "json",
+    ).all()
+
+
 def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
     reference_id = referencefile.reference_id
@@ -498,6 +520,11 @@ def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
         # circular import: embedding_file_crud imports this module.)
         from agr_literature_service.api.crud.embedding_file_crud import delete_embeddings_for_source
         delete_embeddings_for_source(db, referencefile.referencefile_id)
+        # PDFX's page map of a merged Markdown (SCRUM-6977) describes only that
+        # Markdown: it goes with it, so a later Markdown of the same name is never
+        # paired with it.
+        for page_map in _page_provenance_files_of(db, referencefile):
+            remove_from_s3_and_db(db, page_map)
         remove_from_s3_and_db(db, referencefile)
     elif mod_access != ModAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:

@@ -27,7 +27,7 @@ from agr_abc_document_parsers import convert_office_to_markdown, convert_xml_to_
 from agr_literature_service.api.crud.referencefile_crud import (
     download_file, file_upload, find_first_available_display_name
 )
-from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
+from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum, remove_from_s3_and_db
 from agr_literature_service.api.crud.reference_utils import (
     normalize_reference_curie,
     get_reference,
@@ -1583,6 +1583,35 @@ def find_page_provenance_file(db: Session, merged_file: ReferencefileModel,
     ).one_or_none()
 
 
+def has_page_provenance(db: Session, merged_file: ReferencefileModel, merged_markdown: bytes,
+                        source_file_class: str) -> bool:
+    """
+    Whether this merged Markdown already has its page map (SCRUM-6977).
+
+    A page map with the Markdown's display_name can be left from an earlier
+    Markdown of that name that was deleted (deleting the Markdown through the API
+    deletes its page map too, but not every path does), so it counts only when
+    its merged_markdown_sha256 is this Markdown's. One that is not is deleted, so
+    the caller stores the right one and nothing links the stale one.
+    """
+    existing = find_page_provenance_file(db, merged_file, source_file_class)
+    if existing is None:
+        return False
+    content = download_file(db=db, referencefile_id=existing.referencefile_id,
+                            mod_access=ModAccess.ALL_ACCESS, use_in_api=False)
+    try:
+        payload = json.loads(content) if content else None
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict) \
+            and payload.get("merged_markdown_sha256") == hashlib.sha256(merged_markdown).hexdigest():
+        return True
+    logger.warning(f"Page map {existing.referencefile_id} ({existing.display_name}) does not describe the current "
+                   f"merged Markdown of that name; deleting it")
+    remove_from_s3_and_db(db, existing)
+    return False
+
+
 def store_page_provenance(db: Session, page_map: bytes, *, reference_curie: str,
                           merged_file: ReferencefileModel, merged_markdown: bytes,
                           pdf_content: bytes, source_file_class: str,
@@ -1590,13 +1619,12 @@ def store_page_provenance(db: Session, page_map: bytes, *, reference_curie: str,
     """
     Store PDFX's page map for a merged Markdown row unchanged, as JSON with the
     Markdown's display_name (SCRUM-6977). Returns False when that Markdown
-    already has a page map: the Markdown's content is unique within the
-    reference, so the stored map describes the same bytes.
+    already has its page map (see has_page_provenance).
 
     Raises ValueError, and stores nothing, when the map does not describe this
     Markdown and PDF (see page_provenance_mismatch).
     """
-    if find_page_provenance_file(db, merged_file, source_file_class) is not None:
+    if has_page_provenance(db, merged_file, merged_markdown, source_file_class):
         return False
     problem = page_provenance_mismatch(page_map, merged_markdown, pdf_content)
     if problem:
@@ -1637,7 +1665,7 @@ def store_pdfx_page_provenance(db: Session, process_id: str, *, reference_curie:
     if merged_file is None or merged_markdown is None:
         return
     try:
-        if find_page_provenance_file(db, merged_file, source_file_class) is not None:
+        if has_page_provenance(db, merged_file, merged_markdown, source_file_class):
             return
         page_map = download_pdfx_result(process_id, PAGE_PROVENANCE_METHOD)
         if store_page_provenance(db, page_map, reference_curie=reference_curie,

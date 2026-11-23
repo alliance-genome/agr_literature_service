@@ -79,12 +79,17 @@ def _s3_patches():
             patch(f"{CRUD}.cleanup_old_pdf_file"), patch(f"{CRUD}.transition_WFT_for_uploaded_file")]
 
 
-def _convert(db, outputs, file_class="main"):  # noqa
-    """Run one PDF through _process_single_pdf_file with PDFX returning outputs."""
+def _convert(db, outputs, file_class="main", stored_files=None):  # noqa
+    """Run one PDF through _process_single_pdf_file with PDFX returning outputs.
+
+    stored_files: referencefile_id -> content download_file returns for files already stored; any other id is
+    the source PDF."""
     pdf_file = SimpleNamespace(display_name="paper", file_class=file_class, referencefile_mods=[],
-                               referencefile_id=1)
+                               referencefile_id=-1)
+    stored_files = stored_files or {}
     patches = [
-        patch(f"{UTILS}.download_file", return_value=PDF),
+        patch(f"{UTILS}.download_file",
+              side_effect=lambda **kwargs: stored_files.get(kwargs["referencefile_id"], PDF)),
         patch(f"{UTILS}.submit_pdf_to_pdfx", return_value="pid"),
         patch(f"{UTILS}.poll_pdfx_status"),
         patch(f"{UTILS}.download_pdfx_result", side_effect=lambda pid, method: outputs[method]),
@@ -151,7 +156,8 @@ def test_no_page_map_without_merged_markdown(db, paper):  # noqa
 def test_an_existing_page_map_is_kept(db, paper):  # noqa
     _convert(db, {"merged": MERGED, "grobid": PARSER, "page_provenance": _page_map()})
     merged_file = db.query(ReferencefileModel).filter_by(file_class="converted_merged_main").one()
-    patches = _s3_patches()
+    page_map_file = db.query(ReferencefileModel).filter_by(file_class="converted_page_provenance_main").one()
+    patches = _s3_patches() + [patch(f"{UTILS}.download_file", return_value=_page_map())]
     for p in patches:
         p.start()
     try:
@@ -162,7 +168,56 @@ def test_an_existing_page_map_is_kept(db, paper):  # noqa
         for p in patches:
             p.stop()
     assert stored_again is False
-    assert len([f for f in _files(db, paper) if f[2] == "json"]) == 1
+    assert [f.referencefile_id for f in
+            db.query(ReferencefileModel).filter_by(file_class="converted_page_provenance_main")] == \
+        [page_map_file.referencefile_id]
+
+
+def test_a_stale_page_map_of_the_same_name_is_replaced(db, paper):  # noqa
+    """The merged Markdown is deleted without its page map and the PDF converted again: the new Markdown gets the
+    same display_name, and the old map must not stay paired with it."""
+    _convert(db, {"merged": MERGED, "grobid": PARSER, "page_provenance": _page_map()})
+    old_map = db.query(ReferencefileModel).filter_by(file_class="converted_page_provenance_main").one()
+    old_map_id = old_map.referencefile_id
+    for row in db.query(ReferencefileModel).filter(ReferencefileModel.reference_id == paper.reference_id,
+                                                   ReferencefileModel.file_extension == "md"):
+        db.delete(row)
+    db.commit()
+
+    new_merged = b"# Title\n\nThe converted text changed.\n"
+    with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"):
+        success, _, error = _convert(db, {"merged": new_merged, "grobid": PARSER,
+                                          "page_provenance": _page_map(merged=new_merged)},
+                                     stored_files={old_map_id: _page_map()})
+    assert (success, error) == (True, None)
+    merged_file = db.query(ReferencefileModel).filter_by(file_class="converted_merged_main").one()
+    page_maps = db.query(ReferencefileModel).filter_by(file_class="converted_page_provenance_main").all()
+    assert len(page_maps) == 1
+    assert page_maps[0].referencefile_id != old_map_id
+    assert page_maps[0].display_name == merged_file.display_name == "paper_merged"
+    assert page_maps[0].md5sum == hashlib.md5(_page_map(merged=new_merged)).hexdigest()
+
+
+def test_deleting_the_merged_markdown_deletes_its_page_map(db, paper):  # noqa
+    from agr_cognito_py import ModAccess
+    from agr_literature_service.api.crud import referencefile_crud
+    _convert(db, {"merged": MERGED, "grobid": PARSER, "page_provenance": _page_map()})
+    merged_file = db.query(ReferencefileModel).filter_by(file_class="converted_merged_main").one()
+    with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"):
+        referencefile_crud.destroy(db, merged_file.referencefile_id, ModAccess.ALL_ACCESS)
+    remaining = _files(db, paper)
+    assert ("paper_merged", "converted_page_provenance_main", "json") not in remaining
+    assert ("paper_grobid", "converted_grobid_main", "md") in remaining
+
+
+def test_deleting_another_file_keeps_the_page_map(db, paper):  # noqa
+    from agr_cognito_py import ModAccess
+    from agr_literature_service.api.crud import referencefile_crud
+    _convert(db, {"merged": MERGED, "grobid": PARSER, "page_provenance": _page_map()})
+    parser_file = db.query(ReferencefileModel).filter_by(file_class="converted_grobid_main").one()
+    with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"):
+        referencefile_crud.destroy(db, parser_file.referencefile_id, ModAccess.ALL_ACCESS)
+    assert ("paper_merged", "converted_page_provenance_main", "json") in _files(db, paper)
 
 
 def test_page_map_follows_the_source_pdf_mods():
