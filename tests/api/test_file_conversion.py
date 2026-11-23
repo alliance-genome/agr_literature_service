@@ -736,6 +736,122 @@ class TestConvertedEndpoint:
                 assert entry["error"] == "pdfx 500"
 
 
+class TestDryRun:
+    """SCRUM-6980: ``dry_run=true`` reports the conversion status without ever
+    starting, restarting or running a conversion."""
+
+    @staticmethod
+    def _url(curie):
+        return f"/reference/referencefile/conversion_request/{curie}?dry_run=true"
+
+    @staticmethod
+    def _reference_id(db, curie):  # noqa: F811
+        from agr_literature_service.api.models import ReferenceModel
+        return db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == curie).scalar()
+
+    def test_pending_pdf_is_not_converted_and_starts_nothing(
+            self, db, test_reference, auth_headers):  # noqa: F811
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_pdf", pdf_type="pdf")
+        with patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "not_converted"
+        assert body["job_id"] is None
+        assert len(body["per_file_progress"]) == 1
+        entry = body["per_file_progress"][0]
+        assert entry["status"] == "pending"
+        assert entry["source"]["display_name"] == "paper"
+        assert entry["source"]["referencefile_id"] is not None
+        assert entry["converted"] == {"display_name": "paper_merged",
+                                      "file_class": "converted_merged_main",
+                                      "referencefile_id": None,
+                                      "metadata_referencefile_id": None}
+        run_job.assert_not_called()
+        assert conversion_manager.get_last_job_for_reference(
+            self._reference_id(db, curie)) is None
+
+    def test_pending_nxml_is_not_converted_inline(self, db, test_reference, auth_headers):  # noqa: F811
+        """The nXML path normally converts inline; a dry run must not."""
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "nxml_source", "nXML", "xml", "md5_dry_nxml")
+        with patch(f"{CRUD_MOD}.process_nxml_to_markdown") as convert_nxml, \
+                TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "not_converted"
+        assert body["per_file_progress"][0]["converted"]["display_name"] == "nxml_source_nxml"
+        convert_nxml.assert_not_called()
+
+    def test_running_job_is_reported(self, db, test_reference, auth_headers):  # noqa: F811
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_running", pdf_type="pdf")
+        job, _ = conversion_manager.start_job(self._reference_id(db, curie), curie, "someone")
+        with patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.json()["status"] == "running"
+        assert response.json()["job_id"] == job.job_id
+        run_job.assert_not_called()
+
+    def test_failure_is_reported_even_with_retry(self, db, test_reference, auth_headers):  # noqa: F811
+        """A request would restart the job with retry=true; a dry run reports the
+        failure and ignores retry."""
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_failed", pdf_type="pdf")
+        failed, _ = conversion_manager.start_job(self._reference_id(db, curie), curie, "someone")
+        conversion_manager.record_file_progress(failed.job_id, source_display_name="paper",
+                                                source_file_class="main", success=False,
+                                                error="pdfx 500")
+        conversion_manager.complete_job(failed.job_id, success=False)
+        with patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=f"{self._url(curie)}&retry=true", headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "failed"
+        assert body["job_id"] == failed.job_id
+        assert "paper: pdfx 500" in body["error_message"]
+        assert body["per_file_progress"][0]["status"] == "failed"
+        run_job.assert_not_called()
+
+    def test_worker_gone_is_reported_as_failed_not_restarted(
+            self, db, test_reference, auth_headers):  # noqa: F811
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_gone", pdf_type="pdf")
+        job, _ = conversion_manager.start_job(self._reference_id(db, curie), curie, "someone")
+        with patch("agr_literature_service.api.utils.conversion_job_manager._owner_alive",
+                   return_value=False), \
+                patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "failed"
+        assert response.json()["job_id"] == job.job_id
+        run_job.assert_not_called()
+
+    def test_converted_does_not_sync_mods_or_tags(self, db, test_reference, auth_headers):  # noqa: F811
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_conv_pdf", pdf_type="pdf")
+        _make_referencefile(db, curie, "paper_merged", "converted_merged_main", "md", "md5_dry_conv_md")
+        with patch(f"{CRUD_MOD}.sync_converted_file_mods_to_sources") as sync_mods, \
+                patch(f"{CRUD_MOD}.transition_completed_text_convert_tags") as transition, \
+                TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "converted"
+        assert response.json()["converted_classes"] == ["converted_merged_main"]
+        sync_mods.assert_not_called()
+        transition.assert_not_called()
+
+    def test_no_sources(self, db, test_reference, auth_headers):  # noqa: F811
+        with TestClient(app) as client:
+            response = client.get(url=self._url(test_reference.new_ref_curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "no_sources"
+
+
 # ---------------------------------------------------------------------------
 # Office supplements (SCRUM-6589): xlsx / docx convert in-process, the
 # converted row is ``{display_name}_{extension}``.

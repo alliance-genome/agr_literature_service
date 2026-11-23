@@ -51,6 +51,8 @@ STATUS_CONVERTED = "converted"
 STATUS_RUNNING = "running"
 STATUS_FAILED = "failed"
 STATUS_NO_SOURCES = "no_sources"
+# dry_run only: something still needs converting and no job is running for it
+STATUS_NOT_CONVERTED = "not_converted"
 
 
 def _check_permission(reference: ReferenceModel, mod_access: Any) -> None:
@@ -364,6 +366,32 @@ def _expected_source_files_from_assessment(
     return expected
 
 
+def _pending_progress_payload(
+    expected_source_files: List[Dict[str, Optional[str]]],
+) -> List[Dict[str, Any]]:
+    """per_file_progress entries, status ``pending``, for the sources a
+    conversion request would convert (see
+    ``_expected_source_files_from_assessment``)."""
+    return [
+        {
+            "source": {
+                "display_name": ef["source_display_name"],
+                "file_class": ef["source_file_class"],
+                "referencefile_id": ef.get("source_referencefile_id"),
+            },
+            "converted": {
+                "display_name": ef["expected_converted_display_name"],
+                "file_class": ef["expected_converted_file_class"],
+                "referencefile_id": None,
+            },
+            "figures": [],
+            "status": "pending",
+            "error": None,
+        }
+        for ef in expected_source_files
+    ]
+
+
 def _job_progress_payload(job: Optional[ConversionJob]) -> List[Dict[str, Any]]:
     if job is None:
         return []
@@ -654,7 +682,9 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
                     error_message: Optional[str] = None,
                     started_at: Optional[str] = None,
                     completed_at: Optional[str] = None,
-                    overwrite_tei_md: bool = False) -> Dict[str, Any]:
+                    overwrite_tei_md: bool = False,
+                    pending_progress: Optional[List[Dict[str, Any]]] = None
+                    ) -> Dict[str, Any]:
     """Build the endpoint response. ``job`` is the most recent job for the
     reference, if any — its id, timestamps, and per-file progress are surfaced.
     Per-file progress is merged with synthesized DB entries so converted rows
@@ -665,9 +695,12 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
     main_converted / all_converted booleans). Best-effort: any error
     computing per-MOD status returns an empty list rather than failing
     the whole response.
+
+    ``pending_progress`` — entries placed before the job's, for sources that
+    no job has attempted yet (dry_run reporting ``not_converted``).
     """
     progress = _merge_progress(
-        _job_progress_payload(job),
+        (pending_progress or []) + _job_progress_payload(job),
         _db_derived_progress(reference),
     )
     _attach_figures(reference, progress)
@@ -836,11 +869,65 @@ def _job_error_detail(job: Optional[ConversionJob]) -> str:
     return "; ".join(errors)
 
 
+def _has_no_sources(assessment: Dict[str, Any]) -> bool:
+    """The reference has nothing a conversion could start from."""
+    return (
+        not assessment["nxml_source"]
+        and not assessment["main_pdf_available"]
+        and not assessment["supp_pdf_available"]
+        and not assessment["supp_office_available"]
+    )
+
+
+def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str, Any],
+                    recent_job: Optional[ConversionJob],
+                    overwrite_tei_md: bool) -> Tuple[int, Dict[str, Any]]:
+    """
+    Report what a conversion request would find, without converting anything
+    (SCRUM-6980). The caller has already reported a running job. No job is
+    started or restarted, nothing is converted, and no file MODs or workflow
+    tags are synced; the only write is the job manager marking a job whose
+    worker has exited as failed, which any read of the job does.
+
+    - ``no_sources`` / ``converted``: nothing is left to convert.
+    - ``failed``: something is left to convert and the reference's last job
+      failed (its error and each failed file's are in ``error_message``). A
+      job is kept for 24 hours after it ends. A conversion request would
+      report the same failure for an hour after it, unless ``retry=true`` or
+      the job failed because its worker exited; after that it starts again.
+    - ``not_converted``: something is left to convert and no job has failed
+      on it; ``per_file_progress`` lists each such source as ``pending``.
+      A conversion request would start converting it.
+    """
+    converted_classes = _converted_classes_from_assessment(assessment)
+    if not assessment["main_missing"] and not assessment["supp_missing"]:
+        nothing_cached = not assessment["main_cached"] and not assessment["supp_cached"]
+        status_str = STATUS_NO_SOURCES if nothing_cached and _has_no_sources(assessment) \
+            else STATUS_CONVERTED
+        return status.HTTP_200_OK, _status_payload(
+            db, reference, status_str=status_str, converted_classes=converted_classes,
+            job=recent_job, overwrite_tei_md=overwrite_tei_md,
+        )
+    if recent_job is not None and recent_job.status == "failed":
+        return status.HTTP_200_OK, _status_payload(
+            db, reference, status_str=STATUS_FAILED, converted_classes=converted_classes,
+            error_message=_job_error_detail(recent_job) or "Conversion failed",
+            job=recent_job, overwrite_tei_md=overwrite_tei_md,
+        )
+    return status.HTTP_200_OK, _status_payload(
+        db, reference, status_str=STATUS_NOT_CONVERTED, converted_classes=converted_classes,
+        overwrite_tei_md=overwrite_tei_md,
+        pending_progress=_pending_progress_payload(
+            _expected_source_files_from_assessment(assessment)),
+    )
+
+
 def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: bool,
                               background_tasks: BackgroundTasks, mod_access: ModAccess,
                               user_id: str,
                               overwrite_tei_md: bool = False,
-                              retry: bool = False
+                              retry: bool = False,
+                              dry_run: bool = False
                               ) -> Tuple[int, Dict[str, Any]]:
     """
     Orchestrator for
@@ -860,6 +947,10 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
     ``retry`` — a PDF conversion that failed less than FAILED_JOB_HOLD ago is
     reported as failed (200) rather than started again, unless this is True
     (SCRUM-6855 review). A job whose worker exited is restarted regardless.
+
+    ``dry_run`` — report the status without converting anything or starting a
+    job; see ``_dry_run_status`` (SCRUM-6980). ``wait`` and ``retry`` are
+    ignored.
     """
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id,
                               load_referencefiles=True)
@@ -882,14 +973,12 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             started_at=existing.started_at.isoformat(), job=existing,
         )
 
+    if dry_run:
+        return _dry_run_status(db, reference, assessment, recent_job, overwrite_tei_md)
+
     nothing_missing = not assessment["main_missing"] and not assessment["supp_missing"]
     nothing_cached = not assessment["main_cached"] and not assessment["supp_cached"]
-    no_sources = (
-        not assessment["nxml_source"]
-        and not assessment["main_pdf_available"]
-        and not assessment["supp_pdf_available"]
-        and not assessment["supp_office_available"]
-    )
+    no_sources = _has_no_sources(assessment)
 
     if nothing_missing:
         if nothing_cached and no_sources:

@@ -253,6 +253,7 @@ def get_converted(curie_or_reference_id: str,
                   wait: bool = False,
                   overwrite_tei_md: bool = False,
                   retry: bool = False,
+                  dry_run: bool = False,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     """
@@ -262,8 +263,9 @@ def get_converted(curie_or_reference_id: str,
     the resulting file listing once the status is ``converted``.
 
     Re-calling this endpoint acts as a poll: the response surfaces the current
-    conversion state plus ``per_file_progress`` for the most recent job. There
-    is no separate status endpoint — poll this URL for updates.
+    conversion state plus ``per_file_progress`` for the most recent job.
+    Pass ``dry_run=true`` to read the status without ever starting, restarting
+    or running a conversion (SCRUM-6980): see ``not_converted`` below.
 
     Status values returned in the response body:
     - ``converted``: every convertible source has a converted Markdown row
@@ -279,6 +281,18 @@ def get_converted(curie_or_reference_id: str,
       names the job it replaces (as it does after a retry).
     - ``no_sources``: the reference has nothing to convert (no nXML, no main
       PDF, no supplement PDFs). HTTP 200.
+    - ``not_converted`` (``dry_run=true`` only): something is left to convert,
+      no job is running and no job has failed on it; ``per_file_progress``
+      lists each such source as ``pending``. Without ``dry_run`` this request
+      would start converting it. HTTP 200.
+
+    With ``dry_run=true`` the other statuses mean the same, with these
+    differences: ``failed`` is reported for as long as the failed job is kept
+    (24 hours), not only for the hour in which a request would report it
+    instead of converting again, and also when the job's worker exited (a
+    request would restart that at once). ``wait`` and ``retry`` are ignored,
+    and nothing is written: file MODs and ``text_convert_job`` tags are not
+    synced as a request does when everything is converted.
 
     Behavior:
     - If everything convertible already has a converted row, returns 200
@@ -322,6 +336,7 @@ def get_converted(curie_or_reference_id: str,
         user_id=user_id,
         overwrite_tei_md=overwrite_tei_md,
         retry=retry,
+        dry_run=dry_run,
     )
     response.status_code = status_code
     return payload

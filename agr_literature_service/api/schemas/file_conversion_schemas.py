@@ -95,6 +95,8 @@ class ConversionStatusResponseSchema(BaseModel):
         - ``failed``    — the most recent conversion failed; see
           ``error_message`` and ``per_file_progress``.
         - ``no_sources``— the reference has nothing to convert.
+        - ``not_converted`` — ``dry_run=true`` only: something is left to
+          convert and no job is running or has failed on it (SCRUM-6980).
 
     ``converted_classes`` lists the converted file_class values currently
     present in the DB for this reference. Clients can act on partial results
