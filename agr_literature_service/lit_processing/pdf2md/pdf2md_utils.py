@@ -92,6 +92,20 @@ FIGURE_METADATA_FILE_CLASSES: Dict[str, str] = {
 }
 CONVERTED_FIGURE_METADATA_FILE_EXTENSION = "json"
 
+# SCRUM-6977: PDFX's page map for a merged Markdown (its ``page_provenance``
+# download): byte ranges of the Markdown and the PDF page each one is on. Stored
+# unchanged as JSON with the same display_name as the merged Markdown it
+# describes (``{source}_merged``), so it pairs with that Markdown the way a
+# figure's metadata JSON pairs with its PNG. The classes end in _main /
+# _supplement like the Markdown classes, so find_source_for_converted and
+# sync_converted_file_mods_to_sources treat the page map like its Markdown.
+PAGE_PROVENANCE_METHOD = "page_provenance"
+PAGE_PROVENANCE_FILE_CLASSES: Dict[str, str] = {
+    "main": "converted_page_provenance_main",
+    "supplement": "converted_page_provenance_supplement",
+}
+PAGE_PROVENANCE_FILE_EXTENSION = "json"
+
 # PDFX manifest fields copied verbatim into each figure's metadata sidecar.
 # Always emitted (None when the manifest omits one) so the JSON schema is
 # predictable for AI Curation consumers. The transient presigned ``url`` is
@@ -470,7 +484,8 @@ def sync_converted_file_mods_to_sources(
     reference: ReferenceModel,
 ) -> int:
     """
-    Make each converted Markdown row of this reference carry exactly the
+    Make each converted Markdown row of this reference, and each PDFX page
+    map (SCRUM-6977), carry exactly the
     ``referencefile_mod`` associations of its source file: add the missing
     ones and remove those the source does not have. Idempotent.
 
@@ -499,7 +514,9 @@ def sync_converted_file_mods_to_sources(
         fc = ref_file.file_class or ""
         if not fc.startswith("converted_"):
             continue
-        if ref_file.file_extension != "md":
+        is_page_map = (fc in PAGE_PROVENANCE_FILE_CLASSES.values()
+                       and ref_file.file_extension == PAGE_PROVENANCE_FILE_EXTENSION)
+        if ref_file.file_extension != "md" and not is_page_map:
             continue
         if not (fc.endswith("_main") or fc.endswith("_supplement")):
             continue
@@ -1492,12 +1509,13 @@ def _claim_identical_parser_file(db: Session, reference_curie: str, md5sum: str,
 
 def upload_pdfx_markdown(db: Session, reference_curie: str, display_name: str, method: str,
                          output_file_class: str, markdown_content: bytes,
-                         mod_abbreviation: Optional[str]) -> None:
+                         mod_abbreviation: Optional[str]) -> Optional[ReferencefileModel]:
     """Store one PDFX method's Markdown for a source PDF.
 
     For merged, raises unless the reference ends up with a file of
     output_file_class holding this content, so the caller does not count the
-    conversion as done when the merged file was silently dropped (SCRUM-6824).
+    conversion as done when the merged file was silently dropped (SCRUM-6824),
+    and returns that file. Returns None for the other methods.
     """
     output_display_name = f"{display_name}_{method}"
     md5sum = hashlib.md5(markdown_content).hexdigest()
@@ -1531,6 +1549,106 @@ def upload_pdfx_markdown(db: Session, reference_curie: str, display_name: str, m
         if stored is None:
             raise RuntimeError(f"merged markdown was not stored as {output_file_class}: "
                                f"the reference already has the same content as another file")
+        return stored
+    return None
+
+
+def page_provenance_mismatch(page_map: bytes, merged_markdown: bytes,
+                             pdf_content: bytes) -> Optional[str]:
+    """Why PDFX's page map does not describe this merged Markdown made from this
+    PDF, or None when it does (SCRUM-6977). The map records the sha256 and size
+    of the Markdown and the sha256 of the PDF."""
+    try:
+        payload = json.loads(page_map)
+    except ValueError as e:
+        return f"it is not JSON ({e})"
+    if not isinstance(payload, dict):
+        return "it is not a JSON object"
+    if payload.get("merged_markdown_sha256") != hashlib.sha256(merged_markdown).hexdigest() \
+            or payload.get("merged_markdown_size_bytes") != len(merged_markdown):
+        return "it describes a different merged Markdown"
+    if payload.get("pdf_sha256") != hashlib.sha256(pdf_content).hexdigest():
+        return "it was made from a different PDF"
+    return None
+
+
+def find_page_provenance_file(db: Session, merged_file: ReferencefileModel,
+                              source_file_class: str) -> Optional[ReferencefileModel]:
+    """The page map stored for this merged Markdown row, if any (SCRUM-6977)."""
+    return db.query(ReferencefileModel).filter(
+        ReferencefileModel.reference_id == merged_file.reference_id,
+        ReferencefileModel.display_name == merged_file.display_name,
+        ReferencefileModel.file_class == PAGE_PROVENANCE_FILE_CLASSES[source_file_class],
+        ReferencefileModel.file_extension == PAGE_PROVENANCE_FILE_EXTENSION,
+    ).one_or_none()
+
+
+def store_page_provenance(db: Session, page_map: bytes, *, reference_curie: str,
+                          merged_file: ReferencefileModel, merged_markdown: bytes,
+                          pdf_content: bytes, source_file_class: str,
+                          mod_abbreviation: Optional[str]) -> bool:
+    """
+    Store PDFX's page map for a merged Markdown row unchanged, as JSON with the
+    Markdown's display_name (SCRUM-6977). Returns False when that Markdown
+    already has a page map: the Markdown's content is unique within the
+    reference, so the stored map describes the same bytes.
+
+    Raises ValueError, and stores nothing, when the map does not describe this
+    Markdown and PDF (see page_provenance_mismatch).
+    """
+    if find_page_provenance_file(db, merged_file, source_file_class) is not None:
+        return False
+    problem = page_provenance_mismatch(page_map, merged_markdown, pdf_content)
+    if problem:
+        raise ValueError(f"PDFX page map for {merged_file.display_name} not stored: {problem}")
+    metadata = {
+        "reference_curie": reference_curie,
+        "display_name": merged_file.display_name,
+        "file_class": PAGE_PROVENANCE_FILE_CLASSES[source_file_class],
+        "file_publication_status": "final",
+        "file_extension": PAGE_PROVENANCE_FILE_EXTENSION,
+        "pdf_type": None,
+        "is_annotation": None,
+        "mod_abbreviation": mod_abbreviation,
+    }
+    file_upload(
+        db=db,
+        metadata=metadata,
+        file=UploadFile(
+            file=BytesIO(page_map),
+            filename=f"{merged_file.display_name}.{PAGE_PROVENANCE_FILE_EXTENSION}",
+        ),
+        upload_if_already_converted=True,
+    )
+    return True
+
+
+def store_pdfx_page_provenance(db: Session, process_id: str, *, reference_curie: str,
+                               merged_file: Optional[ReferencefileModel],
+                               merged_markdown: Optional[bytes], pdf_content: bytes,
+                               source_file_class: str,
+                               mod_abbreviation: Optional[str]) -> None:
+    """
+    Download the page map of PDFX job ``process_id`` and store it next to the
+    merged Markdown that job produced (SCRUM-6977). Does nothing when the job's
+    merged Markdown was not stored. Never raises: a missing page map is logged
+    and does not fail the conversion, since the Markdown is what callers need.
+    """
+    if merged_file is None or merged_markdown is None:
+        return
+    try:
+        if find_page_provenance_file(db, merged_file, source_file_class) is not None:
+            return
+        page_map = download_pdfx_result(process_id, PAGE_PROVENANCE_METHOD)
+        if store_page_provenance(db, page_map, reference_curie=reference_curie,
+                                 merged_file=merged_file, merged_markdown=merged_markdown,
+                                 pdf_content=pdf_content, source_file_class=source_file_class,
+                                 mod_abbreviation=mod_abbreviation):
+            logger.info(f"Stored PDFX page map for {merged_file.display_name} ({reference_curie})")
+    except Exception as e:
+        recover_session(db, e)
+        logger.error(f"Failed to store PDFX page map for {reference_curie} "
+                     f"({source_file_class} '{merged_file.display_name}'): {e}")
 
 
 def _process_single_pdf_file(  # pragma: no cover
@@ -1607,6 +1725,8 @@ def _process_single_pdf_file(  # pragma: no cover
 
     # Download and store each method's output
     successful_methods = []
+    merged_file: Optional[ReferencefileModel] = None
+    merged_markdown: Optional[bytes] = None
     for method in pdfx_upload_order(methods_to_extract):
         try:
             markdown_content = download_pdfx_result(process_id, method)
@@ -1622,8 +1742,10 @@ def _process_single_pdf_file(  # pragma: no cover
                 # For supplement files, use a different naming convention
                 output_file_class = f"converted_{method}_supplement"
 
-            upload_pdfx_markdown(db, reference_curie, display_name, method, output_file_class,
-                                 markdown_content, mod_abbreviation)
+            stored = upload_pdfx_markdown(db, reference_curie, display_name, method, output_file_class,
+                                          markdown_content, mod_abbreviation)
+            if method == "merged":
+                merged_file, merged_markdown = stored, markdown_content
 
             successful_methods.append(method)
             logger.info(f"Uploaded {method} markdown for {reference_curie} ({file_class})")
@@ -1631,6 +1753,11 @@ def _process_single_pdf_file(  # pragma: no cover
         except Exception as e:
             recover_session(db, e)
             logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+    store_pdfx_page_provenance(db, process_id, reference_curie=reference_curie,
+                               merged_file=merged_file, merged_markdown=merged_markdown,
+                               pdf_content=file_content, source_file_class=file_class,
+                               mod_abbreviation=mod_abbreviation)
 
     # Always attempt image extraction after the Markdown outputs. Failures here
     # are reported but do not flip the per-file success — the converted MD

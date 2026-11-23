@@ -578,6 +578,36 @@ def _attach_figures(reference: ReferenceModel,
         )
 
 
+# converted Markdown class -> the class of PDFX's page map for it (SCRUM-6977).
+# Kept in sync with PAGE_PROVENANCE_FILE_CLASSES in pdf2md_utils.
+_PAGE_PROVENANCE_FILE_CLASS_FOR_CONVERTED: Dict[str, str] = {
+    "converted_merged_main": "converted_page_provenance_main",
+    "converted_merged_supplement": "converted_page_provenance_supplement",
+}
+
+
+def _attach_page_provenance(reference: ReferenceModel,
+                            progress: List[Dict[str, Any]]) -> None:
+    """Mutate ``progress`` in place: set ``page_provenance_referencefile_id``
+    on each converted Markdown entry that has a stored PDFX page map, the JSON
+    row with the Markdown's display_name in the matching page-map class."""
+    page_map_ids = {
+        (rf.display_name, rf.file_class): int(rf.referencefile_id)
+        for rf in reference.referencefiles or []
+        if rf.file_class in _PAGE_PROVENANCE_FILE_CLASS_FOR_CONVERTED.values()
+        and rf.file_extension == "json"
+        and rf.file_publication_status == "final"
+    }
+    for entry in progress:
+        converted = entry.get("converted")
+        if not converted:
+            continue
+        page_map_class = _PAGE_PROVENANCE_FILE_CLASS_FOR_CONVERTED.get(converted.get("file_class"))
+        if page_map_class is not None:
+            converted["page_provenance_referencefile_id"] = page_map_ids.get(
+                (converted.get("display_name"), page_map_class))
+
+
 def _attach_embeddings(db: Session, reference: ReferenceModel,
                        progress: List[Dict[str, Any]]) -> None:
     """Mutate ``progress`` in place: set each entry's ``embeddings`` list to
@@ -671,6 +701,7 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
         _db_derived_progress(reference),
     )
     _attach_figures(reference, progress)
+    _attach_page_provenance(reference, progress)
     _attach_embeddings(db, reference, progress)
     try:
         per_mod = per_mod_pending_status(

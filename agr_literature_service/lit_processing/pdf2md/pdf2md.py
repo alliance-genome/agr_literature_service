@@ -43,6 +43,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     process_supplemental_office_files,
     process_supplemental_pdfs,
     pdfx_upload_order,
+    store_pdfx_page_provenance,
     source_mod_abbreviation,
     sync_converted_file_mods_to_sources,
     upload_pdfx_markdown,
@@ -423,6 +424,8 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
         poll_pdfx_status(process_id)
 
         successful_methods = []
+        merged_file: Optional[ReferencefileModel] = None
+        merged_markdown: Optional[bytes] = None
         for method in pdfx_upload_order(methods_to_extract):
             try:
                 markdown_content = download_pdfx_result(process_id, method)
@@ -431,8 +434,10 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                     logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
                     continue
 
-                upload_pdfx_markdown(db, reference_curie, display_name, method, EXTRACTION_METHODS[method],
-                                     markdown_content, mod_abbreviation)
+                stored = upload_pdfx_markdown(db, reference_curie, display_name, method,
+                                              EXTRACTION_METHODS[method], markdown_content, mod_abbreviation)
+                if method == "merged":
+                    merged_file, merged_markdown = stored, markdown_content
 
                 successful_methods.append(method)
                 logger.info(f"Uploaded {method} markdown for {reference_curie}")
@@ -440,6 +445,11 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             except Exception as e:
                 recover_session(db, e)
                 logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+        store_pdfx_page_provenance(db, process_id, reference_curie=reference_curie,
+                                   merged_file=merged_file, merged_markdown=merged_markdown,
+                                   pdf_content=file_content, source_file_class="main",
+                                   mod_abbreviation=mod_abbreviation)
 
         # Always attempt image extraction after the Markdown outputs. Failures
         # here are reported but do not flip the per-file success — the

@@ -305,7 +305,12 @@ def get_converted(curie_or_reference_id: str,
     as it appears, while a longer-running supplement conversion is still in
     progress). ``per_file_progress`` reports, for each file the most recent
     job attempted, the source file info and the resulting converted file
-    info (or null on failure).
+    info (or null on failure). For Markdown that PDFX converted from a PDF,
+    the converted file info carries ``page_provenance_referencefile_id``: PDFX's
+    page map for that Markdown, a JSON file with the same display_name whose
+    byte ranges give the PDF page of each part of the Markdown (SCRUM-6977).
+    It is null for other Markdown and for Markdown converted before ABC
+    stored page maps.
 
     Idempotent: concurrent calls for the same reference share a job_id.
     """

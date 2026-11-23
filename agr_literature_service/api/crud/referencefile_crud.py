@@ -231,6 +231,11 @@ def _find_converted_derived_for_source(db: Session,
 _SOURCE_FILE_CLASSES_FOR_CONVERTED: dict = {}
 for _src_cls, _conv_cls in _CONVERTED_FILE_CLASS_FOR_SOURCE.items():
     _SOURCE_FILE_CLASSES_FOR_CONVERTED.setdefault(_conv_cls, set()).add(_src_cls)
+# PDFX's page map of a merged Markdown (SCRUM-6977) shares that Markdown's
+# display_name ({source}_merged), so it resolves to the same source PDF. Kept in
+# sync with pdf2md_utils.PAGE_PROVENANCE_FILE_CLASSES.
+_SOURCE_FILE_CLASSES_FOR_CONVERTED["converted_page_provenance_main"] = {"main"}
+_SOURCE_FILE_CLASSES_FOR_CONVERTED["converted_page_provenance_supplement"] = {"supplement"}
 
 
 def _source_dict(rf: ReferencefileModel) -> dict:
@@ -251,6 +256,8 @@ def _find_source_for_derived(ref_file: ReferencefileModel, all_files: List[Refer
       (precomputed in ``embedding_source_by_id``: parquet rf id -> source rf).
     - converted_merged_* md -> its source PDF/nXML, via the display-name
       suffix convention (reverse of _find_converted_derived_for_source).
+    - converted_page_provenance_* json -> the source PDF of the merged md it
+      describes, by the same convention (SCRUM-6977).
     Returns the source dict or None when it can't be resolved (e.g. figures,
     source deleted, or convention miss) -- ``source`` is nullable by design.
     """
