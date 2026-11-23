@@ -15,8 +15,9 @@ from agr_literature_service.api.database.versioning import enable_versioning
 
 enable_versioning()
 
-# Define the PostgreSQL sequence for SGD IDs
-sgd_id_seq = Sequence('sgd_id_seq', start=100000001, increment=1)
+# Define the PostgreSQL sequence for SGD IDs. On the metadata so create_all
+# makes it too (test databases); alembic created it in the real ones.
+sgd_id_seq = Sequence('sgd_id_seq', start=100000001, increment=1, metadata=Base.metadata)
 
 
 class CrossReferenceModel(Base, AuditedModel):

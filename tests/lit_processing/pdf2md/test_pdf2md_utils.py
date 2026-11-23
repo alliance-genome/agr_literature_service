@@ -107,7 +107,6 @@ class TestSubmitPdfToPdfx:
 
         process_id = submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             methods="grobid,docling",
             merge=True,
             reference_curie="PMID:12345"
@@ -134,7 +133,6 @@ class TestSubmitPdfToPdfx:
 
         submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             extract_images=False,
             review_images=False,
         )
@@ -153,7 +151,6 @@ class TestSubmitPdfToPdfx:
 
         submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             clear_cache_scope=None,
         )
 
@@ -171,7 +168,6 @@ class TestSubmitPdfToPdfx:
         with pytest.raises(ValueError) as exc_info:
             submit_pdf_to_pdfx(
                 file_content=b"pdf_content",
-                token="test_token"
             )
         assert "No process_id" in str(exc_info.value)
 
@@ -192,7 +188,6 @@ class TestSubmitPdfToPdfx:
 
         process_id = submit_pdf_to_pdfx(
             file_content=b"pdf_content",
-            token="test_token",
             max_retries=3,
             retry_delay=1
         )
@@ -209,7 +204,6 @@ class TestSubmitPdfToPdfx:
         with pytest.raises(requests.exceptions.ConnectionError):
             submit_pdf_to_pdfx(
                 file_content=b"pdf_content",
-                token="test_token",
                 max_retries=2,
                 retry_delay=0
             )
@@ -231,7 +225,7 @@ class TestPollPdfxStatus:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        status = poll_pdfx_status("abc123", "test_token")
+        status = poll_pdfx_status("abc123")
 
         assert status["status"] == "completed"
         assert "results" in status
@@ -258,10 +252,30 @@ class TestPollPdfxStatus:
 
         mock_get.side_effect = [pending_response, pending_response, complete_response]
 
-        status = poll_pdfx_status("abc123", "test_token", timeout=100, poll_interval=5)
+        status = poll_pdfx_status("abc123", timeout=100, poll_interval=5)
 
         assert status["status"] == "completed"
         assert mock_get.call_count == 3
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_fetches_token_for_every_poll(self, mock_get, mock_time, mock_sleep):
+        """SCRUM-6978: a long poll must not keep sending the token it started
+        with. Each request asks get_admin_token(), which refreshes it before it
+        expires, so a token renewed mid-poll is used from the next request."""
+        mock_time.side_effect = itertools.count(0, 5)
+        pending_response = MagicMock()
+        pending_response.json.return_value = {"status": "processing"}
+        complete_response = MagicMock()
+        complete_response.json.return_value = {"status": "completed"}
+        mock_get.side_effect = [pending_response, complete_response]
+
+        with patch.object(pdf2md_utils, "get_admin_token", side_effect=["token_1", "token_2"]):
+            poll_pdfx_status("abc123", timeout=100, poll_interval=5)
+
+        sent = [c.kwargs["headers"]["Authorization"] for c in mock_get.call_args_list]
+        assert sent == ["Bearer token_1", "Bearer token_2"]
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
     def test_raises_runtime_error_on_failed_status(self, mock_get):
@@ -275,7 +289,7 @@ class TestPollPdfxStatus:
         mock_get.return_value = mock_response
 
         with pytest.raises(RuntimeError) as exc_info:
-            poll_pdfx_status("abc123", "test_token")
+            poll_pdfx_status("abc123")
         assert "PDFX job failed" in str(exc_info.value)
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
@@ -291,7 +305,68 @@ class TestPollPdfxStatus:
         mock_get.return_value = mock_response
 
         with pytest.raises(TimeoutError):
-            poll_pdfx_status("abc123", "test_token", timeout=10)
+            poll_pdfx_status("abc123", timeout=10)
+
+    @staticmethod
+    def _pdfx_finishing_after(seconds, mock_get, mock_time):
+        """PDFX reports "started" until `seconds` have passed, then "complete"."""
+        clock = itertools.count(0, 10)
+        now = {"t": 0}
+
+        def tick():
+            now["t"] = next(clock)
+            return now["t"]
+
+        def respond(*args, **kwargs):
+            response = MagicMock()
+            response.json.return_value = {"status": "complete" if now["t"] >= seconds else "started"}
+            return response
+
+        mock_time.side_effect = tick
+        mock_get.side_effect = respond
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_default_wait_covers_a_19_minute_job(self, mock_get, mock_time, mock_sleep, monkeypatch):
+        # SCRUM-6863: AGRKB:101000001317051 took PDFX 19m16s and failed twice under the old
+        # fixed 900s wait, although PDFX completed it both times.
+        monkeypatch.delenv("PDFX_POLL_TIMEOUT", raising=False)
+        self._pdfx_finishing_after(19 * 60 + 16, mock_get, mock_time)
+        assert poll_pdfx_status("abc123")["status"] == "complete"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.sleep")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.time.time")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_environment_sets_the_wait_and_the_error_says_pdfx_continues(
+            self, mock_get, mock_time, mock_sleep, monkeypatch):
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", "600")
+        self._pdfx_finishing_after(19 * 60 + 16, mock_get, mock_time)
+        with pytest.raises(TimeoutError) as exc_info:
+            poll_pdfx_status("abc123")
+        assert "timed out after 600 seconds" in str(exc_info.value)
+        assert "may still complete it" in str(exc_info.value)
+
+
+class TestPdfxPollTimeout:
+    """SCRUM-6863: PDFX_POLL_TIMEOUT, else the default."""
+
+    def test_default_when_unset_or_blank(self, monkeypatch):
+        monkeypatch.delenv("PDFX_POLL_TIMEOUT", raising=False)
+        assert pdf2md_utils.pdfx_poll_timeout() == pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT
+        # docker-compose passes "${PDFX_POLL_TIMEOUT:-}", i.e. an empty string when unset
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", "")
+        assert pdf2md_utils.pdfx_poll_timeout() == pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT
+        assert pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT > 19 * 60 + 16
+
+    def test_uses_a_positive_value(self, monkeypatch):
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", " 3600 ")
+        assert pdf2md_utils.pdfx_poll_timeout() == 3600
+
+    @pytest.mark.parametrize("value", ["0", "-5", "an hour", "1.5"])
+    def test_ignores_an_invalid_value(self, monkeypatch, value):
+        monkeypatch.setenv("PDFX_POLL_TIMEOUT", value)
+        assert pdf2md_utils.pdfx_poll_timeout() == pdf2md_utils.PDFX_POLL_TIMEOUT_DEFAULT
 
 
 class TestDownloadPdfxResult:
@@ -305,7 +380,7 @@ class TestDownloadPdfxResult:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        content = download_pdfx_result("abc123", "grobid", "test_token")
+        content = download_pdfx_result("abc123", "grobid")
 
         assert content == b"# Markdown content"
         mock_get.assert_called_once()
@@ -553,7 +628,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert succeeded == 0
@@ -583,7 +657,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert succeeded == 2
@@ -609,7 +682,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert succeeded == 0
@@ -632,7 +704,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert (succeeded, failed, errors) == (0, 0, [])
@@ -657,7 +728,6 @@ class TestProcessSupplementalPdfs:
             db=MagicMock(),
             reference_id=42,
             reference_curie="AGRKB:1",
-            token="t"
         )
 
         assert (succeeded, failed, errors) == (0, 0, [])
@@ -701,7 +771,7 @@ class TestDownloadPdfxImageManifest:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = download_pdfx_image_manifest("abc123", "test_token")
+        result = download_pdfx_image_manifest("abc123")
 
         assert result["process_id"] == "abc123"
         assert len(result["images"]) == 1
@@ -718,7 +788,7 @@ class TestDownloadPdfxImageManifest:
         mock_get.return_value = mock_response
 
         with pytest.raises(ValueError):
-            download_pdfx_image_manifest("abc123", "test_token")
+            download_pdfx_image_manifest("abc123")
 
 
 class TestDownloadPdfxImage:
@@ -747,7 +817,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="weird",
             reference_curie="AGRKB:1",
@@ -763,7 +832,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -781,7 +849,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -806,7 +873,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -853,7 +919,6 @@ class TestProcessExtractedImages:
         process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="supp1",
             source_file_class="supplement",
             reference_curie="AGRKB:1",
@@ -889,7 +954,6 @@ class TestProcessExtractedImages:
         succeeded, failed, errors = process_extracted_images(
             db=MagicMock(),
             process_id="abc",
-            token="t",
             source_display_name="paper",
             source_file_class="main",
             reference_curie="AGRKB:1",
@@ -919,7 +983,6 @@ class TestProcessExtractedImages:
             succeeded, failed, errors = process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1065,7 +1128,6 @@ class TestProcessExtractedImagesMetadataSidecar:
             process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1098,7 +1160,6 @@ class TestProcessExtractedImagesMetadataSidecar:
             succeeded, failed, errors = process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1133,7 +1194,6 @@ class TestProcessExtractedImagesMetadataSidecar:
             process_extracted_images(
                 db=MagicMock(),
                 process_id="abc",
-                token="t",
                 source_display_name="paper",
                 source_file_class="main",
                 reference_curie="AGRKB:1",
@@ -1516,7 +1576,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1544,7 +1603,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1562,7 +1620,7 @@ class TestSupplementPdfLimits:
             submitted = True
             return "process-id"
 
-        def fake_file_upload(**kwargs):
+        def fake_upload_pdfx_markdown(*args, **kwargs):
             nonlocal uploaded
             uploaded = True
 
@@ -1580,7 +1638,7 @@ class TestSupplementPdfLimits:
             "download_pdfx_result",
             lambda *args, **kwargs: b"# Converted\n\ncontent",
         )
-        monkeypatch.setattr(pdf2md_utils, "file_upload", fake_file_upload)
+        monkeypatch.setattr(pdf2md_utils, "upload_pdfx_markdown", fake_upload_pdfx_markdown)
         monkeypatch.setattr(
             pdf2md_utils, "process_extracted_images", lambda **kwargs: 0,
         )
@@ -1589,7 +1647,6 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
         )
 
@@ -1623,7 +1680,7 @@ class TestSupplementPdfLimits:
             "download_pdfx_result",
             lambda *args, **kwargs: b"# Converted\n\ncontent",
         )
-        monkeypatch.setattr(pdf2md_utils, "file_upload", lambda **kwargs: None)
+        monkeypatch.setattr(pdf2md_utils, "upload_pdfx_markdown", lambda *args, **kwargs: None)
         monkeypatch.setattr(
             pdf2md_utils, "process_extracted_images", lambda **kwargs: 0,
         )
@@ -1632,8 +1689,45 @@ class TestSupplementPdfLimits:
             db=None,
             pdf_file=_referencefile(file_class="main"),
             reference_curie="AGRKB:1",
-            token="token",
             methods_to_extract=["merged"],
+        )
+
+        assert success is True
+        assert methods_uploaded == ["merged"]
+        assert error is None
+        assert submitted is True
+
+    @pytest.mark.parametrize("file_content", [
+        b"x" * (5 * 1024 * 1024 + 1),
+        _pdf_bytes(21),
+    ], ids=["over_size_limit", "over_page_limit"])
+    def test_supplement_limits_skipped_when_not_enforced(self, monkeypatch, file_content):
+        """SCRUM-6978: the on-demand request passes enforce_supplement_limits=False,
+        so an oversized supplement PDF is still submitted to PDFX."""
+        submitted = False
+
+        def fake_submit_pdf_to_pdfx(**kwargs):
+            nonlocal submitted
+            submitted = True
+            return "process-id"
+
+        monkeypatch.setattr(pdf2md_utils, "download_file", lambda **kwargs: file_content)
+        monkeypatch.setattr(pdf2md_utils, "submit_pdf_to_pdfx", fake_submit_pdf_to_pdfx)
+        monkeypatch.setattr(pdf2md_utils, "poll_pdfx_status", lambda *args, **kwargs: None)
+        monkeypatch.setattr(
+            pdf2md_utils,
+            "download_pdfx_result",
+            lambda *args, **kwargs: b"# Converted\n\ncontent",
+        )
+        monkeypatch.setattr(pdf2md_utils, "upload_pdfx_markdown", lambda *args, **kwargs: None)
+        monkeypatch.setattr(pdf2md_utils, "process_extracted_images", lambda **kwargs: 0)
+
+        success, methods_uploaded, error = pdf2md_utils._process_single_pdf_file(
+            db=None,
+            pdf_file=_referencefile(),
+            reference_curie="AGRKB:1",
+            methods_to_extract=["merged"],
+            enforce_supplement_limits=False,
         )
 
         assert success is True
@@ -1684,7 +1778,67 @@ class TestFindSourceForConvertedOffice:
         converted.referencefile_id = 99
         converted.referencefile_mods = [MagicMock(mod_id=1)]
         db = MagicMock()
-        added = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
+        with patch(RESYNC) as resync:
+            added = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
         assert added == 2
         assert sorted((a.mod_id for a in (c.args[0] for c in db.add.call_args_list)), key=str) == [2, None]
+        resync.assert_called_once_with(db, 99)
         db.commit.assert_called_once()
+
+
+RESYNC = "agr_literature_service.api.crud.referencefile_mod_utils.resync_derived_embeddings"
+
+
+class TestConvertedMarkdownFollowsSourceMods:
+    """SCRUM-6764: converted Markdown carries exactly its source's MODs."""
+
+    @staticmethod
+    def _file(file_class, display_name, file_extension, mod_ids, referencefile_id=None):
+        f = MagicMock(file_class=file_class, display_name=display_name, file_extension=file_extension,
+                      referencefile_id=referencefile_id)
+        f.referencefile_mods = [MagicMock(mod_id=m) for m in mod_ids]
+        return f
+
+    def _sync(self, source_mods, converted_mods):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import sync_converted_file_mods_to_sources
+        source = self._file("supplement", "Table_S1", "xlsx", source_mods)
+        converted = self._file("converted_merged_supplement", "Table_S1_xlsx", "md", converted_mods, 99)
+        db = MagicMock()
+        with patch(RESYNC) as resync:
+            changes = sync_converted_file_mods_to_sources(db, MagicMock(referencefiles=[source, converted]))
+        return db, resync, changes
+
+    def test_link_the_source_lacks_is_removed(self):
+        # Markdown of FB's supplement must not stay readable by WB
+        db, resync, changes = self._sync(source_mods=[1], converted_mods=[1, 2])
+        assert changes == 1
+        assert [c.args[0].mod_id for c in db.delete.call_args_list] == [2]
+        db.add.assert_not_called()
+        resync.assert_called_once_with(db, 99)
+
+    def test_wrong_mod_is_swapped_for_the_source_mod(self):
+        db, resync, changes = self._sync(source_mods=[1], converted_mods=[2])
+        assert changes == 2
+        assert [c.args[0].mod_id for c in db.add.call_args_list] == [1]
+        assert [c.args[0].mod_id for c in db.delete.call_args_list] == [2]
+
+    def test_in_sync_changes_nothing(self):
+        db, resync, changes = self._sync(source_mods=[1, None], converted_mods=[None, 1])
+        assert changes == 0
+        resync.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_source_without_links_leaves_the_markdown_without_links(self):
+        db, resync, changes = self._sync(source_mods=[], converted_mods=[None])
+        assert changes == 1
+        assert [c.args[0].mod_id for c in db.delete.call_args_list] == [None]
+
+    def test_source_mod_abbreviation(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import source_mod_abbreviation
+
+        def source(*abbreviations):
+            return MagicMock(referencefile_mods=[
+                MagicMock(mod=None if a is None else MagicMock(abbreviation=a)) for a in abbreviations])
+        assert source_mod_abbreviation(source("WB", "FB")) == "FB"
+        assert source_mod_abbreviation(source("FB", None)) is None
+        assert source_mod_abbreviation(source()) is None

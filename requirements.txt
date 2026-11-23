@@ -3,7 +3,7 @@ setuptools>=67.0.0           # Ensure up-to-date setuptools.
 wheel>=0.40.0                # Ensure up-to-date wheel.
 
 # Core Dependencies
-sqlalchemy==2.0.7            # Upgrade to SQLAlchemy 2.0.x.
+sqlalchemy==2.0.58           # 2.0.14+ fixes the JoinedLoader thread race (SCRUM-6877).
 fastapi==0.141.1             # no upper bound on starlette; needed for starlette 1.x
 fastapi-health==0.4.0        # No update needed.
 uvicorn[standard]==0.23.1    # Updated for compatibility with FastAPI.

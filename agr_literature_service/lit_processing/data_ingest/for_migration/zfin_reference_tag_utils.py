@@ -41,9 +41,13 @@ ZFIN_CURIE_PREFIX = "ZFIN"
 # ATP:0000334 = "existing data"; used for every pure entity tag (topic == entity_type).
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
-# ATP:0000325 = "experimentally studied data" (SCRUM-5697). ZFIN's gene- and
-# allele-publication associations record data the paper actually studied.
-EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
+# ATP:0000406 = "experimentally studied entity" (SCRUM-6815). ZFIN's gene- and
+# allele-publication associations record entities the paper actually studied,
+# and ZFIN asked for this term on curator-added entities when ATP:0000325
+# "experimentally studied data" was deprecated (2026-10-30). Existing tags were
+# backfilled to it. load_existing_entity_pairs keys on (reference, entity), not
+# data_context, so the change cannot make a weekly re-run duplicate a tag.
+EXPERIMENTALLY_STUDIED_ENTITY_DATA_CONTEXT_ATP = "ATP:0000406"
 DANIO_RERIO_TAXON = "NCBITaxon:7955"
 # entity_id_validation "alliance" resolves ZFIN entity curies to names via the
 # Alliance persistent store.

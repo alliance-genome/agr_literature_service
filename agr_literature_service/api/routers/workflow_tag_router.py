@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import workflow_tag_crud
+from agr_literature_service.api.crud import workflow_diagram_triggers, workflow_tag_crud
 from agr_literature_service.api.schemas import (
     WorkflowTagSchemaShow,
     WorkflowTagSchemaUpdate,
     WorkflowTagSchemaPost,
 )
-from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
+from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaMerge, \
+    WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
@@ -68,6 +69,22 @@ async def patch(
     updates = request.model_dump(exclude_unset=True)
     workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
     return workflow_tag_crud.show(db, reference_workflow_tag_id)
+
+
+@router.post(
+    "/merge/{reference_curie}",
+    status_code=status.HTTP_200_OK,
+)
+def merge_into_reference(
+    reference_curie: str,
+    request: WorkflowTagSchemaMerge,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """Reference merge (SCRUM-6845): delete ``delete_ids`` and move ``move_ids`` to ``reference_curie``,
+    in one transaction."""
+    set_global_user_from_cognito(db, user)
+    return workflow_tag_crud.merge_into_reference(db, reference_curie, request.delete_ids, request.move_ids)
 
 
 @router.get(
@@ -185,6 +202,8 @@ def transition_to_workflow_status(
         mod_abbreviation=request.mod_abbreviation,
         new_workflow_tag_atp_id=request.new_workflow_tag_atp_id,
         transition_type=request.transition_type,
+        curation_tag=request.curation_tag,
+        note=request.note,
     )
 
 
@@ -253,6 +272,8 @@ def get_reference_workflow_tags(
 @router.get(
     "/reports/{workflow_tag_id}/{mod_abbreviation}",
     status_code=status.HTTP_200_OK,
+    # The default title, "Get Report Workflow Tags", suggested any workflow tag (SCRUM-6806)
+    summary="Get Report Workflow ML Pipeline Tags",
 )
 def get_report_workflow_tags(
     mod_abbreviation: str,
@@ -260,6 +281,9 @@ def get_report_workflow_tags(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """Report on an ML pipeline process: reference classification (ATP:0000165), entity
+    extraction (ATP:0000172) or curation classification (ATP:0000311). Any other
+    workflow_tag_id returns a 422."""
     return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)
 
 
@@ -273,6 +297,20 @@ def get_report_workflow_diagram(
     db: Session = db_session
 ):
     return workflow_tag_crud.get_workflow_tag_diagram(mod, db)
+
+
+@router.get(
+    "/workflow_diagram_triggers/{mod}",
+    status_code=status.HTTP_200_OK,
+)
+def get_workflow_diagram_triggers(
+    mod: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session
+):
+    """What starts each of the MOD's workflows: events outside every workflow
+    (entry_points) and states of one workflow that start another (handoffs)."""
+    return workflow_diagram_triggers.get_workflow_diagram_triggers(mod, db)
 
 
 @router.get(

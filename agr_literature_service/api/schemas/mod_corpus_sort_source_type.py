@@ -10,3 +10,4 @@ class ModCorpusSortSourceType(str, Enum):
     Prepublication_pipeline = "prepublication_pipeline"
     Gaf = "gaf"
     Interaction = "interaction"
+    Complex_portal = "complex_portal"

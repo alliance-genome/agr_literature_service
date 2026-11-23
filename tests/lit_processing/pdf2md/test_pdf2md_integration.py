@@ -103,11 +103,9 @@ class TestPdf2MdWorkflow:
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_single_reference",
            return_value=(True, None))
-    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_admin_token",
-           return_value="fake-token")
     @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod",
            mock_get_jobs_to_run)
-    def test_pdf2md_workflow_success(self, mock_get_admin_token, mock_psr,  # noqa
+    def test_pdf2md_workflow_success(self, mock_psr,  # noqa
                                      db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:
             load_name_to_atp_and_relationships_mock()
@@ -119,11 +117,9 @@ class TestPdf2MdWorkflow:
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_single_reference",
            return_value=(False, "mocked conversion failure"))
-    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_admin_token",
-           return_value="fake-token")
     @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod",
            mock_get_jobs_to_run)
-    def test_pdf2md_workflow_failure(self, mock_get_admin_token, mock_psr,  # noqa
+    def test_pdf2md_workflow_failure(self, mock_psr,  # noqa
                                      db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:
             load_name_to_atp_and_relationships_mock()

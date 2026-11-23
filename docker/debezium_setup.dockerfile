@@ -5,10 +5,11 @@ RUN apk add --no-cache bash curl gettext postgresql17-client jq
 COPY debezium/setup.sh /setup.sh
 COPY debezium/status_manager.sh /status_manager.sh
 COPY debezium/heal_publication.sh /heal_publication.sh
+COPY debezium/rebuild_checks.sh /rebuild_checks.sh
 COPY debezium/*.json /
 COPY debezium/*.ksql /
 
-RUN chmod +x /setup.sh /status_manager.sh /heal_publication.sh
+RUN chmod +x /setup.sh /status_manager.sh /heal_publication.sh /rebuild_checks.sh
 
 CMD ["bash", "/setup.sh"]
 

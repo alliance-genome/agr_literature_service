@@ -6,6 +6,7 @@ including PDFX API integration, reference lookup by curie, nXML conversion, and 
 retrieval for both main and supplemental files.
 """
 import gzip
+import hashlib
 import json
 import logging
 import os
@@ -23,7 +24,9 @@ from sqlalchemy.orm import Session
 
 from agr_abc_document_parsers import convert_office_to_markdown, convert_xml_to_markdown
 
-from agr_literature_service.api.crud.referencefile_crud import download_file, file_upload
+from agr_literature_service.api.crud.referencefile_crud import (
+    download_file, file_upload, find_first_available_display_name
+)
 from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.reference_utils import (
     normalize_reference_curie,
@@ -447,28 +450,51 @@ def find_source_for_converted(
     return None
 
 
+def source_mod_abbreviation(source: ReferencefileModel) -> Optional[str]:
+    """The MOD to upload a file converted from ``source`` with (SCRUM-6764):
+    one of the source's own MODs, or None when the source is linked to no MOD
+    (PMC: open to every MOD). The other MODs follow from
+    sync_converted_file_mods_to_sources. Never a MOD taken from another file
+    of the paper, which let one MOD read Markdown made from another MOD's
+    supplement."""
+    mods = []
+    for ref_file_mod in source.referencefile_mods or []:
+        if ref_file_mod.mod is None:
+            return None
+        mods.append(ref_file_mod.mod.abbreviation)
+    return min(mods) if mods else None
+
+
 def sync_converted_file_mods_to_sources(
     db: Session,
     reference: ReferenceModel,
 ) -> int:
     """
-    For each converted Markdown row of this reference, ensure its
-    ``referencefile_mod`` associations include every association the source
-    file has. Idempotent: only ADDS missing associations; never removes.
+    Make each converted Markdown row of this reference carry exactly the
+    ``referencefile_mod`` associations of its source file: add the missing
+    ones and remove those the source does not have. Idempotent.
 
-    Returns the number of associations added (0 when everything is
-    already in sync).
+    Returns the number of associations added or removed (0 when everything
+    is already in sync).
 
     SCRUM-6041: when a MOD-specific batch run converts a shared file,
-    the converted output is initially associated only with that one MOD.
-    A subsequent on-demand call can use this helper to make the converted
-    output also visible to every other MOD whose source file the same
-    reference points at — including null-mod (PMC, open-access) sources.
+    the converted output is initially associated only with that one MOD;
+    this fans it out to every other MOD whose source the reference points
+    at, including null-mod (PMC, open-access) sources.
+
+    SCRUM-6764: it also removes associations the source lacks, so converted
+    Markdown is never readable by a MOD that cannot read its source. Embedding
+    parquets made from a changed row are re-synced, since their access copies
+    the row's.
     """
     from agr_literature_service.api.models.referencefile_model import (
         ReferencefileModAssociationModel,
     )
-    added = 0
+    from agr_literature_service.api.crud.referencefile_mod_utils import (
+        resync_derived_embeddings,
+    )
+    changes = 0
+    changed = []
     for ref_file in reference.referencefiles or []:
         fc = ref_file.file_class or ""
         if not fc.startswith("converted_"):
@@ -482,17 +508,32 @@ def sync_converted_file_mods_to_sources(
         )
         if source is None:
             continue
-        target_mod_ids = {a.mod_id for a in (ref_file.referencefile_mods or [])}
+        # a source with no link at all (readable only when the paper is open
+        # access) leaves its Markdown with none either
         source_mod_ids = {a.mod_id for a in (source.referencefile_mods or [])}
+        links = list(ref_file.referencefile_mods or [])
+        target_mod_ids = {a.mod_id for a in links}
+        before = changes
         for missing_mod_id in source_mod_ids - target_mod_ids:
             db.add(ReferencefileModAssociationModel(
                 referencefile_id=ref_file.referencefile_id,
                 mod_id=missing_mod_id,
             ))
-            added += 1
-    if added:
+            changes += 1
+        for link in links:
+            if link.mod_id not in source_mod_ids:
+                db.delete(link)
+                changes += 1
+        if changes > before:
+            changed.append(ref_file)
+    if changes:
+        db.flush()
+        for ref_file in changed:
+            # the resync reads the row's links through this relationship
+            db.expire(ref_file, ["referencefile_mods"])
+            resync_derived_embeddings(db, ref_file.referencefile_id)
         db.commit()
-    return added
+    return changes
 
 
 def pending_supplement_sources(
@@ -614,9 +655,18 @@ def validate_supplement_pdf_for_pdfx(file_content: bytes) -> Optional[str]:
     return None
 
 
+def _pdfx_headers() -> Dict[str, str]:
+    """Authorization header for one PDFX request.
+
+    ``get_admin_token()`` caches the token and fetches a new one shortly before
+    it expires, so it is called for every request: a long job (or a long poll)
+    never sends an expired token.
+    """
+    return {"Authorization": f"Bearer {get_admin_token()}"}
+
+
 def submit_pdf_to_pdfx(  # pragma: no cover
     file_content: bytes,
-    token: str,
     methods: str = "grobid,docling,marker",
     merge: bool = True,
     reference_curie: Optional[str] = None,
@@ -632,7 +682,6 @@ def submit_pdf_to_pdfx(  # pragma: no cover
 
     Args:
         file_content: The PDF file content as bytes.
-        token: The bearer token for authentication.
         methods: Comma-separated extraction methods to use.
         merge: Whether to generate merged output.
         reference_curie: Optional reference identifier for logging.
@@ -660,9 +709,7 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = _pdfx_headers()
 
     # Prepare multipart form data
     data = {
@@ -718,10 +765,33 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     raise RuntimeError("PDFX submission failed: no exception captured")
 
 
-def poll_pdfx_status(  # pragma: no cover
+# How long to wait for one PDFX job (SCRUM-6863). It used to be a fixed 15 minutes, but
+# PDFX takes ~19 minutes for some large PDFs and carries on after we stop waiting, so
+# those papers were marked "conversion failed" with nothing left to retry them.
+# PDFX_POLL_TIMEOUT overrides it (seconds).
+PDFX_POLL_TIMEOUT_DEFAULT = 1800
+
+
+def pdfx_poll_timeout() -> int:
+    """Seconds to wait for a PDFX job: PDFX_POLL_TIMEOUT if it is a positive integer,
+    else PDFX_POLL_TIMEOUT_DEFAULT."""
+    value = os.environ.get("PDFX_POLL_TIMEOUT", "").strip()
+    if not value:
+        return PDFX_POLL_TIMEOUT_DEFAULT
+    try:
+        seconds = int(value)
+    except ValueError:
+        seconds = 0
+    if seconds <= 0:
+        logger.warning(f"Ignoring PDFX_POLL_TIMEOUT={value!r} (not a positive number of seconds); "
+                       f"waiting {PDFX_POLL_TIMEOUT_DEFAULT}s")
+        return PDFX_POLL_TIMEOUT_DEFAULT
+    return seconds
+
+
+def poll_pdfx_status(
     process_id: str,
-    token: str,
-    timeout: int = 900,
+    timeout: Optional[int] = None,
     poll_interval: int = 10
 ) -> Dict:
     """
@@ -729,8 +799,7 @@ def poll_pdfx_status(  # pragma: no cover
 
     Args:
         process_id: The process ID to check.
-        token: The bearer token for authentication.
-        timeout: Maximum time to wait in seconds (default 15 minutes).
+        timeout: Maximum time to wait in seconds (default: pdfx_poll_timeout()).
         poll_interval: Time between polls in seconds.
 
     Returns:
@@ -740,18 +809,16 @@ def poll_pdfx_status(  # pragma: no cover
         TimeoutError: If job doesn't complete within timeout.
         requests.RequestException: If polling request fails.
     """
+    if timeout is None:
+        timeout = pdfx_poll_timeout()
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}"
-
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
 
     start_time = time.time()
     last_status = None
 
     while time.time() - start_time < timeout:
-        response = requests.get(url, headers=headers, timeout=30)
+        response = requests.get(url, headers=_pdfx_headers(), timeout=30)
         response.raise_for_status()
 
         status_data = response.json()
@@ -774,17 +841,18 @@ def poll_pdfx_status(  # pragma: no cover
             logger.warning(f"Unknown PDFX status: {current_status}")
             time.sleep(poll_interval)
 
-    raise TimeoutError(f"PDFX job {process_id} timed out after {timeout} seconds")
+    # PDFX does not cancel the job; say so, since a retry with a longer wait may then succeed.
+    raise TimeoutError(f"PDFX job {process_id} timed out after {timeout} seconds; PDFX may still "
+                       f"complete it (set PDFX_POLL_TIMEOUT to wait longer)")
 
 
-def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # pragma: no cover
+def download_pdfx_result(process_id: str, method: str) -> bytes:  # pragma: no cover
     """
     Download the markdown result for a specific extraction method.
 
     Args:
         process_id: The process ID of the completed job.
         method: The extraction method (grobid, docling, marker, merged).
-        token: The bearer token for authentication.
 
     Returns:
         bytes: The markdown content.
@@ -795,9 +863,7 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # 
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}/download/{method}"
 
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = _pdfx_headers()
 
     response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
@@ -805,7 +871,7 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # 
     return response.content
 
 
-def download_pdfx_image_manifest(process_id: str, token: str) -> Dict:  # pragma: no cover
+def download_pdfx_image_manifest(process_id: str) -> Dict:  # pragma: no cover
     """
     Fetch the image manifest produced by a PDFX extraction job.
 
@@ -817,7 +883,7 @@ def download_pdfx_image_manifest(process_id: str, token: str) -> Dict:  # pragma
     """
     pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
     url = f"{pdfx_api_url}/api/v1/extract/{process_id}/images/urls"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _pdfx_headers()
     response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
     payload = response.json()
@@ -954,7 +1020,6 @@ def _upload_figure_metadata_sidecar(  # pragma: no cover
 def process_extracted_images(  # pragma: no cover
     db: Session,
     process_id: str,
-    token: str,
     source_display_name: str,
     source_file_class: str,
     reference_curie: str,
@@ -999,7 +1064,7 @@ def process_extracted_images(  # pragma: no cover
     )
 
     try:
-        manifest = download_pdfx_image_manifest(process_id, token)
+        manifest = download_pdfx_image_manifest(process_id)
     except Exception as e:
         recover_session(db, e)
         msg = f"Failed to fetch PDFX image manifest: {e}"
@@ -1244,7 +1309,6 @@ def process_pdf_for_reference(  # pragma: no cover
     curie: str,
     pdf_type: PdfType = "main",
     methods_to_extract: Optional[List[str]] = None,
-    token: Optional[str] = None
 ) -> ProcessingResult:
     """
     Process PDF(s) for a single reference and convert to Markdown.
@@ -1267,7 +1331,6 @@ def process_pdf_for_reference(  # pragma: no cover
             - "both": Both main and supplemental PDFs
         methods_to_extract: List of extraction methods to use.
                            Default: ["grobid", "docling", "marker", "merged"]
-        token: Optional pre-fetched PDFX token. If not provided, will be fetched.
 
     Returns:
         Dict with processing results:
@@ -1339,25 +1402,6 @@ def process_pdf_for_reference(  # pragma: no cover
 
     logger.info(f"Found {len(pdf_files)} PDF file(s) for {reference_curie} (pdf_type={pdf_type})")
 
-    # Get token if not provided
-    if token is None:
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            recover_session(db, e)
-            error_msg = f"Failed to obtain PDFX token: {e}"
-            logger.error(error_msg)
-            return ProcessingResult(
-                success=False,
-                reference_curie=reference_curie,
-                input_curie=curie,
-                pdfs_processed=0,
-                pdfs_succeeded=0,
-                pdfs_failed=0,
-                details=[],
-                error=error_msg
-            )
-
     # Process each PDF file
     for pdf_file in pdf_files:
         pdfs_processed += 1
@@ -1375,7 +1419,6 @@ def process_pdf_for_reference(  # pragma: no cover
                 db=db,
                 pdf_file=pdf_file,
                 reference_curie=reference_curie,
-                token=token,
                 methods_to_extract=methods_to_extract
             )
 
@@ -1409,12 +1452,93 @@ def process_pdf_for_reference(  # pragma: no cover
     )
 
 
+def pdfx_upload_order(methods: List[str]) -> List[str]:
+    """The methods in upload order: merged first (SCRUM-6824).
+
+    A reference can hold each content (md5sum) only once, so when PDFX's merged
+    Markdown is identical to one parser's output, the second upload only links
+    to the first. Uploading merged first keeps the converted_merged_* row, which
+    everything downstream reads; the identical parser file is the one dropped.
+    """
+    return sorted(methods, key=lambda method: method != "merged")
+
+
+def _claim_identical_parser_file(db: Session, reference_curie: str, md5sum: str,
+                                 merged_file_class: str, merged_display_name: str) -> None:
+    """Turn an earlier run's parser file into the merged file when they are identical.
+
+    With merged uploaded first this only happens on a re-conversion: the earlier
+    run stored the parser output, so the merged upload would only link to it
+    and the reference would still have no merged file (SCRUM-6824).
+    """
+    existing = db.query(ReferencefileModel).filter(
+        ReferencefileModel.md5sum == md5sum,
+        ReferencefileModel.reference.has(ReferenceModel.curie == reference_curie)
+    ).one_or_none()
+    if existing is None or existing.file_class == merged_file_class:
+        return
+    kind = merged_file_class.rsplit("_", 1)[1]
+    parser_file_classes = {f"converted_{method}_{kind}" for method in EXTRACTION_METHODS if method != "merged"}
+    if existing.file_class not in parser_file_classes or existing.file_extension != "md":
+        return
+    old_name = f"{existing.display_name} ({existing.file_class})"
+    existing.display_name = find_first_available_display_name(
+        display_name=merged_display_name, file_extension="md", reference_curie=reference_curie, db=db)
+    existing.file_class = merged_file_class
+    db.commit()
+    logger.warning(f"Merged markdown for {reference_curie} is identical to {old_name}; "
+                   f"that file is now {existing.display_name} ({merged_file_class})")
+
+
+def upload_pdfx_markdown(db: Session, reference_curie: str, display_name: str, method: str,
+                         output_file_class: str, markdown_content: bytes,
+                         mod_abbreviation: Optional[str]) -> None:
+    """Store one PDFX method's Markdown for a source PDF.
+
+    For merged, raises unless the reference ends up with a file of
+    output_file_class holding this content, so the caller does not count the
+    conversion as done when the merged file was silently dropped (SCRUM-6824).
+    """
+    output_display_name = f"{display_name}_{method}"
+    md5sum = hashlib.md5(markdown_content).hexdigest()
+    if method == "merged":
+        _claim_identical_parser_file(db, reference_curie, md5sum, output_file_class, output_display_name)
+    metadata = {
+        "reference_curie": reference_curie,
+        "display_name": output_display_name,
+        "file_class": output_file_class,
+        "file_publication_status": "final",
+        "file_extension": "md",
+        "pdf_type": None,
+        "is_annotation": None,
+        "mod_abbreviation": mod_abbreviation
+    }
+    file_upload(
+        db=db,
+        metadata=metadata,
+        file=UploadFile(
+            file=BytesIO(markdown_content),
+            filename=f"{output_display_name}.md"
+        ),
+        upload_if_already_converted=True
+    )
+    if method == "merged":
+        stored = db.query(ReferencefileModel).filter(
+            ReferencefileModel.md5sum == md5sum,
+            ReferencefileModel.file_class == output_file_class,
+            ReferencefileModel.reference.has(ReferenceModel.curie == reference_curie)
+        ).one_or_none()
+        if stored is None:
+            raise RuntimeError(f"merged markdown was not stored as {output_file_class}: "
+                               f"the reference already has the same content as another file")
+
+
 def _process_single_pdf_file(  # pragma: no cover
     db: Session,
     pdf_file: ReferencefileModel,
     reference_curie: str,
-    token: str,
-    methods_to_extract: List[str]
+    methods_to_extract: List[str],
+    enforce_supplement_limits: bool = True,
 ) -> Tuple[bool, List[str], Optional[str]]:
     """
     Process a single PDF file through PDFX.
@@ -1423,8 +1547,10 @@ def _process_single_pdf_file(  # pragma: no cover
         db: Database session.
         pdf_file: ReferencefileModel object for the PDF.
         reference_curie: The reference curie for logging and metadata.
-        token: PDFX bearer token.
         methods_to_extract: List of extraction methods to use.
+        enforce_supplement_limits: When True (the batch job), a supplement PDF
+            over SUPPLEMENT_PDF_MAX_BYTES or SUPPLEMENT_PDF_MAX_PAGES is refused.
+            The on-demand conversion request passes False (SCRUM-6978).
 
     Returns:
         Tuple of (success: bool, methods_uploaded: List[str], error_message: Optional[str]).
@@ -1432,12 +1558,9 @@ def _process_single_pdf_file(  # pragma: no cover
     display_name = pdf_file.display_name
     file_class = pdf_file.file_class
 
-    # Get MOD abbreviation from referencefile_mods
-    mod_abbreviation = None
-    for ref_file_mod in pdf_file.referencefile_mods:
-        if ref_file_mod.mod:
-            mod_abbreviation = ref_file_mod.mod.abbreviation
-            break
+    # the PDF's own MOD, or None when the PDF is open to every MOD; the PDF's
+    # other MODs follow from sync_converted_file_mods_to_sources
+    mod_abbreviation = source_mod_abbreviation(pdf_file)
 
     logger.info(f"Processing {file_class} PDF: {display_name} for {reference_curie}")
 
@@ -1452,7 +1575,7 @@ def _process_single_pdf_file(  # pragma: no cover
     if not file_content:
         return False, [], "Failed to download PDF content"
 
-    if file_class == "supplement":
+    if file_class == "supplement" and enforce_supplement_limits:
         validation_error = validate_supplement_pdf_for_pdfx(file_content)
         if validation_error:
             logger.warning(
@@ -1472,7 +1595,6 @@ def _process_single_pdf_file(  # pragma: no cover
     # produces both Markdown and figure images in one PDFX run per source PDF.
     process_id = submit_pdf_to_pdfx(
         file_content=file_content,
-        token=token,
         methods=",".join(request_methods),
         merge=include_merge,
         reference_curie=reference_curie,
@@ -1481,13 +1603,13 @@ def _process_single_pdf_file(  # pragma: no cover
     )
 
     # Poll for completion
-    poll_pdfx_status(process_id, token)
+    poll_pdfx_status(process_id)
 
     # Download and store each method's output
     successful_methods = []
-    for method in methods_to_extract:
+    for method in pdfx_upload_order(methods_to_extract):
         try:
-            markdown_content = download_pdfx_result(process_id, method, token)
+            markdown_content = download_pdfx_result(process_id, method)
 
             if not markdown_content or len(markdown_content) < 10:
                 logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
@@ -1500,28 +1622,8 @@ def _process_single_pdf_file(  # pragma: no cover
                 # For supplement files, use a different naming convention
                 output_file_class = f"converted_{method}_supplement"
 
-            output_display_name = f"{display_name}_{method}"
-
-            metadata = {
-                "reference_curie": reference_curie,
-                "display_name": output_display_name,
-                "file_class": output_file_class,
-                "file_publication_status": "final",
-                "file_extension": "md",
-                "pdf_type": None,
-                "is_annotation": None,
-                "mod_abbreviation": mod_abbreviation
-            }
-
-            file_upload(
-                db=db,
-                metadata=metadata,
-                file=UploadFile(
-                    file=BytesIO(markdown_content),
-                    filename=f"{output_display_name}.md"
-                ),
-                upload_if_already_converted=True
-            )
+            upload_pdfx_markdown(db, reference_curie, display_name, method, output_file_class,
+                                 markdown_content, mod_abbreviation)
 
             successful_methods.append(method)
             logger.info(f"Uploaded {method} markdown for {reference_curie} ({file_class})")
@@ -1537,7 +1639,6 @@ def _process_single_pdf_file(  # pragma: no cover
         process_extracted_images(
             db=db,
             process_id=process_id,
-            token=token,
             source_display_name=display_name,
             source_file_class=file_class,
             reference_curie=reference_curie,
@@ -1550,14 +1651,17 @@ def _process_single_pdf_file(  # pragma: no cover
             f"({file_class} '{display_name}'): {e}"
         )
 
-    if successful_methods:
-        logger.info(
-            f"Successfully processed {file_class} PDF for {reference_curie} "
-            f"with methods: {successful_methods}"
-        )
-        return True, successful_methods, None
-    else:
+    if not successful_methods:
         return False, [], "No methods successfully extracted"
+    if "merged" in methods_to_extract and "merged" not in successful_methods:
+        # Everything downstream reads the merged file, so without it the PDF is
+        # not converted, whatever the parsers produced (SCRUM-6824)
+        return False, successful_methods, "Merged markdown was not stored"
+    logger.info(
+        f"Successfully processed {file_class} PDF for {reference_curie} "
+        f"with methods: {successful_methods}"
+    )
+    return True, successful_methods, None
 
 
 def get_pdfs_missing_xml(  # pragma: no cover
@@ -1944,11 +2048,13 @@ def process_supplemental_office_files(  # pragma: no cover
     failed = 0
     errors: List[str] = []
     for office_file in pending:
+        # the supplement's own MOD; mod_abbreviation only picks which
+        # supplements this run converts
         success, error = process_office_to_markdown(
             db=db,
             office_ref_file=office_file,
             reference_curie=reference_curie,
-            mod_abbreviation=mod_abbreviation,
+            mod_abbreviation=source_mod_abbreviation(office_file),
         )
         if success:
             succeeded += 1
@@ -1962,7 +2068,6 @@ def process_supplemental_pdfs(  # pragma: no cover
     db: Session,
     reference_id: int,
     reference_curie: str,
-    token: str,
     methods_to_extract: Optional[List[str]] = None,
     mod_abbreviation: Optional[str] = None,
 ) -> Tuple[int, int, List[str]]:
@@ -1976,7 +2081,6 @@ def process_supplemental_pdfs(  # pragma: no cover
         db: Database session.
         reference_id: The reference ID whose supplements should be processed.
         reference_curie: The reference curie for metadata/logging.
-        token: PDFX bearer token.
         methods_to_extract: List of methods to extract (default: all).
         mod_abbreviation: When provided, only supplements associated with
             this MOD (or shared / null-mod ones) are processed — each MOD's
@@ -2035,7 +2139,6 @@ def process_supplemental_pdfs(  # pragma: no cover
                 db=db,
                 pdf_file=pdf_file,
                 reference_curie=reference_curie,
-                token=token,
                 methods_to_extract=methods_to_extract
             )
             if success:

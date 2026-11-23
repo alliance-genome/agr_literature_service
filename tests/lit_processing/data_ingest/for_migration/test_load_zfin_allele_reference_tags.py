@@ -89,7 +89,8 @@ class TestBuildTagPayload:
         assert data["entity_id_validation"] == mod.ENTITY_ID_VALIDATION
         assert data["species"] == "NCBITaxon:7955"
         assert data["data_novelty"] == mod.EXISTING_DATA_NOVELTY_ATP
-        assert data["data_context"] == mod.EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+        # SCRUM-6815: ATP:0000406 experimentally studied entity, not the deprecated ATP:0000325
+        assert data["data_context"] == "ATP:0000406"
         assert data["negated"] is False
         assert data["tag_source_id"] == 229
         assert data.get("created_by") is None

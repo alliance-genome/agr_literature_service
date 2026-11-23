@@ -1,7 +1,11 @@
 # flake8: noqa: F811
+import importlib.util
 from collections import namedtuple
+from pathlib import Path
 
 import pytest
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from starlette.testclient import TestClient
 from fastapi import status
 
@@ -203,3 +207,95 @@ class TestPersonNote:
             assert res.status_code == status.HTTP_200_OK
             notes = res.json()
             assert len(notes) == 3
+
+
+class TestPersonNoteFlags:
+    """internal (a private curator note) and obsolete (SCRUM-6889)."""
+
+    def _post(self, client, auth_headers, person_id, **flags):
+        res = client.post("/person_note/",
+                          json={"person_curie": str(person_id), "note": "flag note", **flags},
+                          headers=auth_headers)
+        assert res.status_code == status.HTTP_201_CREATED
+        return res.json()
+
+    def test_create_defaults_to_public_and_current(self, auth_headers, seeded_person):  # noqa
+        with TestClient(app) as client:
+            body = self._post(client, auth_headers, seeded_person["person_id"])
+            assert (body["internal"], body["obsolete"]) == (False, False)
+
+    def test_create_with_flags(self, auth_headers, seeded_person):  # noqa
+        with TestClient(app) as client:
+            body = self._post(client, auth_headers, seeded_person["person_id"], internal=True, obsolete=True)
+            assert (body["internal"], body["obsolete"]) == (True, True)
+            fetched = client.get(f"/person_note/{body['person_note_id']}", headers=auth_headers).json()
+            assert (fetched["internal"], fetched["obsolete"]) == (True, True)
+
+    def test_patch_flags(self, auth_headers, test_person_note):  # noqa
+        note_id = test_person_note.new_person_note_id
+        with TestClient(app) as client:
+            res = client.patch(f"/person_note/{note_id}", json={"internal": True}, headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert (res.json()["internal"], res.json()["obsolete"], res.json()["note"]) == (
+                True, False, "Initial note text")
+            res = client.patch(f"/person_note/{note_id}", json={"obsolete": True, "internal": False},
+                               headers=auth_headers)
+            assert (res.json()["internal"], res.json()["obsolete"]) == (False, True)
+
+    @pytest.mark.parametrize("flag", ["internal", "obsolete"])
+    def test_patch_null_flag_rejected(self, auth_headers, test_person_note, flag):  # noqa
+        with TestClient(app) as client:
+            res = client.patch(f"/person_note/{test_person_note.new_person_note_id}", json={flag: None},
+                               headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_list_and_person_show_return_flags(self, auth_headers, seeded_person):  # noqa
+        person_id = seeded_person["person_id"]
+        with TestClient(app) as client:
+            self._post(client, auth_headers, person_id, internal=True)
+            self._post(client, auth_headers, person_id)
+            listed = client.get(f"/person_note/person/{person_id}", headers=auth_headers).json()
+            assert [n["internal"] for n in listed] == [True, False]
+            person = client.get(f"/person/{person_id}", headers=auth_headers).json()
+            assert sorted(n["internal"] for n in person["notes"]) == [False, True]
+
+    def test_nested_notes_on_person_create(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.post("/person/", json={"display_name": "Nested Note Person", "notes": [
+                {"note": "private", "internal": True}, {"note": "public"}]}, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            person = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()
+            assert sorted((n["note"], n["internal"], n["obsolete"]) for n in person["notes"]) == [
+                ("private", True, False), ("public", False, False)]
+
+
+def _existing_notes_revision():
+    path = (Path(__file__).resolve().parents[2] / "alembic" / "versions"
+            / "20261117_c4e1a7d90b23_person_note_existing_notes_internal.py")
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_migration_makes_existing_notes_internal_once(db, seeded_person):  # noqa
+    """Revision c4e1a7d90b23 marks every note internal, unless one already is."""
+    revision = _existing_notes_revision()
+    person_id = seeded_person["person_id"]
+    connection = db.connection()
+
+    def run():
+        with Operations.context(MigrationContext.configure(connection)):
+            revision.upgrade()
+        db.expire_all()
+        return sorted((n.note, n.internal) for n in db.query(PersonNoteModel).filter_by(person_id=person_id))
+
+    try:
+        db.add_all([PersonNoteModel(person_id=person_id, note="a"), PersonNoteModel(person_id=person_id, note="b")])
+        db.flush()
+        assert run() == [("a", True), ("b", True)]
+        db.query(PersonNoteModel).filter_by(person_id=person_id, note="b").one().internal = False
+        db.flush()
+        assert run() == [("a", True), ("b", False)]
+    finally:
+        db.rollback()

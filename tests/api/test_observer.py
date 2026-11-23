@@ -17,6 +17,7 @@ from agr_literature_service.api.observer import (
     enforce_observer_read_only,
     is_observer,
     observer_mod,
+    service_client_mod,
     visibility_mod_access,
 )
 from agr_literature_service.api.user import _has_recognized_role_group
@@ -84,6 +85,40 @@ class TestVisibilityModAccess:
         assert visibility_mod_access({"token_type": "access"}) == ModAccess.ALL_ACCESS
         assert visibility_mod_access(_id_user()) == ModAccess.NO_ACCESS
         assert visibility_mod_access(None) == ModAccess.NO_ACCESS
+
+
+class TestServiceClientModVisibility:
+    """A service client listed in COGNITO_SERVICE_CLIENT_MODS downloads only its
+    MOD's restricted files; unlisted clients keep ALL_ACCESS."""
+
+    @staticmethod
+    def _client(client_id):
+        return {"token_type": "access", "client_id": client_id, "sub": client_id}
+
+    def test_listed_client_sees_only_its_mod(self, monkeypatch):
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_MODS", " fb-client:FB , wb-client:WB ")
+        assert visibility_mod_access(self._client("fb-client")) == ModAccess.FB
+        assert visibility_mod_access(self._client("wb-client")) == ModAccess.WB
+        # mutation capability is not touched
+        assert get_mod_access(self._client("fb-client")) == ModAccess.ALL_ACCESS
+
+    def test_unlisted_client_keeps_all_access(self, monkeypatch):
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_MODS", "fb-client:FB")
+        assert visibility_mod_access(self._client("abc-jobs")) == ModAccess.ALL_ACCESS
+        monkeypatch.delenv("COGNITO_SERVICE_CLIENT_MODS")
+        assert visibility_mod_access(self._client("fb-client")) == ModAccess.ALL_ACCESS
+
+    def test_unknown_mod_fails_closed(self, monkeypatch):
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_MODS", "x-client:FlyBase")
+        assert service_client_mod(self._client("x-client")) == ""
+        assert visibility_mod_access(self._client("x-client")) == ModAccess.NO_ACCESS
+
+    def test_only_access_tokens_are_mapped(self, monkeypatch):
+        # an ID token carrying the same client_id is a user, judged by its groups
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_MODS", "fb-client:FB")
+        user = dict(_id_user("WormBaseCurator"), client_id="fb-client")
+        assert service_client_mod(user) is None
+        assert visibility_mod_access(user) == ModAccess.WB
 
 
 class TestReadOnlyEnforcement:

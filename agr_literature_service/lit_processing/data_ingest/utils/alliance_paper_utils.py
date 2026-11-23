@@ -5,6 +5,7 @@ This module contains common functions used by:
 - load_interaction_papers.py
 - load_goa_human_papers.py
 - load_mod_gaf_papers.py
+- load_complex_papers.py
 """
 import gzip
 import logging
@@ -16,9 +17,9 @@ from typing import Dict, List, Set, Tuple
 from sqlalchemy import text
 
 from agr_literature_service.api.models import (
-    ModCorpusAssociationModel, ModModel, CrossReferenceModel
+    ModCorpusAssociationModel, ModModel, ReferenceModel
 )
-from agr_literature_service.api.schemas import ModCorpusSortSourceType
+from agr_literature_service.api.schemas import ModCorpusSortSourceType, ReferenceCategory
 
 logger = logging.getLogger(__name__)
 
@@ -128,92 +129,6 @@ def associate_papers_with_alliance(db_session, all_pmids: Set[str],
     return count
 
 
-def create_sgd_curie_for_reference(db_session, reference_id: int) -> bool:  # pragma: no cover
-    """
-    Create an SGD curie (e.g., SGD:S100002728) for a reference if it doesn't
-    already have one.
-
-    Args:
-        db_session: Database session
-        reference_id: The reference ID to create the curie for
-
-    Returns:
-        True if a new curie was created, False if one already exists
-    """
-    # Check if reference already has an SGD cross reference
-    existing_sgd_xref = db_session.query(CrossReferenceModel).filter(
-        CrossReferenceModel.reference_id == reference_id,
-        CrossReferenceModel.curie_prefix == 'SGD',
-        CrossReferenceModel.is_obsolete.is_(False)
-    ).first()
-
-    if existing_sgd_xref:
-        return False
-
-    # Get next SGD ID from sequence
-    row = db_session.execute(text("SELECT nextval('sgd_id_seq')")).fetchone()
-    if not row:
-        logger.error(f"Failed to get next SGD ID for reference_id={reference_id}")
-        return False
-
-    sgdid_number = row[0]
-    new_sgdid = f"SGD:S{sgdid_number}"
-
-    # Create new cross reference
-    new_xref = CrossReferenceModel(
-        curie=new_sgdid,
-        curie_prefix='SGD',
-        reference_id=reference_id,
-        pages=['reference'],
-        is_obsolete=False
-    )
-    db_session.add(new_xref)
-    logger.info(f"Created SGD curie {new_sgdid} for reference_id={reference_id}")
-    return True
-
-
-def create_sgd_curies_for_references(db_session, reference_ids: Set[int]) -> int:  # pragma: no cover
-    """
-    Create SGD curies for multiple references that don't already have one.
-
-    Args:
-        db_session: Database session
-        reference_ids: Set of reference IDs to create curies for
-
-    Returns:
-        Number of curies created
-    """
-    if not reference_ids:
-        return 0
-
-    ref_ids_list = list(reference_ids)
-
-    # Get reference_ids that already have SGD cross references
-    existing_sgd_refs_query = text(
-        "SELECT DISTINCT reference_id FROM cross_reference "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND curie_prefix = 'SGD' "
-        "AND obsolete = False"
-    )
-    existing_sgd_refs = db_session.execute(
-        existing_sgd_refs_query,
-        {"ref_ids": ref_ids_list}
-    ).fetchall()
-
-    refs_with_sgd = {row[0] for row in existing_sgd_refs}
-    refs_needing_sgd = reference_ids - refs_with_sgd
-
-    if not refs_needing_sgd:
-        return 0
-
-    count = 0
-    for ref_id in refs_needing_sgd:
-        if create_sgd_curie_for_reference(db_session, ref_id):
-            count += 1
-
-    return count
-
-
 def search_pubmed_for_validity(pmids: Set[str], api_key: str = '',
                                timeout: int = 30) -> Tuple[Set[str], Set[str]]:
     """
@@ -270,11 +185,25 @@ def clean_up_tmp_directories(paths: List[str]) -> None:
         makedirs(dir_path, exist_ok=True)
 
 
+def _drop_preprints(db_session, reference_ids: Set[int]) -> Set[int]:
+    """The reference_ids that are not preprints. SGD only takes
+    peer-reviewed papers, so the loaders never put a preprint into the SGD
+    corpus."""
+    if not reference_ids:
+        return set()
+    preprints = {rid for (rid,) in db_session.query(ReferenceModel.reference_id).filter(
+        ReferenceModel.reference_id.in_(list(reference_ids)),
+        ReferenceModel.category == ReferenceCategory.Preprint).all()}
+    return reference_ids - preprints
+
+
 def update_sgd_corpus_flag_to_true(db_session,  # pragma: no cover
                                    pmids: Set[str]) -> Tuple[int, Set[str]]:
     """
-    Update SGD papers that are associated but outside corpus to be inside
-    the corpus (corpus=True).
+    Move SGD papers that are waiting for review (corpus not set) into the
+    corpus (corpus=True). Papers an SGD curator rejected (corpus False) are
+    left alone, so a GAF or interaction file citing a paper does not undo the
+    curator's decision; preprints are left alone too.
 
     Args:
         db_session: Database session
@@ -313,42 +242,32 @@ def update_sgd_corpus_flag_to_true(db_session,  # pragma: no cover
     if not reference_ids_in_db:
         return 0, set()
 
-    ref_ids_list = list(reference_ids_in_db)
+    ref_ids_list = list(_drop_preprints(db_session, reference_ids_in_db))
 
     # Build reverse mapping: ref_id -> pmid
     ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
 
-    # Update mod_corpus_association records where corpus=False or NULL to corpus=True
-    # Use RETURNING to get the reference_ids that were actually updated
-    update_query = text(
-        "UPDATE mod_corpus_association "
-        "SET corpus = True "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND mod_id = :sgd_mod_id "
-        "AND (corpus = False OR corpus IS NULL) "
-        "RETURNING reference_id"
-    )
-    result = db_session.execute(
-        update_query,
-        {
-            "ref_ids": ref_ids_list,
-            "sgd_mod_id": sgd_mod_id
-        }
-    )
-    updated_ref_ids = {row[0] for row in result.fetchall()}
+    # Move the associations waiting for review (corpus NULL) into the corpus;
+    # not rejected ones (corpus False), which used to be moved in too and
+    # overrode the curators. Through the ORM, not a raw UPDATE, so each change
+    # gets a version row and a date_updated: a raw UPDATE left papers in the
+    # corpus with no record of when or how they got there (SCRUM-6830).
+    mcas = db_session.query(ModCorpusAssociationModel).filter(
+        ModCorpusAssociationModel.reference_id.in_(ref_ids_list),
+        ModCorpusAssociationModel.mod_id == sgd_mod_id,
+        ModCorpusAssociationModel.corpus.is_(None)
+    ).all()
+    for mca in mcas:
+        mca.corpus = True
+    updated_ref_ids = {mca.reference_id for mca in mcas}
     count = len(updated_ref_ids)
 
     # Map back to PMIDs
     updated_pmids = {ref_id_to_pmid[ref_id] for ref_id in updated_ref_ids if ref_id in ref_id_to_pmid}
 
     if count > 0:
+        # the commit also gives each paper its SGD curie (sgd_curie_listener)
         db_session.commit()
-
-        # Create SGD curies for updated papers that don't have one
-        sgd_curies_created = create_sgd_curies_for_references(db_session, updated_ref_ids)
-        if sgd_curies_created > 0:
-            db_session.commit()
-            logger.info(f"Created {sgd_curies_created} SGD curie(s) for updated papers")
 
     return count, updated_pmids
 
@@ -358,7 +277,7 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
     """
     Associate SGD papers with the SGD corpus.
     Only associates papers that do NOT already have a mod_corpus_association
-    with SGD.
+    with SGD, and are not preprints (SGD only takes peer-reviewed papers).
 
     Args:
         db_session: Database session
@@ -393,7 +312,7 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
     rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
 
     pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
-    reference_ids_in_db = set(pmid_to_ref_id.values())
+    reference_ids_in_db = _drop_preprints(db_session, set(pmid_to_ref_id.values()))
 
     if not reference_ids_in_db:
         return 0, set()
@@ -419,7 +338,6 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
     # Add mod_corpus_association for papers not yet associated with SGD
     count = 0
     pmids_added: Set[str] = set()
-    refs_added: Set[int] = set()
     for ref_id in reference_ids_in_db:
         if ref_id not in already_associated:
             mca = ModCorpusAssociationModel(
@@ -430,19 +348,13 @@ def associate_sgd_papers_with_corpus(db_session, pmids: Set[str],  # pragma: no 
             )
             db_session.add(mca)
             count += 1
-            refs_added.add(ref_id)
             if ref_id in ref_id_to_pmid:
                 pmids_added.add(ref_id_to_pmid[ref_id])
 
     if count > 0:
+        # the commit also gives each paper its SGD curie (sgd_curie_listener)
         db_session.commit()
         logger.info(f"Associated {count} SGD paper(s) with SGD corpus")
-
-        # Create SGD curies for newly added papers
-        sgd_curies_created = create_sgd_curies_for_references(db_session, refs_added)
-        if sgd_curies_created > 0:
-            db_session.commit()
-            logger.info(f"Created {sgd_curies_created} SGD curie(s) for newly associated papers")
 
     return count, pmids_added
 

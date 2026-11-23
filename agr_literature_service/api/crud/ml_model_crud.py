@@ -112,7 +112,9 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         file_classes=request.file_classes,
         description=request.description,
         embedding_profile=request.embedding_profile,
-        embedding_version=request.embedding_version
+        embedding_version=request.embedding_version,
+        confidence_threshold=request.confidence_threshold,
+        rescale_confidence=request.rescale_confidence is not False
     )
     try:
         db.add(new_model)
@@ -127,13 +129,22 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
     extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
     topic = request.topic if request.topic is not None else "None"
     folder = get_ml_model_s3_folder(request.task_type, request.mod_abbreviation, topic)
-    temp_file_name = f"{str(request.version_num)}.gz"
-    with gzip.open(temp_file_name, 'wb') as f_out:
-        shutil.copyfileobj(file.file, f_out)
-    with open(temp_file_name, 'rb') as gzipped_file:
-        upload_file_to_bucket(s3_client=s3_client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
-                              object_name=str(request.version_num) + ".gz", ExtraArgs=extra_args)
-    os.remove(temp_file_name)
+    # SCRUM-6888: gzip into a per-request working directory, as download_model_file does.
+    # A bare "<version>.gz" in the working directory was shared by every upload of that
+    # version: two at once (e.g. pytest-xdist workers, which share a working directory and
+    # all upload version 1) wrote and deleted the same file, and the second os.remove
+    # raised FileNotFoundError.
+    work_dir = tempfile.mkdtemp(prefix="ml_model_ul_")
+    try:
+        temp_file_name = os.path.join(work_dir, f"{request.version_num}.gz")
+        with gzip.open(temp_file_name, 'wb') as f_out:
+            shutil.copyfileobj(file.file, f_out)
+        with open(temp_file_name, 'rb') as gzipped_file:
+            upload_file_to_bucket(s3_client=s3_client, file_obj=gzipped_file, bucket="agr-literature",
+                                  folder=folder, object_name=str(request.version_num) + ".gz",
+                                  ExtraArgs=extra_args)
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
     return get_model_schema_from_orm(new_model)
 
 
@@ -216,6 +227,8 @@ def get_model_schema_from_orm(model: MLModel):
         "description": model.description,
         "embedding_profile": model.embedding_profile,
         "embedding_version": model.embedding_version,
+        "confidence_threshold": model.confidence_threshold,
+        "rescale_confidence": model.rescale_confidence,
         "date_created": model.date_created,
         "date_updated": model.date_updated,
         "created_by": model.created_by,

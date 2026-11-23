@@ -12,23 +12,22 @@ stores each output as a separate file; nXML conversion produces a single
 merged-style markdown output.
 """
 import logging
+import os
 import time
-from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import UploadFile
 from sqlalchemy import create_engine, desc, select
 from sqlalchemy.orm import sessionmaker, Session
 
 from agr_literature_service.api.crud.referencefile_crud import (
-    get_main_pdf_referencefile_id, download_file, file_upload
+    get_main_pdf_referencefile_id, download_file
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
 )
-from agr_cognito_py import ModAccess, get_admin_token
+from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
@@ -43,6 +42,10 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     process_nxml_to_markdown,
     process_supplemental_office_files,
     process_supplemental_pdfs,
+    pdfx_upload_order,
+    source_mod_abbreviation,
+    sync_converted_file_mods_to_sources,
+    upload_pdfx_markdown,
 )
 
 
@@ -211,7 +214,6 @@ def get_unprocessed_pdfs_since_year(
 def _process_reference_list(  # pragma: no cover
     db: Session,
     reference_list: List[Dict],
-    token: str,
     start_time: float,
     summary_suffix: str = "",
     report_subject: str = "pdf2md conversion errors",
@@ -229,7 +231,6 @@ def _process_reference_list(  # pragma: no cover
     Args:
         db: Database session.
         reference_list: List of reference info dicts to process.
-        token: Initial PDFX bearer token.
         start_time: Start time for timing statistics.
         summary_suffix: Suffix for log summary title (e.g., " (Since 2025)").
         report_subject: Subject line for error report email.
@@ -251,24 +252,8 @@ def _process_reference_list(  # pragma: no cover
 
         logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
 
-        # Refresh token if needed
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            recover_session(db, e)
-            logger.error(f"Failed to refresh token: {e}")
-            failure_count += 1
-            objects_with_errors.append({
-                "reference_curie": reference_curie,
-                "display_name": ref_file_info["display_name"],
-                "file_extension": ref_file_info["file_extension"],
-                "mod_abbreviation": ref_file_info.get("mod_abbreviation", "N/A"),
-                "error": f"Failed to refresh token: {e}"
-            })
-            continue
-
         success, error_msg = process_single_reference(
-            db, ref_file_info, token,
+            db, ref_file_info,
             prefer_nxml=prefer_nxml,
             process_supplements=process_supplements
         )
@@ -372,13 +357,6 @@ def process_references_since_year(  # pragma: no cover
         if not process_supplements:
             logger.info("Skipping supplemental PDFs")
 
-        # Get token
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            logger.error(f"Failed to obtain PDFX token: {e}")
-            return None
-
         # Get unprocessed references
         reference_list = get_unprocessed_pdfs_since_year(
             db, since_year=since_year, skip_xml=skip_xml, limit=limit
@@ -392,7 +370,6 @@ def process_references_since_year(  # pragma: no cover
         return _process_reference_list(
             db=db,
             reference_list=reference_list,
-            token=token,
             start_time=start_time,
             summary_suffix=f" (Since {since_year})",
             report_subject=f"pdf2md conversion errors (since {since_year})",
@@ -409,7 +386,6 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
     reference_curie: str,
     display_name: str,
     mod_abbreviation: Optional[str],
-    token: str,
     methods_to_extract: List[str]
 ) -> Tuple[bool, Optional[str]]:
     """
@@ -437,7 +413,6 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
 
         process_id = submit_pdf_to_pdfx(
             file_content=file_content,
-            token=token,
             methods=",".join(request_methods),
             merge=include_merge,
             reference_curie=reference_curie,
@@ -445,40 +420,19 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             extract_images=True,
         )
 
-        poll_pdfx_status(process_id, token)
+        poll_pdfx_status(process_id)
 
         successful_methods = []
-        for method in methods_to_extract:
+        for method in pdfx_upload_order(methods_to_extract):
             try:
-                markdown_content = download_pdfx_result(process_id, method, token)
+                markdown_content = download_pdfx_result(process_id, method)
 
                 if not markdown_content or len(markdown_content) < 10:
                     logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
                     continue
 
-                file_class = EXTRACTION_METHODS[method]
-                output_display_name = f"{display_name}_{method}"
-
-                metadata = {
-                    "reference_curie": reference_curie,
-                    "display_name": output_display_name,
-                    "file_class": file_class,
-                    "file_publication_status": "final",
-                    "file_extension": "md",
-                    "pdf_type": None,
-                    "is_annotation": None,
-                    "mod_abbreviation": mod_abbreviation
-                }
-
-                file_upload(
-                    db=db,
-                    metadata=metadata,
-                    file=UploadFile(
-                        file=BytesIO(markdown_content),
-                        filename=f"{output_display_name}.md"
-                    ),
-                    upload_if_already_converted=True
-                )
+                upload_pdfx_markdown(db, reference_curie, display_name, method, EXTRACTION_METHODS[method],
+                                     markdown_content, mod_abbreviation)
 
                 successful_methods.append(method)
                 logger.info(f"Uploaded {method} markdown for {reference_curie}")
@@ -494,7 +448,6 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             process_extracted_images(
                 db=db,
                 process_id=process_id,
-                token=token,
                 source_display_name=display_name,
                 source_file_class="main",
                 reference_curie=reference_curie,
@@ -507,13 +460,17 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                 f"(main '{display_name}'): {e}"
             )
 
-        if successful_methods:
-            logger.info(
-                f"Successfully processed main PDF for {reference_curie} "
-                f"with methods: {successful_methods}"
-            )
-            return True, None
-        return False, "No methods successfully extracted"
+        if not successful_methods:
+            return False, "No methods successfully extracted"
+        if "merged" in methods_to_extract and "merged" not in successful_methods:
+            # Everything downstream reads the merged file, so without it the paper
+            # is not converted, whatever the parsers produced (SCRUM-6824)
+            return False, "Merged markdown was not stored"
+        logger.info(
+            f"Successfully processed main PDF for {reference_curie} "
+            f"with methods: {successful_methods}"
+        )
+        return True, None
 
     except Exception as e:
         recover_session(db, e)
@@ -526,7 +483,6 @@ def _process_supplements_for_reference(  # pragma: no cover
     db: Session,
     reference_id: int,
     reference_curie: str,
-    token: str,
     methods_to_extract: Optional[List[str]],
     mod_abbreviation: Optional[str],
 ) -> None:
@@ -539,7 +495,6 @@ def _process_supplements_for_reference(  # pragma: no cover
             db=db,
             reference_id=reference_id,
             reference_curie=reference_curie,
-            token=token,
             methods_to_extract=methods_to_extract,
             mod_abbreviation=mod_abbreviation,
         )
@@ -581,7 +536,6 @@ def _process_supplements_for_reference(  # pragma: no cover
 def process_single_reference(  # pragma: no cover
     db: Session,
     ref_file_info: Dict,
-    token: str,
     methods_to_extract: Optional[List[str]] = None,
     prefer_nxml: bool = True,
     process_supplements: bool = True
@@ -607,7 +561,6 @@ def process_single_reference(  # pragma: no cover
             reference_id, reference_curie, display_name, and (for PDF fallback)
             referencefile_id of the main PDF plus file_extension. May include
             mod_abbreviation.
-        token: PDFX bearer token.
         methods_to_extract: List of methods to extract (default: all 4).
         prefer_nxml: When True (default), prefer nXML conversion over PDFX for
             the main file when an nXML file is available. When False, always
@@ -656,7 +609,7 @@ def process_single_reference(  # pragma: no cover
             db=db,
             nxml_ref_file=nxml_ref_file,
             reference_curie=reference_curie,
-            mod_abbreviation=mod_abbreviation
+            mod_abbreviation=source_mod_abbreviation(nxml_ref_file)
         )
         if not main_success:
             logger.warning(
@@ -679,7 +632,6 @@ def process_single_reference(  # pragma: no cover
             reference_curie=reference_curie,
             display_name=display_name,
             mod_abbreviation=mod_abbreviation,
-            token=token,
             methods_to_extract=methods_to_extract
         )
         main_success = pdfx_success
@@ -695,8 +647,12 @@ def process_single_reference(  # pragma: no cover
     # (newest/since-year, mod_abbreviation=None) process every supplement.
     if process_supplements:
         _process_supplements_for_reference(
-            db, reference_id, reference_curie, token, methods_to_extract, mod_abbreviation,
+            db, reference_id, reference_curie, methods_to_extract, mod_abbreviation,
         )
+
+    # Give every converted row the MODs of its source, before the embeddings
+    # copy the rows' access (SCRUM-6764)
+    _sync_converted_mods(db, reference_id, reference_curie)
 
     if main_success:
         # Generate classifier embeddings for every merged Markdown of this
@@ -704,6 +660,24 @@ def process_single_reference(  # pragma: no cover
         _maybe_generate_embeddings(db, reference_id, reference_curie)
         return True, None
     return False, main_error or "Main reference conversion failed"
+
+
+def _sync_converted_mods(  # pragma: no cover
+    db: Session, reference_id: int, reference_curie: str
+) -> None:
+    """Make the reference's converted Markdown carry exactly its sources'
+    MODs. A batch run uploads with one MOD, so a PDF several MODs supplied
+    would otherwise give its Markdown to only one of them. Isolated: a
+    failure is logged and never flips the conversion result."""
+    try:
+        reference = db.query(ReferenceModel).filter(
+            ReferenceModel.reference_id == reference_id).one_or_none()
+        if reference is not None:
+            db.expire(reference)
+            sync_converted_file_mods_to_sources(db, reference)
+    except Exception as e:
+        recover_session(db, e)
+        logger.error(f"Converted Markdown MOD sync failed for {reference_curie}: {e}")
 
 
 def _maybe_generate_embeddings(  # pragma: no cover
@@ -754,13 +728,6 @@ def process_newest_references(  # pragma: no cover
         if not process_supplements:
             logger.info("Skipping supplemental PDFs")
 
-        # Get token
-        try:
-            token = get_admin_token()
-        except Exception as e:
-            logger.error(f"Failed to obtain PDFX token: {e}")
-            return None
-
         # Enumerate via newest main PDFs
         reference_list = get_newest_main_pdfs(db, limit=limit, skip_xml=skip_xml)
         logger.info(f"Found {len(reference_list)} references to process")
@@ -772,7 +739,6 @@ def process_newest_references(  # pragma: no cover
         return _process_reference_list(
             db=db,
             reference_list=reference_list,
-            token=token,
             start_time=start_time,
             summary_suffix="",
             report_subject="pdf2md conversion errors",
@@ -1003,11 +969,8 @@ def main(  # pragma: no cover
                 display_name = ref_file_info["display_name"]
                 file_extension = ref_file_info["file_extension"]
 
-                # Refresh token if needed
-                token = get_admin_token()
-
                 success, error_msg = process_single_reference(
-                    db, ref_file_info, token,
+                    db, ref_file_info,
                     prefer_nxml=prefer_nxml,
                     process_supplements=process_supplements
                 )
@@ -1071,6 +1034,16 @@ def main(  # pragma: no cover
         db.close()
 
 
+def set_pdfx_timeout(seconds: int) -> None:  # pragma: no cover
+    """Apply --pdfx-timeout (SCRUM-6863). Every PDFX wait, for main PDFs and supplements,
+    reads it through pdfx_poll_timeout()."""
+    if seconds <= 0:
+        print("Error: --pdfx-timeout must be a positive number of seconds.")
+        exit(1)
+    os.environ["PDFX_POLL_TIMEOUT"] = str(seconds)
+    print(f"Waiting up to {seconds}s for each PDFX job.")
+
+
 if __name__ == '__main__':
     # Configure logging
     logging.basicConfig(
@@ -1105,6 +1078,9 @@ Examples:
 
   # Process newest references, skipping those with XML files
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50 --skip-xml
+
+  # Retry one slow PDF, waiting up to an hour for PDFX
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --limit 1 --pdfx-timeout 3600
         """
     )
     parser.add_argument(
@@ -1148,8 +1124,20 @@ Examples:
         action="store_false",
         help="Skip supplemental PDFs (default: process all supplemental PDFs)"
     )
+    parser.add_argument(
+        "--pdfx-timeout",
+        type=int,
+        metavar="SECONDS",
+        help=(
+            "How long to wait for each PDFX job (default: the PDFX_POLL_TIMEOUT "
+            "environment variable, else 1800)"
+        )
+    )
 
     args = parser.parse_args()
+
+    if args.pdfx_timeout is not None:
+        set_pdfx_timeout(args.pdfx_timeout)
 
     if args.newest and args.since:
         print("Error: Cannot use --newest and --since together. Choose one.")

@@ -6,12 +6,15 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, undefer
 
 from agr_literature_service.api.models import PersonModel, PersonNoteModel
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
+
+# boolean flags a client may set; both are deferred AuditedModel columns
+FLAGS = ("internal", "obsolete")
 
 
 def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> PersonNoteModel:
@@ -20,6 +23,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
 
     Semantics:
       - note is required.
+      - internal / obsolete default to false (a public, current note).
       - A person can have multiple notes.
     """
     person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
@@ -44,6 +48,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
     obj = PersonNoteModel(
         person_id=person_id,
         note=data["note"],
+        **{flag: bool(data.get(flag, False)) for flag in FLAGS},
     )
     db.add(obj)
     db.commit()
@@ -63,7 +68,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonNoteModel]:
         )
     return (
         db.query(PersonNoteModel)
-        .options(selectinload(PersonNoteModel.person))
+        .options(selectinload(PersonNoteModel.person), *[undefer(getattr(PersonNoteModel, f)) for f in FLAGS])
         .filter(PersonNoteModel.person_id == person_id)
         .order_by(PersonNoteModel.person_note_id.asc())
         .all()
@@ -73,7 +78,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonNoteModel]:
 def show(db: Session, person_note_id: int) -> PersonNoteModel:
     obj = (
         db.query(PersonNoteModel)
-        .options(selectinload(PersonNoteModel.person))
+        .options(selectinload(PersonNoteModel.person), *[undefer(getattr(PersonNoteModel, f)) for f in FLAGS])
         .filter(PersonNoteModel.person_note_id == person_note_id)
         .first()
     )
@@ -89,6 +94,7 @@ def patch(db: Session, person_note_id: int, patch_dict: Dict[str, Any]) -> Dict[
     """
     Patch a PersonNote row. Supports:
       - note (string)
+      - internal, obsolete (boolean)
     """
     obj: Optional[PersonNoteModel] = (
         db.query(PersonNoteModel).filter(PersonNoteModel.person_note_id == person_note_id).first()
@@ -113,6 +119,15 @@ def patch(db: Session, person_note_id: int, patch_dict: Dict[str, Any]) -> Dict[
                 detail="note cannot be empty",
             )
         obj.note = data["note"]
+
+    for flag in FLAGS:
+        if flag in data:
+            if data[flag] is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"{flag} cannot be null",
+                )
+            setattr(obj, flag, bool(data[flag]))
 
     db.commit()
     return {"message": "updated"}

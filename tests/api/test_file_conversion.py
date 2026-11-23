@@ -41,18 +41,16 @@ from .fixtures import auth_headers  # noqa: F401
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def clear_global_manager():
-    """Reset the module-level singleton between tests."""
-    conversion_manager._jobs.clear()
-    conversion_manager._active_by_reference.clear()
+def clear_global_manager(tmp_path, monkeypatch):
+    """Give the module-level singleton a fresh, empty state directory per test
+    (SCRUM-6855: job state lives in files shared by the API workers)."""
+    monkeypatch.setattr(conversion_manager, "state_dir", str(tmp_path / "global_jobs"))
     yield
-    conversion_manager._jobs.clear()
-    conversion_manager._active_by_reference.clear()
 
 
 @pytest.fixture
-def manager():
-    return ConversionJobManager()
+def manager(tmp_path):
+    return ConversionJobManager(state_dir=str(tmp_path / "jobs"))
 
 
 class TestSuppressUploadGuardrails:
@@ -187,7 +185,7 @@ class TestConversionJobManager:
         job = manager.create_or_get_job(reference_id=10, reference_curie="AGRKB:X",
                                         user_id="u1")
         assert job.status == "running"
-        assert manager.get_job(job.job_id) is job
+        assert manager.get_job(job.job_id) == job
         assert manager.get_active_job_for_reference(10).job_id == job.job_id
 
     def test_create_or_get_returns_existing_running(self, manager):
@@ -587,15 +585,7 @@ class TestConvertedEndpoint:
         _make_referencefile(db, test_reference.new_ref_curie, "paper_supp",
                             "supplement", "pdf", "md5_partial_supp_pdf")
 
-        # SCRUM-6026: supplement conversion only runs for refs in corpus for
-        # WB/ZFIN/FB. This test asserts the endpoint behavior when supplement
-        # conversion is in flight, so make the eligibility helper return True
-        # (eligibility itself is unit-tested in test_pdf2md_utils.py).
         with patch(
-            "agr_literature_service.api.crud.file_conversion_crud."
-            "is_eligible_for_supplement_conversion",
-            return_value=True,
-        ), patch(
             "agr_literature_service.api.crud.file_conversion_crud.run_conversion_job",
             return_value=None,
         ):
@@ -642,6 +632,58 @@ class TestConvertedEndpoint:
                 assert response.status_code == status.HTTP_200_OK
                 body = response.json()
                 assert body["status"] == "converted"
+
+    @pytest.mark.parametrize("wait", [False, True])
+    def test_request_that_loses_the_race_does_not_run_the_job_again(
+            self, db, test_reference, auth_headers, wait):  # noqa: F811
+        """SCRUM-6855: two requests can both miss the "job already running" check (it is
+        not atomic with starting a job). The one that does not create the job must
+        report it as running, not run the conversion a second time."""
+        from agr_literature_service.api.models import ReferenceModel
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_pdf_race", pdf_type="pdf")
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_reference.new_ref_curie).scalar()
+        first, created = conversion_manager.start_job(reference_id, test_reference.new_ref_curie, "first")
+        assert created is True
+        with patch.object(conversion_manager, "get_active_job_for_reference", return_value=None), \
+                patch("agr_literature_service.api.crud.file_conversion_crud.run_conversion_job") as run_job:
+            url = (f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}"
+                   f"?wait={str(wait).lower()}")
+            with TestClient(app) as client:
+                response = client.get(url=url, headers=auth_headers)
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.json()["status"] == "running"
+        assert response.json()["job_id"] == first.job_id
+        run_job.assert_not_called()
+
+    def test_a_recent_failure_is_reported_until_retry(self, db, test_reference, auth_headers):  # noqa: F811
+        """SCRUM-6855 review: a poll without wait used to start a new job after every
+        failure, so the poller only ever saw "running". A recent failure is now
+        reported as failed, and retry=true starts again, naming the failed job."""
+        from agr_literature_service.api.models import ReferenceModel
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_pdf_failed_hold", pdf_type="pdf")
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == test_reference.new_ref_curie).scalar()
+        failed, _ = conversion_manager.start_job(reference_id, test_reference.new_ref_curie, "first")
+        conversion_manager.complete_job(failed.job_id, success=False, error="pdfx 500")
+        url = f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}"
+        with patch("agr_literature_service.api.crud.file_conversion_crud.run_conversion_job") as run_job, \
+                TestClient(app) as client:
+            polled = client.get(url=url, headers=auth_headers)
+            assert polled.status_code == status.HTTP_200_OK
+            assert polled.json()["status"] == "failed"
+            assert polled.json()["job_id"] == failed.job_id
+            assert "pdfx 500" in polled.json()["error_message"]
+            run_job.assert_not_called()
+
+            retried = client.get(url=f"{url}?retry=true", headers=auth_headers)
+        assert retried.status_code == status.HTTP_202_ACCEPTED
+        assert retried.json()["status"] == "running"
+        assert retried.json()["job_id"] != failed.job_id
+        assert retried.json()["previous_job_id"] == failed.job_id
+        run_job.assert_called_once()
 
     def test_reference_not_found(self, db, auth_headers):  # noqa: F811
         """Unknown curie → 404."""
@@ -767,8 +809,7 @@ class TestOfficeSupplementConversion:
 
         reference = get_reference(db=db, curie_or_reference_id=test_reference.new_ref_curie,
                                   load_referencefiles=True)
-        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True):
-            assessment = _assess_reference(db, reference)
+        assessment = _assess_reference(db, reference)
 
         assert assessment["supp_office_available"] is True
         assert assessment["supp_pdf_available"] is False
@@ -798,8 +839,7 @@ class TestOfficeSupplementConversion:
             )
             return True, None
 
-        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True), \
-                patch(f"{CRUD_MOD}.process_office_to_markdown", side_effect=fake_process_office), \
+        with patch(f"{CRUD_MOD}.process_office_to_markdown", side_effect=fake_process_office), \
                 patch(f"{CRUD_MOD}.run_conversion_job") as background_job:
             with TestClient(app) as client:
                 response = client.get(
@@ -824,8 +864,7 @@ class TestOfficeSupplementConversion:
         _make_referencefile(db, test_reference.new_ref_curie, "methods",
                             "supplement", "docx", "md5_office_docx_fail")
 
-        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True), \
-                patch(f"{CRUD_MOD}.process_office_to_markdown", return_value=(False, "bad zip")):
+        with patch(f"{CRUD_MOD}.process_office_to_markdown", return_value=(False, "bad zip")):
             with TestClient(app) as client:
                 response = client.get(
                     url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
@@ -844,8 +883,7 @@ class TestOfficeSupplementConversion:
         _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
                             "supplement", "xlsx", "md5_office_mix_xlsx")
 
-        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=True), \
-                patch(f"{CRUD_MOD}.run_conversion_job", return_value=None):
+        with patch(f"{CRUD_MOD}.run_conversion_job", return_value=None):
             with TestClient(app) as client:
                 response = client.get(
                     url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
@@ -860,25 +898,30 @@ class TestOfficeSupplementConversion:
         assert pending["table_s1_xlsx"]["source"]["display_name"] == "table_s1"
         assert pending["table_s1_xlsx"]["converted"]["file_class"] == "converted_merged_supplement"
 
-    def test_office_supplement_ignored_when_reference_not_eligible(self, db, test_reference, auth_headers):  # noqa: F811
-        """Same SCRUM-6026 rule as supplement PDFs: outside WB/ZFIN/FB the
-        Office supplement is not pending, so the endpoint reports converted
-        without starting anything."""
-        _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
-                            "supplement", "xlsx", "md5_office_xlsx_inel")
+    def test_supplements_pending_outside_wb_zfin_fb(self, db, test_reference, auth_headers):  # noqa: F811
+        """SCRUM-6978: the on-demand request converts supplements for every
+        group. A reference in no WB/ZFIN/FB corpus (the batch job would skip
+        its supplements) still has its PDF and Office supplements pending."""
+        from agr_literature_service.api.crud.file_conversion_crud import _assess_reference
+        from agr_literature_service.api.crud.reference_utils import get_reference
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            is_eligible_for_supplement_conversion,
+        )
 
-        with patch(f"{CRUD_MOD}.is_eligible_for_supplement_conversion", return_value=False), \
-                patch(f"{CRUD_MOD}.process_office_to_markdown") as convert:
-            with TestClient(app) as client:
-                response = client.get(
-                    url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
-                    headers=auth_headers,
-                )
-        convert.assert_not_called()
-        assert response.status_code == status.HTTP_200_OK
-        body = response.json()
-        assert body["status"] == "converted"
-        assert body["converted_classes"] == []
+        _make_referencefile(db, test_reference.new_ref_curie, "supp",
+                            "supplement", "pdf", "md5_any_group_supp_pdf")
+        _make_referencefile(db, test_reference.new_ref_curie, "table_s1",
+                            "supplement", "xlsx", "md5_any_group_supp_xlsx")
+
+        reference = get_reference(db=db, curie_or_reference_id=test_reference.new_ref_curie,
+                                  load_referencefiles=True)
+        assert is_eligible_for_supplement_conversion(db, reference.reference_id) is False
+        assessment = _assess_reference(db, reference)
+
+        assert [f.display_name for f in assessment["pending_supplements"]] == ["supp"]
+        assert [f.display_name for f in assessment["pending_office_supplements"]] == ["table_s1"]
+        assert assessment["supp_missing"] is True
+        assert assessment["needs_async"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -1013,10 +1056,6 @@ class TestSupplementFailureTagTransition:
         )
 
         with patch(
-            "agr_literature_service.api.crud.file_conversion_crud."
-            "is_eligible_for_supplement_conversion",
-            return_value=True,
-        ), patch(
             "agr_literature_service.api.crud.workflow_tag_crud.get_jobs",
             return_value=self._fake_job_for(reference, test_mod.new_mod_id),
         ):
@@ -1057,10 +1096,6 @@ class TestSupplementFailureTagTransition:
         )
 
         with patch(
-            "agr_literature_service.api.crud.file_conversion_crud."
-            "is_eligible_for_supplement_conversion",
-            return_value=True,
-        ), patch(
             "agr_literature_service.api.crud.workflow_tag_crud.get_jobs",
             return_value=self._fake_job_for(reference, test_mod.new_mod_id),
         ), patch(
@@ -1094,10 +1129,6 @@ class TestSupplementFailureTagTransition:
         )
 
         with patch(
-            "agr_literature_service.api.crud.file_conversion_crud."
-            "is_eligible_for_supplement_conversion",
-            return_value=True,
-        ), patch(
             "agr_literature_service.api.crud.workflow_tag_crud.get_jobs",
             return_value=self._fake_job_for(reference, test_mod.new_mod_id),
         ), patch(

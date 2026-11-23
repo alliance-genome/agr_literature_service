@@ -32,9 +32,9 @@ def get_all_author_duplicate_orcid_reference_for_mod(db, mod_abbr):
             a.orcid,
             STRING_AGG(a.name, ' | ' ORDER BY a.author_order) AS author_names
         FROM public.author a
-        JOIN public.reference r ON a.reference_id = r.reference_id
+        JOIN public.reference r ON a.reference_id = r.id
         JOIN public.mod_corpus_association mca ON a.reference_id = mca.reference_id
-        JOIN public.mod m ON mca.mod_id = m.mod_id
+        JOIN public.mod m ON mca.mod_id = m.id
         WHERE m.abbreviation = :mod_abbr
           AND mca.corpus = TRUE
           AND a.orcid IS NOT NULL
@@ -43,7 +43,7 @@ def get_all_author_duplicate_orcid_reference_for_mod(db, mod_abbr):
               FROM public.author b
               WHERE b.orcid = a.orcid
                 AND b.reference_id = a.reference_id
-                AND b.author_id <> a.author_id
+                AND b.id <> a.id
           )
         GROUP BY r.curie, a.orcid
         ORDER BY r.curie, a.orcid;

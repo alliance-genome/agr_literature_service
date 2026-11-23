@@ -1,4 +1,5 @@
 # load_dqm_resource.py
+import html
 import json
 import logging
 import traceback
@@ -25,6 +26,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_reso
     PROCESSED_NO_CHANGE
 )
 from agr_literature_service.lit_processing.utils.report_utils import send_report
+from agr_literature_service.lit_processing.utils.container_log_utils import emit_error_record
 from agr_literature_service.api.user import set_global_user_id
 
 load_dotenv()
@@ -259,11 +261,14 @@ if __name__ == "__main__":  # noqa: C901
     # A failed download already scrubbed any stale RESOURCE_<MOD>.json (the
     # per-mod loader treats the missing file as "no resources"); report it so
     # the failure isn't just a log line, matching the reference-load path.
-    for failed_mod in download_dqm_resource_json():
+    for failed_mod, error in download_dqm_resource_json().items():
         send_report(f"{failed_mod} DQM Resource Download Failed",
                     f"The {failed_mod} DQM RESOURCE download/unpack failed; "
-                    f"{failed_mod} resources were not updated this run. See the "
-                    f"resource loading log for the error.")
+                    f"{failed_mod} resources were not updated this run. Error: {html.escape(error)}")
+        # the job still exits 0 (ABC-JOB-OK), so this is what puts the
+        # failure in Athena as an ERROR
+        emit_error_record("ABC-DQM-FAILED", error, job=scriptNm, mod=failed_mod,
+                          datatype="RESOURCE", step="download")
 
     logger.info("Starting PubMed NLM resource update...")
     update_resource_pubmed_nlm()

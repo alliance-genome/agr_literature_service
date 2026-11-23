@@ -43,7 +43,6 @@ from agr_literature_service.api.models.curation_status_model import CurationStat
 from agr_literature_service.api.models.curation_status_source_association_model import \
     CurationStatusSourceAssociationModel
 from agr_literature_service.api.models.indexing_priority_model import IndexingPriorityModel
-from agr_literature_service.api.models.manual_indexing_tag_model import ManualIndexingTagModel
 from agr_literature_service.api.models.person_name_model import PersonNameModel
 from agr_literature_service.api.models.person_note_model import PersonNoteModel
 from agr_literature_service.api.models.person_setting_model import PersonSettingModel
@@ -57,6 +56,9 @@ from agr_literature_service.api.models.vocabulary_abc_model import VocabularyAbc
 from agr_literature_service.api.models.vocabulary_term_abc_model import VocabularyTermAbcModel  # noqa
 from agr_literature_service.api.models.vocabulary_term_synonym_abc_model import (  # noqa
     VocabularyTermSynonymAbcModel)
+
+# registers the listener that gives SGD corpus papers an SGD curie (SCRUM-6830)
+from agr_literature_service.api.models import sgd_curie_listener  # noqa: F401,E402
 
 import logging
 

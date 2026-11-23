@@ -39,9 +39,9 @@ class ConversionModStatusSchema(BaseModel):
     failed for any reason must not keep the tag pinned).
 
     ``all_converted`` is True iff that MOD has nothing pending on either
-    side — main converted AND every eligible supplement converted
-    (taking SCRUM-6026 supplement eligibility into account for
-    non-WB/ZFIN/FB references). Surfaced for callers that want the full
+    side — main converted AND every supplement converted (the on-demand
+    request converts supplements for every group, SCRUM-6978). A supplement
+    that failed to convert keeps this False. Surfaced for callers that want the full
     picture; not used to decide tag transitions.
     """
     model_config = ConfigDict(extra='forbid', from_attributes=True)
@@ -106,6 +106,8 @@ class ConversionStatusResponseSchema(BaseModel):
     reference_curie: str
     status: str
     job_id: Optional[str] = None
+    # the failed job this one was started after (a retry, or a worker that exited)
+    previous_job_id: Optional[str] = None
     error_message: Optional[str] = None
     started_at: Optional[str] = None
     completed_at: Optional[str] = None

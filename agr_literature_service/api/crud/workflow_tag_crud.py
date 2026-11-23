@@ -12,7 +12,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, List
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -30,6 +30,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     atp_get_all_descendants,
     atp_get_all_ancestors,
     atp_get_parent,
+    atp_get_children,
     get_workflow_tags_for_mod,
     atp_to_name,
     name_to_atp,
@@ -85,6 +86,17 @@ process_atp_multiple_allowed = [
 ref_classification_in_progress_atp_id = "ATP:0000178"
 entity_extraction_in_progress_atp_id = "ATP:0000190"
 text_conversion_in_progress_atp_id = "ATP:0000198"
+
+# A workflow_transition row of this type is a job-poll connector: it exists only so that
+# get_jobs, which joins a paper's tag to a row's transition_to, can find a job (e.g. WB
+# 163 -> 366 antibody_string_matching_job). Neither transition_to_workflow_status nor
+# job_change_atp_code ever fires it.
+NON_CALLABLE_TRANSITION_TYPE = "action"
+
+
+def callable_transition_types(transition_type: str):
+    """The workflow_transition.transition_type values a ``manual`` or ``automated`` transition may use."""
+    return ["any", f"{transition_type}_only"]
 
 
 def _resolve_process_hierarchy(atp_curies, atp_curie_to_name):
@@ -384,6 +396,7 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
         new_transitions = db.query(WorkflowTransitionModel).\
             filter(WorkflowTransitionModel.transition_from == workflow_tag.workflow_tag_id,
                    WorkflowTransitionModel.condition.contains(condition),
+                   WorkflowTransitionModel.transition_type != NON_CALLABLE_TRANSITION_TYPE,
                    WorkflowTransitionModel.mod_id == workflow_tag.mod_id).all()
         # Set to new tag
         for new_transition in new_transitions:
@@ -433,12 +446,9 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Mod abbreviation {mod_abbreviation} does not exist")
 
-    # Get the parent/process and see if it allows multiple values
-    # process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    # The parent is the workflow process; it is None for a term outside the hierarchy, which
+    # transition_to_workflow_status refuses unless the term is a process (removal)
     process_atp_id = atp_get_parent(new_workflow_tag_atp_id)
-    if not process_atp_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
     return mod, process_atp_id, reference
 
 
@@ -458,82 +468,136 @@ def check_requirements(reference, mod, transition):
                                     detail=f"{requirement_function_str} requirement not met")
 
 
+def _commit_or_flush(db: Session, commit: bool) -> None:
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+
+
+def _find_transition(db: Session, mod_id: int, transition_from: str, transition_to: str,
+                     transition_type: str) -> Optional[WorkflowTransitionModel]:
+    """The callable transition row from ``transition_from`` to ``transition_to`` for the MOD, or None.
+    Rows of type ``action`` (job-poll connectors) never match."""
+    return db.query(WorkflowTransitionModel).filter(
+        WorkflowTransitionModel.mod_id == mod_id,
+        WorkflowTransitionModel.transition_from == transition_from,
+        WorkflowTransitionModel.transition_to == transition_to,
+        WorkflowTransitionModel.transition_type.in_(callable_transition_types(transition_type))
+    ).first()
+
+
+def _get_tag_under_process(db: Session, reference_id: int, mod_id: int,
+                           atp_id: str) -> Optional[WorkflowTagModel]:
+    """The reference's tag for the MOD among the descendants of ``atp_id``, or None (also when
+    ``atp_id`` has no descendants, i.e. is a state rather than a process term)."""
+    states = get_workflow_tags_from_process(atp_id)
+    if not states:
+        return None
+    tags = db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_id == reference_id,
+        WorkflowTagModel.mod_id == mod_id,
+        WorkflowTagModel.workflow_tag_id.in_(list(set(states)))
+    ).all()
+    if len(tags) > 1:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Reference {reference_id} has {len(tags)} tags under {atp_id} "
+                                   f"for mod_id {mod_id}: {sorted(t.workflow_tag_id for t in tags)}")
+    return tags[0] if tags else None
+
+
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
-                                  new_workflow_tag_atp_id: str, transition_type: str = "automated"):
+                                  new_workflow_tag_atp_id: str, transition_type: str = "automated",
+                                  run_actions: bool = True, curation_tag: Optional[str] = None,
+                                  note: Optional[str] = None, commit: bool = True):
+    """Move the reference's tag in a workflow process to ``new_workflow_tag_atp_id`` (SCRUM-6845).
+
+    Every change needs a callable row (type ``any`` or ``<transition_type>_only``) in
+    workflow_transition for the MOD:
+
+    - the paper has a tag in the process: a row from that tag to the new state;
+    - the paper has no tag in the process yet: a row from the process term (the new state's
+      parent, e.g. ATP:0000273 manual indexing) to the new state;
+    - ``new_workflow_tag_atp_id`` is the process term itself: a row from the current tag to the
+      process term, which deletes the tag.
+
+    The row's requirements are checked and, unless ``run_actions`` is False, its actions run.
+    ``run_actions=False`` is for internal callers only (archive upload, which must not queue text
+    conversion); it is not exposed by the API. ``curation_tag`` and ``note``, when given, are set
+    on the tag. ``commit=False`` flushes instead of committing, for a caller that owns the
+    transaction; note that some transition actions commit on their own.
+    """
     mod, process_atp_id, reference = transition_sanity_check(db, transition_type, mod_abbreviation,
                                                              curie_or_reference_id, new_workflow_tag_atp_id)
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
-        current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
-                                                       workflow_tag_id=new_workflow_tag_atp_id)
+        transient_tag = WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id=new_workflow_tag_atp_id)
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
                 WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
                 WorkflowTransitionModel.mod_id == mod.mod_id,
-                WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"]))).one()
+                WorkflowTransitionModel.transition_type.in_(callable_transition_types(transition_type)))).one()
         if transition and transition.requirements:
             check_requirements(reference, mod, transition)
-        if transition and transition.actions:
-            process_transition_actions(db, transition, current_workflow_tag_db_obj)
+        if run_actions and transition and transition.actions:
+            process_transition_actions(db, transition, transient_tag)
             db.commit()
         return
-    else:
-        try:
-            current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, str(reference.reference_id),
-                                                                           process_atp_id, mod_abbreviation)
-        except TypeError:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                                detail=f"Could not find wft for {reference.reference_id} {process_atp_id} {mod_abbreviation}")
 
-    # if setting to a child of manual indexing process and there is no sibling term in db, add needed first
-    automatically_set_initial_state_flag = False
-    manual_indexing_process_atp = get_atp_id_by_name('manual indexing', fallback='ATP:0000273')
-    manual_indexing_needed_atp = get_atp_id_by_name('manual indexing needed', fallback='ATP:0000274')
-    if process_atp_id == manual_indexing_process_atp and not current_workflow_tag_db_obj:
-        current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id=manual_indexing_needed_atp)
-        db.add(current_workflow_tag_db_obj)
-        db.commit()
-        if new_workflow_tag_atp_id == manual_indexing_needed_atp:  # already set to final state
-            return
-        automatically_set_initial_state_flag = True
-
-    if current_workflow_tag_db_obj:
-        transition = db.query(WorkflowTransitionModel).filter(
-            and_(
-                WorkflowTransitionModel.mod_id == mod.mod_id,
-                WorkflowTransitionModel.transition_from == current_workflow_tag_db_obj.workflow_tag_id,
-                WorkflowTransitionModel.transition_to == new_workflow_tag_atp_id,
-                WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
-            )
-        ).first()
-    file_needed_atp = get_atp_id_by_name('file needed', fallback='ATP:0000141')
-    if not transition and new_workflow_tag_atp_id != file_needed_atp and not automatically_set_initial_state_flag:
-        message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
-        "Please set initial WFT first."
-        if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
-            message = f"Transition from {current_workflow_tag_db_obj.workflow_tag_id} to {new_workflow_tag_atp_id} "
-            "NOT in the transition table and hence NOT allowed."
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=message)
-    if not current_workflow_tag_db_obj or transition:
-        if transition and transition.requirements:
+    # A target with states under it is a process term: remove the paper's tag in that process.
+    # Only the cached hierarchy is read, so an unknown term never reaches the A-team API.
+    if atp_get_children(new_workflow_tag_atp_id):
+        tag_to_remove = _get_tag_under_process(db, reference.reference_id, mod.mod_id, new_workflow_tag_atp_id)
+        if tag_to_remove is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{new_workflow_tag_atp_id} is a workflow process and the reference has no tag in it "
+                       f"for {mod_abbreviation} to remove.")
+        transition = _find_transition(db, mod.mod_id, tag_to_remove.workflow_tag_id,
+                                      new_workflow_tag_atp_id, transition_type)
+        if not transition:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Removing {tag_to_remove.workflow_tag_id} ({new_workflow_tag_atp_id}) is NOT in the "
+                       f"transition table for {mod_abbreviation} and hence NOT allowed.")
+        if transition.requirements:
             check_requirements(reference, mod, transition)
-        if not current_workflow_tag_db_obj:
-            current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
-                                                           workflow_tag_id=new_workflow_tag_atp_id)
-            db.add(current_workflow_tag_db_obj)
+        if run_actions and transition.actions:
+            process_transition_actions(db, transition, tag_to_remove)
+        db.delete(tag_to_remove)
+        _commit_or_flush(db, commit)
+        return
 
-        else:
-            current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id  # type: ignore
-        # So new tag has been set.
-        # Now do the necessary actions if they are specified.
-        if transition and transition.actions:
-            process_transition_actions(db, transition, current_workflow_tag_db_obj)
-        db.commit()
-    else:
+    if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail="Workflow status transition not supported")
+                            detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
+    current_workflow_tag_db_obj = _get_tag_under_process(db, reference.reference_id, mod.mod_id, process_atp_id)
+    transition_from = current_workflow_tag_db_obj.workflow_tag_id if current_workflow_tag_db_obj \
+        else process_atp_id
+    transition = _find_transition(db, mod.mod_id, transition_from, new_workflow_tag_atp_id, transition_type)
+    if not transition:
+        if current_workflow_tag_db_obj:
+            message = (f"Transition from {transition_from} to {new_workflow_tag_atp_id} is NOT in the "
+                       f"transition table for {mod_abbreviation} and hence NOT allowed.")
+        else:
+            message = (f"{new_workflow_tag_atp_id} cannot be the first {process_atp_id} state for "
+                       f"{mod_abbreviation}: the transition table has no row from {process_atp_id} to it.")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message)
+    if transition.requirements:
+        check_requirements(reference, mod, transition)
+    if current_workflow_tag_db_obj is None:
+        current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
+                                                       workflow_tag_id=new_workflow_tag_atp_id)
+        db.add(current_workflow_tag_db_obj)
+    else:
+        current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id  # type: ignore
+    if curation_tag is not None:
+        current_workflow_tag_db_obj.curation_tag = curation_tag  # type: ignore
+    if note is not None:
+        current_workflow_tag_db_obj.note = note  # type: ignore
+    if run_actions and transition.actions:
+        process_transition_actions(db, transition, current_workflow_tag_db_obj)
+    _commit_or_flush(db, commit)
 
 
 def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str,
@@ -694,50 +758,77 @@ def destroy(db: Session, reference_workflow_tag_id: int) -> None:
     return None
 
 
+# SCRUM-6845: a workflow tag's status only changes through transition_to_workflow_status, so PATCH
+# edits only these fields; a reference merge moves tags with merge_into_reference.
+PATCHABLE_FIELDS = ("note", "curation_tag")
+
+
 def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
-    """
-    Update a workflow_tag
-    :param db:
-    :param reference_workflow_tag_id:
-    :param workflow_tag_update:
-    :return:
-    """
+    """Update the note and/or curation tag of a workflow tag; any other field is refused (422)."""
     workflow_tag_data = jsonable_encoder(workflow_tag_update)
-
-    if "created_by" in workflow_tag_data and workflow_tag_data["created_by"] is not None:
-        workflow_tag_data["created_by"] = map_to_user_id(workflow_tag_data["created_by"], db)
-    if "updated_by" in workflow_tag_data and workflow_tag_data["updated_by"] is not None:
-        workflow_tag_data["updated_by"] = map_to_user_id(workflow_tag_data["updated_by"], db)
-
+    refused = sorted(set(workflow_tag_data) - set(PATCHABLE_FIELDS))
+    if refused:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Only {', '.join(PATCHABLE_FIELDS)} can be changed on a workflow tag, not "
+                                   f"{', '.join(refused)}: a status change goes through "
+                                   f"/workflow_tag/transition_to_workflow_status.")
     workflow_tag_db_obj = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"WorkflowTag with workflow_tag_id {reference_workflow_tag_id} not found")
-
-    for field, value in workflow_tag_data.items():
-        if field == "reference_curie":
-            if value is not None:
-                reference_curie = normalize_reference_identifier(db, value)
-                new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-                if not new_reference:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                                        detail=f"Reference with curie {reference_curie} does not exist")
-                workflow_tag_db_obj.reference = new_reference
-        elif field == "mod_abbreviation":
-            if ((value is not None) and (len(value))) == 0:
-                workflow_tag_db_obj.mod_id = None
-            elif value is not None:
-                mod_abbreviation = value
-                new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-                if not new_mod:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                                        detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-                workflow_tag_db_obj.mod_id = new_mod.mod_id
-        else:
-            setattr(workflow_tag_db_obj, field, value)
+    for field in PATCHABLE_FIELDS:
+        if field in workflow_tag_data:
+            setattr(workflow_tag_db_obj, field, workflow_tag_data[field])
     db.commit()
     return {"message": "updated"}
+
+
+def merge_into_reference(db: Session, reference_curie: str, delete_ids: List[int], move_ids: List[int]):
+    """The workflow tags of a reference merge, in one transaction (SCRUM-6845): delete the tags the
+    curator dropped, then move the kept ones to the surviving reference. A merge is not a status
+    change, so no transition runs; a moved tag must not meet a tag of the same workflow process for
+    the same MOD on the surviving reference (in a process that allows several tags, the same tag)."""
+    if set(delete_ids) & set(move_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Workflow tags both deleted and moved: {sorted(set(delete_ids) & set(move_ids))}")
+    curie = normalize_reference_identifier(db, reference_curie)
+    target = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one_or_none()
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Reference with curie {reference_curie} does not exist")
+    ids = list(delete_ids) + list(move_ids)
+    tags = {tag.reference_workflow_tag_id: tag for tag in db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_workflow_tag_id.in_(ids)).all()} if ids else {}
+    missing = sorted(set(ids) - set(tags))
+    if missing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Workflow tags not found: {missing}")
+    for tag_id in delete_ids:
+        db.delete(tags[tag_id])
+    db.flush()
+    for tag_id in move_ids:
+        tag = tags[tag_id]
+        if tag.reference_id == target.reference_id:
+            continue
+        process_atp_id = atp_get_parent(tag.workflow_tag_id)
+        if process_atp_id in process_atp_multiple_allowed:
+            # a reference may hold several tags of these processes; only the same tag clashes
+            clash = db.query(WorkflowTagModel).filter(
+                WorkflowTagModel.reference_id == target.reference_id,
+                WorkflowTagModel.mod_id == tag.mod_id,
+                WorkflowTagModel.workflow_tag_id == tag.workflow_tag_id).first()
+        else:
+            clash = _get_tag_under_process(db, target.reference_id, tag.mod_id, process_atp_id) \
+                if process_atp_id else None
+        if clash is not None:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                detail=f"Cannot move workflow tag {tag_id} ({tag.workflow_tag_id}) to {curie}: it "
+                                       f"already has {clash.workflow_tag_id} in {process_atp_id} for that MOD.")
+        tag.reference_id = target.reference_id
+        db.flush()
+    db.commit()
+    return {"message": "merged"}
 
 
 def show(db: Session, reference_workflow_tag_id: int):
@@ -1291,39 +1382,24 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     if change_file_status is True:
         return
 
-    try:
-        sql_query = text("""
+    # files uploaded -> file upload in progress when the paper still has files for the MOD (a file
+    # without a MOD counts for every MOD), else -> file needed; the two rows' requirements
+    # (referencefiles_present / not_referencefiles_present) make the same check (SCRUM-6845)
+    files_uploaded = get_atp_id_by_name('files uploaded', fallback='ATP:0000134')
+    if get_current_workflow_status(db, str(reference_id), get_atp_id_by_name('file upload', fallback='ATP:0000140'),
+                                   mod_abbreviation) != files_uploaded:
+        return
+    file_count = db.execute(text("""
         SELECT count(*) FROM referencefile rf, referencefile_mod rfm
         WHERE rf.reference_id = :reference_id
         AND rf.id = rfm.referencefile_id
         AND (rfm.mod_id = :mod_id or rfm.mod_id is NULL)
-        """)
-        rows = db.execute(sql_query, {
-            'reference_id': reference_id,
-            'mod_id': mod_id
-        }).fetchall()
-        # files uploaded
-        curr_atp_id = get_atp_id_by_name('files uploaded', fallback='ATP:0000134')
-        # to file upload in progress or file needed
-        file_upload_in_progress = get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')
-        file_needed = get_atp_id_by_name('file needed', fallback='ATP:0000141')
-        new_atp_id = file_upload_in_progress if rows[0][0] > 0 else file_needed
-        sql_query = text("""
-        UPDATE workflow_tag
-        SET workflow_tag_id = :new_atp_id
-        WHERE reference_id = :reference_id
-        AND mod_id = :mod_id
-        AND workflow_tag_id = :curr_atp_id
-        """)
-        db.execute(sql_query, {
-            'new_atp_id': new_atp_id,
-            'reference_id': reference_id,
-            'mod_id': mod_id,
-            'curr_atp_id': curr_atp_id
-        })
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod.mod_id} and reference_id = {reference_id}. Error = {e}")
+        """), {'reference_id': reference_id, 'mod_id': mod_id}).scalar()
+    if file_count:
+        new_atp_id = get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')
+    else:
+        new_atp_id = get_atp_id_by_name('file needed', fallback='ATP:0000141')
+    transition_to_workflow_status(db, str(reference_id), mod_abbreviation, new_atp_id, commit=False)
 
 
 def get_field_and_status(atp):
@@ -1495,10 +1571,6 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
         "priority_2": get_atp_id_by_name('priority 2', fallback='ATP:0000212'),
         "priority_3": get_atp_id_by_name('priority 3', fallback='ATP:0000213')
     }
-    pre_indexing_prioritization_to_atp = {
-        "failed": get_atp_id_by_name('pre-indexing prioritization failed', fallback='ATP:0000304'),
-        "success": get_atp_id_by_name('pre-indexing prioritization complete', fallback='ATP:0000303')
-    }
     pre_indexing_prio_needed_atp = get_atp_id_by_name('pre-indexing prioritization needed', fallback='ATP:0000306')
 
     priority_atp = priority_to_atp_mapping.get(priority)
@@ -1522,12 +1594,10 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
             detail=f"No workflow-tag {pre_indexing_prio_needed_atp} for paper {reference_curie} in MOD {mod_abbreviation}"
         )
 
+    # "pre-indexing prioritization needed" is the priority classifier's job: it moves to complete
+    # or failed by the job's on_success / on_failed rows (SCRUM-6845), not by a raw tag write
     if priority_atp is None:
-        patch(
-            db,
-            reference_workflow_tag_id,
-            {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
-        )
+        job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
     else:
         data = WorkflowTagSchemaPost(
             workflow_tag_id=priority_atp,
@@ -1536,17 +1606,10 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
         )
         try:
             create(db, data)
-            patch(
-                db,
-                reference_workflow_tag_id,
-                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("success")}
-            )
+            job_change_atp_code(db, reference_workflow_tag_id, "on_success")
         except Exception as e:
-            patch(
-                db,
-                reference_workflow_tag_id,
-                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
-            )
+            db.rollback()
+            job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Setting priority failed {e} for paper {reference_curie} in MOD {mod_abbreviation}"
@@ -1606,7 +1669,9 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
                 tags.append(tag)
         result[workflow_name] = {
             "current_workflow_tag": tags,
-            "all_workflow_tags": all_workflow_tags
+            "all_workflow_tags": all_workflow_tags,
+            # the WF editor clears a tag by a transition to this term (SCRUM-6845)
+            "workflow_process_atp_id": process_atp_id
         }
     return result
 

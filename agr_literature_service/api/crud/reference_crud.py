@@ -35,6 +35,7 @@ from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, re
 from agr_literature_service.api.crud.workflow_tag_crud import (
     create as create_workflow_tag,
     patch as update_workflow_tag,
+    PATCHABLE_FIELDS as WORKFLOW_TAG_PATCHABLE_FIELDS,
     show as show_workflow_tag
 )
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
@@ -469,7 +470,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["reference_curie"] = curie
                     try:
                         if "reference_workflow_tag_id" in obj_data and obj_data["reference_workflow_tag_id"]:
-                            update_workflow_tag(db, obj_data["reference_workflow_tag_id"], obj_data)
+                            # only the note and curation tag of an existing tag are editable (SCRUM-6845)
+                            update_workflow_tag(db, obj_data["reference_workflow_tag_id"],
+                                                {field: obj_data[field] for field in WORKFLOW_TAG_PATCHABLE_FIELDS
+                                                 if field in obj_data})
                         else:
                             create_workflow_tag(db, obj_data)
                     except HTTPException:
@@ -1190,7 +1194,8 @@ def merge_references(db: Session,
         CrossReferenceModel.is_obsolete).first()
     if cross_reference is not None:
         pmid_number = cross_reference.curie.split(":")[1]
-        update_data(None, pmid_number)
+        # a curator merged these papers: keep history of any author-person status change
+        update_data(None, pmid_number, record_author_status_history=True)
 
     return new_curie
 

@@ -111,7 +111,7 @@ class TestConvertPendingPdf:
                 patch(f"{PDF2MD}.EXTRACTION_METHODS", {"grobid": 1}):
             success, error = cp._convert_pending_pdf(
                 MagicMock(), "j1", 3, "AGRKB:1", _pdf_file(),
-                "converted_merged_main", "tok",
+                "converted_merged_main",
             )
         assert success is True and error is None
 
@@ -121,7 +121,7 @@ class TestConvertPendingPdf:
                 patch(f"{PDF2MD}.EXTRACTION_METHODS", {"grobid": 1}):
             success, error = cp._convert_pending_pdf(
                 MagicMock(), "j1", 3, "AGRKB:1", _pdf_file(),
-                "converted_merged_main", "tok",
+                "converted_merged_main",
             )
         assert success is False and error == "pdfx down"
 
@@ -204,14 +204,14 @@ class TestConvertPendingMain:
         with patch.object(cp, "_convert_pending_nxml", return_value=(True, None)), \
                 patch.object(cp, "_convert_pending_pdf", return_value=(False, "pdf boom")):
             any_failure, messages = cp._convert_pending_main(
-                MagicMock(), "j1", 3, "AGRKB:1", assessment, lambda: "tok",
+                MagicMock(), "j1", 3, "AGRKB:1", assessment,
             )
         assert any_failure is True
         assert any("pdf boom" in m for m in messages)
 
     def test_empty_pending_main(self, manager):
         any_failure, messages = cp._convert_pending_main(
-            MagicMock(), "j1", 3, "AGRKB:1", {"pending_main": None}, lambda: "tok",
+            MagicMock(), "j1", 3, "AGRKB:1", {"pending_main": None},
         )
         assert any_failure is False and messages == []
 
@@ -221,7 +221,7 @@ class TestConvertPendingSupplements:
         assessment = {"pending_supplements": [_pdf_file("s.pdf", "supplement", 9)]}
         with patch.object(cp, "_convert_pending_pdf", return_value=(False, "too big")):
             any_failure, messages = cp._convert_pending_supplements(
-                MagicMock(), "j1", 3, "AGRKB:1", assessment, lambda: "tok",
+                MagicMock(), "j1", 3, "AGRKB:1", assessment,
             )
         assert any_failure is True
         assert messages == ["PDF supplement 's.pdf': too big"]
@@ -230,7 +230,7 @@ class TestConvertPendingSupplements:
         assessment = {"pending_supplements": [_pdf_file("s.pdf", "supplement", 9)]}
         with patch.object(cp, "_convert_pending_pdf", return_value=(True, None)):
             any_failure, messages = cp._convert_pending_supplements(
-                MagicMock(), "j1", 3, "AGRKB:1", assessment, lambda: "tok",
+                MagicMock(), "j1", 3, "AGRKB:1", assessment,
             )
         assert any_failure is False and messages == []
 

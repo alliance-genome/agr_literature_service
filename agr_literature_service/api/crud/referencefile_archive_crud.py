@@ -53,8 +53,8 @@ from agr_literature_service.api.crud.referencefile_crud import (
 )
 from agr_literature_service.api.crud.utils.patterns_check import get_patterns
 from agr_literature_service.api.crud.workflow_tag_crud import (
-    _get_current_workflow_tag_db_obj,
-    create as create_wft,
+    get_current_workflow_status,
+    transition_to_workflow_status,
 )
 from agr_literature_service.api.models import (
     CrossReferenceModel,
@@ -63,7 +63,6 @@ from agr_literature_service.api.models import (
     ReferencefileModAssociationModel,
     ReferencefileModel,
 )
-from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost
 
 
 def xref_curie_prefix(mod_abbreviation: str) -> str:
@@ -127,24 +126,18 @@ def has_same_file_not_main(db: Session, reference_id: int, md5sum: str) -> bool:
 
 
 def set_file_uploaded_status(db: Session, reference_curie: str, mod_abbreviation: str) -> Optional[str]:
-    """Set the reference's file-upload workflow status for the MOD to "files
-    uploaded" WITHOUT running transition actions, so nothing queues text
-    conversion.
+    """Move the reference's file-upload workflow status for the MOD to "files uploaded"
+    through the transition table, but WITHOUT the transition's actions, so nothing queues
+    text conversion (SCRUM-6845).
 
-    Returns the change made: ``"created"``, ``"<old ATP> -> ATP:0000134"``, or
-    None when the status already was "files uploaded"."""
-    current = _get_current_workflow_tag_db_obj(db, reference_curie, file_upload_process_atp_id, mod_abbreviation)
-    if current is None:
-        create_wft(db, WorkflowTagSchemaPost(workflow_tag_id=file_uploaded_tag_atp_id,
-                                             mod_abbreviation=mod_abbreviation,
-                                             reference_curie=reference_curie))
-        return "created"
-    if current.workflow_tag_id == file_uploaded_tag_atp_id:
+    Returns the change made: ``"created"``, ``"<old ATP> -> ATP:0000134"``, or None when
+    the status already was "files uploaded"."""
+    old_tag = get_current_workflow_status(db, reference_curie, file_upload_process_atp_id, mod_abbreviation)
+    if old_tag == file_uploaded_tag_atp_id:
         return None
-    old_tag = current.workflow_tag_id
-    current.workflow_tag_id = file_uploaded_tag_atp_id
-    db.commit()
-    return f"{old_tag} -> {file_uploaded_tag_atp_id}"
+    transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_uploaded_tag_atp_id,
+                                  run_actions=False)
+    return "created" if old_tag is None else f"{old_tag} -> {file_uploaded_tag_atp_id}"
 
 
 def file_md5(file: UploadFile) -> str:

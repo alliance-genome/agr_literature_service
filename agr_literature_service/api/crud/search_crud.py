@@ -91,8 +91,7 @@ WORKFLOW_FACETS = [
 
 CURATION_CLASSIFICATION_TAG_FACETS = [
     "predicted_indexing_priority",
-    "indexing_priority",
-    "manual_indexing_curation_tag"
+    "indexing_priority"
 ]
 
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
@@ -180,6 +179,7 @@ def search_references(
     author_filter = (author_filter or "").strip() or None
     author_exact_token_for_boost = None
     uses_rescore = False
+    field_match_functions = None
 
     # Default recency order. An explicit "asc"/"desc" means the user picked
     # "Oldest first"/"Newest first" and expects chronological ordering, not
@@ -209,7 +209,8 @@ def search_references(
         "highlight": {
             "require_field_match": False,
             "fields": [
-                {"title": {"type": "unified"}},
+                # the whole title, not a fragment cut off before the end
+                {"title": {"type": "unified", "number_of_fragments": 0}},
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
@@ -367,28 +368,6 @@ def search_references(
                         }
                     }
                 }
-            },
-            "manual_indexing_tags": {
-                "nested": {"path": "manual_indexing_tags"},
-                "aggs": {
-                    "by_mod_abbreviation": {
-                        "terms": {
-                            "field": "manual_indexing_tags.mod_abbreviation",
-                            "min_doc_count": 0,
-                            "size": 100
-                        },
-                        "aggs": {
-                            "curation_tags": {
-                                "terms": {
-                                    "field": "manual_indexing_tags.curation_tag",
-                                    "min_doc_count": 0,
-                                    "size": 100
-                                },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
-                            }
-                        }
-                    }
-                }
             }
         },
         "from": from_entry,
@@ -462,6 +441,7 @@ def search_references(
         if bundle.get("rescore"):
             es_body["rescore"] = bundle["rescore"]
         uses_rescore = bool(bundle.get("uses_rescore"))
+        field_match_functions = bundle.get("field_match_functions")
 
         # ORCID support
         core = extract_orcid_core(q_raw)
@@ -569,16 +549,12 @@ def search_references(
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
             elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
-                # curation classification tags are nested in indexing_priorities or manual_indexing_tags
+                # curation classification tags are nested in indexing_priorities
+                path = "indexing_priorities"
                 if facet_field == "predicted_indexing_priority":
-                    path = "indexing_priorities"
                     field = "indexing_priorities.predicted_indexing_priority"
-                elif facet_field == "indexing_priority":
-                    path = "indexing_priorities"
+                else:  # indexing_priority
                     field = "indexing_priorities.curator_indexing_priority"
-                else:  # manual_indexing_curation_tag
-                    path = "manual_indexing_tags"
-                    field = "manual_indexing_tags.curation_tag"
 
                 for tag in facet_list_values:
                     nested_query = {
@@ -641,15 +617,11 @@ def search_references(
                         }
                     })
             elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
+                path = "indexing_priorities"
                 if facet_field == "predicted_indexing_priority":
-                    path = "indexing_priorities"
                     field = "indexing_priorities.predicted_indexing_priority"
-                elif facet_field == "indexing_priority":
-                    path = "indexing_priorities"
+                else:  # indexing_priority
                     field = "indexing_priorities.curator_indexing_priority"
-                else:  # manual_indexing_curation_tag
-                    path = "manual_indexing_tags"
-                    field = "manual_indexing_tags.curation_tag"
 
                 for facet_value in facet_list_values:
                     es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
@@ -742,6 +714,7 @@ def search_references(
                 uses_rescore=uses_rescore,
                 order=order,
                 explicit_date_sort=explicit_date_sort,
+                field_match_functions=field_match_functions,
             )
 
     # Execute
@@ -828,11 +801,10 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "authors": sort_authors_by_order(ref["_source"]["authors"]),
         "reference_emails": ref["_source"].get("reference_emails", []),
         "indexing_priorities": ref["_source"].get("indexing_priorities", []),
-        "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
         "can_display_image": ref["_source"].get("can_display_image", False),
         "image_count": ref["_source"].get("image_count", 0),
         "large_scale_tags": extract_large_scale_tags(ref["_source"]),
-        "highlight": remap_highlights(ref.get("highlight", {}))
+        "highlight": remap_highlights(ref.get("highlight", {}), ref["_source"])
     } for ref in res["hits"]["hits"]]
     add_names_to_large_scale_tags(hits)
     add_resource_titles_to_hits(hits)
@@ -896,26 +868,24 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     """
     Post-process TET aggregations (topics, confidence, source methods, SEA)
     """
-    def extract_filtered_agg(res, main_key, data_key):
-        agg = res['aggregations'].get(main_key, {})
-        if "filtered" in agg:
-            agg = agg["filtered"]
-        if "filter_by_other_tet_values" in agg:
-            agg = agg["filter_by_other_tet_values"]
-        return agg.get(data_key, {})
+    aggregations = res['aggregations']
+    scoped = aggregations.pop(TET_SCOPED_AGGREGATION, {}).get("filtered", {})
+    facets = scoped.get(TET_FACETS_FILTER, scoped)
+    sea_facets = scoped.get(TET_SEA_FACETS_FILTER, scoped)
 
-    topics = extract_filtered_agg(res, "topic_aggregation", "topics")
-    confidence_levels = extract_filtered_agg(res, "confidence_level_aggregation", "confidence_levels")
-    confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
-    source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
-    data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
-    data_context = extract_filtered_agg(res, "data_context_aggregation", "data_context")
-    validation_by_professional_biocurator = extract_filtered_agg(
-        res, "validation_by_professional_biocurator_aggregation", "validation_by_professional_biocurator")
-    large_scale_tag = extract_filtered_agg(res, "large_scale_tag_aggregation", "large_scale_tag")
+    topics = facets.get("topics", {})
+    confidence_levels = facets.get("confidence_levels", {})
+    confidence_scores = facets.get("confidence_scores", {})
+    source_methods = facets.get("source_methods", {})
+    data_novelty = facets.get("data_novelty", {})
+    data_context = facets.get("data_context", {})
+    validation_by_professional_biocurator = facets.get("validation_by_professional_biocurator", {})
 
-    raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
-    group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
+    large_scale = aggregations.pop("large_scale_tag_aggregation", {})
+    large_scale_tag = large_scale.get(TET_FACETS_FILTER, large_scale).get("large_scale_tag", {})
+
+    raw_sea = sea_facets.get("source_evidence_assertions", {})
+    group_sea = sea_facets.get("source_evidence_assertion_groups", {})
 
     merged_buckets = {}
     for b in raw_sea.get("buckets", []):
@@ -928,21 +898,6 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "sum_other_doc_count": 0,
         "buckets": list(merged_buckets.values()),
     }
-
-    # remove temp aggs
-    for k in [
-        'topic_aggregation',
-        'confidence_level_aggregation',
-        'confidence_score_aggregation',
-        'source_method_aggregation',
-        'source_evidence_assertion_aggregation',
-        'source_evidence_assertion_group_aggregation',
-        'data_novelty_aggregation',
-        'data_context_aggregation',
-        'validation_by_professional_biocurator_aggregation',
-        'large_scale_tag_aggregation'
-    ]:
-        res['aggregations'].pop(k, None)
 
     # add labels to ATP/ECO curies
     add_curie_to_name_values(topics)
@@ -1046,8 +1001,8 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
 
 def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations):  # pragma: no cover
     """
-    Process indexing_priorities and manual_indexing_tags aggregations
-    into curation classification tags facets.
+    Process the indexing_priorities aggregation into the curation classification
+    tags facets.
     """
     result: Dict[str, Any] = {}
 
@@ -1099,47 +1054,117 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
     add_curie_to_name_values(curator_result)
     result["indexing_priority"] = curator_result
 
-    # Process manual_indexing_tags
-    mit_nested = res["aggregations"].get("manual_indexing_tags", {})
-    mod_buckets = mit_nested.get("by_mod_abbreviation", {}).get("buckets", [])
-
-    curation_tag_buckets: Dict[str, Dict[str, Any]] = {}
-
-    for mod_bucket in mod_buckets:
-        mod_key = mod_bucket["key"]
-        if mod_key.upper() not in wft_mod_abbreviations:
-            continue
-
-        for bucket in mod_bucket.get("curation_tags", {}).get("buckets", []):
-            key = bucket["key"].upper() if bucket["key"] else None
-            if key:
-                count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
-                if key not in curation_tag_buckets:
-                    curation_tag_buckets[key] = {"key": key, "doc_count": 0}
-                curation_tag_buckets[key]["doc_count"] += count
-
-    curation_filtered = [b for b in curation_tag_buckets.values() if b["doc_count"] > 0]
-    curation_tag_result = {
-        "doc_count_error_upper_bound": 0,
-        "sum_other_doc_count": 0,
-        "buckets": sorted(curation_filtered, key=lambda x: x["doc_count"], reverse=True)
-    }
-    add_curie_to_name_values(curation_tag_result)
-    result["manual_indexing_curation_tag"] = curation_tag_result
-
     # Clean up raw aggregations
     res["aggregations"].pop("indexing_priorities", None)
-    res["aggregations"].pop("manual_indexing_tags", None)
 
     return result
 
 
-def remap_highlights(highlights):  # pragma: no cover
+HIGHLIGHT_TAGS = re.compile(r"</?em>")
+HIGHLIGHTED_WORD = re.compile(r"<em>(.*?)</em>")
+# Abstracts and titles can hold HTML (e.g. "<p><strong>Purpose</strong>: ..."),
+# which the highlighter treats as text: a fragment can start or end inside a
+# tag ("p>Purpose"), and a whole <p> renders as a separate paragraph in the
+# matching text. The source's tags are dropped, along with a piece of a tag cut
+# off at either end of the fragment; the highlight's own <em> is kept. Only
+# known tag names count, so text such as "G>A", "<LOD" or "p<0.05" stays. A cut
+# off piece must also be lowercase, as the source HTML is in practice, so
+# "A>G" or "P>0.05" at a fragment edge is not read as a tag; a whole <...> tag
+# is a strong enough signal to match in any case.
+HTML_TAG_NAMES = ("p", "br", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6",
+                  "tr", "td", "th", "table", "tbody", "thead", "blockquote", "strong", "b",
+                  "i", "u", "sup", "sub", "span", "a", "font", "italic", "bold", "sc", "inf",
+                  "monospace", "img", "small", "big")
+# also namespaced MathML/XML tags ("mml:math", "ns0:sup")
+HTML_TAG_NAME = r"(?:%s|[A-Za-z]\w*:[\w-]+)(?=[\s/>])" % "|".join(HTML_TAG_NAMES)
+MARKUP_TAG = re.compile(r"</?%s[^<>]*>" % HTML_TAG_NAME, re.I)
+# block tags separate words; inline ones (<strong>, <i>, <sup>, ...) do not
+BLOCK_TAG = re.compile(r"</?(p|br|div|li|ul|ol|h[1-6]|tr|td|table|blockquote)\b[^<>]*>", re.I)
+# An unquoted attribute value excludes quotes and "=", so each attribute can be
+# read only one way (otherwise the regex backtracks exponentially, CodeQL).
+LEADING_TAG_PIECE = re.compile(
+    r"""^\s*/?%s(\s+[\w:-]+=("[^"]*"|'[^']*'|[^\s<>"'=]+))*(\s*/)?>""" % HTML_TAG_NAME)
+TRAILING_TAG_PIECE = re.compile(r"</?(?P<name>[A-Za-z][\w:-]*)?(?P<rest>\s[^<>]*)?$")
+
+
+def _strip_trailing_tag_piece(fragment):
+    """Drop a tag cut off at the end of the fragment ("...congenital</stro").
+    The cut can fall inside the tag name, so a name that starts a known tag
+    name is enough; once the piece has more after the name ("<LOD in"), the
+    name must be a whole tag name. A bare "<" or "</" at the very end goes."""
+    match = TRAILING_TAG_PIECE.search(fragment)
+    if not match:
+        return fragment
+    name = match.group("name") or ""
+    if match.group("rest") is not None:
+        is_tag = ":" in name or name in HTML_TAG_NAMES
+    else:
+        is_tag = not name or ":" in name or any(tag.startswith(name) for tag in HTML_TAG_NAMES)
+    return fragment[:match.start()] if is_tag else fragment
+
+
+def strip_markup(fragment):
+    """A highlight fragment without the source text's own HTML (see MARKUP_TAG)."""
+    fragment = LEADING_TAG_PIECE.sub("", fragment)
+    fragment = _strip_trailing_tag_piece(fragment)
+    fragment = MARKUP_TAG.sub("", BLOCK_TAG.sub(" ", fragment))
+    return re.sub(r"\s+", " ", fragment).strip()
+
+
+def best_mesh_headings(fragments):
+    """The MeSH headings that match the most words of the query: for
+    "Hirschsprung Disease" that is "Hirschsprung Disease", not also
+    "Disease Models, Animal". Headings that each match one word, as for a
+    one-word query, are all kept."""
+    def matched_words(fragment):
+        return len({word.lower() for word in HIGHLIGHTED_WORD.findall(fragment)})
+    most = max((matched_words(f) for f in fragments), default=0)
+    return [f for f in fragments if matched_words(f) == most]
+
+
+def merge_highlight_fragments(fragments, source_text=None):
+    """Tidy one field's highlight fragments for display.
+
+    The unified highlighter cuts a sentence longer than the fragment size into
+    pieces, so "PAICS mediates <em>DNA</em>" and "<em>damage</em> and ..." come
+    back as two fragments of one run of text. Fragments are in document order,
+    so a fragment that starts right where the previous one ended in
+    ``source_text`` is joined back onto it. Repeated fragments are dropped: a
+    MeSH heading is indexed once per qualifier, so "DNA Damage" can match
+    several times.
+    """
+    merged = []
+    previous_end = None
+    for fragment in fragments:
+        if fragment in merged:
+            continue
+        plain = HIGHLIGHT_TAGS.sub("", fragment)
+        start = source_text.find(plain, previous_end or 0) if source_text else -1
+        if merged and previous_end is not None and start >= previous_end \
+                and not source_text[previous_end:start].strip():
+            merged[-1] = merged[-1] + source_text[previous_end:start] + fragment
+        else:
+            merged.append(fragment)
+        previous_end = start + len(plain) if start >= 0 else None
+    return merged
+
+
+def remap_highlights(highlights, source=None):  # pragma: no cover
+    source = source or {}
     remapped = {}
     for key, value in highlights.items():
         new_key = key.replace("authors.name", "authors").replace("resource_title", "resource") \
             .replace("mesh_terms.heading_term", "mesh")
-        remapped[new_key] = value
+        source_text = source.get(key)
+        merged = merge_highlight_fragments(value, source_text if isinstance(source_text, str) else None)
+        fragments = []
+        for fragment in (strip_markup(f) for f in merged):
+            if fragment and fragment not in fragments:
+                fragments.append(fragment)
+        if new_key == "mesh":
+            fragments = best_mesh_headings(fragments)
+        if fragments:
+            remapped[new_key] = fragments
     return remapped
 
 
@@ -1443,143 +1468,110 @@ def tet_mod_scope_filter(path, allowed_mods):
     }
 
 
-def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_mods, size=10):
-    # Scope to the MOD that owns each tag (see tet_mod_scope_filter).
-    base_agg = create_filtered_aggregation(path, tet_facets, term_field, term_key, size)
+# SCRUM-6886: the MOD-scoped TET facets share one nested + scope-filter block, so
+# Elasticsearch evaluates the scope filter once instead of once per facet. On dev
+# (3.58M nested tags, 1 shard) the 9 facets took 24.4s as separate aggregations and
+# 12.1s sharing the filter, with identical buckets.
+TET_SCOPED_AGGREGATION = "tet_mod_scoped_aggregation"
+TET_FACETS_FILTER = "filter_by_other_tet_values"
+# The SEA facets count over the other TET filters but not over the SEA value itself,
+# so they sit under their own cross-facet filter.
+TET_SEA_FACETS_FILTER = "filter_by_other_tet_values_sea"
+# (term_key, term_field, facets_limits key) for the facets under TET_FACETS_FILTER
+TET_SCOPED_FACETS = [
+    ("topics", "topic_entity_tags.topic.keyword", "topics"),
+    ("confidence_levels", "topic_entity_tags.confidence_level.keyword", "confidence_levels"),
+    ("confidence_scores", "topic_entity_tags.confidence_score", "confidence_scores"),
+    ("data_novelty", "topic_entity_tags.data_novelty.keyword", "data_novelty"),
+    ("data_context", "topic_entity_tags.data_context.keyword", "data_context"),
+    ("source_methods", "topic_entity_tags.source_method.keyword", "source_methods"),
+    ("validation_by_professional_biocurator",
+     "topic_entity_tags.validation_by_professional_biocurator.keyword",
+     "validation_by_professional_biocurator"),
+]
+# The two SEA facets are merged into one list by process_topic_entity_tags_aggregations;
+# they need distinct keys here because they now share a parent aggregation.
+TET_SCOPED_SEA_FACETS = [
+    ("source_evidence_assertions", "topic_entity_tags.source_evidence_assertion.keyword",
+     "source_evidence_assertions"),
+    ("source_evidence_assertion_groups", "topic_entity_tags.source_evidence_assertion_group.keyword",
+     "source_evidence_assertions"),
+]
+
+
+def tet_facets_filter(tet_facets):
+    """The filter that restricts a TET facet to the tags matching the other selected TET values."""
     return {
-        "nested": {"path": path},
+        "bool": {
+            "must": [
+                {"range": {f"topic_entity_tags.{filter_field}": {"gte": filter_value[0],
+                                                                  "lte": filter_value[1]}}}
+                if filter_field == "confidence_score"
+                else {"term": {f"topic_entity_tags.{filter_field}.keyword": filter_value}}
+                for filter_field, filter_value in tet_facets.items()
+            ]
+        }
+    }
+
+
+def tet_facet_bucket_aggregation(term_field, size, cross_filtered):
+    """The bucketing for one TET facet: a histogram for confidence scores, otherwise terms
+    counted per reference (reverse_nested)."""
+    if term_field == "topic_entity_tags.confidence_score":
+        return {"histogram": {"field": term_field, "interval": 0.05}}
+    agg: Dict[str, Any] = {
+        "terms": {"field": term_field, "size": size},
+        "aggs": {"docs_count": {"reverse_nested": {}}}
+    }
+    # Keep empty buckets visible for confidence_levels when other TET values are selected
+    if cross_filtered and term_field == "topic_entity_tags.confidence_level.keyword":
+        agg["terms"]["min_doc_count"] = 0
+    return agg
+
+
+def _tet_facet_group(facets, tet_facets, facets_limits, filter_name):
+    """The bucketing aggregations for a group of facets, under one cross-facet filter
+    named filter_name when other TET values are selected."""
+    cross_filtered = bool(tet_facets)
+    buckets = {
+        term_key: tet_facet_bucket_aggregation(term_field, facets_limits.get(limit_key, 10), cross_filtered)
+        for term_key, term_field, limit_key in facets
+    }
+    if not cross_filtered:
+        return buckets
+    return {filter_name: {"filter": tet_facets_filter(tet_facets), "aggs": buckets}}
+
+
+def create_mod_scoped_tet_aggregation(tet_facets, facets_limits, allowed_mods):
+    """One nested aggregation holding every MOD-scoped TET facet under a single scope
+    filter (see tet_mod_scope_filter), read back by process_topic_entity_tags_aggregations."""
+    sea_tet_facets = {k: v for k, v in tet_facets.items() if k != "source_evidence_assertion"}
+    facet_aggs = _tet_facet_group(TET_SCOPED_FACETS, tet_facets, facets_limits, TET_FACETS_FILTER)
+    facet_aggs.update(_tet_facet_group(TET_SCOPED_SEA_FACETS, sea_tet_facets, facets_limits,
+                                       TET_SEA_FACETS_FILTER))
+    return {
+        "nested": {"path": "topic_entity_tags"},
         "aggs": {
             "filtered": {
-                "filter": tet_mod_scope_filter(path, allowed_mods),
-                "aggs": base_agg["aggs"]
+                "filter": tet_mod_scope_filter("topic_entity_tags", allowed_mods),
+                "aggs": facet_aggs
             }
         }
     }
 
 
-def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):  # pragma: no cover
+def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):
     tet_agg: Dict[str, Any] = {"nested": {"path": path}}
-
-    if tet_facets:
-        tet_agg["aggs"] = {
-            "filter_by_other_tet_values": {
-                "filter": {
-                    "bool": {
-                        "must": [
-                            {"range": {f"topic_entity_tags.{filter_field}": {"gte": filter_value[0],"lte": filter_value[1]}}} if filter_field == "confidence_score" else {"term": {f"topic_entity_tags.{filter_field}.keyword": filter_value}}
-                            for filter_field, filter_value in tet_facets.items()
-                        ]
-                    }
-                },
-                "aggs": {
-                    term_key: {
-                        "terms": {"field": term_field, "size": size},
-                        "aggs": {"docs_count": {"reverse_nested": {}}}
-                    }
-                }
-            }
-        }
-        # Ensure we keep empty buckets visible for confidence_levels
-        if term_field == "topic_entity_tags.confidence_level.keyword":
-            tet_agg["aggs"]["filter_by_other_tet_values"]["aggs"]["confidence_levels"]["terms"]["min_doc_count"] = 0
-        elif term_field == "topic_entity_tags.confidence_score":
-            tet_agg["aggs"]["filter_by_other_tet_values"]["aggs"] = {
-                term_key:{
-                    "histogram": {
-                        "field": term_field,
-                        "interval": 0.05
-                    }
-                }
-            }
-
-    else:
-        tet_agg["aggs"] = {
-            term_key: {
-                "terms": {"field": term_field, "size": size},
-                "aggs": {"docs_count": {"reverse_nested": {}}}
-            }
-        }
-
-        if term_field == "topic_entity_tags.confidence_score":
-            tet_agg["aggs"] = {
-                term_key:{
-                    "histogram": {
-                        "field": term_field,
-                        "interval": 0.05
-                    }
-                }
-            }
-
-
+    tet_agg["aggs"] = _tet_facet_group([(term_key, term_field, term_key)], tet_facets, {term_key: size},
+                                       TET_FACETS_FILTER)
     return tet_agg
 
 
 def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_providers):
     allowed_mods = [dp.upper() for dp in tet_data_providers]
 
-    es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=tet_facets,
-        term_field="topic_entity_tags.topic.keyword",
-        term_key="topics",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("topics", 10)
-    )
-
-    es_body["aggregations"]["confidence_level_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=tet_facets,
-        term_field="topic_entity_tags.confidence_level.keyword",
-        term_key="confidence_levels",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("confidence_levels", 10)
-    )
-
-    es_body["aggregations"]["confidence_score_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=tet_facets,
-        term_field="topic_entity_tags.confidence_score",
-        term_key="confidence_scores",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("confidence_scores", 10)
-    )
-
-    es_body["aggregations"]["data_novelty_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=tet_facets,
-        term_field="topic_entity_tags.data_novelty.keyword",
-        term_key="data_novelty",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("data_novelty", 10)
-    )
-
-    es_body["aggregations"]["data_context_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=tet_facets,
-        term_field="topic_entity_tags.data_context.keyword",
-        term_key="data_context",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("data_context", 10)
-    )
-
-    es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=tet_facets,
-        term_field="topic_entity_tags.source_method.keyword",
-        term_key="source_methods",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("source_methods", 10)
-    )
-
-    es_body["aggregations"]["validation_by_professional_biocurator_aggregation"] = \
-        create_filtered_aggregation_with_dp(
-            path="topic_entity_tags",
-            tet_facets=tet_facets,
-            term_field="topic_entity_tags.validation_by_professional_biocurator.keyword",
-            term_key="validation_by_professional_biocurator",
-            allowed_mods=allowed_mods,
-            size=facets_limits.get("validation_by_professional_biocurator", 10)
-        )
+    es_body["aggregations"][TET_SCOPED_AGGREGATION] = create_mod_scoped_tet_aggregation(
+        tet_facets, facets_limits, allowed_mods)
 
     # Genome-scale studies (SCRUM-6614): synthetic summary tags minted by the
     # search indexer for over-cap (reference, entity_type, topic) groups carry
@@ -1595,26 +1587,6 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_field="topic_entity_tags.large_scale_tag.keyword",
         term_key="large_scale_tag",
         size=facets_limits.get("large_scale_tag", 10)
-    )
-
-    # SEA facets: count over filtered hits but not restricted by SEA value itself
-    sea_tet_facets = {k: v for k, v in tet_facets.items() if k != "source_evidence_assertion"}
-
-    es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=sea_tet_facets,
-        term_field="topic_entity_tags.source_evidence_assertion.keyword",
-        term_key="source_evidence_assertions",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("source_evidence_assertions", 10)
-    )
-    es_body["aggregations"]["source_evidence_assertion_group_aggregation"] = create_filtered_aggregation_with_dp(
-        path="topic_entity_tags",
-        tet_facets=sea_tet_facets,
-        term_field="topic_entity_tags.source_evidence_assertion_group.keyword",
-        term_key="source_evidence_assertions",
-        allowed_mods=allowed_mods,
-        size=facets_limits.get("source_evidence_assertions", 10)
     )
 
 

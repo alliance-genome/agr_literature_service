@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
 
+from agr_literature_service.api.build_info import get_build_info
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_NOPASS
 from agr_literature_service.api.database.main import is_database_online
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
@@ -30,7 +31,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 copyright_license_router, check_router,
                                                 dataset_router, ml_model_router,
                                                 image_permission_router,
-                                                manual_indexing_tag_router, person_router,
+                                                person_router,
                                                 person_cross_reference_router, person_name_router,
                                                 person_note_router, person_email_router,
                                                 person_institution_router,
@@ -47,7 +48,8 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 authentication)
 
 TITLE = "Alliance Literature Service"
-VERSION = "0.1.0"
+# The build's commit is appended so /docs shows which code is running (SCRUM-6878)
+VERSION = f"0.1.0+{get_build_info()['commit']}"
 DESCRIPTION = "This service provides access to the Alliance Bibliographic Corpus and metadata"
 
 
@@ -67,7 +69,9 @@ app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
                    allow_origins=["*"],
                    allow_methods=["*"],
-                   allow_headers=["*"])
+                   allow_headers=["*"],
+                   # readable by a browser client: the files a tarball left out
+                   expose_headers=["X-Missing-Files"])
 
 
 # Add request logging middleware
@@ -164,12 +168,13 @@ app.include_router(dataset_router.router)
 app.include_router(ml_model_router.router)
 app.include_router(curation_status_router.router)
 app.include_router(indexing_priority_router.router)
-app.include_router(manual_indexing_tag_router.router)
 app.include_router(ontology_router.router)
 app.include_router(xml2md_router.router)
 app.include_router(authentication.router)
 
 app.add_api_route("/health", health([is_database_online]))
+app.add_api_route("/version", get_build_info, methods=["GET"], summary="Commit and build date of the running code",
+                  response_model=Dict[str, str])
 
 app.openapi = custom_openapi  # type: ignore
 
