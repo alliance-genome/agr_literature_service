@@ -43,7 +43,9 @@ from agr_literature_service.api.models.audited_model import (
     disable_set_date_updated_onupdate
 )
 from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagBatchRequest,
+                                                                         TopicEntityTagBatchResponse,
+                                                                         TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
@@ -255,7 +257,8 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
-               validate_on_insert: bool = True, commit: bool = True) -> Tuple[int, bool]:
+               validate_on_insert: bool = True, commit: bool = True,
+               add_companion: Optional[bool] = None) -> Tuple[int, bool]:
     """
     Create a new topic entity tag.
 
@@ -266,6 +269,11 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     commits on success and rolls back on any error, a 409 included. ``commit=False``
     is for a caller that has more to do in the same transaction (validate_topic):
     create_tag then neither commits nor rolls back, and the caller does both.
+
+    ``add_companion`` creates the SCRUM-6183 companion entity tag; None means "as
+    ``validate_on_insert``" (bulk import and merge copies get none). The batch endpoint
+    passes ``validate_on_insert=False, add_companion=True``: it validates once, at the
+    end, companions included (SCRUM-4141).
 
     Returns ``(topic_entity_tag_id, was_upsert)``:
       - ``(new_id, False)``       — a new tag was created (caller should return 201).
@@ -378,7 +386,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             # transaction has committed since (SCRUM-6851).
             validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
             logger.info("Tag validation completed")
-            _add_companion_entity_tag_if_needed(db, topic_entity_tag_data, source, new_db_obj, reference_id)
+        _add_companion_entity_tag_if_needed(db, topic_entity_tag_data, source, new_db_obj, reference_id,
+                                            validate_on_insert, add_companion)
         if commit:
             db.commit()
         logger.info("create_tag completed successfully")
@@ -393,12 +402,16 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
 
 
 def _add_companion_entity_tag_if_needed(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
-                                        new_db_obj: TopicEntityTagModel, reference_id: int):
+                                        new_db_obj: TopicEntityTagModel, reference_id: int,
+                                        validate_on_insert: bool, add_companion: Optional[bool]):
+    if not (validate_on_insert if add_companion is None else add_companion):
+        return
     # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
     # create a companion pure entity tag (topic == entity_type) so they don't have
-    # to add it by hand. Gated on validate_on_insert so it only fires for the
-    # interactive create path (the router) and not for bulk reference import or
-    # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
+    # to add it by hand. Gated on add_companion (default: validate_on_insert) so it
+    # fires for the interactive create paths (the router and the batch endpoint,
+    # SCRUM-4141) and not for bulk reference import or reference-merge copies, which
+    # pass validate_on_insert=False. SGD is excluded
     # (it has its own data_novelty/display handling). Pipeline-generated tags are
     # excluded too: the companion is only for tags a human curator made, and
     # pipeline/script-created tags have created_by/updated_by users.id values that
@@ -418,7 +431,7 @@ def _add_companion_entity_tag_if_needed(db: Session, topic_entity_tag_data: dict
     is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
     if is_mixed and is_positive and not is_sgd and is_human:
         logger.info("Creating companion entity tag for mixed topic+entity tag")
-        create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
+        create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id, validate=validate_on_insert)
 
 
 def _check_for_duplicate_tags_in_transaction(db: Session, topic_entity_tag_data: dict, source: TagSourceModel,
@@ -435,7 +448,8 @@ def _check_for_duplicate_tags_in_transaction(db: Session, topic_entity_tag_data:
         raise
 
 
-def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference_id: int):
+def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference_id: int,
+                                    validate: bool = True):
     """SCRUM-6183: create the companion "pure entity" tag for a just-created positive
     mixed topic+entity tag.
 
@@ -484,7 +498,8 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         db.add(new_db_obj)
         db.flush()
         db.refresh(new_db_obj, ['tag_source'])
-        validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
+        if validate:  # otherwise the caller revalidates the reference (the batch endpoint)
+            validate_tags(db=db, new_tag_obj=new_db_obj, commit_changes=False)
         savepoint.commit()
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
     except Exception as e:
@@ -746,6 +761,17 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
+    apply_tag_patch(db, topic_entity_tag, patch_data)
+    db.commit()
+    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id), db=db)
+    return {"message": "updated"}
+
+
+def apply_tag_patch(db: Session, topic_entity_tag: TopicEntityTagModel,
+                    patch_data: TopicEntityTagSchemaUpdate) -> None:
+    """Apply a PATCH to a tag in the current transaction: only the fields sent change,
+    an explicit null clears one. Flushes, never commits or revalidates (patch_tag and
+    the batch endpoint do that, SCRUM-4141)."""
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
     # Audit fields on a PATCH must resolve to an EXISTING user. An identifier
     # that maps to no users row (e.g. the UI sending its Cognito token sub,
@@ -759,16 +785,14 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
         if resolved is None:
             logger.warning(
                 f"patch_tag: dropping {audit_field}={patch_data_dict[audit_field]!r} on tag "
-                f"{topic_entity_tag_id}: does not resolve to an existing user")
+                f"{topic_entity_tag.topic_entity_tag_id}: does not resolve to an existing user")
             del patch_data_dict[audit_field]
         else:
             patch_data_dict[audit_field] = resolved
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
-    db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id), db=db)
-    return {"message": "updated"}
+    db.flush()
 
 
 def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
@@ -799,12 +823,125 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
                             detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
 
     reference_id = topic_entity_tag.reference_id
-    db.delete(topic_entity_tag)
+    delete_tag_row(db, topic_entity_tag)
     db.commit()
     # A single-reference revalidation always deletes and rebuilds all of that
     # reference's edges in one transaction (see run_revalidation), so there is no
     # cheaper per-tag path to ask for here (SCRUM-6472).
     revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
+
+
+def delete_tag_row(db: Session, topic_entity_tag: TopicEntityTagModel) -> None:
+    """Delete a tag in the current transaction; flushes, never commits or revalidates."""
+    db.delete(topic_entity_tag)
+    db.flush()
+
+
+# SCRUM-4141: the most changes one batch may carry. Sized from the ACKnowledge data: the
+# largest legitimate save is about 3,000 changes. There is no pagination: pages would each
+# commit on their own and break the batch's all-or-nothing.
+MAX_TAG_BATCH_CHANGES = 5000
+
+
+class _BatchChangeError(Exception):
+    def __init__(self, kind: str, index: int, error: HTTPException):
+        super().__init__(error.detail)
+        self.kind, self.index, self.error = kind, index, error
+
+
+def _batch_tag(db: Session, tag_id: int, reference_id: int) -> TopicEntityTagModel:
+    tag = db.get(TopicEntityTagModel, tag_id)
+    if tag is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"topic_entity_tag {tag_id} is not available")
+    if tag.reference_id != reference_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"topic_entity_tag {tag_id} belongs to another reference")
+    return tag
+
+
+def _create_batch_agents(db: Session, request: TopicEntityTagBatchRequest) -> None:
+    """Create, before the batch starts, the agents its creates name: a new agent is committed
+    at once (_ensure_automation_user), which inside the batch would store the changes made
+    so far and release the reference lock. A single create makes them the same way. Labels
+    named only by updates are left to apply_tag_patch, which drops unknown ones (SCRUM-6459)."""
+    for index, new_tag in enumerate(request.create):
+        try:
+            labels = {field: map_to_user_id(getattr(new_tag, field), db)
+                      for field in ("created_by", "updated_by") if getattr(new_tag, field)}
+            add_audited_object_users_if_not_exist(db, labels)
+        except HTTPException as error:
+            raise HTTPException(status_code=error.status_code,
+                                detail={"message": f"create {index}: {error.detail}",
+                                        "change": {"kind": "create", "index": index}, "error": error.detail})
+
+
+def apply_tag_batch(db: Session, request: TopicEntityTagBatchRequest) -> TopicEntityTagBatchResponse:
+    """Apply creates, updates and deletes of one reference's tags in one transaction
+    (SCRUM-4141): all of them or none.
+
+    Deletes run first, then updates, then creates, so each create is checked for
+    duplicates against the tags as the deletes and updates leave them (a value moved
+    off one tag can be put on a new one in the same batch). The agents the creates name
+    are made before any change (_create_batch_agents). A create is never absorbed into an existing tag: where POST would append its
+    note to an equal tag, the batch fails with 409. Creates make the same companion entity
+    tag a single create makes. The reference is revalidated once, after every change.
+    Any error rolls the whole batch back and is raised with the change that caused it.
+    """
+    total = len(request.create) + len(request.update) + len(request.delete)
+    if total > MAX_TAG_BATCH_CHANGES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail={"message": f"{total} changes in one batch; the limit is "
+                                               f"{MAX_TAG_BATCH_CHANGES}", "change": None, "error": None})
+    reference_id = get_reference_id_from_curie_or_id(db, request.reference_curie)
+    if total == 0:
+        return TopicEntityTagBatchResponse(reference_curie=request.reference_curie, created=[], updated=0,
+                                           deleted=0)
+    _create_batch_agents(db, request)
+    try:
+        lock_reference_tags(db, reference_id)
+        for index, tag_id in enumerate(request.delete):
+            try:
+                delete_tag_row(db, _batch_tag(db, tag_id, reference_id))
+            except HTTPException as error:
+                raise _BatchChangeError("delete", index, error)
+        for index, update in enumerate(request.update):
+            try:
+                apply_tag_patch(db, _batch_tag(db, update.topic_entity_tag_id, reference_id), update.changes)
+            except HTTPException as error:
+                raise _BatchChangeError("update", index, error)
+        created = []
+        for index, new_tag in enumerate(request.create):
+            try:
+                if get_reference_id_from_curie_or_id(db, new_tag.reference_curie) != reference_id:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                        detail=f"reference_curie {new_tag.reference_curie} is not the "
+                                               f"batch's reference {request.reference_curie}")
+                tag_id, was_upsert = create_tag(db, new_tag, validate_on_insert=False, commit=False,
+                                                add_companion=True)
+                if was_upsert:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                        detail={"reason": "duplicate", "existing_tag_id": tag_id,
+                                                "message": "The tag already exists except for its note; "
+                                                           "change the note with an update"})
+                created.append(tag_id)
+            except HTTPException as error:
+                raise _BatchChangeError("create", index, error)
+        revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db, commit=False)
+        db.commit()
+    except _BatchChangeError as failed:
+        db.rollback()
+        detail = failed.error.detail
+        message = detail.get("message") if isinstance(detail, dict) else detail
+        raise HTTPException(status_code=failed.error.status_code,
+                            detail={"message": f"{failed.kind} {failed.index}: {message}",
+                                    "change": {"kind": failed.kind, "index": failed.index},
+                                    "error": detail})
+    except Exception:
+        db.rollback()
+        raise
+    return TopicEntityTagBatchResponse(reference_curie=request.reference_curie, created=created,
+                                       updated=len(request.update), deleted=len(request.delete))
 
 
 # SCRUM-6474: ATP:0000002 "topic tag", and ATP:0000001 above it, are containers rather
