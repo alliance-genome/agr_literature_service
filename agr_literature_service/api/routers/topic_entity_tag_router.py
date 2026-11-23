@@ -14,7 +14,7 @@ from agr_literature_service.api.crud import topic_entity_tag_crud, \
     topic_entity_tag_utils
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
-    TopicEntityTagSchemaUpdate
+    TopicEntityTagSchemaUpdate, TopicEntityTagBatchRequest, TopicEntityTagBatchResponse
 from agr_literature_service.api.crud.user_utils import resolve_named_person
 from agr_literature_service.api.models import TagSourceModel, TopicEntityTagModel
 from agr_literature_service.api.user import acting_as, set_global_user_from_cognito
@@ -245,6 +245,60 @@ def delete_tag(topic_entity_tag_id,
     # check only looks at the first group, so it would refuse a multi-MOD curator.
     topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, ModAccess.ALL_ACCESS)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post('/batch',
+             status_code=status.HTTP_200_OK,
+             response_model=TopicEntityTagBatchResponse)
+def apply_tag_batch(request: TopicEntityTagBatchRequest,
+                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                    db: Session = db_session):
+    """Create, update (PATCH semantics) and delete tags of one reference in one
+    transaction: every change is applied or none is (SCRUM-4141).
+
+    At most MAX_TAG_BATCH_CHANGES changes; above that nothing is written. Permissions and
+    audit fields as the single-tag endpoints: each create needs write access to its
+    source's MOD and has a person named in created_by/updated_by resolved strictly
+    (SCRUM-6853); each update or delete needs write access to the tag's MOD. A create is
+    never absorbed into an existing tag (409 instead of POST's note append). The
+    reference is revalidated once, after every change. Errors carry
+    detail.change = {kind, index}, the change that failed. Returns the ids of the
+    created tags in request order."""
+    set_global_user_from_cognito(db, user)
+    total = len(request.create) + len(request.update) + len(request.delete)
+    if total > topic_entity_tag_crud.MAX_TAG_BATCH_CHANGES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail={"message": f"{total} changes in one batch; the limit is "
+                                               f"{topic_entity_tag_crud.MAX_TAG_BATCH_CHANGES}",
+                                    "change": None, "error": None})
+    for index, new_tag in enumerate(request.create):
+        try:
+            require_mod_write_access(user, _source_mod(db, new_tag.tag_source_id))
+            for field in ("created_by", "updated_by"):
+                identifier = getattr(new_tag, field)
+                if identifier and _looks_like_person(identifier):
+                    person = resolve_person(db, identifier, field)
+                    if person is not None:
+                        setattr(new_tag, field, person[1])
+        except HTTPException as error:
+            raise _batch_error("create", index, error)
+    for kind, tag_ids in (("update", [u.topic_entity_tag_id for u in request.update]),
+                          ("delete", request.delete)):
+        for index, tag_id in enumerate(tag_ids):
+            tag = db.get(TopicEntityTagModel, tag_id)
+            if tag is None:  # apply_tag_batch answers its 404
+                continue
+            try:
+                require_mod_write_access(user, tag.tag_source.secondary_data_provider.abbreviation)
+            except HTTPException as error:
+                raise _batch_error(kind, index, error)
+    return topic_entity_tag_crud.apply_tag_batch(db, request)
+
+
+def _batch_error(kind: str, index: int, error: HTTPException) -> HTTPException:
+    return HTTPException(status_code=error.status_code,
+                         detail={"message": f"{kind} {index}: {error.detail}",
+                                 "change": {"kind": kind, "index": index}, "error": error.detail})
 
 
 @router.get('/by_reference/{curie_or_reference_id}',

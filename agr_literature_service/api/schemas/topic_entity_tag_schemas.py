@@ -130,3 +130,32 @@ class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     note: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
+
+
+class TopicEntityTagBatchUpdate(BaseModel):
+    """One update of a batch: the tag and the fields to change, with PATCH semantics
+    (only the fields sent are changed; an explicit null clears a field)."""
+    model_config = ConfigDict(extra='forbid')
+
+    topic_entity_tag_id: int
+    changes: TopicEntityTagSchemaUpdate
+
+
+class TopicEntityTagBatchRequest(BaseModel):
+    """Creates, updates and deletes of topic entity tags on one reference, applied in
+    one transaction (SCRUM-4141)."""
+    model_config = ConfigDict(extra='forbid')
+
+    reference_curie: str
+    create: List[TopicEntityTagSchemaPost] = Field(default_factory=list)
+    update: List[TopicEntityTagBatchUpdate] = Field(default_factory=list)
+    delete: List[int] = Field(default_factory=list)
+
+
+class TopicEntityTagBatchResponse(BaseModel):
+    """What a batch did: the ids of the created tags in request order (companion entity
+    tags not included), and how many tags were updated and deleted."""
+    reference_curie: str
+    created: List[int]
+    updated: int
+    deleted: int
