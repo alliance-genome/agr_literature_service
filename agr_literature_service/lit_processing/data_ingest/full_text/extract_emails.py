@@ -30,9 +30,12 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.crud.reference_crud import set_reference_emails
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status
 from agr_literature_service.api.crud.referencefile_crud import download_file
+from agr_literature_service.api.user import set_global_user_id
 from agr_cognito_py import ModAccess
 
 logger = logging.getLogger(__name__)
+
+SCRIPT_NAME = os.path.basename(__file__).replace(".py", "")
 
 # Workflow tags
 needed_tag = "ATP:0000358"
@@ -755,6 +758,9 @@ def main() -> None:
     # Build mapping once (workflow-tag + MD candidates)
     db = create_postgres_session(False)
     try:
+        # Record every email and workflow tag change as made by this script's automation agent,
+        # created on first use (the current user is per process, so it covers the later sessions)
+        set_global_user_id(db, SCRIPT_NAME)
         mapping = get_agrkb_md_reffile_mapping(db)
     finally:
         db.close()
