@@ -207,7 +207,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         success, error = process_single_reference(
-            mock_db, self._ref_file_info(), "test_token"
+            mock_db, self._ref_file_info()
         )
 
         assert success is True
@@ -245,7 +245,7 @@ class TestProcessSingleReference:
             "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ) as mock_upload:
             success, error = process_single_reference(
-                mock_db, self._ref_file_info(), "test_token"
+                mock_db, self._ref_file_info()
             )
 
             assert success is True
@@ -284,7 +284,7 @@ class TestProcessSingleReference:
             "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ) as mock_upload:
             success, error = process_single_reference(
-                mock_db, self._ref_file_info(), "test_token"
+                mock_db, self._ref_file_info()
             )
 
             assert success is True
@@ -310,7 +310,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         success, error = process_single_reference(
-            mock_db, self._ref_file_info(), "test_token"
+            mock_db, self._ref_file_info()
         )
 
         assert success is False
@@ -340,7 +340,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (0, 0, [])
 
         success, error = process_single_reference(
-            mock_db, self._ref_file_info(), "test_token"
+            mock_db, self._ref_file_info()
         )
 
         assert success is False
@@ -375,7 +375,6 @@ class TestProcessSingleReference:
             success, error = process_single_reference(
                 mock_db,
                 self._ref_file_info(),
-                "test_token",
                 methods_to_extract=["grobid", "docling"]
             )
 
@@ -401,7 +400,7 @@ class TestProcessSingleReference:
         mock_process_supps.return_value = (1, 2, ["s1: err", "s2: err"])
 
         success, error = process_single_reference(
-            mock_db, self._ref_file_info(), "test_token"
+            mock_db, self._ref_file_info()
         )
 
         assert success is True
@@ -424,7 +423,7 @@ class TestProcessSingleReference:
         ref_info = self._ref_file_info()
         ref_info["referencefile_id"] = None  # simulate no main PDF
 
-        success, error = process_single_reference(mock_db, ref_info, "test_token")
+        success, error = process_single_reference(mock_db, ref_info)
 
         assert success is True
         assert error is None
@@ -445,7 +444,7 @@ class TestProcessSingleReference:
         ref_info = self._ref_file_info()
         ref_info["referencefile_id"] = None
 
-        success, error = process_single_reference(mock_db, ref_info, "test_token")
+        success, error = process_single_reference(mock_db, ref_info)
 
         assert success is False
         assert "no main PDF available" in error
@@ -476,7 +475,7 @@ class TestProcessSingleReference:
             "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ):
             success, error = process_single_reference(
-                mock_db, self._ref_file_info(), "test_token",
+                mock_db, self._ref_file_info(),
                 prefer_nxml=False
             )
 
@@ -500,7 +499,7 @@ class TestProcessSingleReference:
         mock_nxml_convert.return_value = (True, None)
 
         success, error = process_single_reference(
-            mock_db, self._ref_file_info(), "test_token",
+            mock_db, self._ref_file_info(),
             process_supplements=False
         )
 
@@ -533,7 +532,7 @@ class TestProcessSingleReference:
             "agr_literature_service.lit_processing.pdf2md.pdf2md.upload_pdfx_markdown"
         ):
             success, error = process_single_reference(
-                mock_db, self._ref_file_info(), "test_token",
+                mock_db, self._ref_file_info(),
                 prefer_nxml=False,
                 process_supplements=False
             )

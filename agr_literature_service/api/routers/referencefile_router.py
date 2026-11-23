@@ -294,6 +294,11 @@ def get_converted(curie_or_reference_id: str,
       fresh higher-quality nXML/PDFX conversion. On success, the legacy
       TEI-derived rows are deleted so the new output replaces them.
 
+    Supplements (PDF, Word and Excel) are converted for papers of every group,
+    and supplement PDFs of any size or page count are sent to PDFX
+    (SCRUM-6978). The weekly batch job still converts supplements only for
+    WB/ZFIN/FB papers and only up to 5 MiB / 20 pages.
+
     The response includes ``converted_classes`` — the list of converted
     file_class values currently present in the DB. Clients can act on
     partial results (for example, fetching ``converted_merged_main`` as soon

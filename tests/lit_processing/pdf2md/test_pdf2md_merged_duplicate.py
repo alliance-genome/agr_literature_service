@@ -45,13 +45,13 @@ def _convert(db, outputs):  # noqa
     with patch(f"{UTILS}.download_file", return_value=b"%PDF-1.4"), \
             patch(f"{UTILS}.submit_pdf_to_pdfx", return_value="pid"), \
             patch(f"{UTILS}.poll_pdfx_status"), \
-            patch(f"{UTILS}.download_pdfx_result", side_effect=lambda pid, method, token: outputs[method]), \
+            patch(f"{UTILS}.download_pdfx_result", side_effect=lambda pid, method: outputs[method]), \
             patch(f"{UTILS}.process_extracted_images", return_value=(0, 0, [])), \
             patch(f"{CRUD}.boto3"), \
             patch(f"{CRUD}.upload_file_to_bucket"), \
             patch(f"{CRUD}.cleanup_old_pdf_file"), \
             patch(f"{CRUD}.transition_WFT_for_uploaded_file"):
-        return pdf2md_utils._process_single_pdf_file(db, pdf_file, CURIE, "token", list(outputs))
+        return pdf2md_utils._process_single_pdf_file(db, pdf_file, CURIE, list(outputs))
 
 
 def _files(db, reference):  # noqa
@@ -122,7 +122,7 @@ def test_main_conversion_without_merged_is_not_done():
             patch(f"{main}.process_extracted_images", return_value=(0, 0, [])), \
             patch(f"{main}.upload_pdfx_markdown", side_effect=upload) as m_upload:
         success, error = pdf2md._convert_main_pdf_via_pdfx(
-            MagicMock(), 1, CURIE, "paper", "FB", "token", ["grobid", "docling", "marker", "merged"])
+            MagicMock(), 1, CURIE, "paper", "FB", ["grobid", "docling", "marker", "merged"])
 
     assert (success, error) == (False, "Merged markdown was not stored")
     assert [c.args[3] for c in m_upload.call_args_list] == ["merged", "grobid", "docling", "marker"]

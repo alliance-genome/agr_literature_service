@@ -48,12 +48,12 @@ import re
 import sys
 from collections import defaultdict
 from os import path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, aliased
 
-from agr_cognito_py import ModAccess, get_admin_token
+from agr_cognito_py import ModAccess
 
 from agr_literature_service.api.crud.referencefile_crud import (
     download_file,
@@ -273,7 +273,6 @@ def select_references_needing_metadata(  # pragma: no cover
 
 def _regenerate_image_manifest_marker_only(  # pragma: no cover
     file_content: bytes,
-    token: str,
     reference_curie: str,
     mod_abbreviation: Optional[str],
 ) -> Dict:
@@ -282,15 +281,14 @@ def _regenerate_image_manifest_marker_only(  # pragma: no cover
     review stays on (PDFX default) so image_review_* fields are populated."""
     process_id = submit_pdf_to_pdfx(
         file_content=file_content,
-        token=token,
         methods="marker",
         merge=False,
         reference_curie=reference_curie,
         mod_abbreviation=mod_abbreviation,
         extract_images=True,
     )
-    poll_pdfx_status(process_id, token)
-    return download_pdfx_image_manifest(process_id, token)
+    poll_pdfx_status(process_id)
+    return download_pdfx_image_manifest(process_id)
 
 
 def _figure_pngs_for_source(reference: ReferenceModel, figure_file_class: str,
@@ -318,7 +316,6 @@ def _existing_sidecar_names(reference: ReferenceModel, metadata_file_class: str,
 def backfill_reference(  # pragma: no cover
     db: Session,
     reference: ReferenceModel,
-    get_token: Callable[[], str],
     dry_run: bool,
     include_supplements: bool,
     stats: Dict[str, int],
@@ -393,7 +390,7 @@ def backfill_reference(  # pragma: no cover
 
             try:
                 manifest = _regenerate_image_manifest_marker_only(
-                    file_content, get_token(), reference_curie, mod_abbreviation
+                    file_content, reference_curie, mod_abbreviation
                 )
             except Exception as exc:
                 stats["sources_pdfx_failed"] += 1
@@ -492,10 +489,6 @@ def backfill(  # pragma: no cover
     # descriptor files are still persisted and md5-deduped as usual.
     set_suppress_upload_guardrails(True)
 
-    def get_token() -> str:
-        # Re-fetch per source PDF so a long run never trips an expired token.
-        return get_admin_token()
-
     try:
         if reference:
             ref_obj = resolve_curie_to_reference(db, reference)
@@ -524,7 +517,7 @@ def backfill(  # pragma: no cover
             stats["refs_scanned"] += 1
             try:
                 backfill_reference(
-                    db, ref_obj, get_token, dry_run, include_supplements, stats
+                    db, ref_obj, dry_run, include_supplements, stats
                 )
             except Exception as exc:
                 stats["refs_failed"] += 1

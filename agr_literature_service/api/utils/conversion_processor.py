@@ -154,9 +154,13 @@ def _convert_pending_office(
 
 def _convert_pending_pdf(
     db: Any, job_id: str, reference_id: int, reference_curie: str,
-    pdf_file: Any, output_file_class: str, token: str,
+    pdf_file: Any, output_file_class: str,
 ) -> Tuple[bool, Optional[str]]:
-    """Run PDFX→MD conversion for a single pending main or supplement PDF."""
+    """Run PDFX→MD conversion for a single pending main or supplement PDF.
+
+    The on-demand request converts supplement PDFs of any size (SCRUM-6978);
+    the 5 MiB / 20 page limits apply only to the batch job.
+    """
     from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
         _process_single_pdf_file,
     )
@@ -165,8 +169,8 @@ def _convert_pending_pdf(
             db=db,
             pdf_file=pdf_file,
             reference_curie=reference_curie,
-            token=token,
             methods_to_extract=_all_extraction_methods(),
+            enforce_supplement_limits=False,
         )
     except Exception as exc:
         success, methods_uploaded, error = False, [], str(exc)
@@ -180,7 +184,7 @@ def _convert_pending_pdf(
 
 def _convert_pending_main(
     db: Any, job_id: str, reference_id: int, reference_curie: str,
-    assessment: Dict[str, Any], get_token,
+    assessment: Dict[str, Any],
 ) -> Tuple[bool, List[str]]:
     """Convert each entry in assessment['pending_main']. Returns
     (any_failure, failure_messages)."""
@@ -200,7 +204,7 @@ def _convert_pending_main(
         else:
             success, error = _convert_pending_pdf(
                 db, job_id, reference_id, reference_curie,
-                ref_file, "converted_merged_main", get_token(),
+                ref_file, "converted_merged_main",
             )
             tag = f"PDF main '{ref_file.display_name}'"
         if not success:
@@ -212,7 +216,7 @@ def _convert_pending_main(
 
 def _convert_pending_supplements(
     db: Any, job_id: str, reference_id: int, reference_curie: str,
-    assessment: Dict[str, Any], get_token,
+    assessment: Dict[str, Any],
 ) -> Tuple[bool, List[str]]:
     """Convert each entry in assessment['pending_supplements']. Returns
     (any_failure, failure_messages)."""
@@ -221,7 +225,7 @@ def _convert_pending_supplements(
     for ref_file in assessment.get("pending_supplements") or []:
         success, error = _convert_pending_pdf(
             db, job_id, reference_id, reference_curie,
-            ref_file, "converted_merged_supplement", get_token(),
+            ref_file, "converted_merged_supplement",
         )
         if not success:
             any_failure = True
@@ -292,22 +296,11 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
         reference = get_reference(db, str(reference_id), load_referencefiles=True)
         assessment = _assess_reference(db, reference, overwrite_tei_md=overwrite_tei_md)
 
-        # Lazily fetch the PDFX token: we only need it when there's at
-        # least one pending PDF source (main or supplement). nXML-only
-        # conversions skip this.
-        cached_token: Dict[str, str] = {}
-
-        def get_token() -> str:
-            if "token" not in cached_token:
-                from agr_cognito_py import get_admin_token
-                cached_token["token"] = get_admin_token()
-            return cached_token["token"]
-
         main_failure, main_errors = _convert_pending_main(
-            db, job_id, reference_id, reference_curie, assessment, get_token,
+            db, job_id, reference_id, reference_curie, assessment,
         )
         supp_failure, supp_errors = _convert_pending_supplements(
-            db, job_id, reference_id, reference_curie, assessment, get_token,
+            db, job_id, reference_id, reference_curie, assessment,
         )
         office_failure, office_errors = _convert_pending_office_supplements(
             db, job_id, reference_id, reference_curie, assessment,

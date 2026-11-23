@@ -78,7 +78,7 @@ class TestConversionMethods:
                 patch(f"{UTILS}.process_extracted_images", return_value=(0, 0, [])), \
                 patch(f"{UTILS}.file_upload", side_effect=upload):
             success, methods, _ = pdf2md_utils._process_single_pdf_file(
-                db, pdf_file, "AGRKB:101", "token", ["grobid", "docling", "marker"])
+                db, pdf_file, "AGRKB:101", ["grobid", "docling", "marker"])
 
         assert success
         assert methods == ["docling", "marker"]
@@ -102,7 +102,7 @@ class TestExtractedImages:
                 patch(f"{UTILS}._upload_figure_metadata_sidecar"), \
                 patch(f"{UTILS}.file_upload", side_effect=upload):
             succeeded, failed, _ = pdf2md_utils.process_extracted_images(
-                db, "pid", "token", "supp", "supplement", "AGRKB:101", "FB")
+                db, "pid", "supp", "supplement", "AGRKB:101", "FB")
 
         assert (succeeded, failed) == (2, 1)
 
@@ -121,7 +121,7 @@ class TestSupplements:
         with patch(f"{UTILS}.is_eligible_for_supplement_conversion", return_value=True), \
                 patch(f"{UTILS}.pending_supplement_sources", return_value=supplements), \
                 patch(f"{UTILS}._process_single_pdf_file", side_effect=convert):
-            succeeded, failed, _ = pdf2md_utils.process_supplemental_pdfs(db, 1, "AGRKB:101", "token")
+            succeeded, failed, _ = pdf2md_utils.process_supplemental_pdfs(db, 1, "AGRKB:101")
 
         assert (succeeded, failed) == (1, 1)
 
@@ -135,7 +135,6 @@ def _run_main(db, jobs, convert, change_status):  # noqa
             patch.object(db, "query", side_effect=lambda *a, **k: mod_query), \
             patch(f"{MAIN}.get_jobs", side_effect=[jobs, []]), \
             patch(f"{MAIN}._resolve_workflow_ref_file_info", return_value=(ref_file_info, None)), \
-            patch(f"{MAIN}.get_admin_token", return_value="token"), \
             patch(f"{MAIN}.process_single_reference", side_effect=convert), \
             patch(f"{MAIN}.job_change_atp_code", side_effect=change_status), \
             patch(f"{MAIN}._build_workflow_error_record", side_effect=_error_record), \
@@ -158,7 +157,7 @@ class TestMainLoop:
         # fail on its own, the run must reach the end, and the report must go out.
         status_updates = []
 
-        def convert(db, info, token, **kwargs):  # noqa
+        def convert(db, info, **kwargs):  # noqa
             if not status_updates:
                 _fail_inside_transaction(db)
             return True, None
@@ -190,7 +189,7 @@ class TestMainLoop:
                 raise HTTPException(status_code=422, detail="transition action failed")
             db.commit()
 
-        report = _run_main(db, _jobs(1), lambda db, info, token, **kwargs: (True, None), change_status)
+        report = _run_main(db, _jobs(1), lambda db, info, **kwargs: (True, None), change_status)
 
         committed = db.execute(text("SELECT full_name FROM mod WHERE id = :i"), {"i": row_id}).scalar()
         assert committed == "before"
