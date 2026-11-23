@@ -162,6 +162,67 @@ class TestCreate:
         assert create.call_args.args[1].created_by == "some_classification_pipeline"
 
 
+class TestBatch:
+    """SCRUM-4141: POST /topic_entity_tag/batch checks every change's MOD before writing."""
+
+    def _post(self, client, user, body, source_mod="FB", tag_mod="FB"):
+        _as(user)
+        tag = MagicMock()
+        tag.tag_source.secondary_data_provider.abbreviation = tag_mod
+        db = MagicMock()
+        db.get.return_value = tag
+        app.dependency_overrides[database.get_db] = lambda: db
+        with patch.object(router, "_source_mod", return_value=source_mod), \
+                patch.object(router.topic_entity_tag_crud, "apply_tag_batch",
+                             return_value={"reference_curie": TAG["reference_curie"], "created": [1],
+                                           "updated": 0, "deleted": 0}) as apply:
+            response = client.post("/topic_entity_tag/batch", json=body)
+        return response, apply
+
+    def test_curator_of_the_mod_may_write(self, client):
+        response, apply = self._post(client, _curator("FlyBaseCurator"),
+                                     {"reference_curie": TAG["reference_curie"], "create": [TAG], "delete": [5]})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["created"] == [1]
+        apply.assert_called_once()
+
+    def test_batch_refuses_other_mod_create(self, client):
+        response, apply = self._post(client, _curator("WormBaseCurator"),
+                                     {"reference_curie": TAG["reference_curie"], "create": [TAG]}, tag_mod="WB")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"]["change"] == {"kind": "create", "index": 0}
+        apply.assert_not_called()
+
+    def test_batch_refuses_other_mod_delete(self, client):
+        response, apply = self._post(client, _curator("WormBaseCurator"),
+                                     {"reference_curie": TAG["reference_curie"], "delete": [5]},
+                                     source_mod="WB", tag_mod="FB")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"]["change"] == {"kind": "delete", "index": 0}
+        apply.assert_not_called()
+
+    def test_batch_refuses_other_mod_update(self, client):
+        response, apply = self._post(client, _curator("WormBaseCurator"),
+                                     {"reference_curie": TAG["reference_curie"],
+                                      "update": [{"topic_entity_tag_id": 5, "changes": {"negated": True}}]},
+                                     source_mod="WB", tag_mod="FB")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"]["change"] == {"kind": "update", "index": 0}
+        apply.assert_not_called()
+
+    def test_person_created_by_is_resolved_strictly(self, client):
+        _as(SERVICE)
+        with patch.object(router, "_source_mod", return_value="FB"), \
+                patch.object(router.topic_entity_tag_crud, "apply_tag_batch",
+                             return_value={"reference_curie": TAG["reference_curie"], "created": [1],
+                                           "updated": 0, "deleted": 0}) as apply, \
+                patch.object(router, "resolve_named_person", return_value=CURATOR_AGENT):
+            response = client.post("/topic_entity_tag/batch", json={
+                "reference_curie": TAG["reference_curie"], "create": [{**TAG, "created_by": "curator@example.org"}]})
+        assert response.status_code == status.HTTP_200_OK
+        assert apply.call_args.args[1].create[0].created_by == CURATOR_AGENT[1]
+
+
 class TestValidate:
 
     def test_curator_of_another_mod_is_403(self, client):
