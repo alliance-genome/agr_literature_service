@@ -43,6 +43,8 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     process_supplemental_office_files,
     process_supplemental_pdfs,
     pdfx_upload_order,
+    store_pdfx_page_provenance,
+    page_provenance_counts,
     source_mod_abbreviation,
     sync_converted_file_mods_to_sources,
     upload_pdfx_markdown,
@@ -211,6 +213,13 @@ def get_unprocessed_pdfs_since_year(
     return results
 
 
+def _page_provenance_summary() -> str:
+    """PDFX page maps of this run (SCRUM-6977), from page_provenance_counts."""
+    return (f"PDFX page maps: stored {page_provenance_counts['stored']}, "
+            f"already stored {page_provenance_counts['already_stored']}, "
+            f"missed {page_provenance_counts['missed']}")
+
+
 def _process_reference_list(  # pragma: no cover
     db: Session,
     reference_list: List[Dict],
@@ -245,6 +254,7 @@ def _process_reference_list(  # pragma: no cover
     failure_count = 0
     objects_with_errors: List[Dict] = []
     ref_times: List[float] = []
+    page_provenance_counts.clear()
 
     for idx, ref_file_info in enumerate(reference_list, 1):
         ref_start_time = time.time()
@@ -288,6 +298,7 @@ def _process_reference_list(  # pragma: no cover
     logger.info(f"Total references processed: {total_count}")
     logger.info(f"Successful: {success_count}")
     logger.info(f"Failed: {failure_count}")
+    logger.info(_page_provenance_summary())
     logger.info("-" * 60)
     logger.info("Timing Statistics:")
     logger.info(f"  Total time: {total_elapsed:.2f}s ({total_elapsed / 60:.2f} minutes)")
@@ -299,7 +310,8 @@ def _process_reference_list(  # pragma: no cover
     # Send error report if there were failures
     if objects_with_errors:
         error_message = f"Reference to Markdown Conversion Errors{summary_suffix}\n\n"
-        error_message += f"Total: {total_count}, Success: {success_count}, Failed: {failure_count}\n\n"
+        error_message += f"Total: {total_count}, Success: {success_count}, Failed: {failure_count}\n"
+        error_message += f"{_page_provenance_summary()}\n\n"
         error_message += f"Total time: {total_elapsed:.2f}s, Avg per reference: {avg_time:.2f}s\n\n"
         error_message += "Failed conversions:\n"
         for error_obj in objects_with_errors:
@@ -423,6 +435,8 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
         poll_pdfx_status(process_id)
 
         successful_methods = []
+        merged_file: Optional[ReferencefileModel] = None
+        merged_markdown: Optional[bytes] = None
         for method in pdfx_upload_order(methods_to_extract):
             try:
                 markdown_content = download_pdfx_result(process_id, method)
@@ -431,8 +445,10 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
                     logger.warning(f"Empty or minimal content for {method} on {reference_curie}")
                     continue
 
-                upload_pdfx_markdown(db, reference_curie, display_name, method, EXTRACTION_METHODS[method],
-                                     markdown_content, mod_abbreviation)
+                stored = upload_pdfx_markdown(db, reference_curie, display_name, method,
+                                              EXTRACTION_METHODS[method], markdown_content, mod_abbreviation)
+                if method == "merged":
+                    merged_file, merged_markdown = stored, markdown_content
 
                 successful_methods.append(method)
                 logger.info(f"Uploaded {method} markdown for {reference_curie}")
@@ -440,6 +456,11 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             except Exception as e:
                 recover_session(db, e)
                 logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+        store_pdfx_page_provenance(db, process_id, reference_curie=reference_curie,
+                                   merged_file=merged_file, merged_markdown=merged_markdown,
+                                   pdf_content=file_content, source_file_class="main",
+                                   mod_abbreviation=mod_abbreviation)
 
         # Always attempt image extraction after the Markdown outputs. Failures
         # here are reported but do not flip the per-file success — the
@@ -922,6 +943,7 @@ def main(  # pragma: no cover
         failure_count = 0
         skipped_count = 0
         ref_times: List[float] = []
+        page_provenance_counts.clear()
 
         for idx, job in enumerate(all_jobs, 1):
             ref_start_time = time.time()
@@ -1008,6 +1030,7 @@ def main(  # pragma: no cover
         logger.info(f"Successful: {success_count}")
         logger.info(f"Failed: {failure_count}")
         logger.info(f"Skipped (no nXML or main PDF): {skipped_count}")
+        logger.info(_page_provenance_summary())
         logger.info("-" * 60)
         logger.info("Timing Statistics:")
         logger.info(f"  Total time: {total_elapsed:.2f}s ({total_elapsed / 60:.2f} minutes)")
@@ -1020,7 +1043,8 @@ def main(  # pragma: no cover
         if objects_with_errors:
             error_message = "Reference to Markdown Conversion Errors (Workflow Mode)\n\n"
             error_message += f"Total: {total_count}, Success: {success_count}, "
-            error_message += f"Failed: {failure_count}, Skipped: {skipped_count}\n\n"
+            error_message += f"Failed: {failure_count}, Skipped: {skipped_count}\n"
+            error_message += f"{_page_provenance_summary()}\n\n"
             error_message += f"Total time: {total_elapsed:.2f}s, Avg per reference: {avg_time:.2f}s\n\n"
             error_message += "Failed conversions:\n"
             for error_obj in objects_with_errors:

@@ -736,6 +736,64 @@ class TestConvertedEndpoint:
                 assert entry["error"] == "pdfx 500"
 
 
+class TestPageProvenanceLinks:
+    """SCRUM-6977: PDFX's page map (JSON, same display_name as the merged
+    Markdown) is linked from the conversion response and from show_all."""
+
+    @staticmethod
+    def _paper(db, curie):  # noqa: F811
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_pp_pdf", pdf_type="pdf")
+        _make_referencefile(db, curie, "paper_merged", "converted_merged_main", "md", "md5_pp_md")
+        _make_referencefile(db, curie, "supp", "supplement", "pdf", "md5_pp_supp")
+        _make_referencefile(db, curie, "supp_merged", "converted_merged_supplement", "md", "md5_pp_supp_md")
+        main_map = _make_referencefile(db, curie, "paper_merged", "converted_page_provenance_main",
+                                       "json", "md5_pp_json")
+        supp_map = _make_referencefile(db, curie, "supp_merged", "converted_page_provenance_supplement",
+                                       "json", "md5_pp_supp_json")
+        return main_map, supp_map
+
+    def test_conversion_response_names_each_page_map(self, db, test_reference, auth_headers):  # noqa: F811
+        main_map, supp_map = self._paper(db, test_reference.new_ref_curie)
+        with TestClient(app) as client:
+            response = client.get(
+                url=f"/reference/referencefile/conversion_request/{test_reference.new_ref_curie}",
+                headers=auth_headers,
+            )
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "converted"
+        by_name = {e["converted"]["display_name"]: e["converted"] for e in body["per_file_progress"]}
+        assert by_name["paper_merged"]["page_provenance_referencefile_id"] == main_map
+        assert by_name["supp_merged"]["page_provenance_referencefile_id"] == supp_map
+        # the page maps are not converted files of their own
+        assert len(body["per_file_progress"]) == 2
+
+    def test_markdown_without_page_map_has_none(self, db, test_reference, auth_headers):  # noqa: F811
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "nxml_source", "nXML", "xml", "md5_pp_nxml")
+        _make_referencefile(db, curie, "nxml_source_nxml", "converted_merged_main", "md", "md5_pp_nxml_md")
+        with TestClient(app) as client:
+            response = client.get(url=f"/reference/referencefile/conversion_request/{curie}",
+                                  headers=auth_headers)
+        converted = response.json()["per_file_progress"][0]["converted"]
+        assert converted["display_name"] == "nxml_source_nxml"
+        assert converted["page_provenance_referencefile_id"] is None
+
+    def test_show_all_gives_each_page_map_its_source_pdf(self, db, test_reference, auth_headers):  # noqa: F811
+        main_map, supp_map = self._paper(db, test_reference.new_ref_curie)
+        with TestClient(app) as client:
+            response = client.get(
+                url=f"/reference/referencefile/show_all/{test_reference.new_ref_curie}",
+                headers=auth_headers,
+            )
+        assert response.status_code == status.HTTP_200_OK
+        by_id = {f["referencefile_id"]: f for f in response.json()}
+        assert by_id[main_map]["source"]["display_name"] == "paper"
+        assert by_id[main_map]["source"]["file_class"] == "main"
+        assert by_id[supp_map]["source"]["display_name"] == "supp"
+        assert by_id[supp_map]["source"]["file_class"] == "supplement"
+
+
 # ---------------------------------------------------------------------------
 # Office supplements (SCRUM-6589): xlsx / docx convert in-process, the
 # converted row is ``{display_name}_{extension}``.
