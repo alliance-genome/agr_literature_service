@@ -3,11 +3,14 @@
 These drive the crud functions directly against a temporary LOG_PATH, so they
 need no database and no running API.
 """
+from datetime import date
+
 import pytest
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud import check_crud
 from agr_literature_service.api.crud.check_crud import DATESTAMP_RE
+from agr_literature_service.lit_processing.data_check.report_stuck_file_upload import report_lines, write_report
 
 
 def _write(directory, name, datestamp, rows):
@@ -299,3 +302,29 @@ class TestRejectedAndMissingRequests:
         with pytest.raises(HTTPException) as excinfo:
             check_crud.check_duplicate_orcids()
         assert excinfo.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestStuckFileUploadReport:
+    """The report written by report_stuck_file_upload reads back through the API (SCRUM-6941)."""
+
+    @pytest.fixture
+    def written_by_the_job(self, tmp_path, monkeypatch):
+        (tmp_path / "QC").mkdir()
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        row = {"curie": "AGRKB:101000001193283", "pmid": "PMID:40632140", "pmcid": None,
+               "since": date(2025, 7, 16), "days": 495, "nxml": 1, "final_main_pdf": 0,
+               "temp_main_pdf": 0, "supplements": 2, "figures": 4, "other": 0}
+        write_report(report_lines("FB", [row]))
+        return date.today().strftime("%Y%m%d")
+
+    def test_rows_are_grouped_by_mod(self, written_by_the_job):
+        result = check_crud.check_stuck_file_upload()
+        assert result["date-produced"] == written_by_the_job
+        assert result["stuck_file_upload"] == {"FB": [{
+            "reference_curie": "AGRKB:101000001193283", "pmid": "PMID:40632140", "pmcid": "",
+            "since": "2025-07-16", "days": "495", "has_nxml": "Y", "files": "nXML, 2 supplements, 4 figures",
+        }]}
+
+    def test_its_runs_are_listed(self, written_by_the_job):
+        assert check_crud.list_qc_report_dates("stuck_file_upload") == [written_by_the_job]
+        assert check_crud.check_stuck_file_upload(written_by_the_job)["stuck_file_upload"]["FB"]

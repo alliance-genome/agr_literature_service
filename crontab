@@ -24,6 +24,7 @@ BASH_ENV=/container.env
 0 0 18 * * /usr/local/bin/run_cron_job.sh remove_obsolete_pubmed_types python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/remove_obsolete_pubmed_types.py
 0 21 18 * * /usr/local/bin/run_cron_job.sh report_duplicate_orcid_in_reference python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_duplicate_orcid_in_reference.py
 0 22 18 * * /usr/local/bin/run_cron_job.sh report_and_fix_obsolete_pmids python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_and_fix_obsolete_pmids.py
+0 21 21 * * /usr/local/bin/run_cron_job.sh report_stuck_file_upload python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_stuck_file_upload.py
 0 2 7 * * /usr/local/bin/run_cron_job.sh report_obsolete_entities python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_entities.py
 0 0 20 * * /usr/local/bin/run_cron_job.sh report_retracted_papers_with_tags python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_retracted_papers_with_tags.py
 0 0 7 * * /usr/local/bin/run_cron_job.sh report_obsolete_disappeared_atp_ids python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_atp_ids.py

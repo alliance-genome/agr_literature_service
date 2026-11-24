@@ -7,7 +7,7 @@ import shutil
 import tarfile
 import tempfile
 from itertools import count
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from urllib.parse import quote
 
 import boto3  # type: ignore
@@ -232,6 +232,23 @@ _SOURCE_FILE_CLASSES_FOR_CONVERTED: dict = {}
 for _src_cls, _conv_cls in _CONVERTED_FILE_CLASS_FOR_SOURCE.items():
     _SOURCE_FILE_CLASSES_FOR_CONVERTED.setdefault(_conv_cls, set()).add(_src_cls)
 
+# SCRUM-6977: the class of PDFX's page map of a merged Markdown, by the class of
+# the source PDF. This is the one definition; the mappings below and
+# pdf2md_utils and file_conversion_crud derive from it.
+PAGE_PROVENANCE_FILE_CLASSES: Dict[str, str] = {
+    "main": "converted_page_provenance_main",
+    "supplement": "converted_page_provenance_supplement",
+}
+# merged Markdown class -> the class of its page map
+PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED: Dict[str, str] = {
+    f"converted_merged_{source_class}": page_map_class
+    for source_class, page_map_class in PAGE_PROVENANCE_FILE_CLASSES.items()
+}
+# A page map shares its Markdown's display_name ({source}_merged), so it
+# resolves to the same source PDF.
+for _src_cls, _page_map_cls in PAGE_PROVENANCE_FILE_CLASSES.items():
+    _SOURCE_FILE_CLASSES_FOR_CONVERTED[_page_map_cls] = {_src_cls}
+
 
 def _source_dict(rf: ReferencefileModel) -> dict:
     return {
@@ -251,6 +268,8 @@ def _find_source_for_derived(ref_file: ReferencefileModel, all_files: List[Refer
       (precomputed in ``embedding_source_by_id``: parquet rf id -> source rf).
     - converted_merged_* md -> its source PDF/nXML, via the display-name
       suffix convention (reverse of _find_converted_derived_for_source).
+    - converted_page_provenance_* json -> the source PDF of the merged md it
+      describes, by the same convention (SCRUM-6977).
     Returns the source dict or None when it can't be resolved (e.g. figures,
     source deleted, or convention miss) -- ``source`` is nullable by design.
     """
@@ -475,6 +494,20 @@ def patch(db: Session, referencefile_id: int, request):
     return {"message": messageEnum.updated}
 
 
+def _page_provenance_files_of(db: Session, referencefile: ReferencefileModel) -> List[ReferencefileModel]:
+    """The page maps stored for a merged Markdown row: JSON rows of the matching
+    page-map class with the Markdown's display_name. Empty for any other row."""
+    page_map_class = PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED.get(referencefile.file_class)
+    if page_map_class is None or referencefile.file_extension != "md":
+        return []
+    return db.query(ReferencefileModel).filter(
+        ReferencefileModel.reference_id == referencefile.reference_id,
+        ReferencefileModel.display_name == referencefile.display_name,
+        ReferencefileModel.file_class == page_map_class,
+        ReferencefileModel.file_extension == "json",
+    ).all()
+
+
 def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
     reference_id = referencefile.reference_id
@@ -491,6 +524,11 @@ def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
         # circular import: embedding_file_crud imports this module.)
         from agr_literature_service.api.crud.embedding_file_crud import delete_embeddings_for_source
         delete_embeddings_for_source(db, referencefile.referencefile_id)
+        # PDFX's page map of a merged Markdown (SCRUM-6977) describes only that
+        # Markdown: it goes with it, so a later Markdown of the same name is never
+        # paired with it.
+        for page_map in _page_provenance_files_of(db, referencefile):
+            remove_from_s3_and_db(db, page_map)
         remove_from_s3_and_db(db, referencefile)
     elif mod_access != ModAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:
