@@ -850,6 +850,26 @@ class TestDryRun:
         assert conversion_manager.get_active_job_for_reference(reference_id) is None
         assert conversion_manager.get_last_job_for_reference(reference_id).job_id == failed.job_id
 
+    def test_failure_in_hold_would_start_when_only_inline_work_is_left(
+            self, db, test_reference, auth_headers):  # noqa: F811
+        """Inside the hold, a request whose remaining work is Office only converts
+        it inline without checking the hold, so would_start is true."""
+        curie = test_reference.new_ref_curie
+        failed = self._failed_job(db, curie, "md5_dry_inline_pdf")
+        _make_referencefile(db, curie, "paper_merged", "converted_merged_main", "md", "md5_dry_inline_md")
+        _make_referencefile(db, curie, "table_s1", "supplement", "xlsx", "md5_dry_inline_xlsx")
+        with patch(f"{CRUD_MOD}.process_office_to_markdown") as convert_office, \
+                patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "failed"
+        assert body["failure_reason"] == "conversion_failed"
+        assert body["would_start"] is True
+        assert body["job_id"] == failed.job_id
+        convert_office.assert_not_called()
+        run_job.assert_not_called()
+
     def test_worker_gone_is_reported_as_failed_not_restarted(
             self, db, test_reference, auth_headers):  # noqa: F811
         curie = test_reference.new_ref_curie

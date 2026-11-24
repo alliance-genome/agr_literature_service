@@ -294,7 +294,8 @@ def get_converted(curie_or_reference_id: str,
     (24 hours from the job's start), not only for the hour in which a request
     would report it instead of converting again, and also when the job's
     worker exited (a request would restart that at once). ``would_start``
-    says whether a request without ``retry`` would start a job now.
+    says whether a request without ``retry`` would start converting now (in a
+    job, or inline for nXML and Office files).
     ``wait`` and ``retry`` are ignored. Nothing is converted or started, and
     no rows, file MODs or ``text_convert_job`` tags are written (a request
     syncs those when everything is converted); as with any read, a job whose

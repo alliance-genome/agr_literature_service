@@ -889,6 +889,18 @@ def _job_error_detail(job: Optional[ConversionJob]) -> str:
     return "; ".join(errors)
 
 
+def _converts_inline(assessment: Dict[str, Any]) -> bool:
+    """Whether a conversion request converts what is left inline, without a job:
+    nothing pending needs PDFX (the pending main is at most the nXML, the
+    pending supplements are Office files only), and something is pending. Such a
+    request never checks the failed-job hold."""
+    pending_main = assessment.get("pending_main") or []
+    return (
+        not assessment["needs_async"]
+        and (bool(pending_main) or bool(assessment.get("pending_office_supplements")))
+    )
+
+
 def _has_no_sources(assessment: Dict[str, Any]) -> bool:
     """The reference has nothing a conversion could start from."""
     return (
@@ -910,8 +922,9 @@ def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str
     the job manager.
 
     ``would_start`` says whether a conversion request without ``retry`` would
-    start a job now. It is decided by ``failure_is_held``, as ``start_job``
-    decides it, so the two cannot disagree.
+    start converting now, in a job or inline. It is decided by
+    ``_converts_inline`` and ``failure_is_held``, the checks a request makes,
+    so the two cannot disagree.
 
     - ``no_sources`` / ``converted``: nothing is left to convert;
       ``would_start`` is false.
@@ -920,7 +933,9 @@ def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str
       ``failure_reason`` is ``worker_exited`` when the API worker running it
       exited, and a request would restart it at once (``would_start`` true);
       otherwise it is ``conversion_failed``, and ``would_start`` is false for
-      an hour after the failure and true after that. A finished job is kept
+      an hour after the failure and true after that, except when what is
+      left converts inline (nXML or Office only), which a request does at
+      once. A finished job is kept
       for 24 hours after it started.
     - ``not_converted``: something is left to convert and no job has failed
       on it; ``per_file_progress`` lists each such source as ``pending``, and
@@ -950,7 +965,8 @@ def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str
             error_message=_job_error_detail(recent_job) or "Conversion failed",
             job=recent_job, overwrite_tei_md=overwrite_tei_md,
             failure_reason=FAILURE_WORKER_EXITED if worker_exited else FAILURE_CONVERSION_FAILED,
-            would_start=not failure_is_held(recent_job),
+            # a request converting inline never checks the hold
+            would_start=_converts_inline(assessment) or not failure_is_held(recent_job),
         )
     return status.HTTP_200_OK, _status_payload(
         db, reference, status_str=STATUS_NOT_CONVERTED, converted_classes=converted_classes,
@@ -1054,12 +1070,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
     # at most the nXML and the pending supplements are Office files only —
     # the conversions are fast enough to run inline (nXML and xlsx / docx
     # both convert in-process).
-    pending_main = assessment.get("pending_main") or []
-    sync_only = (
-        not assessment["needs_async"]
-        and (bool(pending_main) or bool(assessment.get("pending_office_supplements")))
-    )
-    if sync_only:
+    if _converts_inline(assessment):
         success, error = _execute_sync_conversions(db, reference, assessment)
         if not success:
             return status.HTTP_200_OK, _status_payload(

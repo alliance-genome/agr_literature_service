@@ -109,7 +109,8 @@ class ConversionStatusResponseSchema(BaseModel):
         - ``conversion_failed`` — the conversion itself failed.
 
     ``would_start`` is set only with ``dry_run=true``: whether a conversion
-    request without ``retry`` would start a job now.
+    request without ``retry`` would start converting now (in a job, or
+    inline for nXML and Office files).
     """
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
