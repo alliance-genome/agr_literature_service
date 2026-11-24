@@ -32,17 +32,54 @@ MERGED = b"# Title\n\nFirst page text.\n\nSecond page text.\n"
 PARSER = b"# Title\n\nparser output that differs\n"
 
 
-def _page_map(merged=MERGED, pdf=PDF, **overrides):
-    payload = {
-        "schema": "pdfx-merged-page-provenance",
-        "pdf_sha256": hashlib.sha256(pdf).hexdigest(),
-        "merged_markdown_sha256": hashlib.sha256(merged).hexdigest(),
-        "merged_markdown_size_bytes": len(merged),
-        "ranges": [{"byte_start": 0, "byte_end": 27, "page": 1},
-                   {"byte_start": 27, "byte_end": len(merged), "page": 2}],
+def _sha256(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def _canonical_json(value):
+    """PDFX's canonical JSON (app/services/page_provenance.py)."""
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _range(byte_start, byte_end, page_number, method):
+    return {
+        "byte_start": byte_start,
+        "byte_end": byte_end,
+        "page_number": page_number,
+        "candidate_pages": [page_number],
+        "method": method,
+        "source": "grobid",
+        "operation": None,
+        "evidence_digest": _sha256(f"evidence {byte_start}".encode()),
+        "range_id": _sha256(f"range {byte_start}".encode()),
     }
-    payload.update(overrides)
-    return json.dumps(payload, sort_keys=True).encode() + b"\n"
+
+
+def _page_map(merged=MERGED, pdf=PDF, **overrides):
+    """A page map shaped like PDFX's merged-page-provenance-v1 file: every field
+    of the contract, ranges that partition the Markdown, and a record_sha256 over
+    the rest. ABC checks only schema, pdf_sha256, merged_markdown_sha256 and
+    merged_markdown_size_bytes; the other fields are here to document the file
+    and to show they are stored unchanged."""
+    first_page_end = len(b"# Title\n\nFirst page text.\n\n")
+    core = {
+        "schema": "pdfx-merged-page-provenance",
+        "contract_version": "merged-page-provenance-v1",
+        "pdf_sha256": _sha256(pdf),
+        "merged_markdown_sha256": _sha256(merged),
+        "merged_markdown_size_bytes": len(merged),
+        "audit_sha256": _sha256(b"audit"),
+        "merge_contract_id": "merge-contract-v1",
+        "source_map_sha256": {"grobid": _sha256(b"grobid source map")},
+        "expected_page_count": 2,
+        "ranges": [_range(0, first_page_end, 1, "direct"),
+                   _range(first_page_end, len(merged), 2, "llm_selected")],
+        "summary": {"range_counts_by_method": {"direct": 1, "llm_selected": 1}},
+        "llm_receipts": [],
+    }
+    core.update(overrides)
+    payload = {**core, "record_sha256": _sha256(_canonical_json(core))}
+    return _canonical_json(payload) + b"\n"
 
 
 class TestPageProvenanceMismatch:
@@ -59,6 +96,13 @@ class TestPageProvenanceMismatch:
 
     def test_other_pdf_is_refused(self):
         assert "different PDF" in page_provenance_mismatch(_page_map(), MERGED, b"%PDF other")
+
+    def test_other_schema_is_refused(self):
+        page_map = _page_map(schema="pdfx-source-page-provenance")
+        assert "schema" in page_provenance_mismatch(page_map, MERGED, PDF)
+        no_schema = json.loads(_page_map())
+        del no_schema["schema"]
+        assert "schema" in page_provenance_mismatch(json.dumps(no_schema).encode(), MERGED, PDF)
 
     def test_not_json_is_refused(self):
         assert "not JSON" in page_provenance_mismatch(b"<html>error</html>", MERGED, PDF)
@@ -112,9 +156,14 @@ def _files(db, reference):  # noqa
 
 
 def test_conversion_stores_the_page_map_next_to_the_merged_markdown(db, paper):  # noqa
-    success, methods, error = _convert(db, {"merged": MERGED, "grobid": PARSER,
-                                            "page_provenance": _page_map()})
+    pdf2md_utils.page_provenance_counts.clear()
+    with patch(f"{UTILS}.has_page_provenance", wraps=pdf2md_utils.has_page_provenance) as has_map:
+        success, methods, error = _convert(db, {"merged": MERGED, "grobid": PARSER,
+                                                "page_provenance": _page_map()})
     assert (success, error) == (True, None)
+    # the stored map is looked up once per conversion, not again by store_page_provenance
+    assert has_map.call_count == 1
+    assert pdf2md_utils.page_provenance_counts == {"stored": 1}
     assert _files(db, paper) == [
         ("paper_grobid", "converted_grobid_main", "md"),
         ("paper_merged", "converted_merged_main", "md"),
@@ -123,6 +172,7 @@ def test_conversion_stores_the_page_map_next_to_the_merged_markdown(db, paper): 
     stored = db.query(ReferencefileModel).filter_by(file_class="converted_page_provenance_main").one()
     # stored unchanged
     assert stored.md5sum == hashlib.md5(_page_map()).hexdigest()
+    assert json.loads(_page_map())["ranges"][1]["method"] == "llm_selected"
 
 
 def test_supplement_page_map_uses_the_supplement_class(db, paper):  # noqa
@@ -140,9 +190,15 @@ def test_a_page_map_for_other_markdown_is_not_stored_and_the_conversion_succeeds
 
 
 def test_a_failed_page_map_download_does_not_fail_the_conversion(db, paper):  # noqa
+    pdf2md_utils.page_provenance_counts.clear()
     # outputs has no page_provenance, so its download raises KeyError
-    success, methods, error = _convert(db, {"merged": MERGED, "grobid": PARSER})
+    with patch(f"{UTILS}.logger") as log:
+        success, methods, error = _convert(db, {"merged": MERGED, "grobid": PARSER})
     assert (success, error) == (True, None)
+    assert pdf2md_utils.page_provenance_counts == {"missed": 1}
+    # the PDFX job is named, so the map can be fetched again later
+    errors = [str(c.args[0]) for c in log.error.call_args_list]
+    assert any("Failed to store PDFX page map" in e and "process_id=pid" in e for e in errors)
     assert ("paper_merged", "converted_merged_main", "md") in _files(db, paper)
     assert [f for f in _files(db, paper) if f[2] == "json"] == []
 
@@ -208,6 +264,19 @@ def test_deleting_the_merged_markdown_deletes_its_page_map(db, paper):  # noqa
     remaining = _files(db, paper)
     assert ("paper_merged", "converted_page_provenance_main", "json") not in remaining
     assert ("paper_grobid", "converted_grobid_main", "md") in remaining
+
+
+def test_deleting_the_reference_deletes_the_markdown_and_its_page_map(db, paper):  # noqa
+    """Deleting a merged Markdown deletes its page map too, so deleting the whole
+    reference must not stop with a 404 when it reaches the page map."""
+    from agr_literature_service.api.crud import reference_crud
+    _convert(db, {"merged": MERGED, "grobid": PARSER, "page_provenance": _page_map()})
+    reference_id = paper.reference_id
+    assert len(_files(db, paper)) == 3
+    with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"):
+        reference_crud.destroy(db, CURIE)
+    assert db.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none() is None
+    assert db.query(ReferencefileModel).filter_by(reference_id=reference_id).count() == 0
 
 
 def test_deleting_another_file_keeps_the_page_map(db, paper):  # noqa

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from agr_cognito_py import MOD_ACCESS_ABBR, ModAccess
 from agr_literature_service.api.crud.reference_utils import get_reference
+from agr_literature_service.api.crud.referencefile_crud import PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED
 from agr_literature_service.api.crud.referencefile_utils import remove_from_s3_and_db
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
 from agr_literature_service.api.utils.conversion_job_manager import ConversionJob, conversion_manager
@@ -578,23 +579,17 @@ def _attach_figures(reference: ReferenceModel,
         )
 
 
-# converted Markdown class -> the class of PDFX's page map for it (SCRUM-6977).
-# Kept in sync with PAGE_PROVENANCE_FILE_CLASSES in pdf2md_utils.
-_PAGE_PROVENANCE_FILE_CLASS_FOR_CONVERTED: Dict[str, str] = {
-    "converted_merged_main": "converted_page_provenance_main",
-    "converted_merged_supplement": "converted_page_provenance_supplement",
-}
-
-
 def _attach_page_provenance(reference: ReferenceModel,
                             progress: List[Dict[str, Any]]) -> None:
     """Mutate ``progress`` in place: set ``page_provenance_referencefile_id``
     on each converted Markdown entry that has a stored PDFX page map, the JSON
-    row with the Markdown's display_name in the matching page-map class."""
+    row with the Markdown's display_name in the matching page-map class.
+    Paired by name only: the consumer checks the map's merged_markdown_sha256
+    and size against the Markdown it downloads."""
     page_map_ids = {
         (rf.display_name, rf.file_class): int(rf.referencefile_id)
         for rf in reference.referencefiles or []
-        if rf.file_class in _PAGE_PROVENANCE_FILE_CLASS_FOR_CONVERTED.values()
+        if rf.file_class in PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED.values()
         and rf.file_extension == "json"
         and rf.file_publication_status == "final"
     }
@@ -602,7 +597,7 @@ def _attach_page_provenance(reference: ReferenceModel,
         converted = entry.get("converted")
         if not converted:
             continue
-        page_map_class = _PAGE_PROVENANCE_FILE_CLASS_FOR_CONVERTED.get(converted.get("file_class"))
+        page_map_class = PAGE_PROVENANCE_FILE_CLASS_FOR_MERGED.get(converted.get("file_class"))
         if page_map_class is not None:
             converted["page_provenance_referencefile_id"] = page_map_ids.get(
                 (converted.get("display_name"), page_map_class))

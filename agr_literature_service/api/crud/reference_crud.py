@@ -49,6 +49,7 @@ from agr_literature_service.api.models import (
     ObsoleteReferenceModel,
     ReferenceRelationModel,
     ReferenceModel,
+    ReferencefileModel,
     ResourceImagePermissionModel,
     ResourceModel,
     CopyrightLicenseModel,
@@ -518,8 +519,15 @@ def destroy(db: Session, curie_or_reference_id: str):
     if not reference:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
-    for referencefile in reference.referencefiles:
-        destroy_referencefile(db, referencefile.referencefile_id, ModAccess.ALL_ACCESS)
+    # Deleting one file can delete others of the reference with it (a merged
+    # Markdown's page map, the parquets of an embedding source), and each delete
+    # commits: go by the ids and skip a file that is already gone, or its
+    # destroy would 404 and leave the reference half deleted.
+    referencefile_ids = [referencefile.referencefile_id for referencefile in reference.referencefiles]
+    for referencefile_id in referencefile_ids:
+        if db.get(ReferencefileModel, referencefile_id) is None:
+            continue
+        destroy_referencefile(db, referencefile_id, ModAccess.ALL_ACCESS)
     db.delete(reference)
     db.commit()
 

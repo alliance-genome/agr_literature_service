@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import time
+from collections import Counter
 from io import BytesIO
 from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 from agr_abc_document_parsers import convert_office_to_markdown, convert_xml_to_markdown
 
 from agr_literature_service.api.crud.referencefile_crud import (
-    download_file, file_upload, find_first_available_display_name
+    PAGE_PROVENANCE_FILE_CLASSES, download_file, file_upload, find_first_available_display_name
 )
 from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum, remove_from_s3_and_db
 from agr_literature_service.api.crud.reference_utils import (
@@ -96,14 +97,17 @@ CONVERTED_FIGURE_METADATA_FILE_EXTENSION = "json"
 # download): byte ranges of the Markdown and the PDF page each one is on. Stored
 # unchanged as JSON with the same display_name as the merged Markdown it
 # describes (``{source}_merged``), so it pairs with that Markdown the way a
-# figure's metadata JSON pairs with its PNG. The classes end in _main /
+# figure's metadata JSON pairs with its PNG. The classes
+# (PAGE_PROVENANCE_FILE_CLASSES, defined in referencefile_crud) end in _main /
 # _supplement like the Markdown classes, so find_source_for_converted and
 # sync_converted_file_mods_to_sources treat the page map like its Markdown.
 PAGE_PROVENANCE_METHOD = "page_provenance"
-PAGE_PROVENANCE_FILE_CLASSES: Dict[str, str] = {
-    "main": "converted_page_provenance_main",
-    "supplement": "converted_page_provenance_supplement",
-}
+PAGE_PROVENANCE_SCHEMA = "pdfx-merged-page-provenance"
+# What store_pdfx_page_provenance did with each merged Markdown in this process:
+# ``stored``, ``already_stored`` or ``missed`` (no map, or one that does not
+# describe the Markdown). The batch job resets it per run and logs it in its
+# summary, to size a backfill or repair.
+page_provenance_counts: Dict[str, int] = Counter()
 PAGE_PROVENANCE_FILE_EXTENSION = "json"
 
 # PDFX manifest fields copied verbatim into each figure's metadata sidecar.
@@ -1564,6 +1568,8 @@ def page_provenance_mismatch(page_map: bytes, merged_markdown: bytes,
         return f"it is not JSON ({e})"
     if not isinstance(payload, dict):
         return "it is not a JSON object"
+    if payload.get("schema") != PAGE_PROVENANCE_SCHEMA:
+        return f"its schema is {payload.get('schema')!r}, not {PAGE_PROVENANCE_SCHEMA!r}"
     if payload.get("merged_markdown_sha256") != hashlib.sha256(merged_markdown).hexdigest() \
             or payload.get("merged_markdown_size_bytes") != len(merged_markdown):
         return "it describes a different merged Markdown"
@@ -1615,7 +1621,8 @@ def has_page_provenance(db: Session, merged_file: ReferencefileModel, merged_mar
 def store_page_provenance(db: Session, page_map: bytes, *, reference_curie: str,
                           merged_file: ReferencefileModel, merged_markdown: bytes,
                           pdf_content: bytes, source_file_class: str,
-                          mod_abbreviation: Optional[str]) -> bool:
+                          mod_abbreviation: Optional[str],
+                          check_existing: bool = True) -> bool:
     """
     Store PDFX's page map for a merged Markdown row unchanged, as JSON with the
     Markdown's display_name (SCRUM-6977). Returns False when that Markdown
@@ -1623,8 +1630,11 @@ def store_page_provenance(db: Session, page_map: bytes, *, reference_curie: str,
 
     Raises ValueError, and stores nothing, when the map does not describe this
     Markdown and PDF (see page_provenance_mismatch).
+
+    ``check_existing=False`` skips has_page_provenance, for a caller that has
+    just run it (it reads the stored map from S3).
     """
-    if has_page_provenance(db, merged_file, merged_markdown, source_file_class):
+    if check_existing and has_page_provenance(db, merged_file, merged_markdown, source_file_class):
         return False
     problem = page_provenance_mismatch(page_map, merged_markdown, pdf_content)
     if problem:
@@ -1659,24 +1669,30 @@ def store_pdfx_page_provenance(db: Session, process_id: str, *, reference_curie:
     """
     Download the page map of PDFX job ``process_id`` and store it next to the
     merged Markdown that job produced (SCRUM-6977). Does nothing when the job's
-    merged Markdown was not stored. Never raises: a missing page map is logged
-    and does not fail the conversion, since the Markdown is what callers need.
+    merged Markdown was not stored. Never raises: a missing page map is logged,
+    with the PDFX ``process_id`` to fetch it again, and does not fail the
+    conversion, since the Markdown is what callers need. Each outcome is counted
+    in ``page_provenance_counts``.
     """
     if merged_file is None or merged_markdown is None:
         return
+    display_name = merged_file.display_name
     try:
         if has_page_provenance(db, merged_file, merged_markdown, source_file_class):
+            page_provenance_counts["already_stored"] += 1
             return
         page_map = download_pdfx_result(process_id, PAGE_PROVENANCE_METHOD)
-        if store_page_provenance(db, page_map, reference_curie=reference_curie,
-                                 merged_file=merged_file, merged_markdown=merged_markdown,
-                                 pdf_content=pdf_content, source_file_class=source_file_class,
-                                 mod_abbreviation=mod_abbreviation):
-            logger.info(f"Stored PDFX page map for {merged_file.display_name} ({reference_curie})")
+        store_page_provenance(db, page_map, reference_curie=reference_curie,
+                              merged_file=merged_file, merged_markdown=merged_markdown,
+                              pdf_content=pdf_content, source_file_class=source_file_class,
+                              mod_abbreviation=mod_abbreviation, check_existing=False)
+        page_provenance_counts["stored"] += 1
+        logger.info(f"Stored PDFX page map for {display_name} ({reference_curie}, process_id={process_id})")
     except Exception as e:
         recover_session(db, e)
+        page_provenance_counts["missed"] += 1
         logger.error(f"Failed to store PDFX page map for {reference_curie} "
-                     f"({source_file_class} '{merged_file.display_name}'): {e}")
+                     f"({source_file_class} '{display_name}', process_id={process_id}): {e}")
 
 
 def _process_single_pdf_file(  # pragma: no cover

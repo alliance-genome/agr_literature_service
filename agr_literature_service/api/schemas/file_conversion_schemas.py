@@ -15,11 +15,14 @@ class ConversionFileInfo(BaseModel):
     # guessing display_name prefixes. None for non-figure rows or figures
     # whose sidecar is missing (e.g. extracted before the metadata feature).
     metadata_referencefile_id: Optional[int] = None
-    # For converted PDF Markdown rows: the referencefile_id of PDFX's page map
-    # for that Markdown (SCRUM-6977), a JSON file with the same display_name
-    # whose byte ranges give the PDF page of each part of the Markdown. None
-    # for other rows, for Markdown not converted from a PDF by PDFX, and for
-    # Markdown converted before ABC stored page maps.
+    # For converted PDF Markdown rows: the referencefile_id of the PDFX page map
+    # stored with that Markdown's display_name (SCRUM-6977), a JSON file whose
+    # byte ranges give the PDF page of each part of the Markdown. The two are
+    # paired by name only, and renaming, moving or merging files can separate
+    # them: before using the byte ranges, check that the map's
+    # merged_markdown_sha256 and merged_markdown_size_bytes match the Markdown
+    # you downloaded. None for other rows, for Markdown not converted from a
+    # PDF by PDFX, and for Markdown converted before ABC stored page maps.
     page_provenance_referencefile_id: Optional[int] = None
 
 
