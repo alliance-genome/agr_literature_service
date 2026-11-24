@@ -82,6 +82,7 @@ QC_REPORTS = {
     "redacted_references": "redacted_references_with_tags",
     "obsolete_pmids": "obsolete_pmid_report",
     "duplicate_orcids": "duplicate_orcid_report",
+    "stuck_file_upload": "stuck_file_upload_report",
 }
 
 # Explicit ASCII digits and fullmatch, not r'^\d{8}$': \d is Unicode-aware and
@@ -370,6 +371,39 @@ def check_duplicate_orcids(datestamp: Optional[str] = None):
     return {
         "date-produced": date_produced,
         "duplicate_orcids": dict(data)
+    }
+
+
+def check_stuck_file_upload(datestamp: Optional[str] = None):
+    """Papers left at "file upload in progress" (ATP:0000139), per MOD (SCRUM-6941).
+
+    Written by lit_processing/data_check/report_stuck_file_upload.py.
+    """
+    log_file = _resolve_qc_log("stuck_file_upload", datestamp)
+    date_produced = None
+    data = defaultdict(list)
+
+    with open(log_file, 'r') as f:
+        for line in f:
+            if DATE_PRODUCED_MARKER in line:
+                # Same permissive split as check_duplicate_orcids above.
+                date_produced = line.split(DATE_PRODUCED_MARKER, 1)[1].strip()
+            else:
+                pieces = line.rstrip('\n').split('\t')
+                if len(pieces) >= 8:
+                    data[pieces[0]].append({
+                        "reference_curie": pieces[1],
+                        "pmid": pieces[2],
+                        "pmcid": pieces[3],
+                        "since": pieces[4],
+                        "days": pieces[5],
+                        "has_nxml": pieces[6],
+                        "files": pieces[7]
+                    })
+
+    return {
+        "date-produced": date_produced,
+        "stuck_file_upload": dict(data)
     }
 
 

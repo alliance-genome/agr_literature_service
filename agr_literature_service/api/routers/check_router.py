@@ -73,6 +73,15 @@ def check_duplicate_orcids(
     return check_crud.check_duplicate_orcids(datestamp)
 
 
+@router.get('/check_stuck_file_upload',
+            status_code=200)
+def check_stuck_file_upload(
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    datestamp: Optional[str] = Query(None, description="Archived run to read, as YYYYMMDD. Omit for the latest report."),
+):
+    return check_crud.check_stuck_file_upload(datestamp)
+
+
 @router.get('/qc_report_dates/{report_key}',
             status_code=200)
 def qc_report_dates(
