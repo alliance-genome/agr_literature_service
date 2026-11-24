@@ -161,6 +161,17 @@ def _owner_alive(job: ConversionJob) -> bool:
     return _process_start_time(job.owner_pid) == job.owner_start_time
 
 
+def failure_is_held(job: ConversionJob, now: Optional[datetime] = None) -> bool:
+    """Whether a request without ``retry`` reports this job's failure instead of
+    starting another job: it failed, for any reason but its worker exiting, less
+    than FAILED_JOB_HOLD ago. Reads nothing and writes nothing; start_job and the
+    conversion endpoint's dry run both decide by it (SCRUM-6980)."""
+    if job.status != "failed" or job.error_message == WORKER_GONE_ERROR:
+        return False
+    now = now or datetime.utcnow()
+    return now - (job.completed_at or job.last_update) < FAILED_JOB_HOLD
+
+
 def _job_to_json(job: ConversionJob) -> Dict[str, Any]:
     data = asdict(job)
     for key in ("started_at", "completed_at", "last_update"):
@@ -313,9 +324,7 @@ class ConversionJobManager:
             if previous is not None:
                 previous = self._fail_if_owner_gone(previous)
             failed_before = previous is not None and previous.status == "failed"
-            if previous is not None and failed_before and not retry \
-                    and previous.error_message != WORKER_GONE_ERROR \
-                    and datetime.utcnow() - (previous.completed_at or previous.last_update) < FAILED_JOB_HOLD:
+            if previous is not None and not retry and failure_is_held(previous):
                 return previous, False
 
             pid = os.getpid()

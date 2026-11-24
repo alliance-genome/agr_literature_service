@@ -275,6 +275,9 @@ def get_converted(curie_or_reference_id: str,
       that are done so partial results can be consumed without waiting.
     - ``failed``: the most recent conversion attempt failed. See
       ``error_message`` and ``per_file_progress`` for details. HTTP 200.
+      ``failure_reason`` is ``worker_exited`` when the API worker running the
+      job exited (asking again restarts it) and ``conversion_failed`` when the
+      conversion itself failed.
       A PDF conversion that failed in the last hour keeps being reported as
       failed, without converting again, until ``retry=true`` is passed. A job
       whose API worker exited is restarted at once; ``previous_job_id`` then
@@ -288,11 +291,23 @@ def get_converted(curie_or_reference_id: str,
 
     With ``dry_run=true`` the other statuses mean the same, with these
     differences: ``failed`` is reported for as long as the failed job is kept
-    (24 hours), not only for the hour in which a request would report it
-    instead of converting again, and also when the job's worker exited (a
-    request would restart that at once). ``wait`` and ``retry`` are ignored,
-    and nothing is written: file MODs and ``text_convert_job`` tags are not
-    synced as a request does when everything is converted.
+    (24 hours from the job's start), not only for the hour in which a request
+    would report it instead of converting again, and also when the job's
+    worker exited (a request would restart that at once). ``would_start``
+    says whether a request without ``retry`` would start a job now.
+    ``wait`` and ``retry`` are ignored. Nothing is converted or started, and
+    no rows, file MODs or ``text_convert_job`` tags are written (a request
+    syncs those when everything is converted); as with any read, a job whose
+    worker has exited is recorded as failed.
+
+    Caveats for dry-run polling:
+    - Job state is kept in the API container (under /tmp), so a redeploy that
+      recreates the container forgets it: a job the redeploy killed is then
+      reported as ``not_converted`` rather than ``failed``.
+    - nXML and Office conversions run inline and leave no job, so their
+      failure is not remembered either: they show as ``not_converted``.
+    - A job that finishes while the request is being answered can show as
+      ``not_converted`` for one poll; read again before acting on it.
 
     Behavior:
     - If everything convertible already has a converted row, returns 200

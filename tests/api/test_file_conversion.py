@@ -13,11 +13,14 @@ the resulting file listing.
 Conversion primitives (process_nxml_to_markdown / process_pdf_for_reference) are
 mocked — the real ones would call PDFX and S3.
 """
-import pytest
+from datetime import timedelta
 from unittest.mock import patch, MagicMock
+
+import pytest
 
 import agr_literature_service.api.crud.referencefile_crud as referencefile_crud
 
+from agr_cognito_py import ModAccess
 from fastapi import HTTPException, status
 from starlette.testclient import TestClient
 
@@ -759,6 +762,8 @@ class TestDryRun:
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
         assert body["status"] == "not_converted"
+        assert body["would_start"] is True
+        assert body["failure_reason"] is None
         assert body["job_id"] is None
         assert len(body["per_file_progress"]) == 1
         entry = body["per_file_progress"][0]
@@ -793,28 +798,57 @@ class TestDryRun:
             response = client.get(url=self._url(curie), headers=auth_headers)
         assert response.status_code == status.HTTP_202_ACCEPTED
         assert response.json()["status"] == "running"
+        assert response.json()["would_start"] is False
         assert response.json()["job_id"] == job.job_id
         run_job.assert_not_called()
 
-    def test_failure_is_reported_even_with_retry(self, db, test_reference, auth_headers):  # noqa: F811
-        """A request would restart the job with retry=true; a dry run reports the
-        failure and ignores retry."""
-        curie = test_reference.new_ref_curie
-        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_failed", pdf_type="pdf")
+    def _failed_job(self, db, curie, md5):  # noqa: F811
+        _make_referencefile(db, curie, "paper", "main", "pdf", md5, pdf_type="pdf")
         failed, _ = conversion_manager.start_job(self._reference_id(db, curie), curie, "someone")
         conversion_manager.record_file_progress(failed.job_id, source_display_name="paper",
                                                 source_file_class="main", success=False,
                                                 error="pdfx 500")
         conversion_manager.complete_job(failed.job_id, success=False)
+        return failed
+
+    def test_failure_is_reported_even_with_retry(self, db, test_reference, auth_headers):  # noqa: F811
+        """A request would restart the job with retry=true; a dry run reports the
+        failure and ignores retry. Inside the hold a request without retry would
+        not start a job either."""
+        curie = test_reference.new_ref_curie
+        failed = self._failed_job(db, curie, "md5_dry_failed")
         with patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
             response = client.get(url=f"{self._url(curie)}&retry=true", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
         assert body["status"] == "failed"
+        assert body["failure_reason"] == "conversion_failed"
+        assert body["would_start"] is False
         assert body["job_id"] == failed.job_id
         assert "paper: pdfx 500" in body["error_message"]
         assert body["per_file_progress"][0]["status"] == "failed"
         run_job.assert_not_called()
+
+    def test_failure_past_the_hold_would_start_but_starts_nothing(
+            self, db, test_reference, auth_headers):  # noqa: F811
+        """After FAILED_JOB_HOLD a request would start again: the dry run says so
+        (would_start) and still reports the failure without starting a job."""
+        curie = test_reference.new_ref_curie
+        failed = self._failed_job(db, curie, "md5_dry_failed_old")
+        with patch("agr_literature_service.api.utils.conversion_job_manager.FAILED_JOB_HOLD",
+                   timedelta(0)), \
+                patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "failed"
+        assert body["failure_reason"] == "conversion_failed"
+        assert body["would_start"] is True
+        assert body["job_id"] == failed.job_id
+        run_job.assert_not_called()
+        reference_id = self._reference_id(db, curie)
+        assert conversion_manager.get_active_job_for_reference(reference_id) is None
+        assert conversion_manager.get_last_job_for_reference(reference_id).job_id == failed.job_id
 
     def test_worker_gone_is_reported_as_failed_not_restarted(
             self, db, test_reference, auth_headers):  # noqa: F811
@@ -826,9 +860,16 @@ class TestDryRun:
                 patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
             response = client.get(url=self._url(curie), headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["status"] == "failed"
-        assert response.json()["job_id"] == job.job_id
+        body = response.json()
+        assert body["status"] == "failed"
+        assert body["failure_reason"] == "worker_exited"
+        assert body["would_start"] is True
+        assert body["job_id"] == job.job_id
         run_job.assert_not_called()
+        # no second job: the worker-gone job is still the reference's last one
+        reference_id = self._reference_id(db, curie)
+        assert conversion_manager.get_active_job_for_reference(reference_id) is None
+        assert conversion_manager.get_last_job_for_reference(reference_id).job_id == job.job_id
 
     def test_converted_does_not_sync_mods_or_tags(self, db, test_reference, auth_headers):  # noqa: F811
         curie = test_reference.new_ref_curie
@@ -840,6 +881,7 @@ class TestDryRun:
             response = client.get(url=self._url(curie), headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == "converted"
+        assert response.json()["would_start"] is False
         assert response.json()["converted_classes"] == ["converted_merged_main"]
         sync_mods.assert_not_called()
         transition.assert_not_called()
@@ -849,6 +891,37 @@ class TestDryRun:
             response = client.get(url=self._url(test_reference.new_ref_curie), headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == "no_sources"
+        assert response.json()["would_start"] is False
+
+    def test_pending_office_supplement_is_not_converted_inline(
+            self, db, test_reference, auth_headers):  # noqa: F811
+        """Office supplements normally convert inline; a dry run must not."""
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "table_s1", "supplement", "xlsx", "md5_dry_office")
+        with patch(f"{CRUD_MOD}.process_office_to_markdown") as convert_office, \
+                patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["status"] == "not_converted"
+        assert body["would_start"] is True
+        assert body["per_file_progress"][0]["converted"]["display_name"] == "table_s1_xlsx"
+        convert_office.assert_not_called()
+        run_job.assert_not_called()
+        assert conversion_manager.get_last_job_for_reference(
+            self._reference_id(db, curie)) is None
+
+    def test_caller_without_access_gets_403(self, db, test_reference, auth_headers):  # noqa: F811
+        curie = test_reference.new_ref_curie
+        _make_referencefile(db, curie, "paper", "main", "pdf", "md5_dry_403", pdf_type="pdf")
+        with patch("agr_literature_service.api.routers.referencefile_router.get_mod_access",
+                   return_value=ModAccess.NO_ACCESS), \
+                patch(f"{CRUD_MOD}.run_conversion_job") as run_job, TestClient(app) as client:
+            response = client.get(url=self._url(curie), headers=auth_headers)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        run_job.assert_not_called()
+        assert conversion_manager.get_last_job_for_reference(
+            self._reference_id(db, curie)) is None
 
 
 # ---------------------------------------------------------------------------

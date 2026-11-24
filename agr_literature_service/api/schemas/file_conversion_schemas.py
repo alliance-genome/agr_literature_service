@@ -102,6 +102,14 @@ class ConversionStatusResponseSchema(BaseModel):
     present in the DB for this reference. Clients can act on partial results
     (fetching ``converted_merged_main`` as soon as it appears, for example,
     without waiting for longer-running supplement conversions to finish).
+
+    ``failure_reason`` is set when ``status`` is ``failed`` (SCRUM-6980):
+        - ``worker_exited``     — the API worker running the job exited
+          (a restart or a worker recycle); asking again restarts it.
+        - ``conversion_failed`` — the conversion itself failed.
+
+    ``would_start`` is set only with ``dry_run=true``: whether a conversion
+    request without ``retry`` would start a job now.
     """
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
@@ -116,3 +124,5 @@ class ConversionStatusResponseSchema(BaseModel):
     converted_classes: List[str] = []
     per_file_progress: List[ConversionPerFileProgressSchema] = []
     per_mod_status: List[ConversionModStatusSchema] = []
+    failure_reason: Optional[str] = None
+    would_start: Optional[bool] = None
