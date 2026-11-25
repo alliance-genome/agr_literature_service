@@ -549,6 +549,15 @@ class ConversionJobManager:
             job.last_update = datetime.utcnow()
             self._save_job(job)
 
+    def run_still_owns(self, job_id: str) -> bool:
+        """Whether the current run may go on with ``job_id``: outside a run always;
+        inside ``running_as(worker_id)`` only while that worker owns the job and it is
+        running. A run that lost its job (failed by the deadline, re-queued, taken
+        over) stops before its next file instead of converting the paper alongside
+        the job's next run."""
+        job = self._load_job(job_id)
+        return job is not None and _owned_by_this_run(job)
+
     def get_pdfx_process_id(self, job_id: str, source_display_name: str,
                             source_file_class: str) -> Optional[str]:
         job = self._load_job(job_id)

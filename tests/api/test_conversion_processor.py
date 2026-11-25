@@ -295,6 +295,25 @@ class TestRunConversionJob:
         assert kwargs["success"] is False
         assert kwargs["error"] == "Office supplement 'table_s1': bad zip"
 
+    def test_a_run_that_lost_its_job_stops_before_the_next_file(self, manager):
+        """Review: once the deadline failed the job (or another worker took it), the
+        run converts no further file and records nothing."""
+        session = MagicMock()
+        manager.run_still_owns.return_value = False
+        assessment = {"mod_abbreviation": "WB", "pending_main": [],
+                      "pending_supplements": [_pdf_file("s.pdf", "supplement", 9)]}
+        with patch.object(cp, "SessionLocal", return_value=session), \
+                patch.object(cp, "_convert_pending_pdf") as convert, \
+                patch(f"{CRUD}._assess_reference", return_value=assessment), \
+                patch("agr_literature_service.api.crud.reference_utils.get_reference"), \
+                patch("agr_literature_service.lit_processing.embedding."
+                      "embedding_generation.maybe_generate_classifier_embeddings") as embed:
+            cp.run_conversion_job("j1", 3, "AGRKB:1")
+        convert.assert_not_called()
+        embed.assert_not_called()
+        manager.complete_job.assert_not_called()
+        session.close.assert_called_once()
+
     def test_unexpected_error_marks_job_failed(self, manager):
         session = MagicMock()
         with patch.object(cp, "SessionLocal", return_value=session), \

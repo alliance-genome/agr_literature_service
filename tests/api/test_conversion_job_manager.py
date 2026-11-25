@@ -373,6 +373,17 @@ class TestClaims:
             mgr.complete_job(job.job_id, success=True)
         assert mgr.get_job(job.job_id).status == "completed"
 
+    def test_run_still_owns_ends_with_the_deadline(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        with running_as("w1"):
+            assert mgr.run_still_owns(job.job_id) is True
+        _set_job_field(mgr, job.job_id, claimed_at=_ago(JOB_DEADLINE + timedelta(minutes=1)))
+        mgr.heartbeat("w1", [job.job_id])
+        with running_as("w1"):
+            assert mgr.run_still_owns(job.job_id) is False
+        assert mgr.run_still_owns(job.job_id) is True  # outside a run nothing is restricted
+
     def test_worker_alive_follows_its_heartbeat_file(self, mgr):
         assert mgr.worker_alive() is False
         mgr.heartbeat("w1", [])

@@ -19,6 +19,12 @@ CRUD = "agr_literature_service.api.crud.referencefile_crud"
 CURIE = "AGRKB:101000699801"
 
 
+def _http_error(status_code):
+    response = requests.Response()
+    response.status_code = status_code
+    return requests.HTTPError(f"{status_code} error", response=response)
+
+
 class TestReattachPdfxJob:
     def test_a_completed_job_is_reused(self):
         with patch(f"{UTILS}.poll_pdfx_status", return_value={"status": "completed"}) as poll:
@@ -26,16 +32,23 @@ class TestReattachPdfxJob:
         poll.assert_called_once_with("p1")
 
     @pytest.mark.parametrize("error", [
-        requests.HTTPError("404 Client Error: Not Found", response=requests.Response()),
+        _http_error(404),
         RuntimeError("PDFX job failed: out of memory"),
     ])
     def test_an_unknown_or_failed_job_is_given_up(self, error):
         with patch(f"{UTILS}.poll_pdfx_status", side_effect=error):
             assert pdf2md_utils._reattach_pdfx_job("p1", "paper", CURIE) is None
 
-    def test_a_timeout_is_raised_not_resubmitted(self):
-        with patch(f"{UTILS}.poll_pdfx_status", side_effect=TimeoutError("still running")):
-            with pytest.raises(TimeoutError):
+    @pytest.mark.parametrize("error", [
+        TimeoutError("still running"),
+        _http_error(503),
+        requests.ConnectionError("pdfx unreachable"),
+    ])
+    def test_a_temporary_error_is_raised_not_resubmitted(self, error):
+        """Review: PDFX may still be running the job, so only a 404 or a failed job
+        leads to a new submission."""
+        with patch(f"{UTILS}.poll_pdfx_status", side_effect=error):
+            with pytest.raises(type(error)):
                 pdf2md_utils._reattach_pdfx_job("p1", "paper", CURIE)
 
 
@@ -91,7 +104,7 @@ def test_a_known_process_id_is_polled_not_resubmitted(db, paper):  # noqa
 def test_an_unknown_process_id_falls_back_to_a_new_submission(db, paper):  # noqa
     def poll(pid):
         if pid == "old-pid":
-            raise requests.HTTPError("404 Client Error: Not Found", response=requests.Response())
+            raise _http_error(404)
         return {"status": "completed"}
 
     reported = []

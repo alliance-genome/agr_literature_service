@@ -1697,20 +1697,24 @@ def store_pdfx_page_provenance(db: Session, process_id: str, *, reference_curie:
 
 def _reattach_pdfx_job(process_id: str, display_name: str, reference_curie: str) -> Optional[str]:
     """Wait for a PDFX job an interrupted run already submitted (SCRUM-6998): its
-    process_id once it has completed, or None when PDFX no longer knows it or
-    reports it failed, so the caller submits the PDF again. A TimeoutError is
-    raised as is: the job may still be running, and a new submission would only
-    wait again."""
+    process_id once it has completed, or None when PDFX no longer knows it (404)
+    or reports it failed, so the caller submits the PDF again. Any other error (a
+    timeout, a 5xx, a connection error) is raised as is and fails the file: PDFX
+    may still be running the job, and a new submission would duplicate it."""
     logger.info(f"Re-attaching to PDFX job {process_id} for {display_name} ({reference_curie})")
     try:
         poll_pdfx_status(process_id)
-    except TimeoutError:
-        raise
-    except Exception as exc:
-        logger.warning(f"Could not re-attach to PDFX job {process_id} for {display_name} "
-                       f"({reference_curie}): {exc}; submitting the PDF again")
-        return None
-    return process_id
+    except requests.HTTPError as exc:
+        if exc.response is None or exc.response.status_code != 404:
+            raise
+        reason = "PDFX no longer knows it"
+    except RuntimeError as exc:  # poll_pdfx_status: the PDFX job itself failed
+        reason = str(exc)
+    else:
+        return process_id
+    logger.warning(f"Could not re-attach to PDFX job {process_id} for {display_name} "
+                   f"({reference_curie}): {reason}; submitting the PDF again")
+    return None
 
 
 def _process_single_pdf_file(  # pragma: no cover
