@@ -26,7 +26,7 @@ class TestReattachPdfxJob:
         poll.assert_called_once_with("p1")
 
     @pytest.mark.parametrize("error", [
-        requests.HTTPError("404 Client Error: Not Found"),
+        requests.HTTPError("404 Client Error: Not Found", response=requests.Response()),
         RuntimeError("PDFX job failed: out of memory"),
     ])
     def test_an_unknown_or_failed_job_is_given_up(self, error):
@@ -91,7 +91,7 @@ def test_a_known_process_id_is_polled_not_resubmitted(db, paper):  # noqa
 def test_an_unknown_process_id_falls_back_to_a_new_submission(db, paper):  # noqa
     def poll(pid):
         if pid == "old-pid":
-            raise requests.HTTPError("404 Client Error: Not Found")
+            raise requests.HTTPError("404 Client Error: Not Found", response=requests.Response())
         return {"status": "completed"}
 
     reported = []
