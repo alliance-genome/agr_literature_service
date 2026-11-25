@@ -253,6 +253,7 @@ def get_converted(curie_or_reference_id: str,
                   wait: bool = False,
                   overwrite_tei_md: bool = False,
                   retry: bool = False,
+                  dry_run: bool = False,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     """
@@ -262,8 +263,9 @@ def get_converted(curie_or_reference_id: str,
     the resulting file listing once the status is ``converted``.
 
     Re-calling this endpoint acts as a poll: the response surfaces the current
-    conversion state plus ``per_file_progress`` for the most recent job. There
-    is no separate status endpoint — poll this URL for updates.
+    conversion state plus ``per_file_progress`` for the most recent job.
+    Pass ``dry_run=true`` to read the status without ever starting, restarting
+    or running a conversion (SCRUM-6980): see ``not_converted`` below.
 
     Status values returned in the response body:
     - ``converted``: every convertible source has a converted Markdown row
@@ -273,12 +275,40 @@ def get_converted(curie_or_reference_id: str,
       that are done so partial results can be consumed without waiting.
     - ``failed``: the most recent conversion attempt failed. See
       ``error_message`` and ``per_file_progress`` for details. HTTP 200.
+      ``failure_reason`` is ``worker_exited`` when the API worker running the
+      job exited (asking again restarts it) and ``conversion_failed`` when the
+      conversion itself failed.
       A PDF conversion that failed in the last hour keeps being reported as
       failed, without converting again, until ``retry=true`` is passed. A job
       whose API worker exited is restarted at once; ``previous_job_id`` then
       names the job it replaces (as it does after a retry).
     - ``no_sources``: the reference has nothing to convert (no nXML, no main
       PDF, no supplement PDFs). HTTP 200.
+    - ``not_converted`` (``dry_run=true`` only): something is left to convert,
+      no job is running and no job has failed on it; ``per_file_progress``
+      lists each such source as ``pending``. Without ``dry_run`` this request
+      would start converting it. HTTP 200.
+
+    With ``dry_run=true`` the other statuses mean the same, with these
+    differences: ``failed`` is reported for as long as the failed job is kept
+    (24 hours from the job's start), not only for the hour in which a request
+    would report it instead of converting again, and also when the job's
+    worker exited (a request would restart that at once). ``would_start``
+    says whether a request without ``retry`` would start converting now (in a
+    job, or inline for nXML and Office files).
+    ``wait`` and ``retry`` are ignored. Nothing is converted or started, and
+    no rows, file MODs or ``text_convert_job`` tags are written (a request
+    syncs those when everything is converted); as with any read, a job whose
+    worker has exited is recorded as failed.
+
+    Caveats for dry-run polling:
+    - Job state is kept in the API container (under /tmp), so a redeploy that
+      recreates the container forgets it: a job the redeploy killed is then
+      reported as ``not_converted`` rather than ``failed``.
+    - nXML and Office conversions run inline and leave no job, so their
+      failure is not remembered either: they show as ``not_converted``.
+    - A job that finishes while the request is being answered can show as
+      ``not_converted`` for one poll; read again before acting on it.
 
     Behavior:
     - If everything convertible already has a converted row, returns 200
@@ -330,6 +360,7 @@ def get_converted(curie_or_reference_id: str,
         user_id=user_id,
         overwrite_tei_md=overwrite_tei_md,
         retry=retry,
+        dry_run=dry_run,
     )
     response.status_code = status_code
     return payload
