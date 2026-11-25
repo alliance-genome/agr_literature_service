@@ -12,7 +12,6 @@ from agr_literature_service.api.models import (
     ModModel,
     PersonModel,
     ReferenceModel,
-    UserModel,
     WorkflowTagModel,
     WorkflowTransitionModel,
 )
@@ -73,10 +72,8 @@ def _person(db, n):  # noqa
 def _curator(db, n):  # noqa
     """A person-backed user; returns the label created_by / updated_by take."""
     curie = f"AGRKB:APSC-{n}"
-    person = PersonModel(display_name="Curator", curie=curie)
+    person = PersonModel(display_name="Curator", curie=curie)  # a person is an agent (SCRUM-6995)
     db.add(person)
-    db.commit()
-    db.add(UserModel(person_id=person.person_id))
     db.commit()
     return curie
 

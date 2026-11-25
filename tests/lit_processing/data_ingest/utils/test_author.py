@@ -16,11 +16,11 @@ from agr_literature_service.api.crud.utils.author_review import (
 )
 from agr_literature_service.api.models import (
     AuthorModel,
+    AutomationModel,
     ModCorpusAssociationModel,
     ModModel,
     PersonModel,
     ReferenceModel,
-    UserModel,
     WorkflowTagModel,
     WorkflowTransitionModel,
 )
@@ -249,26 +249,23 @@ def _make_reference(db, curie):  # noqa
 
 
 def _make_curator_user(db, person_curie, display_name="Curator"):  # noqa
-    """Create a person and its person-linked (curator) agent; return the agent's
-    label, the person curie, which is what created_by / updated_by take.
+    """Create a person, which is a curator agent (SCRUM-6995); return its label,
+    the person curie, which is what created_by / updated_by take.
 
     The test-cleanup fixture deletes person rows but never agents (the default
-    user is preserved): it turns a leftover curator agent into an automation
-    agent first, so a re-run creates a fresh person and agent here.
+    user is preserved): it turns a leftover person agent into an automation
+    agent, so a re-run creates a fresh person here.
     """
     person = PersonModel(display_name=display_name, curie=person_curie)
     db.add(person)
-    db.commit()
-    db.refresh(person)
-    db.add(UserModel(person_id=person.person_id))
     db.commit()
     return person_curie
 
 
 def _make_automation_user(db, label):  # noqa
-    """Get-or-create an automation agent (person_id NULL); return its label."""
-    if db.query(UserModel).filter_by(automation_username=label).one_or_none() is None:
-        db.add(UserModel(automation_username=label))
+    """Get-or-create an automation agent; return its label."""
+    if db.query(AutomationModel).filter_by(display_name=label).one_or_none() is None:
+        db.add(AutomationModel(display_name=label))
         db.commit()
     return label
 
@@ -276,8 +273,8 @@ def _make_automation_user(db, label):  # noqa
 class TestReferenceTouchedByCurator:
     """Unit tests for the curator-touch skip-gate helper (DB-backed).
 
-    A curator touch is detected by joining the author's created_by/updated_by
-    (FK users.id) back to users and finding person_id IS NOT NULL.
+    A curator touch is detected by joining the author's created_by_id/updated_by_id
+    (FK agent.id) back to agent and finding agent_type = 'person'.
     """
 
     def test_true_when_author_touched_by_curator(self, db):  # noqa
@@ -425,9 +422,7 @@ class TestUpdateAuthorsHistory:
         # a curator deletes the second author; the first is still automation-owned,
         # so the next PubMed update reloads the reference
         curator = _make_curator_user(db, "AGR:HISTLINK-2")
-        _set_current_user(curator, db.query(UserModel).join(
-            PersonModel, PersonModel.person_id == UserModel.person_id).filter(
-            PersonModel.curie == curator).one().user_id)
+        _set_current_user(curator, db.query(PersonModel).filter(PersonModel.curie == curator).one().person_id)
         db.delete(removed)
         db.commit()
 

@@ -385,12 +385,12 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
 
     query = (
         f"SELECT cs.id AS curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, "
-        f"COALESCE(u.automation_username, p.curie) AS updated_by, cs.date_updated, "
-        f"get_most_current_email(u.person_id) AS updated_by_email, "
-        f"p.display_name AS updated_by_name "
+        f"COALESCE(p.curie, u.display_name) AS updated_by, cs.date_updated, "
+        f"get_most_current_email(p.id) AS updated_by_email, "
+        f"CASE WHEN p.id IS NOT NULL THEN u.display_name END AS updated_by_name "
         f"FROM curation_status cs "
         f"JOIN agent u ON cs.updated_by_id = u.id "
-        f"LEFT JOIN person p ON u.person_id = p.id "
+        f"LEFT JOIN person p ON p.id = u.id "
         f"WHERE cs.mod_id = {mod_id} AND cs.reference_id = {reference_id}"
     )
 

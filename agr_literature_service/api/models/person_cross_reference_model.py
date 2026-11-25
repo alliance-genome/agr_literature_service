@@ -17,7 +17,7 @@ class PersonCrossReferenceModel(Base, AuditedModel):
     curie_prefix = Column(String(), nullable=False, index=True)
 
     person_id = Column(BigInteger, ForeignKey("person.id", ondelete="CASCADE"), nullable=True, index=True)
-    person = relationship("PersonModel", back_populates="cross_references")  # <-- match PersonModel name
+    person = relationship("PersonModel", back_populates="cross_references", foreign_keys="PersonCrossReferenceModel.person_id")  # <-- match PersonModel name
 
     pages = Column(ARRAY(String), nullable=True)
     # key='is_obsolete' keeps Continuum's <key>_mod flag on the obsolete_mod column

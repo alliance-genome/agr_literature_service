@@ -9,7 +9,7 @@ import pytest
 
 from agr_literature_service.api.crud import mod_reference_type_crud
 from agr_literature_service.api.models import ModModel, ModReferencetypeAssociationModel, PersonModel, \
-    ReferenceModel, ReferencetypeModel, UserModel
+    ReferenceModel, ReferencetypeModel
 from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 from agr_literature_service.api.user import _set_current_user, get_current_agent_id, get_global_user_id, \
     set_global_user_id
@@ -132,9 +132,7 @@ class TestSetReferenceCategory:
         set_global_user_id(db, "alliance_category_test")
         reference_id = _reference(db, "AGRKB:CAT-TEST-2")
         curator = _make_curator_user(db, "AGR:CAT-TEST-2")
-        _set_current_user(curator, db.query(UserModel).join(
-            PersonModel, PersonModel.person_id == UserModel.person_id).filter(
-            PersonModel.curie == curator).one().user_id)
+        _set_current_user(curator, db.query(PersonModel).filter(PersonModel.curie == curator).one().person_id)
         db.get(ReferenceModel, reference_id).category = "Comment"
         db.commit()
         set_global_user_id(db, "alliance_category_test")

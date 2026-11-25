@@ -14,7 +14,7 @@ from agr_literature_service.api.crud import topic_entity_tag_crud
 from agr_literature_service.api.crud.user_utils import resolve_named_person
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags, \
     TET_REVALIDATION_LOCK_NAMESPACE
-from agr_literature_service.api.models import PersonModel, ReferenceModel, TopicEntityTagModel
+from agr_literature_service.api.models import AutomationModel, PersonModel, ReferenceModel, TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
 from ..fixtures import db, _get_engine # noqa
 from .fixtures import auth_headers # noqa
@@ -1105,16 +1105,18 @@ class TestTopicEntityTag:
     def test_validate_topic_names_a_person_without_an_agent(self, test_topic_entity_tag, test_mod,  # noqa
                                                             auth_headers, db):  # noqa
         # SCRUM-6853 review: through the router with the service token. A person who
-        # never logged in to ABC gets an agent and owns the verdict; an automation
-        # agent is refused even when its label looks like a person's curie.
+        # never logged in to ABC owns the verdict (a person is its own agent,
+        # SCRUM-6995); an automation agent is refused even when its label looks like
+        # a person's curie.
         load_name_to_atp_and_relationships_mock()
         newcomer = "AGRKB:test-curator-without-agent"
         db.add(PersonModel(display_name="Curator Without Agent", curie=newcomer))
-        db.execute(text("INSERT INTO agent (person_id, automation_username) "
-                        "VALUES (NULL, 'AGRKB:test-automation-lookalike')"))
+        db.execute(text("WITH a AS (INSERT INTO agent (agent_type, display_name, date_created) "
+                        "VALUES ('automation', 'AGRKB:test-automation-lookalike', now()) RETURNING id) "
+                        "INSERT INTO automation (id) SELECT id FROM a"))
         db.commit()
-        agents = text("SELECT count(*) FROM agent a JOIN person p ON p.id = a.person_id WHERE p.curie = :c")
-        assert db.execute(agents, {"c": newcomer}).scalar() == 0
+        agents = text("SELECT count(*) FROM agent a JOIN person p ON p.id = a.id WHERE p.curie = :c")
+        assert db.execute(agents, {"c": newcomer}).scalar() == 1
         body = {"reference_curie": test_topic_entity_tag.related_ref_curie, "topic": "ATP:0000122",
                 "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False}
         with TestClient(app) as client, \
@@ -1170,7 +1172,6 @@ class TestTopicEntityTag:
         automation users row was minted for it. A PATCH audit field that does
         not resolve to an existing user must be dropped (the audited-model
         listener stamps the authenticated user), and no users row created."""
-        from agr_literature_service.api.models.user_model import UserModel
         cognito_sub = "74e854e8-70a1-7001-07e9-7c8d755cd538"
         with TestClient(app) as client:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
@@ -1189,7 +1190,7 @@ class TestTopicEntityTag:
             TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
         assert tag.note == "entity corrected again"
         assert tag.updated_by not in (cognito_sub, "nobody@example.org")
-        assert db.query(UserModel).filter_by(automation_username=cognito_sub).one_or_none() is None
+        assert db.query(AutomationModel).filter_by(display_name=cognito_sub).one_or_none() is None
 
     def test_patch_keeps_resolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
         """Counterpart to test_patch_drops_unresolvable_updated_by: an
@@ -1198,11 +1199,10 @@ class TestTopicEntityTag:
         (WBPerson1): patching in an equal value reads as unchanged at flush
         time, so the audit listener would stamp the authenticated user and
         the assertion couldn't tell honored from dropped."""
-        from agr_literature_service.api.models.user_model import UserModel
         # agents survive the per-test cleanup, so get-or-create this seed
         # user to keep the suite re-runnable against a persistent DB.
-        if db.query(UserModel).filter_by(automation_username="WBPerson2").one_or_none() is None:
-            db.add(UserModel(automation_username="WBPerson2"))
+        if db.query(AutomationModel).filter_by(display_name="WBPerson2").one_or_none() is None:
+            db.add(AutomationModel(display_name="WBPerson2"))
             db.commit()
         with TestClient(app) as client:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
@@ -4773,7 +4773,6 @@ class TestTopicEntityTagBatch:
                                                            test_tag_source):  # noqa
         # a label never seen before is created as an agent with a commit; inside the batch that commit
         # would store the changes made before it and release the reference lock (review C1)
-        from agr_literature_service.api.models.user_model import UserModel
         ref = test_topic_entity_tag.related_ref_curie
         reference_id = self._reference_id(db, ref)
         before = self._state(db, reference_id)
@@ -4788,7 +4787,7 @@ class TestTopicEntityTagBatch:
         assert self._state(db, reference_id) == before
         # the agent itself may stay: it is created before the batch, as a single create does
         db.expire_all()
-        assert db.query(UserModel).filter_by(automation_username=label).one_or_none() is not None
+        assert db.query(AutomationModel).filter_by(display_name=label).one_or_none() is not None
 
     def test_batch_create_sees_the_updates(self, db, test_topic_entity_tag, test_tag_source):  # noqa
         # moving the fixture tag from gene 3001 to 3002 and adding a tag for 3001 (same creator, topic, source)

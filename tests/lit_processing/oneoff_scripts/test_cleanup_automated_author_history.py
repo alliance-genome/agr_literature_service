@@ -5,7 +5,7 @@ import importlib.util
 from pathlib import Path
 from typing import Any, cast
 
-from agr_literature_service.api.models import AuthorModel, PersonModel, UserModel
+from agr_literature_service.api.models import AuthorModel, PersonModel
 from agr_literature_service.api.user import _set_current_user, get_current_agent_id, get_global_user_id, \
     set_global_user_id
 from ..data_ingest.utils.test_author import _author_history, _make_curator_user, _make_reference
@@ -53,9 +53,7 @@ def test_cleanup(db):  # noqa
         db.commit()
         # a curator then edits the third author
         curator = _make_curator_user(db, "AGR:HIST-CLEANUP-1")
-        _set_current_user(curator, db.query(UserModel).join(
-            PersonModel, PersonModel.person_id == UserModel.person_id).filter(
-            PersonModel.curie == curator).one().user_id)
+        _set_current_user(curator, db.query(PersonModel).filter(PersonModel.curie == curator).one().person_id)
         db.get(AuthorModel, third).name = "Third Curated"
         db.commit()
         assert _author_history(db, rid) == sorted(

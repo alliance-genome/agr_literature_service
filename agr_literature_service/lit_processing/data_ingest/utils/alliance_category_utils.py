@@ -170,7 +170,7 @@ def load_category_inputs(db: Session, reference_ids: Iterable[int]) -> Dict[int,
             "SELECT DISTINCT ON (rv.id) rv.id FROM reference_version rv "
             "JOIN transaction t ON t.id = rv.transaction_id "
             "WHERE rv.id = ANY(:ids) AND rv.category_mod "
-            "AND EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.person_id IS NOT NULL) "
+            "AND EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.agent_type = 'person') "
             "AND NOT EXISTS (SELECT 1 FROM reference_version later "
             "                WHERE later.id = rv.id AND later.category_mod "
             "                AND later.transaction_id > rv.transaction_id) "

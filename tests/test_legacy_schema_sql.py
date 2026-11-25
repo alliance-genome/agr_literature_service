@@ -162,7 +162,7 @@ def test_scanner_ignores_foreign_keys_and_new_names():
     assert scan_text('SELECT a.reference_id FROM author a JOIN reference r ON r.id = a.reference_id') == []
     assert scan_text('SELECT created_by_id, obsolete FROM author') == []
     assert scan_text('created_by') == []
-    assert scan_text('SELECT COALESCE(a.automation_username, p.curie) AS updated_by FROM agent a') == []
+    assert scan_text('SELECT COALESCE(p.curie, a.display_name) AS updated_by FROM agent a') == []
     assert scan_text('SELECT a.id AS author_id FROM author a') == []
     assert scan_text('DELETE FROM reference WHERE id = :reference_id') == []
     assert scan_text('SELECT obsolete AS is_obsolete FROM cross_reference') == []

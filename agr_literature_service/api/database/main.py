@@ -10,6 +10,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from agr_literature_service.api.triggers.triggers import add_sql_triggers_functions
+from agr_literature_service.api.user import _SQL_INSERT_AUTOMATION_AGENT
 
 metadata = MetaData()
 
@@ -35,7 +36,7 @@ def create_all_tables():
 def create_default_user():
     db = sessionmaker(engine, autoflush=True)
     with db.begin() as session:
-        session.execute(text("INSERT INTO agent (automation_username) VALUES ('default_user') ON CONFLICT DO NOTHING"))
+        session.execute(_SQL_INSERT_AUTOMATION_AGENT, {"label": "default_user"})
 
 
 def get_db():

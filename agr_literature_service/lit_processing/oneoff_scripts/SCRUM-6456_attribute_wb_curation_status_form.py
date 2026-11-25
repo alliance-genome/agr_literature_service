@@ -76,7 +76,8 @@ def find_form_rows(db: Session, mod_id: int, abc_source_id: int
     ).filter(
         CurationStatusSourceAssociationModel.tag_source_id == abc_source_id,
         CurationStatusModel.mod_id == mod_id,
-        UserModel.automation_username.like(f"{FORM_CREATOR_PREFIX}%"),
+        UserModel.agent_type == 'automation',
+        UserModel.display_name.like(f"{FORM_CREATOR_PREFIX}%"),
         or_(CurationStatusModel.curation_status == WONT_CURATE,
             and_(CurationStatusModel.curation_status == POSITIVE_NOT_IN_OA,
                  CurationStatusModel.topic.in_(POSITIVE_NOT_IN_OA_TOPICS)))

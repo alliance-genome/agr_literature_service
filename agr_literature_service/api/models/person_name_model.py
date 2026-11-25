@@ -20,7 +20,7 @@ class PersonNameModel(Base, AuditedModel):
         nullable=False,
         index=True,
     )
-    person = relationship("PersonModel", back_populates="names")
+    person = relationship("PersonModel", back_populates="names", foreign_keys="PersonNameModel.person_id")
 
     first_name = Column(String(), nullable=True)
     middle_name = Column(String(), nullable=True)

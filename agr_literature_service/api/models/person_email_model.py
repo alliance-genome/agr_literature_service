@@ -20,7 +20,7 @@ class PersonEmailModel(Base, AuditedModel):
         nullable=False,
         index=True,
     )
-    person = relationship("PersonModel", back_populates="emails")
+    person = relationship("PersonModel", back_populates="emails", foreign_keys="PersonEmailModel.person_id")
 
     email_address = Column(String(), nullable=False)
 

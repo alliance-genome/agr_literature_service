@@ -69,7 +69,7 @@ def curator_connected(db: Session, reference_id: int) -> bool:
     ).filter(
         AuthorModel.reference_id == reference_id,
         AuthorModel.person_id.isnot(None),
-        UserModel.person_id.isnot(None),
+        UserModel.agent_type == 'person',
     ).first() is not None
 
 

@@ -19,26 +19,36 @@ if TYPE_CHECKING:
 # so a module-level import of anything from crud/models makes ``api.user``
 # unimportable as an entry point (e.g. from lit_processing scripts).
 
-# An agent's label is its automation_username, or the curie of its person: the
-# string the API shows as created_by / updated_by (the legacy users.id). Exact
-# match, as users.id was; an automation name is unique.
+# An agent's label is the curie of its person, or else its display_name (an
+# automation's name): the string the API shows as created_by / updated_by (the
+# legacy users.id). Exact match, as users.id was; an automation name is unique.
+# A label is an automation's name or a person's curie (automation names never contain ':').
 _SQL_AGENT_BY_LABEL = text("""
-    SELECT a.id
-    FROM agent a
-    LEFT JOIN person p ON p.id = a.person_id
-    WHERE a.automation_username = :label OR p.curie = :label
-    ORDER BY a.id
+    SELECT id FROM (
+        SELECT a.id FROM agent a WHERE a.agent_type = 'automation' AND a.display_name = :label
+        UNION ALL
+        SELECT p.id FROM person p WHERE p.curie = :label
+    ) AS labelled
+    ORDER BY id
     LIMIT 1
 """)
 
-# Idempotent insert of an automation agent (person_id NULL satisfies the CHECK
-# (person_id IS NULL) <> (automation_username IS NULL)). ON CONFLICT makes a
-# racing insert of the same label a no-op; the caller then re-reads it.
+# Idempotent insert of an automation agent: the agent row and its automation child row
+# (SCRUM-6995). ON CONFLICT on the automation-name index makes a racing insert of the
+# same label a no-op (no row returned); the caller then re-reads it.
 _SQL_INSERT_AUTOMATION_AGENT = text("""
-    INSERT INTO agent (automation_username, person_id)
-    VALUES (:label, NULL)
-    ON CONFLICT (automation_username) DO NOTHING
-    RETURNING id
+    WITH new_agent AS (
+        INSERT INTO agent (agent_type, display_name, date_created, date_updated,
+                           db_date_created, db_date_updated)
+        VALUES ('automation', :label, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC',
+                now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC')
+        ON CONFLICT (display_name) WHERE agent_type = 'automation' DO NOTHING
+        RETURNING id
+    ), new_automation AS (
+        INSERT INTO automation (id) SELECT id FROM new_agent
+        RETURNING id
+    )
+    SELECT id FROM new_automation
 """)
 
 # Label of the "current user" for this request, and its agent.id.
@@ -156,6 +166,14 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
         )
 
     result = db.execute(_SQL_AGENT_BY_EMAIL, {"email": user_email}).fetchone()
+    if result is not None and result.roles_unset and _has_recognized_role_group(cognito_user):
+        # a person registered ahead of the first login: record its Cognito roles once;
+        # best-effort, the login itself does not depend on it
+        try:
+            _register_cognito_user(db, cognito_user, user_email)
+        except Exception:
+            logger.exception("Recording Cognito roles failed for %s", user_email)
+            db.rollback()
 
     if result is None:
         # Auto-register first-time Cognito users that carry a recognized ABC
@@ -202,25 +220,15 @@ def _has_recognized_role_group(cognito_user: Dict[str, Any]) -> bool:
     )
 
 
-# Agent of the person with this email address; its label is the person curie.
+# The person with this email address: it is the user's agent (person.id = agent.id,
+# SCRUM-6995) and its label is the person curie. roles_unset flags a person an admin
+# registered without Cognito roles, which the first login records.
 # Match case-insensitively because (a) person_email may store the original
 # mixed-case address and (b) Cognito tokens often carry mixed case. The
 # ix_person_email_lower_email_address functional index supports the lower()
 # match.
 _SQL_AGENT_BY_EMAIL = text("""
-    SELECT a.id, p.curie AS label
-    FROM agent a
-    JOIN person p ON p.id = a.person_id
-    JOIN person_email e ON e.person_id = p.id
-    WHERE lower(e.email_address) = lower(:email)
-    ORDER BY a.id
-    LIMIT 1
-""")
-
-# Person already registered (e.g. by an admin ahead of the user's first login)
-# but with no agent yet: link instead of duplicating.
-_SQL_PERSON_BY_EMAIL = text("""
-    SELECT p.id, p.curie
+    SELECT p.id, p.curie AS label, p.mod_roles IS NULL AS roles_unset
     FROM person p
     JOIN person_email e ON e.person_id = p.id
     WHERE lower(e.email_address) = lower(:email)
@@ -228,20 +236,14 @@ _SQL_PERSON_BY_EMAIL = text("""
     LIMIT 1
 """)
 
-# Person-backed agent; the CHECK constraint requires exactly one of
-# person_id / automation_username. Racing registrations are serialized by the
-# advisory lock in _register_cognito_user.
-_SQL_INSERT_PERSON_AGENT = text("""
-    INSERT INTO agent (person_id, automation_username)
-    VALUES (:pid, NULL)
-    RETURNING id
-""")
-
 
 def _register_cognito_user(db: Session, cognito_user: Dict[str, Any],
                            user_email: str) -> Tuple[int, str]:
-    """Register a first-time Cognito login and return (agent id, label); the
-    label is the person curie, the same shape manually-registered curators have.
+    """Register a first-time Cognito login and return (agent id, label): the
+    person, which is the agent (SCRUM-6995), and its curie, the same shape
+    manually-registered curators have. A person already registered with this
+    email (e.g. by an admin ahead of the first login) is used as it is, its
+    Cognito roles recorded when the admin left them unset.
 
     Concurrency: the UI fires many API calls in parallel right after login and
     each would otherwise pass the missing-user lookup and create a duplicate
@@ -249,9 +251,9 @@ def _register_cognito_user(db: Session, cognito_user: Dict[str, Any],
     both lookups are re-run under the lock, so every racer after the first
     resolves the freshly created rows instead of duplicating.
 
-    Atomicity: person, email and agent rows commit together — a failure cannot
-    leave a person without an agent, which would re-create duplicates on
-    every later login.
+    Atomicity: person (with its agent row) and email commit together — a
+    failure cannot leave a person without an email, which would re-create
+    duplicates on every later login.
 
     Models are imported lazily: this module sits at the centre of an import
     cycle (see the NOTE at the top of the file)."""
@@ -266,18 +268,13 @@ def _register_cognito_user(db: Session, cognito_user: Dict[str, Any],
     # lock is transaction-scoped and would otherwise be held for the rest of
     # the request, serializing the racers end-to-end instead of just past the
     # insert.
+    groups = list(cognito_user.get("cognito:groups") or [])
     row = db.execute(_SQL_AGENT_BY_EMAIL, {"email": user_email}).fetchone()
     if row:
-        db.commit()
-        return row.id, row.label
-
-    groups = list(cognito_user.get("cognito:groups") or [])
-    person_row = db.execute(_SQL_PERSON_BY_EMAIL, {"email": user_email}).fetchone()
-    if person_row:
-        person_id, curie = person_row[0], person_row[1]
+        person_id, curie = row.id, row.label
         # Record the Cognito role status on a pre-registered person only when
         # the admin left it unset — never clobber curated roles.
-        if groups:
+        if groups and row.roles_unset:
             db.execute(text(
                 "UPDATE person SET mod_roles = :groups "
                 "WHERE id = :pid AND mod_roles IS NULL"
@@ -298,9 +295,8 @@ def _register_cognito_user(db: Session, cognito_user: Dict[str, Any],
         db.flush()
         person_id, curie = person.person_id, person.curie
 
-    agent_id = db.execute(_SQL_INSERT_PERSON_AGENT, {"pid": person_id}).scalar()
     db.commit()
-    return agent_id, curie
+    return person_id, curie
 
 
 def get_global_user_id() -> Optional[str]:
@@ -329,24 +325,20 @@ def get_current_user_pk(db: Session) -> Optional[int]:
 
 def link_user_to_person(db: Session, user_id_str: str, person_id: int) -> None:
     """
-    Switch the agent labelled ``user_id_str`` from 'automation mode' to
-    'person-backed' mode: person_id = <id>, automation_username = NULL.
-    This keeps the CHECK constraint valid. Its label becomes the person curie.
+    Fold the automation agent labelled ``user_id_str`` into the person: everything
+    it recorded (audit columns, transactions) is attributed to the person, whose
+    curie becomes the label, and the automation agent is deleted (SCRUM-6995: a
+    person is its own agent). Nothing to do when no such automation agent exists.
+    Committed.
     """
-    u = _ensure_automation_user(db, user_id_str)
+    from agr_literature_service.api.crud.agent_crud import merge_agent_into
 
-    changed = False
-    if u.person_id != person_id:
-        u.person_id = person_id
-        changed = True
-    if u.automation_username is not None:
-        u.automation_username = None
-        changed = True
-
-    if changed:
-        db.add(u)
-        db.commit()
-        db.refresh(u)
+    agent_id = db.execute(text("SELECT id FROM agent WHERE agent_type = 'automation' AND display_name = :label"),
+                          {"label": user_id_str}).scalar()
+    if agent_id is None:
+        return
+    merge_agent_into(db, agent_id, person_id)
+    db.commit()
 
 
 # Emails already confirmed registered this process — makes the per-request

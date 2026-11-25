@@ -107,7 +107,7 @@ class AuthorModel(Base, AuditedModel):
         nullable=True
     )
 
-    person = relationship("PersonModel")
+    person = relationship("PersonModel", foreign_keys="AuthorModel.person_id")
 
     __table_args__ = (
         CheckConstraint(
