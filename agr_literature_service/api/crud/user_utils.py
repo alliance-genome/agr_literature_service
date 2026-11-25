@@ -200,13 +200,15 @@ def map_to_user_id(identifier: str, db: Session) -> str:
       4) contains '@': the person with that email -> curie; 422 if none, or if
          the email is shared by more than one person.
       5) an existing agent label (case-insensitive)
-      6) the one person with that display name (full or initials+last); a name
-         several persons share is not a match
+      6) the one person with that display name (full or initials+last) -> curie;
+         422 when several persons share it, naming their curies, rather than
+         recording the change under a new automation agent with that name
       7) else echoed back: the audit listener creates an automation agent, as
          a new script's name does.
 
     Returns: the agent label (text)
-    Raises:  HTTPException(422) for an unknown person curie or email.
+    Raises:  HTTPException(422) for an unknown person curie or email, and for an
+             email or a name more than one person has.
     """
     if not identifier or not identifier.strip():
         return ""
@@ -249,22 +251,21 @@ def map_to_user_id(identifier: str, db: Session) -> str:
     if users_id:
         return users_id
 
-    # 6) name (full display_name or initials+last), when only one person has it
-    named = list(db.execute(_SQL_PERSONS_BY_NAME, {"id_raw": ident}).scalars())
-    users_id = named[0] if len(named) == 1 else None
-    if not users_id:
-        """
+    # 6) name (full display_name or initials+last), when only one person has it.
+    # Since SCRUM-6995 every person is an agent, so a curator's name can be shared
+    # with an imported WB/SGD person: refuse to guess instead of recording the
+    # change under a new automation agent named after them.
+    named = sorted(set(db.execute(_SQL_PERSONS_BY_NAME, {"id_raw": ident}).scalars()))
+    if len(named) > 1:
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"Unknown user identifier: {identifier!r}. "
-                "Expected users.id, an email address, a full display name, "
-                "or initials+last (e.g., 'G. D. Smith', 'G. Williams')."
-            ),
+            detail=(f"User identifier {identifier!r} matches more than one person "
+                    f"({', '.join(named)}); use the person's AGRKB ID or email"),
         )
-        """
-        return ident
-    return users_id
+    if named:
+        return named[0]
+    # 7) unknown: echoed back, and the audit listener creates an automation agent
+    return ident
 
 
 def resolve_named_agent(identifier: str, db: Session, field: str = "updated_by") -> Tuple[int, str]:
@@ -390,8 +391,9 @@ def map_to_existing_user_id(identifier: str, db: Session) -> Optional[str]:
     Cognito sub (SCRUM-6459) -- use this and drop the field when it returns
     None, letting the audited-model listener stamp the authenticated user.
 
-    Unlike map_to_user_id, an unknown EMAIL or person curie also returns None
-    here (there it raises 422) -- all no-match outcomes look the same to a
+    Unlike map_to_user_id, an unknown EMAIL or person curie, or a name several
+    persons share, also returns None here (there it raises 422) -- all
+    no-match outcomes look the same to a
     caller of this helper. A real person named by curie, cross reference or
     email does get an agent if they have none: that is the person, not a
     made-up user.

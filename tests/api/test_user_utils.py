@@ -164,7 +164,18 @@ def test_display_name_matches_only_one_person(db):  # noqa
     _person(db, "AGRKB:105006729012", "Uniquename Persontwelve")
     assert map_to_user_id("Uniquename Persontwelve", db) == "AGRKB:105006729012"
     assert map_to_user_id("U. Persontwelve", db) == "AGRKB:105006729012"
-    # a name two persons share is no match: it is echoed back like any unknown name
+    # a name that matches no one is echoed back (it becomes an automation agent)
+    assert map_to_user_id("Nobody Bythatname", db) == "Nobody Bythatname"
+
+
+def test_a_name_several_persons_share_is_refused(db):  # noqa
+    """Review (point 5): since every imported person is an agent, a curator's name
+    can be shared; that must not silently create an automation agent named after
+    them."""
     _person(db, "AGRKB:105006729013", "Twin Namesake")
     _person(db, "AGRKB:105006729014", "Twin Namesake")
-    assert map_to_user_id("Twin Namesake", db) == "Twin Namesake"
+    with pytest.raises(HTTPException) as raised:
+        map_to_user_id("Twin Namesake", db)
+    assert raised.value.status_code == 422
+    assert "AGRKB:105006729013" in raised.value.detail and "AGRKB:105006729014" in raised.value.detail
+    assert db.query(AutomationModel).filter(UserModel.display_name == "Twin Namesake").count() == 0
