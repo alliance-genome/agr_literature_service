@@ -143,14 +143,14 @@ class AuditedModel(object):
         if has_inherited_table(cls):
             return None
         return deferred(Column(BigInteger, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_created_by_id'[:63]),
-                               nullable=True))
+                               nullable=True, index=True))
 
     @declared_attr
     def updated_by_id(cls):
         if has_inherited_table(cls):
             return None
         return deferred(Column(BigInteger, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_updated_by_id'[:63]),
-                               nullable=True))
+                               nullable=True, index=True))
 
     @declared_attr
     def created_by(cls):

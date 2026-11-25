@@ -30,6 +30,10 @@ Columns that take part in a unique index are rewritten in two passes (to the neg
 the sign flipped), since PostgreSQL checks those indexes row by row and an old id may equal another
 person's new id.
 
+created_by_id and updated_by_id get an index (ix_<table>_<column>) on every audited table, history
+tables included, before the merge: they had none since SCRUM-6719, so every agent delete checked
+each FK into agent with a sequential scan, and every merge rewrote each table with one.
+
 Downgrade restores the composition model but is lossy: persons keep their new ids, merged agents
 are not split again, and persons that had no agent keep the agent this revision gave them.
 """
@@ -202,6 +206,31 @@ def _fill_agent_rows() -> None:
              'WHERE automation_username IS NOT NULL')
 
 
+def _index_audit_agent_columns() -> None:
+    """ix_<table>_created_by_id / ix_<table>_updated_by_id on every audited table, history tables
+    included, as AuditedModel declares them (index=True). Without them PostgreSQL checks each FK
+    into agent with a sequential scan whenever an agent is deleted, and merging an agent rewrites
+    every audited table with one. Built before the merge so that step uses them. person and
+    person_version are skipped: their audit columns move to agent, which is indexed here, and
+    agent_version gets its own in _create_agent_version."""
+    op.execute("SET LOCAL maintenance_work_mem = '512MB'")
+    for table in _audited_tables():
+        if table in ('person', 'person_version'):
+            continue
+        table_columns = _columns(table)
+        for column in AUDIT_ID_COLUMNS:
+            if column in table_columns:
+                started = time.monotonic()
+                op.execute(f'CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON {table} ({column})')
+                logger.info('index ix_%s_%s in %.1fs', table, column, time.monotonic() - started)
+
+
+def _drop_audit_agent_column_indexes() -> None:
+    for table in _audited_tables():
+        for column in AUDIT_ID_COLUMNS:
+            op.execute(f'DROP INDEX IF EXISTS ix_{table}_{column}')
+
+
 def _merge_extra_agents() -> None:
     if not _scalar('SELECT count(*) FROM agent_merge_map'):
         logger.info('no person has more than one agent; nothing to merge')
@@ -284,7 +313,7 @@ def _create_agent_version() -> None:
     columns.append('CONSTRAINT agent_version_pkey PRIMARY KEY (id, transaction_id)')
     op.execute(f"CREATE TABLE agent_version ({', '.join(columns)})")
     for column in ('transaction_id', 'end_transaction_id', 'operation_type', 'agent_type',
-                   'date_created', 'date_updated'):
+                   'date_created', 'date_updated') + AUDIT_ID_COLUMNS:
         op.execute(f'CREATE INDEX ix_agent_version_{column} ON agent_version ({column})')
     copied = MOVED_NAMES + ('transaction_id', 'end_transaction_id', 'operation_type') + tuple(
         f'{name}_mod' for name in MOVED_NAMES)
@@ -315,6 +344,7 @@ def upgrade():
     _add_agent_columns()
     _build_person_agent_map(person_id_columns)
     _fill_agent_rows()
+    _index_audit_agent_columns()
     _merge_extra_agents()
     _remap_person_ids(person_fks, person_id_columns)
     _create_children()
@@ -336,6 +366,8 @@ def upgrade():
 
 
 def downgrade():
+    _drop_audit_agent_column_indexes()
+
     # composition columns back on agent
     op.execute('ALTER TABLE agent ADD COLUMN person_id BIGINT, ADD COLUMN automation_username VARCHAR')
     op.execute("UPDATE agent SET person_id = id WHERE agent_type = 'person'")
