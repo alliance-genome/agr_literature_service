@@ -197,7 +197,7 @@ class TestConversionJobManager:
     def test_create_new_job(self, manager):
         job = manager.create_or_get_job(reference_id=10, reference_curie="AGRKB:X",
                                         user_id="u1")
-        assert job.status == "running"
+        assert job.status == "queued"  # until the conversion worker claims it (SCRUM-6998)
         assert manager.get_job(job.job_id) == job
         assert manager.get_active_job_for_reference(10).job_id == job.job_id
 
@@ -216,7 +216,7 @@ class TestConversionJobManager:
         second = manager.create_or_get_job(reference_id=12, reference_curie="AGRKB:Z",
                                            user_id="u")
         assert second.job_id != first.job_id
-        assert second.status == "running"
+        assert second.status == "queued"
 
     def test_record_progress_and_complete(self, manager):
         job = manager.create_or_get_job(reference_id=13, reference_curie="AGRKB:Q",
