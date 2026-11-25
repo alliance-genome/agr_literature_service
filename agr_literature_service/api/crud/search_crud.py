@@ -6,6 +6,8 @@ import unicodedata
 from datetime import datetime, date, time, timezone
 
 from elasticsearch import Elasticsearch
+from sqlalchemy import true
+
 from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
@@ -339,6 +341,26 @@ def search_references(
                     }
                 }
             },
+            "curation_tags": {
+                "nested": {"path": "curation_tags"},
+                "aggs": {
+                    "by_curation_status": {
+                        "terms": {
+                            "field": "curation_tags.curation_status.keyword",
+                            "size": 100
+                        },
+                        "aggs": {
+                            "topics": {
+                                "terms": {
+                                    "field": "curation_tags.topic.keyword",
+                                    "size": 100
+                                },
+                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                            }
+                        }
+                    }
+                }
+            },
             "indexing_priorities": {
                 "nested": {"path": "indexing_priorities"},
                 "aggs": {
@@ -583,7 +605,23 @@ def search_references(
                 es_body["query"]["bool"]["filter"]["bool"]["must"].append(
                     {"bool": {"should": should, "minimum_should_match": 1}}
                 )
-
+            elif facet_field == "curation_tags":
+                for facet_value in facet_list_values:
+                    [topic, curation_status] = facet_value.split(",");
+                    nested_query = {
+                        "nested": {
+                            "path": "curation_tags",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"curation_tags.topic.keyword": topic}},
+                                        {"term": {"curation_tags.curation_status.keyword": curation_status}}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                    es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
             else:
                 if facet_field == "authors.name.keyword":
                     for facet_value in facet_list_values:
@@ -822,6 +860,11 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     res["aggregations"].update(topic_aggs)
     res["aggregations"].update(workflow_aggs)
     res["aggregations"].update(curation_aggs)
+
+    ##De-nest curation agg
+    curation_status_tags = res["aggregations"].get("curation_tags").get("by_curation_status")
+    res['aggregations']["curation_tags"] = curation_status_tags
+    add_curie_to_name_values(curation_status_tags)
 
     # unwrap nested authors agg to the expected shape
     agg = res["aggregations"].get("authors.name.keyword")
@@ -1668,6 +1711,10 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
         elif key_u == "ATP:0000335":
             curie_name= "unspecified"
         bucket["name"] = curie_name
+
+        ##Recursive call for nested data
+        if "topics" in bucket:
+            add_curie_to_name_values(bucket["topics"])
 
 
 def get_atp_ids(root_atp_ids: List[str]) -> List[str]:
