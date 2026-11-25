@@ -11,6 +11,7 @@ table and person / automation are child tables that share the agent's id:
   agent        id, agent_type ('person' | 'automation'), display_name, the audit columns
   person       id = agent.id, agent_type fixed to 'person', FK (id, agent_type) -> agent
   automation   id = agent.id, agent_type fixed to 'automation', FK (id, agent_type) -> agent
+  agent_version, automation_version   SQLAlchemy-Continuum history (person_version exists already)
 
   person.display_name and the audit columns move to agent (person_version's to agent_version,
   which is seeded from person_version so a person's name history survives the move).
@@ -132,7 +133,7 @@ def _person_id_columns(person_fks) -> List[Tuple[str, str]]:
 
 
 def _check_preconditions() -> None:
-    for table in ('automation', 'agent_version'):
+    for table in ('automation', 'automation_version', 'agent_version'):
         if _table_exists(table):
             raise RuntimeError(f'{table} already exists')
     with_colon = _rows("SELECT id, automation_username FROM agent WHERE automation_username LIKE '%:%' LIMIT 20")
@@ -259,6 +260,13 @@ def _create_children() -> None:
                "CONSTRAINT fk_automation_agent FOREIGN KEY (id, agent_type) "
                "REFERENCES agent (id, agent_type) ON DELETE CASCADE)")
     _execute('automation rows', "INSERT INTO automation (id) SELECT id FROM agent WHERE agent_type = 'automation'")
+    # Continuum versions every class under the versioned UserModel; automation has only its key
+    op.execute('CREATE TABLE automation_version ('
+               'id BIGINT NOT NULL, transaction_id BIGINT NOT NULL, end_transaction_id BIGINT, '
+               'operation_type SMALLINT NOT NULL, '
+               'CONSTRAINT automation_version_pkey PRIMARY KEY (id, transaction_id))')
+    for column in ('transaction_id', 'end_transaction_id', 'operation_type'):
+        op.execute(f'CREATE INDEX ix_automation_version_{column} ON automation_version ({column})')
     for column in AUDIT_ID_COLUMNS:
         op.execute(f'ALTER TABLE agent ADD CONSTRAINT fk_agent_{column} FOREIGN KEY ({column}) '
                    'REFERENCES agent (id) NOT VALID')
@@ -368,6 +376,7 @@ def downgrade():
     # children and history go
     op.execute('ALTER TABLE person DROP CONSTRAINT fk_person_agent')
     op.execute('ALTER TABLE person DROP COLUMN agent_type')  # and ck_person_agent_type
+    op.execute('DROP TABLE automation_version')
     op.execute('DROP TABLE automation')
     op.execute('DROP TABLE agent_version')
     for column in AUDIT_ID_COLUMNS:
