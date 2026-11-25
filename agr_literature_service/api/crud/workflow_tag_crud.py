@@ -506,6 +506,14 @@ def _get_tag_under_process(db: Session, reference_id: int, mod_id: int,
     return tags[0] if tags else None
 
 
+def _set_curation_tag_and_note(tag: WorkflowTagModel, curation_tag: Optional[str], note: Optional[str]):
+    """Set the transition's curation tag and note on the tag; a None leaves the current value."""
+    if curation_tag is not None:
+        tag.curation_tag = curation_tag  # type: ignore
+    if note is not None:
+        tag.note = note  # type: ignore
+
+
 def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_abbreviation: str,
                                   new_workflow_tag_atp_id: str, transition_type: str = "automated",
                                   run_actions: bool = True, curation_tag: Optional[str] = None,
@@ -572,6 +580,14 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
     current_workflow_tag_db_obj = _get_tag_under_process(db, reference.reference_id, mod.mod_id, process_atp_id)
+    if current_workflow_tag_db_obj is not None and current_workflow_tag_db_obj.workflow_tag_id == \
+            new_workflow_tag_atp_id:
+        # Already there: not a status change, so no row, requirements or actions. A caller may
+        # ask for the state a trigger has just set, e.g. the WF editor's "no genetic data" tick
+        # after the verdict moved the paper to won't manually index (SCRUM-6672).
+        _set_curation_tag_and_note(current_workflow_tag_db_obj, curation_tag, note)
+        _commit_or_flush(db, commit)
+        return
     transition_from = current_workflow_tag_db_obj.workflow_tag_id if current_workflow_tag_db_obj \
         else process_atp_id
     transition = _find_transition(db, mod.mod_id, transition_from, new_workflow_tag_atp_id, transition_type)
@@ -591,10 +607,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         db.add(current_workflow_tag_db_obj)
     else:
         current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id  # type: ignore
-    if curation_tag is not None:
-        current_workflow_tag_db_obj.curation_tag = curation_tag  # type: ignore
-    if note is not None:
-        current_workflow_tag_db_obj.note = note  # type: ignore
+    _set_curation_tag_and_note(current_workflow_tag_db_obj, curation_tag, note)
     if run_actions and transition.actions:
         process_transition_actions(db, transition, current_workflow_tag_db_obj)
     _commit_or_flush(db, commit)
