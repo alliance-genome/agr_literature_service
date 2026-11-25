@@ -73,10 +73,24 @@ def test_trigger_sources_match_revision():
             assert new in source, (function, new)
 
 
+# columns the bigint revision converted that a later revision dropped
+DROPPED_LATER = {
+    ('agent', 'person_id'),  # SCRUM-6995: a person is its own agent
+    ('person', 'created_by_id'),  # SCRUM-6995: the audit columns moved to agent
+    ('person', 'updated_by_id'),
+}
+
+
 def test_every_listed_id_column_is_bigint():
     wrong = [f'{table}.{name}' for table, names in BIGINT_IDS.BIGINT_COLUMNS.items() if table in Base.metadata.tables
-             for name in names if not isinstance(Base.metadata.tables[table].columns[name].type, BigInteger)]
+             for name in names if (table, name) not in DROPPED_LATER
+             and not isinstance(Base.metadata.tables[table].columns[name].type, BigInteger)]
     assert wrong == []
+
+
+def test_dropped_later_columns_are_gone():
+    assert [f'{table}.{name}' for table, name in DROPPED_LATER
+            if name in Base.metadata.tables[table].columns] == []
 
 
 def test_no_integer_id_column_left():

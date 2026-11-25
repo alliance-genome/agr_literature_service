@@ -150,20 +150,23 @@ def update_dates(db, colleague_dates: List[Tuple[int, datetime]], loader_user=LO
         "LEFT JOIN sgd_person_date s ON s.person_id = pl.person_subject_id "
         "LEFT JOIN sgd_person_date o ON o.person_id = pl.person_object_id "
         "WHERE s.sgd_date IS NOT NULL OR o.sgd_date IS NOT NULL", "{pk}")
+    # a person's dates live on its agent row since SCRUM-6995 (person.id = agent.id)
+    person_dates_table = "person" if "date_created" in table_columns(db, "person") else "agent"
     counts = {}
-    for table, (source, key) in sources.items():
+    for label, (source, key) in sources.items():
+        table = person_dates_table if label == "person" else label
         columns = table_columns(db, table)
         pk = "id" if "id" in columns else f"{table}_id"
         created_by_loader, updated_by_loader = loader_conditions(db, columns, loader_user)
         loader_row = f"{created_by_loader} AND {updated_by_loader}"
         # a person in ABC before the SGD load still gets the colleague's date_created
-        only_created_by_loader = "" if table == "person" else f" AND {created_by_loader}"
+        only_created_by_loader = "" if label == "person" else f" AND {created_by_loader}"
         updated = db.execute(text(
             f"UPDATE {table} t SET {set_dates(columns, loader_row)} "
             f"FROM ({source.format(pk=pk)}) d WHERE t.{key.format(pk=pk)} = d.id{only_created_by_loader} "
             f"RETURNING COALESCE({loader_row}, FALSE)"), {"loader": loader_user}).scalars().all()
-        counts[table] = len(updated)
-        counts[f"{table} (date_created only)"] = updated.count(False)
+        counts[label] = len(updated)
+        counts[f"{label} (date_created only)"] = updated.count(False)
     counts["unmatched colleague_ids"] = db.execute(text(
         "SELECT count(*) FROM sgd_colleague_date c WHERE NOT EXISTS ("
         "SELECT 1 FROM person_cross_reference x WHERE x.curie = 'SGD:Colleague_' || c.colleague_id)")).scalar()

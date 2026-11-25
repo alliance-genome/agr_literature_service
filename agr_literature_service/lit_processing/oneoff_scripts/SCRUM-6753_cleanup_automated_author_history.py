@@ -49,6 +49,10 @@ def human_transaction(db) -> str:
         "WHERE conrelid = 'transaction'::regclass AND contype = 'f' "
         "AND pg_get_constraintdef(oid) LIKE 'FOREIGN KEY (user_id)%'")).scalar()
     if target == "agent":
+        columns = set(db.execute(text("SELECT column_name FROM information_schema.columns "
+                                      "WHERE table_name = 'agent'")).scalars())
+        if "agent_type" in columns:  # SCRUM-6995: a person is an agent
+            return "EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.agent_type = 'person')"
         return "EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.person_id IS NOT NULL)"
     if target == "users":
         return "EXISTS (SELECT 1 FROM users u WHERE u.user_id = t.user_id AND u.person_id IS NOT NULL)"

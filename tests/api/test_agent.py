@@ -209,8 +209,9 @@ def test_merge_agent_into(db):  # noqa
     note = PersonNoteModel(person_id=subject.person_id, note="first", created_by="AGENT_TEST_MERGE_PLACEHOLDER")
     db.add(note)
     db.commit()
-    note.note = "second"  # a second history row
-    note.updated_by = "AGENT_TEST_MERGE_PLACEHOLDER"
+    # a second history row, written as the placeholder: its transaction is the placeholder's too
+    set_global_user_id(db, "AGENT_TEST_MERGE_PLACEHOLDER")
+    note.note = "second"
     db.commit()
     note_id = note.person_note_id
 
@@ -218,6 +219,7 @@ def test_merge_agent_into(db):  # noqa
     db.commit()
     assert counts["person_note"] == 1
     assert counts["person_note_version"] >= 2
+    assert counts["transaction"] >= 1
     assert db.get(UserModel, placeholder_id) is None
     assert db.execute(text("SELECT count(*) FROM automation WHERE id = :i"), {"i": placeholder_id}).scalar() == 0
     note = db.get(PersonNoteModel, note_id)
