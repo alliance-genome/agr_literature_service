@@ -100,6 +100,21 @@ class TestConversionWorker:
         release.set()
         _wait_done(worker)
 
+    def test_a_run_that_finishes_after_shutdown_leaves_its_job_queued(self, mgr):
+        release = threading.Event()
+
+        def run_then_complete(job_id, *_):
+            release.wait(10)
+            mgr.complete_job(job_id, success=True)
+
+        job, _ = mgr.start_job(1, "AGRKB:1", "user")
+        worker = ConversionWorker(mgr, run_job=run_then_complete)
+        worker.step()
+        worker.shutdown()
+        release.set()
+        _wait_done(worker)
+        assert mgr.get_job(job.job_id).status == "queued"
+
     def test_a_job_left_by_a_dead_worker_is_resumed(self, mgr):
         ran = []
         job, _ = mgr.start_job(1, "AGRKB:1", "user")

@@ -24,6 +24,7 @@ from agr_literature_service.api.utils.conversion_job_manager import (
     ConversionJob,
     ConversionJobManager,
     PerFileProgress,
+    running_as,
 )
 
 
@@ -340,6 +341,37 @@ class TestClaims:
         mgr.complete_job(job.job_id, success=True)
         assert mgr.get_job(job.job_id).status == "failed"
         assert mgr.get_job(job.job_id).error_message == JOB_DEADLINE_ERROR
+
+    def test_a_run_whose_job_was_requeued_cannot_write_to_it(self, mgr):
+        """Review (Chris Tabone): between a shutdown's re-queue and the process exit,
+        a finishing run must not complete or update the re-queued job."""
+        job = mgr.create_or_get_job(
+            1, "AGRKB:1", "user",
+            expected_source_files=[{"source_display_name": "a.pdf", "source_file_class": "main"}])
+        mgr.claim_next_job("w1")
+        mgr.requeue_jobs("w1")
+        with running_as("w1"):
+            mgr.record_file_progress(job.job_id, source_display_name="a.pdf", source_file_class="main",
+                                     success=True)
+            mgr.set_pdfx_process_id(job.job_id, "a.pdf", "main", "p-old")
+            mgr.complete_job(job.job_id, success=True)
+        stored = mgr.get_job(job.job_id)
+        assert stored.status == "queued"
+        assert stored.per_file_progress[0].status == "pending"
+        assert stored.per_file_progress[0].pdfx_process_id is None
+
+    def test_only_the_current_owner_of_a_taken_over_job_can_complete_it(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        _set_job_field(mgr, job.job_id, heartbeat_at=_ago(HEARTBEAT_STALE + timedelta(seconds=30)))
+        mgr.claim_next_job("w2")
+        with running_as("w1"):  # the old run, still alive
+            mgr.complete_job(job.job_id, success=False, error="stale run")
+        assert mgr.get_job(job.job_id).status == "running"
+        assert mgr.get_job(job.job_id).owner == "w2"
+        with running_as("w2"):
+            mgr.complete_job(job.job_id, success=True)
+        assert mgr.get_job(job.job_id).status == "completed"
 
     def test_worker_alive_follows_its_heartbeat_file(self, mgr):
         assert mgr.worker_alive() is False

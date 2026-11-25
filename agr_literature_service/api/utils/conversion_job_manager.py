@@ -34,6 +34,13 @@ cleanly re-queues its jobs at once. After MAX_RESUMES the job is failed with
 WORKER_GONE_ERROR, and the next request starts a new one. A job running longer
 than JOB_DEADLINE is failed by its worker's heartbeat.
 
+A worker runs each job inside ``running_as(worker_id)``. Writes made there (the
+job's per-file progress, its PDFX process ids, its completion) apply only while
+that worker still owns the job and it is running: a run that lost its job, because
+its worker re-queued it on shutdown or another worker took it over after a stale
+heartbeat, cannot overwrite what the job's new owner does. Writes made outside a
+run (the API, tests) are not restricted.
+
 A job that failed is reported as failed to the next request, for
 FAILED_JOB_HOLD, instead of being started again: a paper that always fails would
 otherwise be converted again on every poll, and the poller would only ever see
@@ -53,6 +60,7 @@ import tempfile
 import time
 import uuid
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
@@ -80,6 +88,25 @@ JOB_DEADLINE_ERROR = (f"The conversion did not finish within "
 
 ACTIVE_STATUSES = ("queued", "running")
 WORKER_HEARTBEAT_FILE = "worker.json"
+
+# the worker whose run is making the current writes (see running_as); None outside a run
+_run_owner: ContextVar[Optional[str]] = ContextVar("conversion_run_owner", default=None)
+
+
+@contextmanager
+def running_as(worker_id: str) -> Iterator[None]:
+    """Within the block, job writes are made by ``worker_id``'s run of the job: they
+    apply only while that worker owns the job and the job is running."""
+    token = _run_owner.set(worker_id)
+    try:
+        yield
+    finally:
+        _run_owner.reset(token)
+
+
+def _owned_by_this_run(job: "ConversionJob") -> bool:
+    owner = _run_owner.get()
+    return owner is None or (job.status == "running" and job.owner == owner)
 
 
 @dataclass
@@ -488,6 +515,15 @@ class ConversionJobManager:
                         requeued += 1
         return requeued
 
+    @staticmethod
+    def _may_write(job: ConversionJob, action: str) -> bool:
+        """Whether the current run may write to ``job`` (always, outside a run)."""
+        if _owned_by_this_run(job):
+            return True
+        logger.warning(f"Conversion job {job.job_id}: a run by worker {_run_owner.get()} tried to "
+                       f"{action}, but the job is {job.status} and owned by {job.owner}; ignored")
+        return False
+
     def _progress_entry(self, job: ConversionJob, source_display_name: str,
                         source_file_class: str) -> Optional[PerFileProgress]:
         for progress in job.per_file_progress:
@@ -502,7 +538,7 @@ class ConversionJobManager:
         not seeded)."""
         with self._lock():
             job = self._load_job(job_id)
-            if job is None:
+            if job is None or not self._may_write(job, "record a PDFX process id"):
                 return
             entry = self._progress_entry(job, source_display_name, source_file_class)
             if entry is None:
@@ -534,7 +570,7 @@ class ConversionJobManager:
         new_status = "success" if success else "failed"
         with self._lock():
             job = self._load_job(job_id)
-            if job is None:
+            if job is None or not self._may_write(job, "record file progress"):
                 return
             existing = self._progress_entry(job, source_display_name, source_file_class)
             if existing is not None:
@@ -571,10 +607,11 @@ class ConversionJobManager:
 
     def complete_job(self, job_id: str, success: bool, error: str = "") -> None:
         """Mark a job completed or failed. A job that is already finished (failed by
-        the deadline while its run was still going) is left as it is."""
+        the deadline while its run was still going) is left as it is, and so is a job
+        the calling run no longer owns (see running_as)."""
         with self._lock():
             job = self._load_job(job_id)
-            if job is None:
+            if job is None or not self._may_write(job, "complete it"):
                 return
             if not job.is_active:
                 logger.warning(f"Conversion job {job_id} finished a run but is already {job.status}; "

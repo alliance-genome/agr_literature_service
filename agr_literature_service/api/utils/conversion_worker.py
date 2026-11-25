@@ -29,6 +29,7 @@ from agr_literature_service.api.utils.conversion_job_manager import (
     HEARTBEAT_INTERVAL,
     ConversionJobManager,
     conversion_manager,
+    running_as,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,11 +89,15 @@ class ConversionWorker:
     def _run(self, job_id: str, reference_id: int, reference_curie: str,
              overwrite_tei_md: bool) -> None:
         logger.info(f"Running conversion job {job_id} for {reference_curie}")
-        try:
-            self.run_job(job_id, reference_id, reference_curie, overwrite_tei_md)
-        except Exception as exc:  # run_conversion_job never raises; a replacement might
-            logger.exception(f"Conversion job {job_id} raised")
-            self.manager.complete_job(job_id, success=False, error=str(exc))
+        # the run's writes apply only while this worker still owns the job (Chris
+        # Tabone's review): not after a shutdown re-queued it, nor after another
+        # worker took it over
+        with running_as(self.worker_id):
+            try:
+                self.run_job(job_id, reference_id, reference_curie, overwrite_tei_md)
+            except Exception as exc:  # run_conversion_job never raises; a replacement might
+                logger.exception(f"Conversion job {job_id} raised")
+                self.manager.complete_job(job_id, success=False, error=str(exc))
 
     def beat(self) -> None:
         """Refresh the heartbeat of this worker and of the jobs it is running."""
