@@ -17,6 +17,8 @@ from ...fixtures import db  # noqa
 UTILS = "agr_literature_service.lit_processing.pdf2md.pdf2md_utils"
 CRUD = "agr_literature_service.api.crud.referencefile_crud"
 CURIE = "AGRKB:101000699801"
+# above pdf2md's 10-byte minimum, so the merged Markdown is stored
+MERGED_MARKDOWN = b"# Title\n\nThe merged text of the paper."
 
 
 def _http_error(status_code):
@@ -68,7 +70,7 @@ def _convert(db, poll, pdfx_process_id=None, on_submitted=None):  # noqa
     with patch(f"{UTILS}.download_file", return_value=b"%PDF-1.4"), \
             patch(f"{UTILS}.submit_pdf_to_pdfx", return_value="new-pid") as submit, \
             patch(f"{UTILS}.poll_pdfx_status", side_effect=poll) as polled, \
-            patch(f"{UTILS}.download_pdfx_result", return_value=b"# merged"), \
+            patch(f"{UTILS}.download_pdfx_result", return_value=MERGED_MARKDOWN), \
             patch(f"{UTILS}.process_extracted_images", return_value=(0, 0, [])), \
             patch(f"{CRUD}.boto3"), \
             patch(f"{CRUD}.upload_file_to_bucket"), \
