@@ -160,10 +160,20 @@ def _convert_pending_pdf(
 
     The on-demand request converts supplement PDFs of any size (SCRUM-6978);
     the 5 MiB / 20 page limits apply only to the batch job.
+
+    SCRUM-6998: the PDFX process_id is recorded on the job as soon as the PDF
+    is submitted, and a resumed run passes it back, so the PDF is not
+    submitted to PDFX a second time.
     """
     from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
         _process_single_pdf_file,
     )
+    display_name, file_class = pdf_file.display_name, pdf_file.file_class
+
+    def record_submission(process_id: str) -> None:
+        # stored before polling, so a run that resumes this job re-attaches to it
+        conversion_manager.set_pdfx_process_id(job_id, display_name, file_class, process_id)
+
     try:
         success, methods_uploaded, error = _process_single_pdf_file(
             db=db,
@@ -171,6 +181,8 @@ def _convert_pending_pdf(
             reference_curie=reference_curie,
             methods_to_extract=_all_extraction_methods(),
             enforce_supplement_limits=False,
+            pdfx_process_id=conversion_manager.get_pdfx_process_id(job_id, display_name, file_class),
+            on_submitted=record_submission,
         )
     except Exception as exc:
         success, methods_uploaded, error = False, [], str(exc)
