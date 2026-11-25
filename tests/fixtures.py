@@ -25,23 +25,22 @@ def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
         with engine.begin() as conn:  # Use connection context
-            # Break the person<->agent FK cycle before deleting person rows. The
-            # cleanup never deletes the "agent" table (the default user is preserved
-            # below), so a curator (person-linked) agent row would survive while its
-            # person is deleted -- firing author/agent ON DELETE SET NULL on
-            # agent.person_id and leaving the row violating the agent
-            # (person_id IS NULL) <> (automation_username IS NULL) check. Convert any
-            # such row to an automation user first so the person delete is safe.
-            # Each gets its own name: automation_username is unique.
-            conn.execute(text(
-                "UPDATE agent "
-                "SET automation_username = COALESCE(automation_username, 'test_cleanup_' || id), "
-                "person_id = NULL "
-                "WHERE person_id IS NOT NULL"
-            ))
+            # The cleanup never deletes agents (the default user, and agent ids a test
+            # may still hold in the current-user context, stay valid): agent and its
+            # automation child rows are kept. A person is an agent (SCRUM-6995), so
+            # deleting the person rows leaves their agent rows behind; turn those into
+            # automation agents, each with its own name (automation names are unique).
             for table in reversed(Base.metadata.sorted_tables):
-                if table.fullname != "agent":
+                if table.fullname not in ("agent", "automation"):
                     conn.execute(table.delete())  # Use connection for execution
+            conn.execute(text(
+                "UPDATE agent SET agent_type = 'automation', display_name = 'test_cleanup_' || id "
+                "WHERE agent_type = 'person'"
+            ))
+            conn.execute(text(
+                "INSERT INTO automation (id) SELECT a.id FROM agent a "
+                "WHERE a.agent_type = 'automation' AND NOT EXISTS (SELECT 1 FROM automation m WHERE m.id = a.id)"
+            ))
         db_session.commit()  # Commit the transaction
 
 

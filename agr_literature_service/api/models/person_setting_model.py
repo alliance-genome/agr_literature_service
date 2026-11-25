@@ -26,7 +26,7 @@ class PersonSettingModel(Base, AuditedModel):
     json_settings = Column(JSONB, nullable=False, server_default="{}")
 
     # relationships
-    person = relationship("PersonModel", back_populates="settings")
+    person = relationship("PersonModel", back_populates="settings", foreign_keys="PersonSettingModel.person_id")
 
     __table_args__ = (
         Index("ix_person_setting_person_component", "person_id", "component_name"),

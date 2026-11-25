@@ -28,7 +28,7 @@ class LaboratoryPersonModel(Base, AuditedModel):
         nullable=False,
         index=True,
     )
-    person = relationship("PersonModel", back_populates="lab_persons")
+    person = relationship("PersonModel", back_populates="lab_persons", foreign_keys="LaboratoryPersonModel.person_id")
 
     # Timestamp fields (when the person became/stopped being PI, when they became alum).
     is_pi = Column(DateTime, nullable=True)

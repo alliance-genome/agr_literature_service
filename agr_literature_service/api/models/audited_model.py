@@ -1,13 +1,40 @@
 from datetime import datetime
 import pytz
 
-from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, DateTime, event, false, select
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, DateTime, column, event, false, func, select, table
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.inspection import inspect as sa_inspect
 from sqlalchemy.orm import Session, column_property, deferred
 from sqlalchemy.orm.attributes import set_committed_value
-from agr_literature_service.api.models.user_model import agent_label_expression
+from sqlalchemy.orm.decl_api import has_inherited_table
 from agr_literature_service.api.user import get_current_agent_id, get_global_user_id, resolve_agent_id
+
+_AGENT = table('agent', column('id'), column('display_name'))
+_PERSON = table('person', column('id'), column('curie'))
+
+# SQL for the label of agent a, with person p LEFT JOINed on p.id = a.id
+AGENT_LABEL_SQL = 'COALESCE(p.curie, a.display_name)'
+
+
+def agent_label_expression(agent_id_column):
+    """Correlated scalar subquery: the label of the agent whose id is agent_id_column --
+    the person's curie, or else the agent's display_name (an automation's name).
+
+    Built on lightweight table clauses rather than the models: it is evaluated while
+    the audited models -- UserModel and PersonModel among them -- are being declared.
+    The aliases keep it from correlating to the outer row when the audited table is
+    agent or person.
+    """
+    agent = _AGENT.alias('label_agent')
+    person = _PERSON.alias('label_person')
+    return (
+        select(func.coalesce(person.c.curie, agent.c.display_name))
+        .select_from(agent.outerjoin(person, person.c.id == agent.c.id))
+        .where(agent.c.id == agent_id_column)
+        .correlate_except(agent, person)
+        .scalar_subquery()
+    )
+
 
 # Internal flag to track if we should skip auto-updating updated_by and date_updated
 # Used during validation operations to prevent changing these fields
@@ -92,55 +119,73 @@ class AuditedModel(object):
     The LinkML-only columns are deferred, so a loaded object carries the same
     attributes as before -- jsonable_encoder(obj) builds many API responses, and
     their schemas forbid extra fields.
+
+    A joined-table subclass of an audited model (PersonModel, AutomationModel under
+    UserModel) gets none of them: it inherits its parent's, which live on the parent
+    table (SCRUM-6995).
     """
     __tablename__ = "audited"
 
-    date_created = Column(
-        DateTime,
-        nullable=False,
-        index=True,
-    )
+    @declared_attr
+    def date_created(cls):
+        if has_inherited_table(cls):
+            return None
+        return Column(DateTime, nullable=False, index=True)
 
-    date_updated = Column(
-        DateTime,
-        nullable=True,
-        index=True,
-    )
+    @declared_attr
+    def date_updated(cls):
+        if has_inherited_table(cls):
+            return None
+        return Column(DateTime, nullable=True, index=True)
 
     @declared_attr
     def created_by_id(cls):
+        if has_inherited_table(cls):
+            return None
         return deferred(Column(BigInteger, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_created_by_id'[:63]),
                                nullable=True))
 
     @declared_attr
     def updated_by_id(cls):
+        if has_inherited_table(cls):
+            return None
         return deferred(Column(BigInteger, ForeignKey('agent.id', name=f'fk_{cls.__tablename__}_updated_by_id'[:63]),
                                nullable=True))
 
     @declared_attr
     def created_by(cls):
+        if has_inherited_table(cls):
+            return None
         return column_property(agent_label_expression(cls.created_by_id))
 
     @declared_attr
     def updated_by(cls):
+        if has_inherited_table(cls):
+            return None
         return column_property(agent_label_expression(cls.updated_by_id))
 
     @declared_attr
     def db_date_created(cls):
+        if has_inherited_table(cls):
+            return None
         return deferred(Column(DateTime, nullable=True))
 
     @declared_attr
     def db_date_updated(cls):
+        if has_inherited_table(cls):
+            return None
         return deferred(Column(DateTime, nullable=True))
 
     @declared_attr
     def internal(cls):
+        if has_inherited_table(cls):
+            return None
         return deferred(Column(Boolean, nullable=False, default=False, server_default=false()))
 
     @declared_attr
     def obsolete(cls):
         # the tables that had is_obsolete map their own column onto obsolete
-        if 'is_obsolete' in cls.__dict__:
+        if 'is_obsolete' in cls.__dict__ or has_inherited_table(cls):
             return None
         return deferred(Column(Boolean, nullable=False, default=False, server_default=false()))
 
@@ -292,6 +337,6 @@ def audited_columns_sql(model, alias: str) -> str:
              for prop in sa_inspect(model).column_attrs
              if prop.key not in ('created_by', 'updated_by') and not prop.deferred]
     for key in ('created_by', 'updated_by'):
-        parts.append(f'(SELECT COALESCE(a.automation_username, p.curie) FROM agent a '
-                     f'LEFT JOIN person p ON p.id = a.person_id WHERE a.id = {alias}.{key}_id) AS {key}')
+        parts.append(f'(SELECT {AGENT_LABEL_SQL} FROM agent a '
+                     f'LEFT JOIN person p ON p.id = a.id WHERE a.id = {alias}.{key}_id) AS {key}')
     return ', '.join(parts)

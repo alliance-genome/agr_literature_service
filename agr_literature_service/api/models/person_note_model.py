@@ -20,7 +20,7 @@ class PersonNoteModel(Base, AuditedModel):
         nullable=False,
         index=True,
     )
-    person = relationship("PersonModel", back_populates="notes")
+    person = relationship("PersonModel", back_populates="notes", foreign_keys="PersonNoteModel.person_id")
 
     note = Column(String(), nullable=False)
 

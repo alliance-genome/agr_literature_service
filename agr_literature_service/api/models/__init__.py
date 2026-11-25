@@ -19,7 +19,7 @@ from agr_literature_service.api.models.reference_relation_model import \
     ReferenceRelationModel
 from agr_literature_service.api.models.reference_model import ReferenceModel
 from agr_literature_service.api.models.resource_model import ResourceModel
-from agr_literature_service.api.models.user_model import UserModel
+from agr_literature_service.api.models.user_model import UserModel, AutomationModel
 from agr_literature_service.api.models.person_model import PersonModel
 from agr_literature_service.api.models.person_cross_reference_model import PersonCrossReferenceModel
 from agr_literature_service.api.models.person_email_model import PersonEmailModel
