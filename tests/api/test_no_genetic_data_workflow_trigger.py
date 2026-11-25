@@ -202,3 +202,13 @@ class TestCuratorPaths:
         tet_crud.apply_tag_patch(db, tag, tet_crud.TopicEntityTagSchemaUpdate(negated=True))
         db.commit()
         assert _mi_tags(db, ref, mods["FB"]) == [(MI_WONT, NO_GENETIC_DATA)]
+
+    def test_patch_resending_negated_does_not_retrigger(self, fb_ref):  # noqa
+        db, mods, ref = fb_ref  # noqa
+        # The verdict was recorded earlier; since then someone moved the paper to "in progress".
+        tag = _tag(db, ref, get_or_create_abc_source(db, "FB"))
+        _mi_tag(db, ref, mods["FB"], MI_IN_PROGRESS)
+        # An edit form sends the whole tag back with only the note changed.
+        tet_crud.apply_tag_patch(db, tag, tet_crud.TopicEntityTagSchemaUpdate(negated=True, note="edited"))
+        db.commit()
+        assert _mi_tags(db, ref, mods["FB"]) == [(MI_IN_PROGRESS, None)]

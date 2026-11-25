@@ -382,6 +382,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         logger.info("Updating manual indexing workflow tag")
         update_manual_indexing_workflow_tag(db, source.secondary_data_provider.abbreviation, reference_id,
                                             index_wft, commit=False)
+        # SCRUM-6672: runs after index_wft on purpose, so a curator's "no genetic data" verdict
+        # wins over a manual indexing status sent in the same request (only SGD sends index_wft
+        # today, and the trigger is FB-only).
         add_no_genetic_data_workflow_tag(db, new_db_obj)
         if validate_on_insert:
             logger.info("Starting tag validation")
@@ -572,6 +575,10 @@ def add_no_genetic_data_workflow_tag(db: Session, tag: TopicEntityTagModel) -> N
                 current.curation_tag = NO_GENETIC_DATA_CURATION_TAG  # type: ignore
                 db.flush()
         else:
+            # The savepoint only protects the caller while the transition flushes. A transition
+            # action that commits on its own would commit the caller's whole transaction (and
+            # release create_tag's SCRUM-6851 reference lock); FB's rows into ATP:0000343 have
+            # no actions, so check this before adding one.
             transition_to_workflow_status(db, reference_id, mod_abbreviation, WONT_MANUALLY_INDEX_ATP,
                                           transition_type="manual",
                                           curation_tag=NO_GENETIC_DATA_CURATION_TAG, commit=False)
@@ -582,7 +589,8 @@ def add_no_genetic_data_workflow_tag(db: Session, tag: TopicEntityTagModel) -> N
         savepoint.rollback()
         reason = e.detail if isinstance(e, HTTPException) else f"{type(e).__name__}: {e}"
         logger.warning(f"SCRUM-6672: reference {reference_id} not set to {WONT_MANUALLY_INDEX_ATP} for "
-                       f"{mod_abbreviation} after a 'no genetic data' verdict: {reason}")
+                       f"{mod_abbreviation} after a 'no genetic data' verdict: {reason}",
+                       exc_info=not isinstance(e, HTTPException))
 
 
 def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id,
@@ -845,11 +853,15 @@ def apply_tag_patch(db: Session, topic_entity_tag: TopicEntityTagModel,
         else:
             patch_data_dict[audit_field] = resolved
     add_audited_object_users_if_not_exist(db, patch_data_dict)
+    verdict_before = (topic_entity_tag.topic, topic_entity_tag.negated, topic_entity_tag.tag_source_id)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
     db.flush()
-    # SCRUM-6672: a patch can turn a curator tag into a "no genetic data" verdict.
-    if patch_data_dict.get("negated") is True or {"topic", "tag_source_id"} & patch_data_dict.keys():
+    # SCRUM-6672: a patch can turn a curator tag into a "no genetic data" verdict. Only a real
+    # change counts: an edit form re-sending negated=True with a new note must not move the
+    # paper back to "won't manually index" after someone moved it elsewhere.
+    verdict_after = (topic_entity_tag.topic, topic_entity_tag.negated, topic_entity_tag.tag_source_id)
+    if verdict_after != verdict_before and topic_entity_tag.topic == NO_GENETIC_DATA_TOPIC:
         db.refresh(topic_entity_tag, ['tag_source'])
         add_no_genetic_data_workflow_tag(db, topic_entity_tag)
 
