@@ -128,12 +128,19 @@ heal-debezium-publication:
 	docker-compose --env-file ${ENV_FILE} build dbz_setup
 	docker-compose --env-file ${ENV_FILE} run --rm dbz_setup bash /heal_publication.sh
 
-restart-api:
+# The conversion worker runs the api's code, so every api deployment restarts it
+# first (SCRUM-6998); its running conversions are re-queued and resumed.
+restart-conversion-worker:
+	docker-compose --env-file ${ENV_FILE} build --no-cache conversion_worker
+	docker-compose --env-file ${ENV_FILE} rm -s -f conversion_worker
+	docker-compose --env-file ${ENV_FILE} up -d conversion_worker
+
+restart-api: restart-conversion-worker
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} up -d api
 
-restart-api-and-automated-scripts:
+restart-api-and-automated-scripts: restart-conversion-worker
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} up -d api

@@ -66,7 +66,23 @@ make restart-automated-scripts
 
 # Restart both API and automated scripts
 make restart-api-and-automated-scripts
+
+# Restart only the on-demand conversion worker (restart-api* already do this)
+make restart-conversion-worker
 ```
+
+On-demand file conversions (`GET /reference/referencefile/conversion_request/...`)
+do **not** run in the API: the API queues a job and the `conversion_worker`
+service (same image, `api/utils/conversion_worker.py`) runs it (SCRUM-6998).
+Job state is JSON files on the `agr-literature-conversion-jobs` volume, which
+both containers mount at `CONVERSION_JOB_STATE_DIR`; it is not in the database
+by design. Every `restart-api*` restarts the worker first: on SIGTERM it
+re-queues its running jobs, and the new worker resumes them, re-attaching to
+each PDF's PDFX job by the `pdfx_process_id` stored on the job. A worker that
+dies without SIGTERM is detected by its stale heartbeat (2 min). When no worker
+is alive, the API writes one fixed line to stderr ("Conversion worker not
+running: ...") so it reaches the alerting as an ERROR; **do not** turn it into
+a `logger.error` (that goes to stdout and arrives as INFO).
 
 ### Data Processing
 ```bash

@@ -92,7 +92,8 @@ services:
         ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
         GIT_SHA: ${GIT_SHA:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
-    environment:
+    # shared with conversion_worker, which runs the same code (SCRUM-6998)
+    environment: &api_environment
       API_PORT: "${API_PORT}"
       API_SERVER: "${API_SERVER}"
       PYTHONPATH: "/usr/local/bin/src/literature/"
@@ -142,6 +143,9 @@ services:
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
       LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
       DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
+      # on-demand conversion jobs, shared by api and conversion_worker (SCRUM-6998)
+      CONVERSION_JOB_STATE_DIR: "/var/lib/abc_conversion_jobs"
+      CONVERSION_WORKER_CONCURRENCY: "${CONVERSION_WORKER_CONCURRENCY:-4}"
       SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP: "${SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP}"
       SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: "${SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP}"
     hostname: literature_api
@@ -150,8 +154,38 @@ services:
     volumes:
       - "${LOG_PATH:-.}:/var/log/automated_scripts"
       - "${DEBEZIUM_STATUS_PATH:-agr-literature-debezium-status}:/var/lib/debezium_status"
+      - "${CONVERSION_JOB_STATE_PATH:-agr-literature-conversion-jobs}:/var/lib/abc_conversion_jobs"
     ports:
       - "${API_PORT}:8080"
+
+  # Runs the on-demand file conversions the api queues (SCRUM-6998), so that
+  # gunicorn recycling the api's workers and api releases never end one. Same
+  # image and environment as api; the job state is on the volume both mount.
+  # Every deployment restarts it (restart-api*): on SIGTERM it re-queues its
+  # running jobs, and the new worker resumes them.
+  conversion_worker:
+    container_name: agr.literature.${ENV_STATE}.conversion_worker.${COMPOSE_PROJECT_NAME}
+    restart: always
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
+    build:
+      context: .
+      dockerfile: docker/api.dockerfile
+      args:
+        REG: ${REG}
+        ALLIANCE_RELEASE: ${ALLIANCE_RELEASE}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+    command: ["python3", "-m", "agr_literature_service.api.utils.conversion_worker"]
+    environment: *api_environment
+    hostname: conversion_worker
+    networks:
+      - agr-literature
+    volumes:
+      - "${LOG_PATH:-.}:/var/log/automated_scripts"
+      - "${CONVERSION_JOB_STATE_PATH:-agr-literature-conversion-jobs}:/var/lib/abc_conversion_jobs"
 
   xml_processing:
     container_name: agr.literature.${ENV_STATE}.xml_processing.${COMPOSE_PROJECT_NAME}
@@ -686,6 +720,7 @@ volumes:
   agr-literature-es-data:
   agr-logs:
   agr-literature-debezium-status:
+  agr-literature-conversion-jobs:
 
 networks:
   agr-literature:
