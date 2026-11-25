@@ -249,7 +249,6 @@ def show_all(curie_or_reference_id: str,
             })
 def get_converted(curie_or_reference_id: str,
                   response: Response,
-                  background_tasks: BackgroundTasks,
                   wait: bool = False,
                   overwrite_tei_md: bool = False,
                   retry: bool = False,
@@ -270,17 +269,19 @@ def get_converted(curie_or_reference_id: str,
     Status values returned in the response body:
     - ``converted``: every convertible source has a converted Markdown row
       in the DB (whether produced by this call or a prior one). HTTP 200.
-    - ``running``: a background conversion job is in progress. HTTP 202.
+    - ``running``: a conversion job is queued for, or running in, the conversion
+      worker (SCRUM-6998). HTTP 202.
       Re-call this URL to poll; ``converted_classes`` already lists any rows
       that are done so partial results can be consumed without waiting.
     - ``failed``: the most recent conversion attempt failed. See
       ``error_message`` and ``per_file_progress`` for details. HTTP 200.
-      ``failure_reason`` is ``worker_exited`` when the API worker running the
-      job exited (asking again restarts it) and ``conversion_failed`` when the
-      conversion itself failed.
+      ``failure_reason`` is ``worker_exited`` when the conversion worker running
+      the job stopped before finishing it several times in a row (asking again
+      restarts it; a single stop is resumed by the next worker on its own) and
+      ``conversion_failed`` when the conversion itself failed.
       A PDF conversion that failed in the last hour keeps being reported as
       failed, without converting again, until ``retry=true`` is passed. A job
-      whose API worker exited is restarted at once; ``previous_job_id`` then
+      that failed as ``worker_exited`` is restarted at once; ``previous_job_id`` then
       names the job it replaces (as it does after a retry).
     - ``no_sources``: the reference has nothing to convert (no nXML, no main
       PDF, no supplement PDFs). HTTP 200.
@@ -298,13 +299,9 @@ def get_converted(curie_or_reference_id: str,
     job, or inline for nXML and Office files).
     ``wait`` and ``retry`` are ignored. Nothing is converted or started, and
     no rows, file MODs or ``text_convert_job`` tags are written (a request
-    syncs those when everything is converted); as with any read, a job whose
-    worker has exited is recorded as failed.
+    syncs those when everything is converted).
 
     Caveats for dry-run polling:
-    - Job state is kept in the API container (under /tmp), so a redeploy that
-      recreates the container forgets it: a job the redeploy killed is then
-      reported as ``not_converted`` rather than ``failed``.
     - nXML and Office conversions run inline and leave no job, so their
       failure is not remembered either: they show as ``not_converted``.
     - A job that finishes while the request is being answered can show as
@@ -317,8 +314,10 @@ def get_converted(curie_or_reference_id: str,
       synchronously and 200 with status=``converted`` is returned.
     - If PDF conversion is needed, the default returns 202 with
       status=``running`` and a ``job_id``. Re-call the same URL to poll.
-    - Pass ``wait=true`` to block until PDF conversion finishes (can take
-      minutes; may hit HTTP/gateway timeouts).
+    - Pass ``wait=true`` to wait up to 100 seconds for the PDF conversion; if
+      it has not finished by then, the response is 202 ``running`` as without
+      ``wait``. A conversion runs in the conversion worker either way
+      (SCRUM-6998), so it survives API restarts and releases.
     - Pass ``overwrite_tei_md=true`` to ignore legacy TEI-derived Markdown
       rows (display_name ending in ``_tei``) when checking cache, forcing a
       fresh higher-quality nXML/PDFX conversion. On success, the legacy
@@ -355,7 +354,6 @@ def get_converted(curie_or_reference_id: str,
         db=db,
         curie_or_reference_id=curie_or_reference_id,
         wait=wait,
-        background_tasks=background_tasks,
         mod_access=mod_access,
         user_id=user_id,
         overwrite_tei_md=overwrite_tei_md,

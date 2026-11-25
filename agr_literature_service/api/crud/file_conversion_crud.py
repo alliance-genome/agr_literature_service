@@ -4,8 +4,10 @@ Orchestrator for the on-demand file-conversion endpoint.
 Decides, for a given reference, whether a converted Markdown file already
 exists and, if not, triggers a conversion. NXML sources and Office
 supplements (xlsx / docx, SCRUM-6589) convert synchronously in-process
-(fast). PDFs go to PDFX in a background task unless the caller sets
-``wait=true``.
+(fast). A conversion that needs PDFX is queued for the conversion worker
+(``conversion_worker``, its own container, SCRUM-6998), so neither gunicorn
+recycling the API's workers nor an API release can end it; ``wait=true`` waits
+for it for at most WAIT_LIMIT_SECONDS.
 
 The endpoint reports ONLY conversion status (plus per-file progress from the
 most recent job). Callers that want the resulting file listing should call the
@@ -16,10 +18,12 @@ All actual conversion work is delegated to the batch primitives in
 ``agr_literature_service.lit_processing.pdf2md.pdf2md_utils``.
 """
 import logging
+import sys
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import BackgroundTasks, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from agr_cognito_py import MOD_ACCESS_ABBR, ModAccess
@@ -33,7 +37,6 @@ from agr_literature_service.api.utils.conversion_job_manager import (
     conversion_manager,
     failure_is_held,
 )
-from agr_literature_service.api.utils.conversion_processor import run_conversion_job
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     OFFICE_SUPPLEMENT_FORMATS,
     PendingMainSource,
@@ -64,6 +67,15 @@ STATUS_NOT_CONVERTED = "not_converted"
 # running the job exited, so asking again restarts it, or the conversion itself
 # failed, which asking again does not fix.
 FAILURE_WORKER_EXITED = "worker_exited"
+
+# ``wait=true`` waits this long for the conversion worker, below gunicorn's 120 s timeout
+WAIT_LIMIT_SECONDS = 100
+# written to stderr, so the log store records it as ERROR and the alerting sees it
+# (the application logger writes to stdout, which arrives as INFO); fixed text, so
+# it is one alert group however many requests find the worker down
+WORKER_DOWN_ALERT = "Conversion worker not running: on-demand conversion jobs are waiting"
+WORKER_DOWN_ALERT_INTERVAL_SECONDS = 600
+_last_worker_down_alert: Optional[float] = None
 FAILURE_CONVERSION_FAILED = "conversion_failed"
 
 
@@ -905,6 +917,21 @@ def delete_tei_derived_md_rows(db: Session, reference: ReferenceModel,
     return removed
 
 
+def _alert_if_worker_down() -> None:
+    """Write WORKER_DOWN_ALERT to stderr when the conversion worker's heartbeat is
+    stale, at most once every WORKER_DOWN_ALERT_INTERVAL_SECONDS per process. Jobs
+    stay queued and run once the worker is back."""
+    global _last_worker_down_alert
+    if conversion_manager.worker_alive():
+        return
+    now = time.monotonic()
+    if (_last_worker_down_alert is not None
+            and now - _last_worker_down_alert < WORKER_DOWN_ALERT_INTERVAL_SECONDS):
+        return
+    _last_worker_down_alert = now
+    print(WORKER_DOWN_ALERT, file=sys.stderr, flush=True)
+
+
 def _job_error_detail(job: Optional[ConversionJob]) -> str:
     """The job's error and each failed file's, joined; "" when it recorded none."""
     if job is None:
@@ -942,10 +969,9 @@ def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str
                     overwrite_tei_md: bool) -> Tuple[int, Dict[str, Any]]:
     """
     Report what a conversion request would find, without converting anything
-    (SCRUM-6980). The caller has already reported a running job. Nothing is
-    converted or started, and no rows, file MODs or workflow tags are written;
-    as with any read, a job whose worker has exited is recorded as failed by
-    the job manager.
+    (SCRUM-6980). The caller has already reported a queued or running job.
+    Nothing is converted or started, and no rows, file MODs or workflow tags
+    are written.
 
     ``would_start`` says whether a conversion request without ``retry`` would
     start converting now, in a job or inline. It is decided by
@@ -956,8 +982,9 @@ def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str
       ``would_start`` is false.
     - ``failed``: something is left to convert and the reference's last job
       failed (its error and each failed file's are in ``error_message``).
-      ``failure_reason`` is ``worker_exited`` when the API worker running it
-      exited, and a request would restart it at once (``would_start`` true);
+      ``failure_reason`` is ``worker_exited`` when the conversion worker running
+      it stopped MAX_RESUMES times before finishing (SCRUM-6998), and a request
+      would restart it at once (``would_start`` true);
       otherwise it is ``conversion_failed``, and ``would_start`` is false for
       an hour after the failure and true after that, except when what is
       left converts inline (nXML or Office only), which a request does at
@@ -1004,7 +1031,7 @@ def _dry_run_status(db: Session, reference: ReferenceModel, assessment: Dict[str
 
 
 def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: bool,
-                              background_tasks: BackgroundTasks, mod_access: ModAccess,
+                              mod_access: ModAccess,
                               user_id: str,
                               overwrite_tei_md: bool = False,
                               retry: bool = False,
@@ -1027,7 +1054,12 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
 
     ``retry`` — a PDF conversion that failed less than FAILED_JOB_HOLD ago is
     reported as failed (200) rather than started again, unless this is True
-    (SCRUM-6855 review). A job whose worker exited is restarted regardless.
+    (SCRUM-6855 review). A job whose worker kept disappearing is restarted
+    regardless.
+
+    ``wait`` — a PDF conversion is queued for the conversion worker either way;
+    with ``wait`` the request waits for it for at most WAIT_LIMIT_SECONDS and
+    reports it as running (202) if it has not finished by then.
 
     ``dry_run`` — report the status without converting anything or starting a
     job; see ``_dry_run_status`` (SCRUM-6980). ``wait`` and ``retry`` are
@@ -1048,6 +1080,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
     # per_file_progress entry (with referencefile_id) is finalized.
     existing = conversion_manager.get_active_job_for_reference(reference.reference_id)
     if existing is not None:
+        _alert_if_worker_down()
         return status.HTTP_202_ACCEPTED, _status_payload(
             db, reference, status_str=STATUS_RUNNING,
             converted_classes=_converted_classes_from_assessment(assessment),
@@ -1130,15 +1163,16 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
         )
 
     # SCRUM-6855: the check for a running job above is not atomic with this; two
-    # requests (in any workers) can both get here. start_job hands the job to
-    # exactly one of them; the other reports it as running rather than running the
-    # conversion a second time.
+    # requests (in any workers) can both get here. start_job queues exactly one job;
+    # the other request reports it as running. SCRUM-6998: the conversion worker
+    # runs it, not this process.
     job, created = conversion_manager.start_job(
         reference_id=reference.reference_id,
         reference_curie=reference.curie,
         user_id=user_id,
         expected_source_files=_expected_source_files_from_assessment(assessment),
         retry=retry,
+        overwrite_tei_md=overwrite_tei_md,
     )
     if not created and job.status == "failed":
         # it failed recently: report that rather than converting it again
@@ -1150,6 +1184,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
             job=job,
         )
+    _alert_if_worker_down()
     if not created:
         return status.HTTP_202_ACCEPTED, _status_payload(
             db, reference, status_str=STATUS_RUNNING,
@@ -1158,17 +1193,17 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
         )
 
     if wait:
-        run_conversion_job(
-            job_id=job.job_id,
-            reference_id=reference.reference_id,
-            reference_curie=reference.curie,
-            overwrite_tei_md=overwrite_tei_md,
-        )
+        final_job = conversion_manager.wait_for_job(job.job_id, WAIT_LIMIT_SECONDS)
+        if final_job is not None and final_job.is_active:
+            return status.HTTP_202_ACCEPTED, _status_payload(
+                db, reference, status_str=STATUS_RUNNING,
+                converted_classes=_converted_classes_from_assessment(assessment),
+                started_at=final_job.started_at.isoformat(), job=final_job,
+            )
         db.expire(reference)
         reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id,
                                   load_referencefiles=True)
         post_assessment = _assess_reference(db, reference, overwrite_tei_md=overwrite_tei_md)
-        final_job = conversion_manager.get_job(job.job_id)
         failed = (
             post_assessment["main_missing"]
             or post_assessment["supp_missing"]
@@ -1194,13 +1229,6 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             completed_at=datetime.utcnow().isoformat(), job=final_job,
         )
 
-    background_tasks.add_task(
-        run_conversion_job,
-        job.job_id,
-        reference.reference_id,
-        reference.curie,
-        overwrite_tei_md,
-    )
     return status.HTTP_202_ACCEPTED, _status_payload(
         db, reference, status_str=STATUS_RUNNING,
         converted_classes=_converted_classes_from_assessment(assessment),

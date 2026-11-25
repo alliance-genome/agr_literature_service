@@ -8,8 +8,6 @@ lookup returns an equal job, not the same object.
 import json
 import multiprocessing
 import os
-import subprocess
-import sys
 from datetime import datetime, timedelta
 
 import pytest
@@ -17,11 +15,16 @@ import pytest
 from agr_literature_service.api.utils.conversion_job_manager import (
     CLEANUP_INTERVAL,
     FAILED_JOB_HOLD,
+    HEARTBEAT_STALE,
+    JOB_DEADLINE,
+    JOB_DEADLINE_ERROR,
+    MAX_RESUMES,
     WORKER_GONE_ERROR,
+    WORKER_HEARTBEAT_FILE,
     ConversionJob,
     ConversionJobManager,
     PerFileProgress,
-    _process_start_time,
+    running_as,
 )
 
 
@@ -46,11 +49,9 @@ def _age(path, delta):
     os.utime(path, (when, when))
 
 
-def _dead_pid():
-    """The pid of a process that has exited."""
-    proc = subprocess.Popen([sys.executable, "-c", "pass"])
-    proc.wait()
-    return proc.pid
+def _ago(delta):
+    """An ISO timestamp ``delta`` in the past, as stored in a job file."""
+    return (datetime.utcnow() - delta).isoformat()
 
 
 class TestDataclasses:
@@ -79,10 +80,12 @@ class TestDataclasses:
 
 
 class TestCreateOrGetJob:
-    def test_creates_new_running_job(self, mgr):
-        job = mgr.create_or_get_job(3, "AGRKB:1", "user")
-        assert job.status == "running"
-        assert job.owner_pid == os.getpid()
+    def test_creates_a_queued_job_with_no_owner(self, mgr):
+        job, created = mgr.start_job(3, "AGRKB:1", "user", overwrite_tei_md=True)
+        assert created is True
+        assert job.status == "queued"
+        assert job.owner is None
+        assert job.overwrite_tei_md is True
         assert mgr.get_job(job.job_id) == job
 
     def test_returns_existing_running_job(self, mgr):
@@ -101,7 +104,7 @@ class TestCreateOrGetJob:
         mgr.complete_job(first.job_id, success=True)
         second = mgr.create_or_get_job(3, "AGRKB:1", "user")
         assert second.job_id != first.job_id
-        assert second.status == "running"
+        assert second.status == "queued"
 
     def test_stale_active_entry_falls_through_to_new_job(self, mgr):
         first = mgr.create_or_get_job(3, "AGRKB:1", "user")
@@ -110,7 +113,7 @@ class TestCreateOrGetJob:
         _set_job_field(mgr, first.job_id, status="completed")
         second = mgr.create_or_get_job(3, "AGRKB:1", "user")
         assert second.job_id != first.job_id
-        assert second.status == "running"
+        assert second.status == "queued"
 
     def test_seeds_expected_source_files(self, mgr):
         job = mgr.create_or_get_job(
@@ -157,46 +160,47 @@ class TestSharedBetweenWorkers:
         assert worker_b.get_active_job_for_reference(3) is None
 
 
-def _start_job_in_a_process(state_dir, ready, release, results):
-    """One "worker": start a job for reference 9 together with the others, report
-    what it got, and stay alive until released, as a worker running the job would."""
+def _start_job_in_a_process(state_dir, ready, results):
+    """One API worker: start a job for reference 9 together with the others."""
     manager = ConversionJobManager(state_dir=state_dir)
     ready.wait()
     job, created = manager.start_job(9, "AGRKB:9", f"pid-{os.getpid()}")
-    results.put((job.job_id, created, job.owner_pid))
-    release.wait()
+    results.put((job.job_id, created))
+
+
+def _claim_in_a_process(state_dir, ready, results):
+    """One conversion worker: claim the next job together with the others."""
+    manager = ConversionJobManager(state_dir=state_dir)
+    ready.wait()
+    job = manager.claim_next_job(f"worker-{os.getpid()}")
+    results.put(job.job_id if job is not None else None)
 
 
 class TestTwoProcesses:
-    """SCRUM-6855 review: two real processes on one directory, as two gunicorn
-    workers are. Covers the flock and the /proc start-time check across processes,
-    which two managers in one process cannot."""
+    """Two real processes on one directory, as two API workers or two conversion
+    workers are: the flock decides, which two managers in one process cannot show."""
+
+    def _run(self, target, state_dir):
+        context = multiprocessing.get_context("fork")
+        ready, results = context.Barrier(2), context.Queue()
+        processes = [context.Process(target=target, args=(state_dir, ready, results)) for _ in range(2)]
+        for process in processes:
+            process.start()
+        try:
+            return [results.get(timeout=30) for _ in processes]
+        finally:
+            for process in processes:
+                process.join(timeout=30)
 
     def test_two_processes_starting_one_reference_share_one_job(self, tmp_path):
-        context = multiprocessing.get_context("fork")
-        ready, release, results = context.Barrier(2), context.Event(), context.Queue()
-        workers = [context.Process(target=_start_job_in_a_process,
-                                   args=(str(tmp_path), ready, release, results)) for _ in range(2)]
-        for worker in workers:
-            worker.start()
-        try:
-            got = [results.get(timeout=30) for _ in workers]
-            job_ids = {job_id for job_id, _, _ in got}
-            assert len(job_ids) == 1
-            assert sorted(created for _, created, _ in got) == [False, True]
-            owner = next(owner for _, created, owner in got if created)
-            # the owner is alive in its own process, so this process sees it running
-            manager = ConversionJobManager(state_dir=str(tmp_path))
-            job_id = job_ids.pop()
-            assert manager.get_job(job_id).status == "running"
-            assert manager.get_job(job_id).owner_pid == owner
-        finally:
-            release.set()
-            for worker in workers:
-                worker.join(timeout=30)
-        # once the owner process has exited, the job is reported failed
-        assert manager.get_job(job_id).status == "failed"
-        assert manager.get_job(job_id).error_message == WORKER_GONE_ERROR
+        got = self._run(_start_job_in_a_process, str(tmp_path))
+        assert len({job_id for job_id, _ in got}) == 1
+        assert sorted(created for _, created in got) == [False, True]
+
+    def test_two_workers_never_claim_the_same_job(self, tmp_path):
+        job = ConversionJobManager(state_dir=str(tmp_path)).create_or_get_job(9, "AGRKB:9", "user")
+        got = self._run(_claim_in_a_process, str(tmp_path))
+        assert sorted(got, key=str) == sorted([job.job_id, None], key=str)
 
 
 class TestFailedJobHold:
@@ -231,13 +235,13 @@ class TestFailedJobHold:
         assert created is True
         assert job.previous_job_id == failed.job_id
 
-    def test_a_job_whose_worker_exited_is_restarted_without_retry(self, mgr):
+    def test_a_job_whose_worker_kept_disappearing_is_restarted_without_retry(self, mgr):
         first, _ = mgr.start_job(3, "AGRKB:1", "user")
-        _set_job_field(mgr, first.job_id, owner_pid=_dead_pid())
+        mgr.claim_next_job("w1")
+        mgr.complete_job(first.job_id, success=False, error=WORKER_GONE_ERROR)
         job, created = mgr.start_job(3, "AGRKB:1", "user", retry=False)
         assert created is True
         assert job.previous_job_id == first.job_id
-        assert mgr.get_job(first.job_id).error_message == WORKER_GONE_ERROR
 
     def test_a_job_after_a_success_names_no_previous_job(self, mgr):
         first, _ = mgr.start_job(3, "AGRKB:1", "user")
@@ -247,44 +251,170 @@ class TestFailedJobHold:
         assert job.previous_job_id is None
 
 
-class TestWorkerGone:
-    """A running job whose worker process is gone is reported failed, so a poll
-    does not wait on it forever and a new request starts a fresh job."""
+class TestClaims:
+    """SCRUM-6998: the conversion worker claims queued jobs, and the jobs of a worker
+    that stopped heartbeating."""
 
-    def test_process_start_time_of_self_and_of_a_gone_process(self):
-        assert _process_start_time(os.getpid()) is not None
-        assert _process_start_time(_dead_pid()) is None
+    def test_claim_takes_the_oldest_queued_job_and_owns_it(self, mgr):
+        first = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        second = mgr.create_or_get_job(2, "AGRKB:2", "user")
+        _set_job_field(mgr, second.job_id, started_at=_ago(timedelta(minutes=5)))
+        claimed = mgr.claim_next_job("w1")
+        assert claimed.job_id == second.job_id
+        assert claimed.status == "running"
+        assert claimed.owner == "w1"
+        assert claimed.heartbeat_at is not None and claimed.claimed_at is not None
+        assert mgr.claim_next_job("w1").job_id == first.job_id
+        assert mgr.claim_next_job("w1") is None
 
-    def test_job_of_a_gone_worker_is_reported_failed(self, mgr):
-        job = mgr.create_or_get_job(3, "AGRKB:1", "user")
-        _set_job_field(mgr, job.job_id, owner_pid=_dead_pid())
+    def test_a_claimed_job_is_still_the_references_active_job(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        assert mgr.get_active_job_for_reference(1).job_id == job.job_id
+        assert mgr.start_job(1, "AGRKB:1", "user")[1] is False
+
+    def test_a_job_with_a_fresh_heartbeat_is_not_claimed(self, mgr):
+        mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        assert mgr.claim_next_job("w2") is None
+
+    def test_a_job_whose_worker_stopped_heartbeating_is_resumed(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        _set_job_field(mgr, job.job_id, heartbeat_at=_ago(HEARTBEAT_STALE + timedelta(seconds=30)))
+        # a status read leaves it running: only a worker takes it again
+        assert mgr.get_active_job_for_reference(1).status == "running"
+        resumed = mgr.claim_next_job("w2")
+        assert resumed.job_id == job.job_id
+        assert resumed.owner == "w2"
+        assert resumed.resume_count == 1
+
+    def test_a_job_resumed_max_times_is_failed_as_worker_gone(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        _set_job_field(mgr, job.job_id, resume_count=MAX_RESUMES,
+                       heartbeat_at=_ago(HEARTBEAT_STALE + timedelta(seconds=30)))
+        assert mgr.claim_next_job("w2") is None
         stored = mgr.get_job(job.job_id)
         assert stored.status == "failed"
         assert stored.error_message == WORKER_GONE_ERROR
-        assert stored.completed_at is not None
-        assert mgr.get_active_job_for_reference(3) is None
-        assert mgr.get_last_job_for_reference(3).status == "failed"
+        assert mgr.get_active_job_for_reference(1) is None
 
-    def test_reused_pid_is_not_mistaken_for_the_owner(self, mgr):
-        # Same pid, different start time: a new process that got the old pid.
-        job = mgr.create_or_get_job(3, "AGRKB:1", "user")
-        _set_job_field(mgr, job.job_id, owner_start_time=job.owner_start_time - 1)
+    def test_heartbeat_refreshes_only_the_workers_own_running_jobs(self, mgr):
+        mine = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        theirs = mgr.create_or_get_job(2, "AGRKB:2", "user")
+        mgr.claim_next_job("w2")
+        old = _ago(timedelta(seconds=60))
+        _set_job_field(mgr, mine.job_id, heartbeat_at=old)
+        _set_job_field(mgr, theirs.job_id, heartbeat_at=old)
+        assert mgr.heartbeat("w1", [mine.job_id, theirs.job_id]) == []
+        assert mgr.get_job(mine.job_id).heartbeat_at.isoformat() > old
+        assert mgr.get_job(theirs.job_id).heartbeat_at.isoformat() == old
+
+    def test_heartbeat_fails_a_run_past_the_deadline(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        _set_job_field(mgr, job.job_id, claimed_at=_ago(JOB_DEADLINE + timedelta(minutes=1)))
+        assert mgr.heartbeat("w1", [job.job_id]) == [job.job_id]
+        stored = mgr.get_job(job.job_id)
+        assert stored.status == "failed"
+        assert stored.error_message == JOB_DEADLINE_ERROR
+
+    def test_requeue_jobs_puts_a_stopping_workers_jobs_back(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        mgr.set_pdfx_process_id(job.job_id, "a.pdf", "main", "p1")
+        assert mgr.requeue_jobs("w1") == 1
+        stored = mgr.get_job(job.job_id)
+        assert stored.status == "queued"
+        assert stored.owner is None
+        assert stored.resume_count == 1
+        assert mgr.get_pdfx_process_id(job.job_id, "a.pdf", "main") == "p1"
+        assert mgr.claim_next_job("w2").job_id == job.job_id
+
+    def test_a_run_that_ends_after_the_deadline_failed_its_job_changes_nothing(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        _set_job_field(mgr, job.job_id, claimed_at=_ago(JOB_DEADLINE + timedelta(minutes=1)))
+        mgr.heartbeat("w1", [job.job_id])
+        mgr.complete_job(job.job_id, success=True)
         assert mgr.get_job(job.job_id).status == "failed"
+        assert mgr.get_job(job.job_id).error_message == JOB_DEADLINE_ERROR
 
-    def test_without_a_recorded_start_time_the_pid_decides(self, mgr):
-        job = mgr.create_or_get_job(3, "AGRKB:1", "user")
-        _set_job_field(mgr, job.job_id, owner_start_time=None)
-        assert mgr.get_job(job.job_id).status == "running"  # our own pid exists
-        _set_job_field(mgr, job.job_id, owner_pid=_dead_pid())
-        assert mgr.get_job(job.job_id).status == "failed"
+    def test_a_run_whose_job_was_requeued_cannot_write_to_it(self, mgr):
+        """Review (Chris Tabone): between a shutdown's re-queue and the process exit,
+        a finishing run must not complete or update the re-queued job."""
+        job = mgr.create_or_get_job(
+            1, "AGRKB:1", "user",
+            expected_source_files=[{"source_display_name": "a.pdf", "source_file_class": "main"}])
+        mgr.claim_next_job("w1")
+        mgr.requeue_jobs("w1")
+        with running_as("w1"):
+            mgr.record_file_progress(job.job_id, source_display_name="a.pdf", source_file_class="main",
+                                     success=True)
+            mgr.set_pdfx_process_id(job.job_id, "a.pdf", "main", "p-old")
+            mgr.complete_job(job.job_id, success=True)
+        stored = mgr.get_job(job.job_id)
+        assert stored.status == "queued"
+        assert stored.per_file_progress[0].status == "pending"
+        assert stored.per_file_progress[0].pdfx_process_id is None
 
-    def test_new_request_replaces_a_gone_workers_job(self, mgr):
-        first = mgr.create_or_get_job(3, "AGRKB:1", "user")
-        _set_job_field(mgr, first.job_id, owner_pid=_dead_pid())
-        second = mgr.create_or_get_job(3, "AGRKB:1", "user")
-        assert second.job_id != first.job_id
-        assert second.status == "running"
-        assert mgr.get_job(first.job_id).status == "failed"
+    def test_only_the_current_owner_of_a_taken_over_job_can_complete_it(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        _set_job_field(mgr, job.job_id, heartbeat_at=_ago(HEARTBEAT_STALE + timedelta(seconds=30)))
+        mgr.claim_next_job("w2")
+        with running_as("w1"):  # the old run, still alive
+            mgr.complete_job(job.job_id, success=False, error="stale run")
+        assert mgr.get_job(job.job_id).status == "running"
+        assert mgr.get_job(job.job_id).owner == "w2"
+        with running_as("w2"):
+            mgr.complete_job(job.job_id, success=True)
+        assert mgr.get_job(job.job_id).status == "completed"
+
+    def test_run_still_owns_ends_with_the_deadline(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        mgr.claim_next_job("w1")
+        with running_as("w1"):
+            assert mgr.run_still_owns(job.job_id) is True
+        _set_job_field(mgr, job.job_id, claimed_at=_ago(JOB_DEADLINE + timedelta(minutes=1)))
+        mgr.heartbeat("w1", [job.job_id])
+        with running_as("w1"):
+            assert mgr.run_still_owns(job.job_id) is False
+        assert mgr.run_still_owns(job.job_id) is True  # outside a run nothing is restricted
+
+    def test_worker_alive_follows_its_heartbeat_file(self, mgr):
+        assert mgr.worker_alive() is False
+        mgr.heartbeat("w1", [])
+        assert mgr.worker_alive() is True
+        with open(os.path.join(mgr.state_dir, WORKER_HEARTBEAT_FILE), "w") as handle:
+            json.dump({"worker_id": "w1", "at": _ago(HEARTBEAT_STALE + timedelta(seconds=30))}, handle)
+        assert mgr.worker_alive() is False
+
+    def test_pdfx_process_id_round_trip(self, mgr):
+        job = mgr.create_or_get_job(
+            1, "AGRKB:1", "user",
+            expected_source_files=[{"source_display_name": "a.pdf", "source_file_class": "main"}])
+        assert mgr.get_pdfx_process_id(job.job_id, "a.pdf", "main") is None
+        mgr.set_pdfx_process_id(job.job_id, "a.pdf", "main", "p1")
+        mgr.set_pdfx_process_id(job.job_id, "s.pdf", "supplement", "p2")  # not seeded
+        assert mgr.get_pdfx_process_id(job.job_id, "a.pdf", "main") == "p1"
+        assert mgr.get_pdfx_process_id(job.job_id, "s.pdf", "supplement") == "p2"
+        assert len(mgr.get_job(job.job_id).per_file_progress) == 2
+
+    def test_a_job_file_from_the_old_code_still_loads(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        _set_job_field(mgr, job.job_id, owner_pid=123, owner_start_time=456)
+        assert mgr.get_job(job.job_id).job_id == job.job_id
+
+    def test_wait_for_job_returns_when_finished_or_on_timeout(self, mgr):
+        job = mgr.create_or_get_job(1, "AGRKB:1", "user")
+        assert mgr.wait_for_job(job.job_id, timeout=0.2, poll_interval=0.05).status == "queued"
+        mgr.claim_next_job("w1")
+        mgr.complete_job(job.job_id, success=True)
+        assert mgr.wait_for_job(job.job_id, timeout=5).status == "completed"
+        assert mgr.wait_for_job("nope", timeout=0.1) is None
 
 
 class TestLookups:
@@ -403,13 +533,14 @@ class TestCleanupOldJobs:
         removed = mgr.cleanup_old_jobs(max_age_hours=24)
         assert removed == 1
         assert mgr.get_job(old.job_id) is None
-        assert mgr.get_job(running.job_id).status == "running"
+        assert mgr.get_job(running.job_id).status == "queued"
         assert mgr.get_last_job_for_reference(1) is None
 
-    def test_old_job_of_a_gone_worker_is_removed(self, mgr):
+    def test_old_job_failed_as_worker_gone_is_removed(self, mgr):
         job = mgr.create_or_get_job(1, "AGRKB:1", "user")
-        _set_job_field(mgr, job.job_id, owner_pid=_dead_pid(),
-                       started_at=(datetime.utcnow() - timedelta(hours=48)).isoformat())
+        mgr.claim_next_job("w1")
+        mgr.complete_job(job.job_id, success=False, error=WORKER_GONE_ERROR)
+        _set_job_field(mgr, job.job_id, started_at=(datetime.utcnow() - timedelta(hours=48)).isoformat())
         assert mgr.cleanup_old_jobs(max_age_hours=24) == 1
         assert mgr.get_job(job.job_id) is None
 
@@ -440,7 +571,7 @@ class TestCleanupOldJobs:
             json.dump({"job_id": "bad", "no_such_field": 1}, handle)  # valid JSON, wrong shape
         assert mgr.get_job("bad") is None
         job = mgr.create_or_get_job(1, "AGRKB:1", "user")  # not broken by it
-        assert job.status == "running"
+        assert job.status == "queued"
         mgr.cleanup_old_jobs()
         assert os.path.exists(path)  # recent: kept for now
         _age(path, timedelta(hours=25))

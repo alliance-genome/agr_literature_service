@@ -119,10 +119,10 @@ echo "Updated alembic.ini sqlalchemy.url from ${ENV_FILE}"
 
 if [ "${MODE}" = "rds" ]; then
     docker-compose --env-file "${ENV_FILE}" rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
-    docker-compose --env-file "${ENV_FILE}" rm -s -f api
+    docker-compose --env-file "${ENV_FILE}" rm -s -f api conversion_worker
     docker-compose --env-file "${ENV_FILE}" rm -s -f automated_scripts
 else
-    docker-compose --env-file "${ENV_FILE}" rm -s -f api
+    docker-compose --env-file "${ENV_FILE}" rm -s -f api conversion_worker
 fi
 
 docker-compose --env-file "${ENV_FILE}" build dev_app

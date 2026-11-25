@@ -115,6 +115,22 @@ class TestConvertPendingPdf:
             )
         assert success is True and error is None
 
+    def test_stored_process_id_is_passed_and_new_ones_are_recorded(self, manager):
+        """SCRUM-6998: a resumed run re-attaches to the PDFX job the PDF was submitted
+        as, and a new submission is recorded on the job before it is polled."""
+        manager.get_pdfx_process_id.return_value = "p1"
+        with patch(f"{PDF2MD}._process_single_pdf_file",
+                   return_value=(True, ["merged"], None)) as process, \
+                patch(f"{CRUD}.find_converted_referencefile_id", return_value=5), \
+                patch(f"{PDF2MD}.EXTRACTION_METHODS", {"grobid": 1}):
+            cp._convert_pending_pdf(MagicMock(), "j1", 3, "AGRKB:1", _pdf_file(),
+                                    "converted_merged_main")
+        manager.get_pdfx_process_id.assert_called_once_with("j1", "main.pdf", "main")
+        kwargs = process.call_args.kwargs
+        assert kwargs["pdfx_process_id"] == "p1"
+        kwargs["on_submitted"]("p2")
+        manager.set_pdfx_process_id.assert_called_once_with("j1", "main.pdf", "main", "p2")
+
     def test_exception_is_captured(self, manager):
         with patch(f"{PDF2MD}._process_single_pdf_file",
                    side_effect=RuntimeError("pdfx down")), \
@@ -278,6 +294,25 @@ class TestRunConversionJob:
         kwargs = manager.complete_job.call_args.kwargs
         assert kwargs["success"] is False
         assert kwargs["error"] == "Office supplement 'table_s1': bad zip"
+
+    def test_a_run_that_lost_its_job_stops_before_the_next_file(self, manager):
+        """Review: once the deadline failed the job (or another worker took it), the
+        run converts no further file and records nothing."""
+        session = MagicMock()
+        manager.run_still_owns.return_value = False
+        assessment = {"mod_abbreviation": "WB", "pending_main": [],
+                      "pending_supplements": [_pdf_file("s.pdf", "supplement", 9)]}
+        with patch.object(cp, "SessionLocal", return_value=session), \
+                patch.object(cp, "_convert_pending_pdf") as convert, \
+                patch(f"{CRUD}._assess_reference", return_value=assessment), \
+                patch("agr_literature_service.api.crud.reference_utils.get_reference"), \
+                patch("agr_literature_service.lit_processing.embedding."
+                      "embedding_generation.maybe_generate_classifier_embeddings") as embed:
+            cp.run_conversion_job("j1", 3, "AGRKB:1")
+        convert.assert_not_called()
+        embed.assert_not_called()
+        manager.complete_job.assert_not_called()
+        session.close.assert_called_once()
 
     def test_unexpected_error_marks_job_failed(self, manager):
         session = MagicMock()
