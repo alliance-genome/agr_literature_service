@@ -549,7 +549,8 @@ def add_no_genetic_data_workflow_tag(db: Session, tag: TopicEntityTagModel) -> N
     curation tag when it has none, so "retracted" or a curator's own choice is kept.
 
     Non-fatal and flushes only, for a caller that owns the transaction: it runs in a savepoint,
-    so a transition the MOD's table does not allow is logged and the verdict still saves."""
+    so any failure -- a transition the MOD's table does not allow, or anything else -- is logged
+    and the verdict still saves."""
     source = tag.tag_source
     if (tag.topic != NO_GENETIC_DATA_TOPIC or tag.negated is not True or source is None
             or source.source_evidence_assertion != CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION
@@ -575,10 +576,13 @@ def add_no_genetic_data_workflow_tag(db: Session, tag: TopicEntityTagModel) -> N
                                           transition_type="manual",
                                           curation_tag=NO_GENETIC_DATA_CURATION_TAG, commit=False)
         savepoint.commit()
-    except HTTPException as e:
+    except Exception as e:
+        # Any failure, not only a refused transition (HTTPException): the workflow tag is a
+        # convenience and must never cost the curator their verdict.
         savepoint.rollback()
+        reason = e.detail if isinstance(e, HTTPException) else f"{type(e).__name__}: {e}"
         logger.warning(f"SCRUM-6672: reference {reference_id} not set to {WONT_MANUALLY_INDEX_ATP} for "
-                       f"{mod_abbreviation} after a 'no genetic data' verdict: {e.detail}")
+                       f"{mod_abbreviation} after a 'no genetic data' verdict: {reason}")
 
 
 def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id,

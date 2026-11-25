@@ -133,6 +133,19 @@ class TestNoGeneticDataTrigger:
         db.commit()
         assert _mi_tags(db, ref, mods["WB"]) == []
 
+    def test_any_other_error_is_logged_not_raised(self, fb_ref, caplog):  # noqa
+        db, mods, ref = fb_ref  # noqa
+        tag = _tag(db, ref, get_or_create_abc_source(db, "FB"))
+        with caplog.at_level(logging.WARNING), \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.transition_to_workflow_status",
+                      side_effect=RuntimeError("boom")):
+            tet_crud.add_no_genetic_data_workflow_tag(db, tag)
+        db.commit()
+        assert _mi_tags(db, ref, mods["FB"]) == []
+        assert db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == tag.topic_entity_tag_id).one_or_none() is not None
+        assert "RuntimeError: boom" in caplog.text
+
     def test_a_transition_fb_does_not_allow_is_logged_not_raised(self, fb_ref, caplog):  # noqa
         db, mods, ref = fb_ref  # noqa
         _mi_tag(db, ref, mods["FB"], MI_NEEDED)  # no 274 -> 343 row in this test's table
