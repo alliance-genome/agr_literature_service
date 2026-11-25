@@ -1,64 +1,112 @@
 """
-Manager for on-demand file-conversion jobs, shared by every API worker.
+Manager for on-demand file-conversion jobs, shared by the API and the conversion worker.
 
 Keyed by reference_id for idempotency: two concurrent requests to convert the
 same reference share a single job rather than launching duplicate PDFX runs.
 
-SCRUM-6855: the state used to live in each worker process's memory. The API runs
-several gunicorn workers, and a status poll that reached a different worker saw
-no running job, so it could start a duplicate, report another job_id, or lose a
-failure. It now lives in small JSON files in one directory that every worker of
-the API container shares:
+SCRUM-6855: the state lives in small JSON files in one directory, so every
+process that reads it gets the same answer:
 
 - ``job_<job_id>.json``: the job itself (status, per-file progress, owner).
 - ``ref_<reference_id>.json``: the reference's ``active`` and ``last`` job ids.
-- ``jobs.lock``: an flock serialising every write, so two workers cannot both
-  create a job for the same reference. Writes are a few small files, so one lock
-  for all references costs nothing and leaves no per-reference lock files behind.
+- ``worker.json``: the conversion worker's last heartbeat.
+- ``jobs.lock``: an flock serialising every write, so two processes cannot both
+  create (or claim) a job for the same reference. Writes are a few small files,
+  so one lock for all references costs nothing and leaves no per-reference lock
+  files behind.
 
 Files are written to a temporary name and renamed into place, so a reader never
 sees a half-written file.
 
-A job runs in the worker that created it (a BackgroundTask, or inline with
-``wait``). The job records that process's pid and start time; a "running" job
-whose process is gone (gunicorn recycles workers after max_requests, a restart
-kills them all) is reported failed instead of running forever. The start time
-guards against pid reuse, which is likely in a container whose pids restart low.
+SCRUM-6998: the API only queues a job (status ``queued``); the conversion worker
+(``conversion_worker.py``, its own container) claims it, runs it and marks it
+``completed`` or ``failed``. Request traffic (gunicorn recycles its workers after
+max_requests) and API releases therefore never end a conversion. The directory is
+a Docker volume mounted into both containers (``CONVERSION_JOB_STATE_DIR``), so it
+survives a redeploy.
+
+A running job carries its worker's id and a heartbeat the worker refreshes every
+HEARTBEAT_INTERVAL. A running job whose heartbeat is older than HEARTBEAT_STALE
+belongs to a worker that is gone: the next claim takes it again (``resume_count``
++ 1), and the new run re-attaches to the PDFX job each of its PDFs was submitted
+as (``pdfx_process_id``) instead of submitting it again. A worker that is stopped
+cleanly re-queues its jobs at once. After MAX_RESUMES the job is failed with
+WORKER_GONE_ERROR, and the next request starts a new one. A job running longer
+than JOB_DEADLINE is failed by its worker's heartbeat.
+
+A worker runs each job inside ``running_as(worker_id)``. Writes made there (the
+job's per-file progress, its PDFX process ids, its completion) apply only while
+that worker still owns the job and it is running: a run that lost its job, because
+its worker re-queued it on shutdown or another worker took it over after a stale
+heartbeat, cannot overwrite what the job's new owner does. Writes made outside a
+run (the API, tests) are not restricted.
 
 A job that failed is reported as failed to the next request, for
 FAILED_JOB_HOLD, instead of being started again: a paper that always fails would
 otherwise be converted again on every poll, and the poller would only ever see
 "running". The caller passes ``retry`` to start again anyway. A job that failed
-only because its worker exited is restarted at once; the new job names it in
-``previous_job_id``, as does any job started after a failure.
+only because its worker kept disappearing is restarted at once; the new job
+names it in ``previous_job_id``, as does any job started after a failure.
 
-The directory must be shared by the workers of ONE API container only: pids
-and process start times are per container, so a live job in another container
-would look dead here. By default it is under /tmp inside the API container. If
-the API is ever spread over several containers or hosts, this needs a store
-they all reach, such as a database table.
+Every process using the directory must be on one host: the flock does not work
+across hosts. If the API or the worker is ever spread over several hosts, this
+needs a store they all reach.
 """
 import fcntl
 import json
 import logging
 import os
 import tempfile
+import time
 import uuid
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timedelta
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_STATE_DIR = os.path.join(tempfile.gettempdir(), "abc_conversion_jobs")
-WORKER_GONE_ERROR = "The API worker running this conversion exited before it finished."
+WORKER_GONE_ERROR = "The conversion worker running this conversion stopped before it finished."
 # job creation runs the cleanup at most this often
 CLEANUP_INTERVAL = timedelta(minutes=10)
 # a temporary file this old is a write whose process was killed before the rename
 STALE_TEMP_FILE_AGE = timedelta(hours=1)
 # a failed job is reported, not restarted, for this long unless the caller retries
 FAILED_JOB_HOLD = timedelta(hours=1)
+# the worker refreshes the heartbeat of its running jobs this often
+HEARTBEAT_INTERVAL = timedelta(seconds=15)
+# a running job (or the worker) whose heartbeat is older than this is gone
+HEARTBEAT_STALE = timedelta(minutes=2)
+# a job whose worker disappeared this many times is failed instead of resumed
+MAX_RESUMES = 3
+# a run of a job longer than this is failed by its worker
+JOB_DEADLINE = timedelta(hours=2)
+JOB_DEADLINE_ERROR = (f"The conversion did not finish within "
+                      f"{int(JOB_DEADLINE.total_seconds() // 3600)} hours.")
+
+ACTIVE_STATUSES = ("queued", "running")
+WORKER_HEARTBEAT_FILE = "worker.json"
+
+# the worker whose run is making the current writes (see running_as); None outside a run
+_run_owner: ContextVar[Optional[str]] = ContextVar("conversion_run_owner", default=None)
+
+
+@contextmanager
+def running_as(worker_id: str) -> Iterator[None]:
+    """Within the block, job writes are made by ``worker_id``'s run of the job: they
+    apply only while that worker owns the job and the job is running."""
+    token = _run_owner.set(worker_id)
+    try:
+        yield
+    finally:
+        _run_owner.reset(token)
+
+
+def _owned_by_this_run(job: "ConversionJob") -> bool:
+    owner = _run_owner.get()
+    return owner is None or (job.status == "running" and job.owner == owner)
 
 
 @dataclass
@@ -72,6 +120,8 @@ class PerFileProgress:
     converted_display_name: Optional[str] = None
     converted_file_class: Optional[str] = None
     converted_referencefile_id: Optional[int] = None
+    # the PDFX job this source was submitted as, so a resumed run re-attaches to it
+    pdfx_process_id: Optional[str] = None
 
 
 @dataclass
@@ -80,18 +130,25 @@ class ConversionJob:
     reference_id: int
     reference_curie: str
     user_id: str
-    status: str  # 'running', 'completed', 'failed'
+    status: str  # 'queued', 'running', 'completed', 'failed'
     started_at: datetime = field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
     last_update: datetime = field(default_factory=datetime.utcnow)
     error_message: str = ""
     per_file_progress: List[PerFileProgress] = field(default_factory=list)
-    # The process running the job: its pid and its start time from /proc, which
-    # together identify it even if the pid is later reused.
-    owner_pid: Optional[int] = None
-    owner_start_time: Optional[int] = None
+    # the worker running the job, when it claimed it, and its last heartbeat
+    owner: Optional[str] = None
+    claimed_at: Optional[datetime] = None
+    heartbeat_at: Optional[datetime] = None
+    # how many times the job was taken again after its worker disappeared
+    resume_count: int = 0
+    overwrite_tei_md: bool = False
     # the failed job this one was started after, if any
     previous_job_id: Optional[str] = None
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in ACTIVE_STATUSES
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -104,6 +161,7 @@ class ConversionJob:
             "duration_seconds": self.duration_seconds,
             "error_message": self.error_message,
             "previous_job_id": self.previous_job_id,
+            "resume_count": self.resume_count,
             "per_file_progress": [
                 {
                     "source_display_name": p.source_display_name,
@@ -125,58 +183,51 @@ class ConversionJob:
         return (end - self.started_at).total_seconds()
 
 
-def _process_start_time(pid: int) -> Optional[int]:
-    """Start time of a live process, in clock ticks since boot (field 22 of
-    /proc/<pid>/stat), or None when there is no such process."""
-    try:
-        with open(f"/proc/{pid}/stat") as stat_file:
-            stat = stat_file.read()
-    except OSError:
-        return None
-    # The command name (field 2) is in parentheses and may contain spaces, so
-    # split after its closing parenthesis; starttime is then the 20th field.
-    try:
-        return int(stat[stat.rindex(")") + 2:].split()[19])
-    except (ValueError, IndexError):
-        return None
-
-
-def _pid_exists(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
+def failure_is_held(job: ConversionJob, now: Optional[datetime] = None) -> bool:
+    """Whether a request without ``retry`` reports this job's failure instead of
+    starting another job: it failed, for any reason but its worker disappearing,
+    less than FAILED_JOB_HOLD ago. Reads nothing and writes nothing; start_job and
+    the conversion endpoint's dry run both decide by it (SCRUM-6980)."""
+    if job.status != "failed" or job.error_message == WORKER_GONE_ERROR:
         return False
-    except PermissionError:
-        return True  # it exists, owned by another user
-    return True
+    now = now or datetime.utcnow()
+    return now - (job.completed_at or job.last_update) < FAILED_JOB_HOLD
 
 
-def _owner_alive(job: ConversionJob) -> bool:
-    if job.owner_pid is None:
-        return True  # nothing recorded to check against
-    if job.owner_start_time is None:
-        # The start time could not be read when the job was created (no /proc):
-        # fall back to whether the pid exists, without the guard against reuse.
-        return _pid_exists(job.owner_pid)
-    return _process_start_time(job.owner_pid) == job.owner_start_time
+_DATETIME_FIELDS = ("started_at", "completed_at", "last_update", "claimed_at", "heartbeat_at")
+_JOB_FIELDS = {f.name for f in fields(ConversionJob)}
+_PROGRESS_FIELDS = {f.name for f in fields(PerFileProgress)}
 
 
 def _job_to_json(job: ConversionJob) -> Dict[str, Any]:
     data = asdict(job)
-    for key in ("started_at", "completed_at", "last_update"):
+    for key in _DATETIME_FIELDS:
         data[key] = data[key].isoformat() if data[key] else None
     return data
 
 
 def _job_from_json(data: Dict[str, Any]) -> ConversionJob:
-    for key in ("started_at", "completed_at", "last_update"):
+    # keys another code version wrote (e.g. owner_pid) are dropped, so its files still load
+    data = {key: value for key, value in data.items() if key in _JOB_FIELDS}
+    for key in _DATETIME_FIELDS:
         data[key] = datetime.fromisoformat(data[key]) if data.get(key) else None
-    data["per_file_progress"] = [PerFileProgress(**p) for p in data.get("per_file_progress", [])]
+    if data.get("started_at") is None:
+        data.pop("started_at", None)
+    if data.get("last_update") is None:
+        data.pop("last_update", None)
+    data["per_file_progress"] = [
+        PerFileProgress(**{key: value for key, value in p.items() if key in _PROGRESS_FIELDS})
+        for p in data.get("per_file_progress", [])
+    ]
     return ConversionJob(**data)
 
 
+def _is_stale(moment: Optional[datetime], now: datetime) -> bool:
+    return moment is None or now - moment > HEARTBEAT_STALE
+
+
 class ConversionJobManager:
-    """File-backed manager for file-conversion jobs, shared by every API worker."""
+    """File-backed manager for file-conversion jobs, shared by the API and the worker."""
 
     def __init__(self, state_dir: Optional[str] = None) -> None:
         self.state_dir = state_dir or os.environ.get("CONVERSION_JOB_STATE_DIR") or DEFAULT_STATE_DIR
@@ -233,9 +284,8 @@ class ConversionJobManager:
         try:
             return _job_from_json(data)
         except (TypeError, ValueError, KeyError, AttributeError):
-            # valid JSON in the wrong shape, e.g. left by another code version:
-            # treat it as no job rather than failing every request (cleanup
-            # removes it once it is old)
+            # valid JSON in the wrong shape: treat it as no job rather than failing
+            # every request (cleanup removes it once it is old)
             logger.warning(f"Unusable conversion job state file job_{job_id}.json; ignoring it",
                            exc_info=True)
             return None
@@ -246,56 +296,84 @@ class ConversionJobManager:
     def _reference_index(self, reference_id: int) -> Dict[str, Optional[str]]:
         return self._read(f"ref_{reference_id}.json") or {"active": None, "last": None}
 
-    def _fail_if_owner_gone(self, job: ConversionJob) -> ConversionJob:
-        """Mark a "running" job failed when the process running it is gone.
-        Call with the lock held."""
-        if job.status == "running" and not _owner_alive(job):
-            logger.warning(f"Conversion job {job.job_id} (reference_id={job.reference_id}): "
-                           f"worker pid {job.owner_pid} is gone; marking the job failed")
-            job.status = "failed"
-            job.completed_at = job.last_update = datetime.utcnow()
-            job.error_message = WORKER_GONE_ERROR
-            self._save_job(job)
-            index = self._reference_index(job.reference_id)
-            if index.get("active") == job.job_id:
-                index["active"] = None
-                self._write(f"ref_{job.reference_id}.json", index)
-        return job
+    def _all_jobs(self) -> List[ConversionJob]:
+        try:
+            names = os.listdir(self.state_dir)
+        except FileNotFoundError:
+            return []
+        jobs = []
+        for name in names:
+            if name.startswith("job_") and name.endswith(".json"):
+                job = self._load_job(name[len("job_"):-len(".json")])
+                if job is not None:
+                    jobs.append(job)
+        return jobs
 
-    # -- public API --------------------------------------------------------
+    def _finish(self, job: ConversionJob, status: str, error: str = "") -> None:
+        """Mark a job completed or failed and clear the reference's active entry.
+        Call with the lock held."""
+        job.status = status
+        job.completed_at = job.last_update = datetime.utcnow()
+        if error:
+            job.error_message = error
+        self._save_job(job)
+        index = self._reference_index(job.reference_id)
+        if index.get("active") == job.job_id:
+            index["active"] = None
+            self._write(f"ref_{job.reference_id}.json", index)
+
+    def _requeue(self, job: ConversionJob, reason: str) -> bool:
+        """Put a job whose worker is gone (or stopping) back in the queue, or fail it
+        after MAX_RESUMES. Returns whether it was re-queued. Call with the lock held."""
+        if job.resume_count >= MAX_RESUMES:
+            logger.warning(f"Conversion job {job.job_id} (reference_id={job.reference_id}): {reason}, "
+                           f"and it was already resumed {job.resume_count} times; failing it")
+            self._finish(job, "failed", WORKER_GONE_ERROR)
+            return False
+        logger.info(f"Conversion job {job.job_id} (reference_id={job.reference_id}): {reason}; "
+                    f"re-queued (resume {job.resume_count + 1} of {MAX_RESUMES})")
+        job.status = "queued"
+        job.owner = None
+        job.claimed_at = None
+        job.heartbeat_at = None
+        job.resume_count += 1
+        job.last_update = datetime.utcnow()
+        self._save_job(job)
+        return True
+
+    # -- API side ----------------------------------------------------------
 
     def create_or_get_job(self, reference_id: int, reference_curie: str, user_id: str,
                           expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None
                           ) -> ConversionJob:
-        """The running job for the reference, created if there is none. See start_job,
+        """The active job for the reference, created if there is none. See start_job,
         which also says whether the job was created by this call."""
         return self.start_job(reference_id, reference_curie, user_id, expected_source_files)[0]
 
     def start_job(self, reference_id: int, reference_curie: str, user_id: str,
                   expected_source_files: Optional[List[Dict[str, Optional[str]]]] = None,
-                  retry: bool = True) -> Tuple[ConversionJob, bool]:
+                  retry: bool = True, overwrite_tei_md: bool = False) -> Tuple[ConversionJob, bool]:
         """
-        Atomically return the existing running job for the reference or create a new
-        one, as ``(job, created)``.
+        Atomically return the reference's active (queued or running) job, or queue a
+        new one for the conversion worker, as ``(job, created)``.
 
         This is the idempotency primitive: two concurrent callers asking for the
-        same reference, in any worker, both receive the same job, and exactly one of
-        them gets ``created=True``. Only that caller may run the job: the others
-        must report it as running, or the conversion would run twice.
+        same reference, in any process, both receive the same job, and exactly one
+        of them gets ``created=True``.
 
         ``expected_source_files`` — when creating a new job, seeds the job's
         ``per_file_progress`` with a ``pending`` entry for each eligible source.
         Each dict may include ``source_display_name``, ``source_file_class``,
         ``expected_converted_display_name``, ``expected_converted_file_class``.
-        Seeding is skipped when an existing running job is returned.
+        Seeding is skipped when an existing job is returned.
 
         ``retry=False``: when the reference's last job failed less than
-        FAILED_JOB_HOLD ago, for any reason but its worker exiting, return that
-        failed job with ``created=False`` instead of starting another; the caller
-        reports the failure. A job started after a failure names it in
+        FAILED_JOB_HOLD ago, for any reason but its worker disappearing, return
+        that failed job with ``created=False`` instead of queueing another; the
+        caller reports the failure. A job started after a failure names it in
         ``previous_job_id``.
 
-        The job is owned by the calling process, which is the one that runs it.
+        ``overwrite_tei_md`` is stored on the job for the worker that runs it.
         """
         self._cleanup_now_and_then()
         with self._lock():
@@ -303,30 +381,22 @@ class ConversionJobManager:
             active_id = index.get("active")
             if active_id:
                 existing = self._load_job(active_id)
-                if existing is not None:
-                    existing = self._fail_if_owner_gone(existing)
-                    if existing.status == "running":
-                        return existing, False
+                if existing is not None and existing.is_active:
+                    return existing, False
 
             last_id = index.get("last")
             previous = self._load_job(last_id) if last_id else None
-            if previous is not None:
-                previous = self._fail_if_owner_gone(previous)
             failed_before = previous is not None and previous.status == "failed"
-            if previous is not None and failed_before and not retry \
-                    and previous.error_message != WORKER_GONE_ERROR \
-                    and datetime.utcnow() - (previous.completed_at or previous.last_update) < FAILED_JOB_HOLD:
+            if previous is not None and not retry and failure_is_held(previous):
                 return previous, False
 
-            pid = os.getpid()
             job = ConversionJob(
                 job_id=str(uuid.uuid4()),
                 reference_id=reference_id,
                 reference_curie=reference_curie,
                 user_id=user_id,
-                status="running",
-                owner_pid=pid,
-                owner_start_time=_process_start_time(pid),
+                status="queued",
+                overwrite_tei_md=overwrite_tei_md,
                 previous_job_id=previous.job_id if failed_before and previous is not None else None,
             )
             for ef in expected_source_files or []:
@@ -344,30 +414,155 @@ class ConversionJobManager:
             self._save_job(job)
             self._write(f"ref_{reference_id}.json", {"active": job.job_id, "last": job.job_id})
         logger.info(
-            f"Created conversion job {job.job_id} for reference_id={reference_id} "
-            f"(curie={reference_curie}, user={user_id}, pid={job.owner_pid})"
+            f"Queued conversion job {job.job_id} for reference_id={reference_id} "
+            f"(curie={reference_curie}, user={user_id})"
         )
         return job, True
 
     def get_job(self, job_id: str) -> Optional[ConversionJob]:
-        job = self._load_job(job_id)
-        if job is None or job.status != "running" or _owner_alive(job):
-            return job
-        with self._lock():
-            job = self._load_job(job_id)
-            return self._fail_if_owner_gone(job) if job is not None else None
+        return self._load_job(job_id)
 
     def get_active_job_for_reference(self, reference_id: int) -> Optional[ConversionJob]:
         job_id = self._reference_index(reference_id).get("active")
         if not job_id:
             return None
         job = self.get_job(job_id)
-        return job if job is not None and job.status == "running" else None
+        return job if job is not None and job.is_active else None
 
     def get_last_job_for_reference(self, reference_id: int) -> Optional[ConversionJob]:
         """Return the most recent job for this reference, regardless of status."""
         job_id = self._reference_index(reference_id).get("last")
         return self.get_job(job_id) if job_id else None
+
+    def wait_for_job(self, job_id: str, timeout: float,
+                     poll_interval: float = 1.0) -> Optional[ConversionJob]:
+        """Read the job until it is no longer active or ``timeout`` seconds have
+        passed; return it as last read (None if it does not exist)."""
+        deadline = time.monotonic() + timeout
+        while True:
+            job = self.get_job(job_id)
+            if job is None or not job.is_active or time.monotonic() >= deadline:
+                return job
+            time.sleep(min(poll_interval, max(deadline - time.monotonic(), 0)))
+
+    def worker_alive(self) -> bool:
+        """Whether the conversion worker wrote its heartbeat less than HEARTBEAT_STALE ago."""
+        data = self._read(WORKER_HEARTBEAT_FILE)
+        try:
+            beat = datetime.fromisoformat(data["at"]) if data else None
+        except (KeyError, TypeError, ValueError):
+            beat = None
+        return not _is_stale(beat, datetime.utcnow())
+
+    # -- worker side -------------------------------------------------------
+
+    def claim_next_job(self, worker_id: str) -> Optional[ConversionJob]:
+        """Take the oldest queued job, or the oldest running job whose worker is gone
+        (stale heartbeat), for ``worker_id``: it becomes ``running``, owned by that
+        worker, with a fresh heartbeat. A gone worker's job counts a resume, and is
+        failed instead once it has been resumed MAX_RESUMES times. None when there is
+        nothing to run."""
+        with self._lock():
+            now = datetime.utcnow()
+            candidates = []
+            for job in self._all_jobs():
+                if job.status == "running" and _is_stale(job.heartbeat_at, now):
+                    if not self._requeue(job, f"its worker {job.owner} stopped heartbeating"):
+                        continue
+                if job.status == "queued":
+                    candidates.append(job)
+            if not candidates:
+                return None
+            job = min(candidates, key=lambda j: (j.started_at, j.job_id))
+            job.status = "running"
+            job.owner = worker_id
+            job.claimed_at = job.heartbeat_at = job.last_update = now
+            self._save_job(job)
+        logger.info(f"Worker {worker_id} claimed conversion job {job.job_id} "
+                    f"(reference_id={job.reference_id}, resume_count={job.resume_count})")
+        return job
+
+    def heartbeat(self, worker_id: str, job_ids: Iterable[str]) -> List[str]:
+        """Refresh the worker's heartbeat file and the heartbeat of each of ``job_ids``
+        it still owns and runs. A job whose run has lasted longer than JOB_DEADLINE is
+        failed instead; returns the ids failed that way."""
+        failed: List[str] = []
+        with self._lock():
+            now = datetime.utcnow()
+            self._write(WORKER_HEARTBEAT_FILE, {"worker_id": worker_id, "at": now.isoformat()})
+            for job_id in job_ids:
+                job = self._load_job(job_id)
+                if job is None or job.status != "running" or job.owner != worker_id:
+                    continue
+                if job.claimed_at is not None and now - job.claimed_at > JOB_DEADLINE:
+                    logger.error(f"Conversion job {job_id} (reference_id={job.reference_id}) has run "
+                                 f"longer than {JOB_DEADLINE}; failing it")
+                    self._finish(job, "failed", JOB_DEADLINE_ERROR)
+                    failed.append(job_id)
+                    continue
+                job.heartbeat_at = now
+                self._save_job(job)
+        return failed
+
+    def requeue_jobs(self, worker_id: str) -> int:
+        """Put every job ``worker_id`` is running back in the queue (a worker that is
+        stopping), so the next worker takes them at once. Returns how many."""
+        requeued = 0
+        with self._lock():
+            for job in self._all_jobs():
+                if job.status == "running" and job.owner == worker_id:
+                    if self._requeue(job, f"its worker {worker_id} is stopping"):
+                        requeued += 1
+        return requeued
+
+    @staticmethod
+    def _may_write(job: ConversionJob, action: str) -> bool:
+        """Whether the current run may write to ``job`` (always, outside a run)."""
+        if _owned_by_this_run(job):
+            return True
+        logger.warning(f"Conversion job {job.job_id}: a run by worker {_run_owner.get()} tried to "
+                       f"{action}, but the job is {job.status} and owned by {job.owner}; ignored")
+        return False
+
+    def _progress_entry(self, job: ConversionJob, source_display_name: str,
+                        source_file_class: str) -> Optional[PerFileProgress]:
+        for progress in job.per_file_progress:
+            if (progress.source_display_name == source_display_name
+                    and progress.source_file_class == source_file_class):
+                return progress
+        return None
+
+    def set_pdfx_process_id(self, job_id: str, source_display_name: str, source_file_class: str,
+                            process_id: str) -> None:
+        """Record the PDFX job a source was submitted as (adding its entry if it was
+        not seeded)."""
+        with self._lock():
+            job = self._load_job(job_id)
+            if job is None or not self._may_write(job, "record a PDFX process id"):
+                return
+            entry = self._progress_entry(job, source_display_name, source_file_class)
+            if entry is None:
+                entry = PerFileProgress(source_display_name=source_display_name,
+                                        source_file_class=source_file_class)
+                job.per_file_progress.append(entry)
+            entry.pdfx_process_id = process_id
+            job.last_update = datetime.utcnow()
+            self._save_job(job)
+
+    def run_still_owns(self, job_id: str) -> bool:
+        """Whether the current run may go on with ``job_id``: outside a run always;
+        inside ``running_as(worker_id)`` only while that worker owns the job and it is
+        running. A run that lost its job (failed by the deadline, re-queued, taken
+        over) stops before its next file instead of converting the paper alongside
+        the job's next run."""
+        job = self._load_job(job_id)
+        return job is not None and _owned_by_this_run(job)
+
+    def get_pdfx_process_id(self, job_id: str, source_display_name: str,
+                            source_file_class: str) -> Optional[str]:
+        job = self._load_job(job_id)
+        entry = self._progress_entry(job, source_display_name, source_file_class) if job else None
+        return entry.pdfx_process_id if entry is not None else None
 
     def record_file_progress(self, job_id: str, *,
                              source_display_name: str,
@@ -384,14 +579,9 @@ class ConversionJobManager:
         new_status = "success" if success else "failed"
         with self._lock():
             job = self._load_job(job_id)
-            if job is None:
+            if job is None or not self._may_write(job, "record file progress"):
                 return
-            existing: Optional[PerFileProgress] = None
-            for p in job.per_file_progress:
-                if (p.source_display_name == source_display_name
-                        and p.source_file_class == source_file_class):
-                    existing = p
-                    break
+            existing = self._progress_entry(job, source_display_name, source_file_class)
             if existing is not None:
                 existing.status = new_status
                 existing.error = error
@@ -425,21 +615,21 @@ class ConversionJobManager:
             self._save_job(job)
 
     def complete_job(self, job_id: str, success: bool, error: str = "") -> None:
+        """Mark a job completed or failed. A job that is already finished (failed by
+        the deadline while its run was still going) is left as it is, and so is a job
+        the calling run no longer owns (see running_as)."""
         with self._lock():
             job = self._load_job(job_id)
-            if job is None:
+            if job is None or not self._may_write(job, "complete it"):
                 return
-            job.status = "completed" if success else "failed"
-            job.completed_at = datetime.utcnow()
-            job.last_update = job.completed_at
-            if error:
-                job.error_message = error
-            self._save_job(job)
-            index = self._reference_index(job.reference_id)
-            if index.get("active") == job_id:
-                index["active"] = None
-                self._write(f"ref_{job.reference_id}.json", index)
+            if not job.is_active:
+                logger.warning(f"Conversion job {job_id} finished a run but is already {job.status}; "
+                               f"leaving it {job.status}")
+                return
+            self._finish(job, "completed" if success else "failed", error)
         logger.info(f"Conversion job {job_id} {job.status} (reference_id={job.reference_id})")
+
+    # -- cleanup -----------------------------------------------------------
 
     def _cleanup_now_and_then(self) -> None:
         """Run cleanup_old_jobs from job creation, at most every CLEANUP_INTERVAL,
@@ -454,9 +644,9 @@ class ConversionJobManager:
 
     def cleanup_old_jobs(self, max_age_hours: int = 24) -> int:
         """Delete finished jobs started more than ``max_age_hours`` ago, and the
-        reference index entries that point at them; a running job is never deleted.
-        Unusable job files and temporary files a killed writer left behind are
-        removed by age. Returns the number of jobs removed."""
+        reference index entries that point at them; a queued or running job is never
+        deleted. Unusable job files and temporary files a killed writer left behind
+        are removed by age. Returns the number of jobs removed."""
         cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
         try:
             names = os.listdir(self.state_dir)
@@ -468,7 +658,7 @@ class ConversionJobManager:
         now = datetime.now().timestamp()
         removed = 0
         for name in names:
-            if name.startswith(".job_") or name.startswith(".ref_"):
+            if name.startswith(".job_") or name.startswith(".ref_") or name.startswith(".worker"):
                 # a write that never reached its rename (the writer was killed)
                 if self._older_than(name, now, STALE_TEMP_FILE_AGE.total_seconds()):
                     self._remove(name)
@@ -481,9 +671,7 @@ class ConversionJobManager:
                     if self._older_than(name, now, max_age_hours * 3600):
                         self._remove(name)  # unusable, see _load_job
                     continue
-                if job.started_at >= cutoff:
-                    continue
-                if self._fail_if_owner_gone(job).status == "running":
+                if job.started_at >= cutoff or job.is_active:
                     continue
                 self._remove(name)
                 index = self._reference_index(job.reference_id)

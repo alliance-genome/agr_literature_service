@@ -29,7 +29,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, ModCorpusAssociationModel,
-    ReferenceModel, TagSourceModel, ModModel, CrossReferenceModel
+    ReferenceModel, TagSourceModel, ModModel, CrossReferenceModel, WorkflowTagModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.models.topic_entity_tag_model import topic_entity_tag_validation
@@ -51,7 +51,7 @@ from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
 from agr_literature_service.api.crud.tag_source_crud import get_or_create_abc_source, \
-    CURATOR_VALIDATION_TYPE
+    CURATOR_VALIDATION_TYPE, CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION, CURATOR_VALIDATION_SOURCE_METHOD
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,13 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 # workflow terms the TET paths set through transitions (SCRUM-6845)
 MANUAL_INDEXING_PROCESS_ATP = "ATP:0000273"
 FILE_NEEDED_ATP = "ATP:0000141"
+
+# SCRUM-6672: a curator's "no genetic data" verdict (negated "genetic data" topic) marks
+# the paper "won't manually index" with the curation tag "no genetic data", for these MODs.
+NO_GENETIC_DATA_TOPIC = "ATP:0000402"
+WONT_MANUALLY_INDEX_ATP = "ATP:0000343"
+NO_GENETIC_DATA_CURATION_TAG = "ATP:0000207"
+NO_GENETIC_DATA_WFT_MODS = {"FB"}
 
 # SCRUM-6183: data_novelty term "existing data" used on the companion pure entity
 # tag auto-created from a positive mixed topic+entity tag.
@@ -375,6 +382,10 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
         logger.info("Updating manual indexing workflow tag")
         update_manual_indexing_workflow_tag(db, source.secondary_data_provider.abbreviation, reference_id,
                                             index_wft, commit=False)
+        # SCRUM-6672: runs after index_wft on purpose, so a curator's "no genetic data" verdict
+        # wins over a manual indexing status sent in the same request (only SGD sends index_wft
+        # today, and the trigger is FB-only).
+        add_no_genetic_data_workflow_tag(db, new_db_obj)
         if validate_on_insert:
             logger.info("Starting tag validation")
             # SCRUM-6474: this tag's edges must not be written while a PATCH or DELETE on
@@ -528,6 +539,58 @@ def update_manual_indexing_workflow_tag(db: Session, mod_abbreviation: str, refe
         return
     transition_to_workflow_status(db, str(reference_id), mod_abbreviation, index_wft, transition_type="manual",
                                   commit=commit)
+
+
+def add_no_genetic_data_workflow_tag(db: Session, tag: TopicEntityTagModel) -> None:
+    """SCRUM-6672: a professional biocurator's "no genetic data" verdict -- the "genetic data"
+    topic negated, on the curator source -- moves the paper's manual indexing status to
+    "won't manually index" with the curation tag "no genetic data".
+
+    Only curator verdicts count, never the pipeline's or an author's (FlyBase's decision), and
+    only for NO_GENETIC_DATA_WFT_MODS. It only ever adds: flipping or deleting the verdict later
+    leaves the workflow tag alone. A paper already at "won't manually index" only gets the
+    curation tag when it has none, so "retracted" or a curator's own choice is kept.
+
+    Non-fatal and flushes only, for a caller that owns the transaction: it runs in a savepoint,
+    so any failure -- a transition the MOD's table does not allow, or anything else -- is logged
+    and the verdict still saves."""
+    source = tag.tag_source
+    if (tag.topic != NO_GENETIC_DATA_TOPIC or tag.negated is not True or source is None
+            or source.source_evidence_assertion != CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION
+            or source.source_method != CURATOR_VALIDATION_SOURCE_METHOD
+            or source.secondary_data_provider is None):
+        return
+    mod_abbreviation = source.secondary_data_provider.abbreviation
+    if mod_abbreviation not in NO_GENETIC_DATA_WFT_MODS:
+        return
+    reference_id = str(tag.reference_id)
+    savepoint = db.begin_nested()
+    try:
+        current = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == tag.reference_id,
+            WorkflowTagModel.mod_id == source.secondary_data_provider_id,
+            WorkflowTagModel.workflow_tag_id == WONT_MANUALLY_INDEX_ATP).one_or_none()
+        if current is not None:
+            if current.curation_tag is None:
+                current.curation_tag = NO_GENETIC_DATA_CURATION_TAG  # type: ignore
+                db.flush()
+        else:
+            # The savepoint only protects the caller while the transition flushes. A transition
+            # action that commits on its own would commit the caller's whole transaction (and
+            # release create_tag's SCRUM-6851 reference lock); FB's rows into ATP:0000343 have
+            # no actions, so check this before adding one.
+            transition_to_workflow_status(db, reference_id, mod_abbreviation, WONT_MANUALLY_INDEX_ATP,
+                                          transition_type="manual",
+                                          curation_tag=NO_GENETIC_DATA_CURATION_TAG, commit=False)
+        savepoint.commit()
+    except Exception as e:
+        # Any failure, not only a refused transition (HTTPException): the workflow tag is a
+        # convenience and must never cost the curator their verdict.
+        savepoint.rollback()
+        reason = e.detail if isinstance(e, HTTPException) else f"{type(e).__name__}: {e}"
+        logger.warning(f"SCRUM-6672: reference {reference_id} not set to {WONT_MANUALLY_INDEX_ATP} for "
+                       f"{mod_abbreviation} after a 'no genetic data' verdict: {reason}",
+                       exc_info=not isinstance(e, HTTPException))
 
 
 def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id,
@@ -790,9 +853,17 @@ def apply_tag_patch(db: Session, topic_entity_tag: TopicEntityTagModel,
         else:
             patch_data_dict[audit_field] = resolved
     add_audited_object_users_if_not_exist(db, patch_data_dict)
+    verdict_before = (topic_entity_tag.topic, topic_entity_tag.negated, topic_entity_tag.tag_source_id)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
     db.flush()
+    # SCRUM-6672: a patch can turn a curator tag into a "no genetic data" verdict. Only a real
+    # change counts: an edit form re-sending negated=True with a new note must not move the
+    # paper back to "won't manually index" after someone moved it elsewhere.
+    verdict_after = (topic_entity_tag.topic, topic_entity_tag.negated, topic_entity_tag.tag_source_id)
+    if verdict_after != verdict_before and topic_entity_tag.topic == NO_GENETIC_DATA_TOPIC:
+        db.refresh(topic_entity_tag, ['tag_source'])
+        add_no_genetic_data_workflow_tag(db, topic_entity_tag)
 
 
 def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
@@ -2939,6 +3010,11 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
                 verdict.date_updated = date_updated
             outcome = "updated" if changed_fields else "unchanged"
             tag_id = verdict.topic_entity_tag_id
+            # SCRUM-6672: flipping an existing verdict to "no genetic data" keeps its row,
+            # so create_tag (which adds the workflow tag for a new one) is not reached.
+            if "negated" in changed_fields:
+                db.flush()
+                add_no_genetic_data_workflow_tag(db, verdict)
             # Re-validating used to go through create_tag every time, which also put
             # the paper (back) in the MOD's corpus; keep doing that for a verdict on a
             # paper that has since left the corpus. A no-op when it is in the corpus.

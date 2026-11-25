@@ -6,6 +6,7 @@ SCRUM-6845: every workflow tag change goes through a row of the transition table
 - Rows of type 'action' are job-poll connectors and are never fired.
 - transition_to_workflow_status sets curation_tag/note, can skip actions (internal callers)
   and can flush instead of commit.
+- A transition to the state the paper is already in is a no-op, with no row (SCRUM-6672).
 """
 from unittest.mock import patch
 
@@ -244,3 +245,16 @@ class TestTopicEntityTagPaths:
         tet_crud.update_manual_indexing_workflow_tag(db, "WB", ref.reference_id, MI_COMPLETE)
         tet_crud.update_manual_indexing_workflow_tag(db, "WB", ref.reference_id, None)
         assert _tags(db, ref, mod) == [MI_COMPLETE]
+
+    def test_transition_to_the_current_state_needs_no_row(self, wb_ref):  # noqa
+        db, mod, ref = wb_ref  # noqa
+        # SCRUM-6672: the WF editor's "no genetic data" tick asks for 343 after the verdict
+        # already moved the paper there; there is no 343 -> 343 row, and none is needed.
+        tag = _tag(db, ref, mod, MI_WONT)
+        wtc.transition_to_workflow_status(db, REFERENCE_CURIE, "WB", MI_WONT, transition_type="manual")
+        assert _tags(db, ref, mod) == [MI_WONT]
+
+        wtc.transition_to_workflow_status(db, REFERENCE_CURIE, "WB", MI_WONT, transition_type="manual",
+                                          curation_tag="ATP:0000207", note="no genes")
+        db.refresh(tag)
+        assert (tag.workflow_tag_id, tag.curation_tag, tag.note) == (MI_WONT, "ATP:0000207", "no genes")

@@ -104,11 +104,22 @@ class ConversionStatusResponseSchema(BaseModel):
         - ``failed``    — the most recent conversion failed; see
           ``error_message`` and ``per_file_progress``.
         - ``no_sources``— the reference has nothing to convert.
+        - ``not_converted`` — ``dry_run=true`` only: something is left to
+          convert and no job is running or has failed on it (SCRUM-6980).
 
     ``converted_classes`` lists the converted file_class values currently
     present in the DB for this reference. Clients can act on partial results
     (fetching ``converted_merged_main`` as soon as it appears, for example,
     without waiting for longer-running supplement conversions to finish).
+
+    ``failure_reason`` is set when ``status`` is ``failed`` (SCRUM-6980):
+        - ``worker_exited``     — the API worker running the job exited
+          (a restart or a worker recycle); asking again restarts it.
+        - ``conversion_failed`` — the conversion itself failed.
+
+    ``would_start`` is set only with ``dry_run=true``: whether a conversion
+    request without ``retry`` would start converting now (in a job, or
+    inline for nXML and Office files).
     """
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
@@ -123,3 +134,5 @@ class ConversionStatusResponseSchema(BaseModel):
     converted_classes: List[str] = []
     per_file_progress: List[ConversionPerFileProgressSchema] = []
     per_mod_status: List[ConversionModStatusSchema] = []
+    failure_reason: Optional[str] = None
+    would_start: Optional[bool] = None

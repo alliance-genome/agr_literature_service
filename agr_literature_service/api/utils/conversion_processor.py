@@ -19,6 +19,19 @@ from agr_literature_service.api.utils.conversion_job_manager import conversion_m
 logger = logging.getLogger(__name__)
 
 
+class JobNoLongerOwned(Exception):
+    """The run's job was failed by its deadline, re-queued or taken over by another
+    worker (SCRUM-6998 review): the run stops instead of converting the paper
+    alongside the job's next run."""
+
+
+def _stop_if_job_lost(job_id: str) -> None:
+    """Raise JobNoLongerOwned when the current run no longer owns ``job_id``; checked
+    before each file, so at most the file in progress overlaps a next run."""
+    if not conversion_manager.run_still_owns(job_id):
+        raise JobNoLongerOwned(f"conversion job {job_id} is no longer this run's")
+
+
 def _all_extraction_methods() -> List[str]:
     from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
         EXTRACTION_METHODS,
@@ -160,10 +173,20 @@ def _convert_pending_pdf(
 
     The on-demand request converts supplement PDFs of any size (SCRUM-6978);
     the 5 MiB / 20 page limits apply only to the batch job.
+
+    SCRUM-6998: the PDFX process_id is recorded on the job as soon as the PDF
+    is submitted, and a resumed run passes it back, so the PDF is not
+    submitted to PDFX a second time.
     """
     from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
         _process_single_pdf_file,
     )
+    display_name, file_class = pdf_file.display_name, pdf_file.file_class
+
+    def record_submission(process_id: str) -> None:
+        # stored before polling, so a run that resumes this job re-attaches to it
+        conversion_manager.set_pdfx_process_id(job_id, display_name, file_class, process_id)
+
     try:
         success, methods_uploaded, error = _process_single_pdf_file(
             db=db,
@@ -171,6 +194,8 @@ def _convert_pending_pdf(
             reference_curie=reference_curie,
             methods_to_extract=_all_extraction_methods(),
             enforce_supplement_limits=False,
+            pdfx_process_id=conversion_manager.get_pdfx_process_id(job_id, display_name, file_class),
+            on_submitted=record_submission,
         )
     except Exception as exc:
         success, methods_uploaded, error = False, [], str(exc)
@@ -194,6 +219,7 @@ def _convert_pending_main(
     any_failure = False
     failure_messages: List[str] = []
     for entry in assessment.get("pending_main") or []:
+        _stop_if_job_lost(job_id)
         ref_file = entry["ref_file"]
         if entry["kind"] == "nxml":
             success, error = _convert_pending_nxml(
@@ -223,6 +249,7 @@ def _convert_pending_supplements(
     any_failure = False
     failure_messages: List[str] = []
     for ref_file in assessment.get("pending_supplements") or []:
+        _stop_if_job_lost(job_id)
         success, error = _convert_pending_pdf(
             db, job_id, reference_id, reference_curie,
             ref_file, "converted_merged_supplement",
@@ -248,6 +275,7 @@ def _convert_pending_office_supplements(
     any_failure = False
     failure_messages: List[str] = []
     for ref_file in assessment.get("pending_office_supplements") or []:
+        _stop_if_job_lost(job_id)
         success, error = _convert_pending_office(
             db, job_id, reference_id, reference_curie,
             ref_file, source_mod_abbreviation(ref_file),
@@ -306,6 +334,8 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
             db, job_id, reference_id, reference_curie, assessment,
         )
 
+        # the deadline (or a takeover) may have ended the job while the last file ran
+        _stop_if_job_lost(job_id)
         any_failure = main_failure or supp_failure or office_failure
         failure_messages = main_errors + supp_errors + office_errors
 
@@ -358,6 +388,9 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
             error="; ".join(failure_messages) if failure_messages else "",
         )
 
+    except JobNoLongerOwned as exc:
+        # the job's state belongs to whoever ended or took it: nothing to record
+        logger.warning(f"Conversion job {job_id} (reference_id={reference_id}): stopping, {exc}")
     except Exception as exc:
         logger.exception(f"Conversion job {job_id} failed with unexpected error")
         conversion_manager.complete_job(job_id=job_id, success=False, error=str(exc))

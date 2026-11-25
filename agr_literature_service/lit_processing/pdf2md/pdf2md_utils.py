@@ -14,7 +14,7 @@ import re
 import time
 from collections import Counter
 from io import BytesIO
-from typing import Dict, List, Literal, Optional, Tuple, TypedDict
+from typing import Callable, Dict, List, Literal, Optional, Tuple, TypedDict
 
 import boto3
 import requests
@@ -1695,12 +1695,36 @@ def store_pdfx_page_provenance(db: Session, process_id: str, *, reference_curie:
                      f"({source_file_class} '{display_name}', process_id={process_id}): {e}")
 
 
+def _reattach_pdfx_job(process_id: str, display_name: str, reference_curie: str) -> Optional[str]:
+    """Wait for a PDFX job an interrupted run already submitted (SCRUM-6998): its
+    process_id once it has completed, or None when PDFX no longer knows it (404)
+    or reports it failed, so the caller submits the PDF again. Any other error (a
+    timeout, a 5xx, a connection error) is raised as is and fails the file: PDFX
+    may still be running the job, and a new submission would duplicate it."""
+    logger.info(f"Re-attaching to PDFX job {process_id} for {display_name} ({reference_curie})")
+    try:
+        poll_pdfx_status(process_id)
+    except requests.HTTPError as exc:
+        if exc.response is None or exc.response.status_code != 404:
+            raise
+        reason = "PDFX no longer knows it"
+    except RuntimeError as exc:  # poll_pdfx_status: the PDFX job itself failed
+        reason = str(exc)
+    else:
+        return process_id
+    logger.warning(f"Could not re-attach to PDFX job {process_id} for {display_name} "
+                   f"({reference_curie}): {reason}; submitting the PDF again")
+    return None
+
+
 def _process_single_pdf_file(  # pragma: no cover
     db: Session,
     pdf_file: ReferencefileModel,
     reference_curie: str,
     methods_to_extract: List[str],
     enforce_supplement_limits: bool = True,
+    pdfx_process_id: Optional[str] = None,
+    on_submitted: Optional[Callable[[str], None]] = None,
 ) -> Tuple[bool, List[str], Optional[str]]:
     """
     Process a single PDF file through PDFX.
@@ -1713,6 +1737,13 @@ def _process_single_pdf_file(  # pragma: no cover
         enforce_supplement_limits: When True (the batch job), a supplement PDF
             over SUPPLEMENT_PDF_MAX_BYTES or SUPPLEMENT_PDF_MAX_PAGES is refused.
             The on-demand conversion request passes False (SCRUM-6978).
+        pdfx_process_id: The PDFX job this PDF was already submitted as, by a run
+            of an on-demand conversion that was interrupted (SCRUM-6998). It is
+            polled instead of submitting the PDF again; if PDFX no longer knows it
+            or reports it failed, the PDF is submitted as usual. A timeout while
+            polling it is not retried with a new submission.
+        on_submitted: Called with the process_id of a new PDFX submission, before
+            polling it, so the caller can record it.
 
     Returns:
         Tuple of (success: bool, methods_uploaded: List[str], error_message: Optional[str]).
@@ -1753,19 +1784,23 @@ def _process_single_pdf_file(  # pragma: no cover
     if "marker" not in request_methods:
         request_methods.append("marker")
 
-    # Submit to PDFX with image extraction enabled (default), so the same job
-    # produces both Markdown and figure images in one PDFX run per source PDF.
-    process_id = submit_pdf_to_pdfx(
-        file_content=file_content,
-        methods=",".join(request_methods),
-        merge=include_merge,
-        reference_curie=reference_curie,
-        mod_abbreviation=mod_abbreviation,
-        extract_images=True,
-    )
-
-    # Poll for completion
-    poll_pdfx_status(process_id)
+    process_id = _reattach_pdfx_job(pdfx_process_id, display_name, reference_curie) \
+        if pdfx_process_id else None
+    if process_id is None:
+        # Submit to PDFX with image extraction enabled (default), so the same job
+        # produces both Markdown and figure images in one PDFX run per source PDF.
+        process_id = submit_pdf_to_pdfx(
+            file_content=file_content,
+            methods=",".join(request_methods),
+            merge=include_merge,
+            reference_curie=reference_curie,
+            mod_abbreviation=mod_abbreviation,
+            extract_images=True,
+        )
+        if on_submitted is not None:
+            on_submitted(process_id)
+        # Poll for completion
+        poll_pdfx_status(process_id)
 
     # Download and store each method's output
     successful_methods = []
