@@ -433,7 +433,7 @@ def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: st
 
 def get_user_display_name_map(db: Session, user_ids: Set[str]) -> Dict[str, str]:
     """
-    Return a mapping of agent label (person curie) -> person.display_name for person-backed agents.
+    Return a mapping of agent label (person curie) -> the person's display_name (on agent).
     """
     id_to_display_name: Dict[str, str] = {}
     if not user_ids:
@@ -447,9 +447,9 @@ def get_user_display_name_map(db: Session, user_ids: Set[str]) -> Dict[str, str]
     params = {f"uid{i}": ids_list[i] for i in range(len(ids_list))}
 
     sql = text(f"""
-        SELECT p.curie AS user_id, p.display_name
+        SELECT p.curie AS user_id, u.display_name
         FROM agent u
-        JOIN person p ON p.id = u.person_id
+        JOIN person p ON p.id = u.id
         WHERE p.curie IN ({placeholders})
     """)
     for row in db.execute(sql, params).mappings().fetchall():

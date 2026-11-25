@@ -2,7 +2,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import AuthorModel, PersonModel, ReferenceModel, UserModel
+from agr_literature_service.api.models import AuthorModel, AutomationModel, PersonModel, ReferenceModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_reference import test_reference  # noqa
@@ -45,8 +45,8 @@ class TestReorder:
         ref_id = test_reference.related_ref_id
         seed_uid = "reorder-seed-user"
         # agents survive the per-test cleanup, so get-or-create this seed user.
-        if db.query(UserModel).filter_by(automation_username=seed_uid).one_or_none() is None:
-            db.add(UserModel(automation_username=seed_uid))
+        if db.query(AutomationModel).filter_by(display_name=seed_uid).one_or_none() is None:
+            db.add(AutomationModel(display_name=seed_uid))
             db.commit()
         a1 = AuthorModel(reference_id=ref_id, author_order=1, name="A1",
                          created_by=seed_uid, updated_by=seed_uid)

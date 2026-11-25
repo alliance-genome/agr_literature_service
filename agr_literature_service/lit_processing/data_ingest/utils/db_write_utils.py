@@ -738,7 +738,7 @@ def delete_automated_author_history(db_session, reference_id: int) -> int:
     result = db_session.execute(text(
         "DELETE FROM author_version av USING transaction t "
         "WHERE av.reference_id = :reference_id AND t.id = av.transaction_id "
-        "AND NOT EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.person_id IS NOT NULL)"),
+        "AND NOT EXISTS (SELECT 1 FROM agent a WHERE a.id = t.user_id AND a.agent_type = 'person')"),
         {"reference_id": reference_id})
     return result.rowcount
 
@@ -800,13 +800,12 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     human curator. Such references are curator-managed and must not be touched by the
     DQM/PubMed ingest author sync.
 
-    Ingest scripts write as AUTOMATION users (``users.person_id IS NULL``,
-    ``automation_username`` set), while curators are person-linked users
-    (``users.person_id IS NOT NULL``) -- see the users.person_id / automation_username
-    XOR constraint. ``AuditedModel`` auto-stamps ``created_by`` / ``updated_by`` (both
-    FK to ``users.id``) with the acting user, so joining the author's audit users back
-    to ``users`` and checking for a non-null ``person_id`` distinguishes a curator
-    touch from an automation touch.
+    Ingest scripts write as AUTOMATION agents (``agent.agent_type = 'automation'``),
+    while curators are persons (``agent.agent_type = 'person'``; a person is an agent,
+    SCRUM-6995). ``AuditedModel`` auto-stamps ``created_by_id`` / ``updated_by_id``
+    (both FK to ``agent.id``) with the acting agent, so joining the author's audit
+    agents back to ``agent`` and checking its type distinguishes a curator touch from
+    an automation touch.
 
     Known limitation: a write made with no authenticated user falls back to the
     ``default_user`` automation row (``get_default_user_value``), and a few other
@@ -826,7 +825,7 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
         ),
     ).filter(
         AuthorModel.reference_id == reference_id,
-        UserModel.person_id.isnot(None),
+        UserModel.agent_type == 'person',
     ).first() is not None
 
 
@@ -1372,7 +1371,7 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
 def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    rows = db_session.execute(text(f"SELECT get_most_current_email(u.person_id) AS email "
+    rows = db_session.execute(text(f"SELECT get_most_current_email(u.id) AS email "
                                    f"FROM reference_relation_version rcc, transaction t, agent u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
@@ -1397,7 +1396,7 @@ def _is_reference_relation_added_by_mod_dqm(db_session: Session, reference_id_fr
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
                                    f"AND t.user_id = u.id "
-                                   f"AND u.automation_username = '{user_id}'")).fetchall()
+                                   f"AND u.agent_type = 'automation' AND u.display_name = '{user_id}'")).fetchall()
     if len(rows) > 0:
         return True
     return False

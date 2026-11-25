@@ -299,7 +299,6 @@ def _ensure_curator(db):  # noqa
         db.add(person)
         db.flush()
         db.add(PersonEmailModel(person_id=person.person_id, email_address=ZFIN_CURATOR_EMAIL))
-        db.add(UserModel(person_id=person.person_id))
         db.commit()
     return ZFIN_CURATOR_CURIE
 
@@ -412,8 +411,9 @@ class TestUpdatedByPersons:
         return ip_crud.create(db, _mk_payload(test_reference.new_ref_curie, "ZFIN", "ATP:0000212", 0.7))
 
     def _agents(self, db, curie):  # noqa
+        # a person is its own agent (SCRUM-6995): exactly one, never a second
         person_id = db.query(PersonModel.person_id).filter(PersonModel.curie == curie).scalar()
-        return db.query(UserModel).filter(UserModel.person_id == person_id).count()
+        return db.query(UserModel).filter(UserModel.id == person_id).count()
 
     def test_person_without_agent_by_id_email_and_name(self, db, test_reference):  # noqa
         ip_id = self._record(db, test_reference)
@@ -424,7 +424,7 @@ class TestUpdatedByPersons:
             _ensure_person(db, curie, name, email)
             ip_crud.patch(db, ip_id, {"confidence_score": 0.1, "updated_by": given})
             assert ip_crud.show(db, ip_id)["updated_by"] == curie
-            # the person got one agent, reused on the next update
+            # the person is the agent, on the next update too
             ip_crud.patch(db, ip_id, {"confidence_score": 0.2, "updated_by": given})
             assert self._agents(db, curie) == 1
 

@@ -319,14 +319,14 @@ def get_indexing_priority_tag(db: Session, curie: str):
         ip.date_updated,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
-        COALESCE(get_most_current_email(u.person_id), u.automation_username, p.curie) AS updated_by_email,
-        COALESCE(p.display_name, u.automation_username, p.curie) AS updated_by_name,
-        COALESCE(u.automation_username, p.curie) AS updated_by
+        COALESCE(get_most_current_email(p.id), p.curie, u.display_name) AS updated_by_email,
+        u.display_name AS updated_by_name,
+        COALESCE(p.curie, u.display_name) AS updated_by
     FROM indexing_priority ip
     JOIN reference r ON r.id = ip.reference_id
     JOIN mod m ON m.id = ip.mod_id
     LEFT JOIN agent u  ON u.id = ip.updated_by_id
-    LEFT JOIN person p ON p.id = u.person_id
+    LEFT JOIN person p ON p.id = u.id
     WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()

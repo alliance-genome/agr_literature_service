@@ -169,11 +169,11 @@ SGD_CURATOR_EMAIL_DOMAIN = "stanford.edu"
 _SGD_CURATOR_MATCH_SQL = text(r"""
     WITH candidates AS (
         SELECT p.curie AS users_id,
-               regexp_split_to_array(trim(p.display_name), '\s+') AS toks,
+               regexp_split_to_array(trim(u.display_name), '\s+') AS toks,
                lower(split_part(e.email_address, '@', 1)) AS email_local,
                lower(split_part(e.email_address, '@', 2)) AS email_domain
-        FROM   agent u
-        JOIN   person p ON u.person_id = p.id
+        FROM   person p
+        JOIN   agent u ON u.id = p.id
         JOIN   person_email e ON e.person_id = p.id
     )
     SELECT DISTINCT users_id
@@ -363,8 +363,8 @@ def load_existing_entity_tags(db: Session, source_id: int,
     to."""
     sql = ("SELECT r.curie, tet.entity_type, tet.entity, "
            "       tet.id AS topic_entity_tag_id, tet.display_tag, tet.date_created, "
-           "       (SELECT COALESCE(a.automation_username, p.curie) FROM agent a "
-           "        LEFT JOIN person p ON p.id = a.person_id WHERE a.id = tet.created_by_id) AS created_by "
+           "       (SELECT COALESCE(p.curie, a.display_name) FROM agent a "
+           "        LEFT JOIN person p ON p.id = a.id WHERE a.id = tet.created_by_id) AS created_by "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.id "
            "WHERE  tet.tag_source_id = :sid "

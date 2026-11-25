@@ -11,9 +11,9 @@ from agr_literature_service.api.models.audited_model import (
     disable_set_date_updated_onupdate,
     disable_set_updated_by_onupdate
 )
-from agr_literature_service.api.models.user_model import UserModel
+from agr_literature_service.api.models.user_model import AutomationModel, UserModel
 from agr_literature_service.api.crud import user_crud
-from agr_literature_service.api.user import get_current_agent_id, link_user_to_person, set_global_user_id
+from agr_literature_service.api.user import get_current_agent_id, set_global_user_id
 
 from ..fixtures import db  # noqa: F401
 
@@ -41,7 +41,7 @@ def _is_recent(dt: datetime, seconds: int = 5) -> bool:
 def _ensure_user(db, uid: str): # noqa
     if uid is None:
         return
-    u = db.query(UserModel).filter_by(automation_username=uid).one_or_none()
+    u = db.query(AutomationModel).filter_by(display_name=uid).one_or_none()
     if u is None:
         user_crud.create(db, uid)
 
@@ -168,7 +168,7 @@ def test_insert_autocreates_missing_created_by_user(db): # noqa
     """
     new_uid = "LOADER_NEW_CREATOR"
     # Make sure it does not already exist.
-    assert db.query(UserModel).filter_by(automation_username=new_uid).one_or_none() is None
+    assert db.query(AutomationModel).filter_by(display_name=new_uid).one_or_none() is None
 
     obj = AuditedDummy(name="foxtrot", created_by=new_uid)
     db.add(obj)
@@ -179,10 +179,10 @@ def test_insert_autocreates_missing_created_by_user(db): # noqa
     # updated_by mirrors created_by when not supplied (impute_audit_user_ids).
     assert obj.updated_by == new_uid
     # The agent was created as an automation agent.
-    user = db.query(UserModel).filter_by(automation_username=new_uid).one_or_none()
+    user = db.query(AutomationModel).filter_by(display_name=new_uid).one_or_none()
     assert user is not None
-    assert user.automation_username == new_uid
-    assert user.person_id is None
+    assert user.display_name == new_uid
+    assert user.agent_type == "automation"
 
 
 def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
@@ -190,7 +190,7 @@ def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
     creator = "LOADER_CREATOR_X"
     updater = "LOADER_UPDATER_Y"
     for uid in (creator, updater):
-        assert db.query(UserModel).filter_by(automation_username=uid).one_or_none() is None
+        assert db.query(AutomationModel).filter_by(display_name=uid).one_or_none() is None
 
     obj = AuditedDummy(name="golf", created_by=creator, updated_by=updater)
     db.add(obj)
@@ -199,8 +199,8 @@ def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
 
     assert obj.created_by == creator
     assert obj.updated_by == updater
-    assert db.query(UserModel).filter_by(automation_username=creator).one_or_none() is not None
-    assert db.query(UserModel).filter_by(automation_username=updater).one_or_none() is not None
+    assert db.query(AutomationModel).filter_by(display_name=creator).one_or_none() is not None
+    assert db.query(AutomationModel).filter_by(display_name=updater).one_or_none() is not None
 
 
 def test_insert_skips_autocreate_for_global_user(db, monkeypatch): # noqa
@@ -241,7 +241,7 @@ def test_update_autocreates_missing_updated_by_user(db): # noqa
     db.refresh(obj)
 
     new_updater = "LOADER_UPDATER_ON_PATCH"
-    assert db.query(UserModel).filter_by(automation_username=new_updater).one_or_none() is None
+    assert db.query(AutomationModel).filter_by(display_name=new_updater).one_or_none() is None
 
     obj.name = "hotel-2"
     obj.updated_by = new_updater
@@ -250,7 +250,7 @@ def test_update_autocreates_missing_updated_by_user(db): # noqa
     db.refresh(obj)
 
     assert obj.updated_by == new_updater
-    assert db.query(UserModel).filter_by(automation_username=new_updater).one_or_none() is not None
+    assert db.query(AutomationModel).filter_by(display_name=new_updater).one_or_none() is not None
 
 
 def _reload(db, name): # noqa
@@ -263,7 +263,7 @@ def test_audit_columns_hold_agent_ids(db): # noqa
     db.add(AuditedDummy(name="kilo", created_by="OTTO"))
     db.commit()
     obj = _reload(db, "kilo")
-    otto = db.query(UserModel).filter_by(automation_username="OTTO").one()
+    otto = db.query(AutomationModel).filter_by(display_name="OTTO").one()
     assert obj.created_by_id == otto.user_id
     assert obj.updated_by_id == otto.user_id
     assert obj.created_by == "OTTO"
@@ -288,12 +288,12 @@ def test_person_label_round_trip(db): # noqa
     db.add(person)
     db.commit()
     person_id = person.person_id
-    link_user_to_person(db, "AUDIT_TEST_CURATOR", person_id)
     db.add(AuditedDummy(name="mike", created_by="AGRKB:AUDIT-TEST-1"))
     db.commit()
     obj = _reload(db, "mike")
     assert obj.created_by == "AGRKB:AUDIT-TEST-1"
-    assert db.get(UserModel, obj.created_by_id).person_id == person_id
+    assert obj.created_by_id == person_id
+    assert isinstance(db.get(UserModel, person_id), PersonModel)
 
 
 def test_insert_sets_linkml_columns(db): # noqa

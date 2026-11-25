@@ -705,7 +705,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
         if ml:
             topic_entity_tag_data["ml_model_version"] = ml.version_num
 
-    # --- Map users.id -> person.display_name where users.person_id is not null ---
+    # --- Map agent labels (person curies) -> the person's display_name ---
     user_ids: Set[str] = set()
 
     # top-level created_by / updated_by
@@ -3084,7 +3084,7 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     last_date_updated = past_date.strftime("%Y-%m-%d")
 
     rows = db.execute(text(f"SELECT cr.curie, {audited_columns_sql(TopicEntityTagModel, 'tet')}, "
-                           "get_most_current_email(u.person_id) AS email "
+                           "get_most_current_email(u.id) AS email "  # person.id = agent.id
                            "FROM cross_reference cr "
                            "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
                            "JOIN tag_source tets ON tet.tag_source_id = tets.id "

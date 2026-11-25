@@ -61,6 +61,10 @@ PERSON_TABLES = {
 }
 
 
+# the loader's automation agent: by agent_type / display_name (SCRUM-6995), before that by automation_username
+_AUTOMATION_NAMED = "agent_type = 'automation' AND display_name = :loader"
+
+
 def loader_conditions(db, columns, loader_user):
     """(created by the loader, last updated by the loader) SQL conditions on
     alias t. The SCRUM-6719 schema holds agent.id in created_by_id /
@@ -68,10 +72,10 @@ def loader_conditions(db, columns, loader_user):
     user id string itself."""
     if "created_by_id" not in columns:
         return "t.created_by = :loader", "t.updated_by = :loader"
-    if db.execute(text("SELECT 1 FROM agent WHERE automation_username = :loader"),
+    if db.execute(text(f"SELECT 1 FROM agent WHERE {_AUTOMATION_NAMED}"),
                   {"loader": loader_user}).scalar() is None:
         raise SystemExit(f"no agent for {loader_user}")
-    agent = "(SELECT id FROM agent WHERE automation_username = :loader)"
+    agent = f"(SELECT id FROM agent WHERE {_AUTOMATION_NAMED})"
     return f"t.created_by_id = {agent}", f"t.updated_by_id = {agent}"
 
 

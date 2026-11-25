@@ -633,16 +633,16 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
         wft.id AS reference_workflow_tag_id,
         m.abbreviation,
         wft.workflow_tag_id,
-        COALESCE(get_most_current_email(u.person_id), u.automation_username, p.curie) AS updated_by_email,
-        COALESCE(p.display_name, u.automation_username, p.curie) AS updated_by_name,
-        COALESCE(u.automation_username, p.curie) AS updated_by,
+        COALESCE(get_most_current_email(p.id), p.curie, u.display_name) AS updated_by_email,
+        u.display_name AS updated_by_name,
+        COALESCE(p.curie, u.display_name) AS updated_by,
         wft.date_updated AS date_updated,
         wft.curation_tag,
         wft.note
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.id
     LEFT JOIN agent u ON wft.updated_by_id = u.id
-    LEFT JOIN person p ON p.id = u.person_id
+    LEFT JOIN person p ON p.id = u.id
     WHERE wft.reference_id = :reference_id
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
@@ -879,11 +879,11 @@ def add_email_and_name(db: Session, data: dict) -> dict:
     row = db.execute(
         text("""
             SELECT
-                COALESCE(p.display_name, :user_id) AS display_name,
+                COALESCE(u.display_name, :user_id) AS display_name,
                 COALESCE(get_most_current_email(p.id), :user_id)
                     AS email_address
             FROM person p
-            JOIN agent u ON u.person_id = p.id
+            JOIN agent u ON u.id = p.id
             WHERE p.curie = :user_id
             LIMIT 1
         """),

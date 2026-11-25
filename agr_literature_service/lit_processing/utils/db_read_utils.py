@@ -539,9 +539,9 @@ def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
             mca.mod_corpus_sort_source,
             mca.date_created,
             mca.date_updated,
-            COALESCE(cu.automation_username, cp.curie) AS created_by,
-            COALESCE(u.automation_username, up.curie) AS updated_by,
-            get_most_current_email(u.person_id) AS email
+            COALESCE(cp.curie, cu.display_name) AS created_by,
+            COALESCE(up.curie, u.display_name) AS updated_by,
+            get_most_current_email(up.id) AS email
         FROM
             mod_corpus_association mca
         JOIN
@@ -549,11 +549,11 @@ def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
         JOIN
             agent u ON u.id = mca.updated_by_id
         LEFT JOIN
-            person up ON up.id = u.person_id
+            person up ON up.id = u.id
         LEFT JOIN
             agent cu ON cu.id = mca.created_by_id
         LEFT JOIN
-            person cp ON cp.id = cu.person_id
+            person cp ON cp.id = cu.id
         WHERE
             mca.reference_id IN :ref_id_list
     """)

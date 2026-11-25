@@ -866,11 +866,11 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_open_access"] = crl.open_access
             rows = db.execute(
                 text(
-                    "SELECT COALESCE(u.automation_username, up.curie) AS updated_by, "
-                    "get_most_current_email(u.person_id) AS email "
+                    "SELECT COALESCE(up.curie, u.display_name) AS updated_by, "
+                    "get_most_current_email(up.id) AS email "
                     "FROM reference_version rv "
                     "JOIN agent u ON rv.updated_by_id = u.id "
-                    "LEFT JOIN person up ON up.id = u.person_id "
+                    "LEFT JOIN person up ON up.id = u.id "
                     "WHERE rv.curie = :curie "
                     "AND rv.copyright_license_id_mod IS true "
                     "ORDER BY rv.date_updated DESC LIMIT 1"
@@ -1874,13 +1874,13 @@ def get_recently_deleted_references(db: Session, mod_abbreviation, days):
     metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     sql_query = text(
-        "SELECT cr.curie, get_most_current_email(u.person_id) AS email, "
-        "COALESCE(u.automation_username, up.curie) "
+        "SELECT cr.curie, get_most_current_email(up.id) AS email, "
+        "COALESCE(up.curie, u.display_name) "
         "FROM cross_reference cr "
         "JOIN mod_corpus_association mca ON cr.reference_id = mca.reference_id "
         "JOIN mod m ON mca.mod_id = m.id "
         "JOIN agent u ON mca.updated_by_id = u.id "
-        "LEFT JOIN person up ON up.id = u.person_id "
+        "LEFT JOIN person up ON up.id = u.id "
         "WHERE cr.curie_prefix = 'PMID' "
         "AND mca.corpus = :corpus "
         "AND mca.date_updated >= :start_date "
