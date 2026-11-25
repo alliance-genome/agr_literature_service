@@ -30,8 +30,8 @@ class AuditLabelPlugin(Plugin):
     HIDDEN = ('db_date_created', 'db_date_updated', 'internal', 'obsolete')
     LABELS = (('created_by_id', 'created_by'), ('updated_by_id', 'updated_by'))
     _SQL_LABELS = text(
-        "SELECT a.id, COALESCE(a.automation_username, p.curie) FROM agent a "
-        "LEFT JOIN person p ON p.id = a.person_id WHERE a.id = ANY(:ids)"
+        "SELECT a.id, COALESCE(p.curie, a.display_name) FROM agent a "
+        "LEFT JOIN person p ON p.id = a.id WHERE a.id = ANY(:ids)"
     )
 
     def after_construct_changeset(self, version_obj, changeset):

@@ -2,16 +2,13 @@
 
 The Caltech pipelines record their curators by bare WormBase person id (WBPerson1843). Before SCRUM-6729 every
 such id became an automation agent of that name, even when ABC had the person (a WB:WBPerson1843 person cross
-reference). From SCRUM-6729 on, the resolver gives a WB person id that matches a person to that person, and claims
-the placeholder for them the first time it is used. This script does the same at once for every placeholder whose
-person is already in ABC:
+reference). From SCRUM-6729 on, the resolver gives a WB person id that matches a person to that person; the
+records already made under the placeholder stay on it until this script claims it.
 
-  - the person has no agent: the placeholder becomes their agent;
-  - the person already has one: the placeholder becomes a second agent of the same person.
-
-Either way the placeholder gets the person's id and loses its name, so every record it created or updated shows
-the person's curie. Only agent rows change, never the records. Placeholders whose person is not in ABC are left
-as they are; the WB person import (SCRUM-6458) claims them later the same way.
+Claiming merges the placeholder into the person (SCRUM-6995: a person is its own agent): every record it created
+or updated, history included, is attributed to the person and shows the person's curie, and the placeholder agent
+is deleted. That rewrites every audited table, so a run takes minutes. Placeholders whose person is not in ABC are
+left as they are; the WB person import (SCRUM-6458) claims them later the same way.
 
 Run after the SCRUM-6456 run on the same database: that script finds the curation status form rows by their
 WBPerson creator, and a claimed placeholder no longer looks like one. The script refuses to run while such rows
@@ -36,9 +33,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 _SQL_PLACEHOLDERS = text(r"""
-SELECT automation_username
+SELECT display_name
 FROM agent
-WHERE automation_username ~* '^WBPerson[0-9]+$'
+WHERE agent_type = 'automation' AND display_name ~* '^WBPerson[0-9]+$'
 ORDER BY id
 """)
 
@@ -47,7 +44,7 @@ _SQL_FORM_ROWS_LEFT = text(r"""
 SELECT count(*)
 FROM curation_status c
 JOIN mod m ON m.id = c.mod_id AND m.abbreviation = 'WB'
-JOIN agent a ON a.id = c.created_by_id AND a.automation_username LIKE 'WBPerson%'
+JOIN agent a ON a.id = c.created_by_id AND a.agent_type = 'automation' AND a.display_name LIKE 'WBPerson%'
 JOIN curation_status_source_association csa ON csa.curation_status_id = c.id
 JOIN tag_source ts ON ts.id = csa.tag_source_id
     AND ts.source_method = 'abc_literature_system' AND ts.secondary_data_provider_id = m.id
@@ -77,8 +74,9 @@ def claim_placeholders(db: Session, apply: bool = False) -> Dict[str, List[str]]
         else:
             result["not in ABC"].append(placeholder)
     if apply:
-        # claiming only re-points existing agents
-        assert db.execute(_SQL_AGENT_COUNT).scalar() == agents_before, "claiming created agents"
+        # each claim deletes exactly its placeholder agent
+        assert db.execute(_SQL_AGENT_COUNT).scalar() == agents_before - len(result["claimed"]), \
+            "claiming created or deleted other agents"
         db.commit()
     logger.info(f"{len(placeholders)} WB placeholder agents: {len(result['claimed'])} "
                 f"{'claimed' if apply else 'to claim'}, {len(result['not in ABC'])} not in ABC yet")
